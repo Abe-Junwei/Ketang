@@ -60,6 +60,7 @@
 | 层级 | 选型 | 说明 |
 |------|------|------|
 | 前端 | 原生 HTML + CSS + JS | 无构建步骤，直接打开即用 |
+| 开发检查 | npm devDependencies + ESLint | 仅开发/CI 使用，不进入发布产物，用户无需安装 Node |
 | 正式部署 | Cloudflare Pages | 线上 HTTPS 访问，寺院内部多人协同 |
 | 正式后端 | Cloudflare Functions | 业务 API + 会话认证 |
 | 正式数据库 | Cloudflare D1 | 多人共享的权威数据源 |

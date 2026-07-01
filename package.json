@@ -1,0 +1,18 @@
+{
+  "name": "ketang",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Temple guesthouse management system development checks.",
+  "scripts": {
+    "lint": "eslint js functions",
+    "lint:ci": "eslint js functions --max-warnings=0",
+    "format": "prettier --write \"**/*.{js,css,html,json,md,yml,yaml}\"",
+    "format:check": "prettier --check \"**/*.{js,css,html,json,md,yml,yaml}\""
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "eslint": "^10.6.0",
+    "globals": "^17.7.0",
+    "prettier": "^3.9.4"
+  }
+}

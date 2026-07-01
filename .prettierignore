@@ -1,0 +1,7 @@
+node_modules/
+lib/
+backup/
+data/
+客堂住宿系统.app/
+*.db
+*.db-journal

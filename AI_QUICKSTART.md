@@ -89,6 +89,7 @@ python3 test_cdp_migration.py    # V3 备份迁移至最新结构
 python3 test_headless.py         # HTTP 模式 headless 初始化冒烟
 python3 test_api_structure.py    # 云端 API 文件结构检查
 python3 test_file_protocol.py    # file:// 模式：验证本地双击打开可正常初始化
+npm run lint:ci                  # 开发期 JS/Functions ESLint 检查；不进入发布产物
 ```
 
 ## 5. 手动业务路径（每次改动后至少跑一条）
@@ -97,7 +98,7 @@ python3 test_file_protocol.py    # file:// 模式：验证本地双击打开可�
 
 ## 6. 不要做
 
-- 不引入 npm / Webpack / Vite / React / Vue。
+- 不引入会影响发布产物的 npm 运行依赖、Webpack、Vite、React、Vue；允许开发者使用 npm devDependencies 做 lint/test/format/CI。
 - 不上架商店、不使用 Electron / Tauri。
 - 不默认上云。
 - 现在 `index.html` 已拆分，修改前先确认相关函数在 `js/` 的哪个文件里；新增模块同样以普通 `<script src>` 接入。

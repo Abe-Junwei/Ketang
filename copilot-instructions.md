@@ -15,8 +15,8 @@ applies_to: ["cursor", "github-copilot", "kimi-cli"]
 
 ## 0. 高优先级硬规则
 
-1. **轻量文件组织**：核心入口为 `index.html`，样式在 `styles.css`，功能按模块放在 `js/*.js`，通过普通 `<script src>` 顺序加载；不引入 `src/features/`、npm 或 ES Module 构建体系。
-2. **不引入构建链**：无 npm / Webpack / Vite / React / Vue；保持原生 HTML/CSS/JS。
+1. **轻量文件组织**：核心入口为 `index.html`，样式在 `styles.css`，功能按模块放在 `js/*.js`，通过普通 `<script src>` 顺序加载；不引入 `src/features/` 或 ES Module 应用构建体系。
+2. **不引入运行时构建链**：发布产物不得依赖 npm、Node、Webpack、Vite、React、Vue；允许开发者使用 npm devDependencies 做 lint/test/format/CI，只要不改变用户运行方式。
 3. **数据不出院**：不默认使用公有云；本地 SQLite + IndexedDB。
 4. **无商店认证**：不上架 App Store / 微软商店；不用 Electron / Tauri 安装包。
 5. **`index.html` 复杂度阈值**：超过 2500 行时，同一任务必须提出拆分方案；拆分时保持非模块化 `<script src>`，确保 `file://` 可直接打开。
@@ -104,7 +104,7 @@ Plan 必含：
 ## 五、禁止模式
 
 1. 拆分出的 JS 模块未按依赖顺序在 `index.html` 中引入，或引入 ES Module 破坏 `file://` 兼容性。
-2. 引入与当前架构不一致的目录体系（如 npm、Webpack、React/Vue）。
+2. 引入与当前运行架构不一致的目录体系或构建链（如 Vite/Webpack/React/Vue，或要求用户安装 Node/npm）。
 3. 把简单功能过度抽象成多层函数。
 4. 未经验证就声称完成。
 5. 用户输入直接拼进 `innerHTML`。
