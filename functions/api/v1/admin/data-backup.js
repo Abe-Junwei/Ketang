@@ -26,6 +26,23 @@ const USERS_IMPORT_COLUMNS = [
   "must_change_password",
   "created_at",
 ];
+const VALID_USER_ROLES = new Set([
+  "admin",
+  "zhike",
+  "kitchen",
+  "housekeeping",
+  "viewer",
+]);
+const VALID_BED_STATUSES = new Set(["可用", "占用", "维修", "备用"]);
+const VALID_LODGER_STATUSES = new Set(["在住", "已退", "已取消", "No-show"]);
+const VALID_HOUSEKEEPING_STATUSES = new Set([
+  "脏房",
+  "净房",
+  "查房",
+  "可用",
+  "占用",
+  "维修",
+]);
 
 const EXPORT_TABLES = [
   "users",
@@ -65,12 +82,15 @@ function fallbackPassword(username) {
 }
 
 function normalizeUserImportRows(rows) {
-  return rows.map((raw) => {
+  return rows.map((raw, index) => {
     const username = String(raw?.username || "").trim();
     if (!username) {
-      throw new Error("备份 users.username 缺失");
+      throw new Error(`备份 users 第 ${index + 1} 行 username 缺失`);
     }
     const role = String(raw?.role || "zhike").trim() || "zhike";
+    if (!VALID_USER_ROLES.has(role)) {
+      throw new Error(`备份 users 第 ${index + 1} 行 role 无效：${role}`);
+    }
     const password =
       typeof raw?.password === "string" && raw.password.trim()
         ? raw.password.trim()
@@ -100,6 +120,75 @@ function collectColumns(rows) {
     Object.keys(row || {}).forEach((key) => names.add(key));
   });
   return Array.from(names);
+}
+
+function requireValue(row, table, rowIndex, column) {
+  if (row?.[column] == null || String(row[column]).trim() === "") {
+    throw new Error(`备份 ${table} 第 ${rowIndex + 1} 行 ${column} 缺失`);
+  }
+}
+
+function validateImportRows(table, rows) {
+  rows.forEach((row, index) => {
+    if (table === "rooms") {
+      requireValue(row, table, index, "name");
+    }
+    if (table === "beds") {
+      requireValue(row, table, index, "room_id");
+      requireValue(row, table, index, "bed_number");
+      const status = row.status || "可用";
+      if (!VALID_BED_STATUSES.has(status)) {
+        throw new Error(`备份 beds 第 ${index + 1} 行 status 无效：${status}`);
+      }
+    }
+    if (table === "lodgers") {
+      requireValue(row, table, index, "name");
+      const status = row.status || "在住";
+      if (!VALID_LODGER_STATUSES.has(status)) {
+        throw new Error(
+          `备份 lodgers 第 ${index + 1} 行 status 无效：${status}`,
+        );
+      }
+    }
+    if (table === "housekeeping") {
+      requireValue(row, table, index, "bed_id");
+      const status = row.status || "净房";
+      if (!VALID_HOUSEKEEPING_STATUSES.has(status)) {
+        throw new Error(
+          `备份 housekeeping 第 ${index + 1} 行 status 无效：${status}`,
+        );
+      }
+    }
+  });
+}
+
+function validateActiveBedConflicts(tables) {
+  const activeByBed = new Map();
+  const lodgers = Array.isArray(tables.lodgers) ? tables.lodgers : [];
+  lodgers.forEach((row, index) => {
+    if ((row.status || "在住") !== "在住" || row.bed_id == null) return;
+    const key = String(row.bed_id);
+    const existing = activeByBed.get(key);
+    if (existing != null) {
+      throw new Error(
+        `备份 lodgers 第 ${existing + 1} 行与第 ${index + 1} 行重复占用床位 ${key}`,
+      );
+    }
+    activeByBed.set(key, index);
+  });
+}
+
+async function runImportStatements(env, statements) {
+  for (const statement of statements) {
+    try {
+      await runD1(env, statement.sql, statement.params);
+    } catch (error) {
+      const where = statement.table
+        ? `${statement.table}${statement.rowIndex != null ? ` 第 ${statement.rowIndex + 1} 行` : ""}`
+        : "导入语句";
+      throw new Error(`${where} 导入失败：${error?.message || error}`);
+    }
+  }
 }
 
 export async function onRequestGet({ request, env }) {
@@ -134,32 +223,37 @@ export async function onRequestPost({ request, env }) {
     if (!body.confirm)
       return json({ error: "请设置 confirm: true 确认覆盖导入" }, 400);
 
+    validateActiveBedConflicts(body.tables);
     const statements = [];
     for (const table of DELETE_ORDER) {
-      statements.push({ sql: `DELETE FROM ${table}`, params: [] });
+      statements.push({ table, sql: `DELETE FROM ${table}`, params: [] });
     }
     for (const table of EXPORT_TABLES) {
       const inputRows = body.tables[table];
       if (!Array.isArray(inputRows) || !inputRows.length) continue;
       const rows =
         table === "users" ? normalizeUserImportRows(inputRows) : inputRows;
+      validateImportRows(table, rows);
       const columns =
         table === "users" ? USERS_IMPORT_COLUMNS : collectColumns(rows);
       if (!columns.every((c) => /^[a-z_][a-z0-9_]*$/i.test(c)))
         throw new Error("备份列名无效");
       const placeholders = columns.map(() => "?").join(", ");
-      rows.forEach((row) => {
+      rows.forEach((row, rowIndex) => {
         statements.push({
+          table,
+          rowIndex,
           sql: `INSERT INTO ${table} (${columns.join(", ")}) VALUES (${placeholders})`,
           params: columns.map((col) => row[col] ?? null),
         });
       });
     }
     statements.push({
+      table: "app_meta",
       sql: "INSERT INTO app_meta (key, value) VALUES ('board_version', '1') ON CONFLICT(key) DO UPDATE SET value = CAST(CAST(value AS INTEGER) + 1 AS TEXT)",
       params: [],
     });
-    await batchD1Chunked(env, statements);
+    await runImportStatements(env, statements);
     return json({ ok: true, imported_tables: Object.keys(body.tables) });
   } catch (error) {
     const status = apiErrorStatus(error);
