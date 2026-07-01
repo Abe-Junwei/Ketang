@@ -18,31 +18,95 @@ export const READ_MODEL_TABLES = [
   "app_meta",
 ];
 
-const ZHIKE_OMIT = new Set(["users"]);
-
 const TABLE_NAME_RE = /^[a-z_][a-z0-9_]*$/i;
 
-function tablesForRole(role) {
-  if (role === "admin") return READ_MODEL_TABLES;
-  return READ_MODEL_TABLES.filter((name) => !ZHIKE_OMIT.has(name));
+const META_TABLES = ["schema_version", "app_meta"];
+
+/** 各角色可读表 | Role-specific table allowlist */
+const ROLE_READ_TABLES = {
+  admin: READ_MODEL_TABLES,
+  zhike: READ_MODEL_TABLES.filter(
+    (name) => name !== "users" && name !== "audit_logs",
+  ),
+  kitchen: [...META_TABLES, "rooms", "beds", "guests", "lodgers", "meals"],
+  housekeeping: [...META_TABLES, "rooms", "beds", "lodgers", "housekeeping"],
+  viewer: [
+    ...META_TABLES,
+    "rooms",
+    "beds",
+    "guests",
+    "events",
+    "lodgers",
+    "reservations",
+    "meals",
+  ],
+};
+
+const GUEST_SENSITIVE_FIELDS = [
+  "id_card",
+  "phone",
+  "emergency_contact",
+  "emergency_phone",
+];
+const LODGER_SENSITIVE_FIELDS = ["id_card", "phone"];
+const USER_NEVER_FIELDS = ["password"];
+
+/** 按角色返回表清单 | Resolve table list for role */
+export function tablesForRole(role) {
+  return (ROLE_READ_TABLES[role] || ROLE_READ_TABLES.viewer).slice();
+}
+
+function maskSensitiveValue(value) {
+  const text = String(value || "");
+  if (text.length <= 4) return "****";
+  return text.slice(0, 2) + "****" + text.slice(-2);
+}
+
+/** 字段级脱敏 | Strip or mask sensitive columns per role */
+export function sanitizeRowForRole(table, row, role) {
+  if (!row || typeof row !== "object") return row;
+  const copy = { ...row };
+  if (table === "users") {
+    USER_NEVER_FIELDS.forEach((field) => delete copy[field]);
+    return copy;
+  }
+  if (role === "admin" || role === "zhike") return copy;
+  if (table === "guests") {
+    GUEST_SENSITIVE_FIELDS.forEach((field) => {
+      if (copy[field]) copy[field] = maskSensitiveValue(copy[field]);
+    });
+  }
+  if (table === "lodgers") {
+    LODGER_SENSITIVE_FIELDS.forEach((field) => {
+      if (copy[field]) copy[field] = maskSensitiveValue(copy[field]);
+    });
+  }
+  return copy;
 }
 
 export async function buildReadModel(env, session, options) {
   if (!options?.skipInit) {
     await initRemoteDatabase(env);
   }
+  const permissions = await getSessionPermissions(env, session);
+  if (!permissions.includes("board.read")) {
+    throw new Error("权限不足");
+  }
   const tables = tablesForRole(session.role);
   const data = {};
   for (const table of tables) {
     if (!TABLE_NAME_RE.test(table)) throw new Error("无效的表名");
-    data[table] = await queryD1(env, `SELECT * FROM ${table}`, []);
+    const rows = await queryD1(env, `SELECT * FROM ${table}`, []);
+    data[table] = rows.map((row) =>
+      sanitizeRowForRole(table, row, session.role),
+    );
   }
   const version = await getBoardVersion(env);
   return {
     version,
     synced_at: new Date().toISOString(),
     role: session.role,
-    permissions: await getSessionPermissions(env, session),
+    permissions,
     tables: data,
   };
 }

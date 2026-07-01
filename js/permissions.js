@@ -83,7 +83,9 @@ function setSessionPermissions(perms) {
   if (typeof currentUser !== "undefined" && currentUser) {
     currentUser.permissions = perms.slice();
     localStorage.setItem(
-      typeof AUTH_STORAGE_KEY !== "undefined" ? AUTH_STORAGE_KEY : "ketang_current_user",
+      typeof AUTH_STORAGE_KEY !== "undefined"
+        ? AUTH_STORAGE_KEY
+        : "ketang_current_user",
       JSON.stringify(currentUser),
     );
   }

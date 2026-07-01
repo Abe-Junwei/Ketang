@@ -3,7 +3,7 @@ import { json } from "./http.js";
 /** 是否返回阶段耗时 | Include stage timing in response */
 export function wantTiming(request) {
   try {
-    const url = new URL(request.url);
+    const url = new globalThis.URL(request.url);
     if (url.searchParams.get("timing") === "1") return true;
   } catch (e) {
     /* ignore */

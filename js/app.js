@@ -466,10 +466,7 @@ async function renderAll(options) {
     } else {
       try {
         const result = await apiBoardVersion();
-        if (
-          lastBoardVersion == null ||
-          result.version !== lastBoardVersion
-        ) {
+        if (lastBoardVersion == null || result.version !== lastBoardVersion) {
           await syncRemoteReadModel({ force: true });
         }
         lastBoardVersion = result.version;

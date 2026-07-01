@@ -143,7 +143,8 @@ function clearAuthSession() {
   currentUser = null;
   localStorage.removeItem(AUTH_STORAGE_KEY);
   if (typeof setRemoteSessionToken === "function") setRemoteSessionToken("");
-  if (typeof resetRemoteReadModelState === "function") resetRemoteReadModelState();
+  if (typeof resetRemoteReadModelState === "function")
+    resetRemoteReadModelState();
   syncAuthBodyClass();
 }
 

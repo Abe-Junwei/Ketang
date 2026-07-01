@@ -5,6 +5,8 @@ import sys
 
 ROOT = Path(__file__).resolve().parent
 REQUIRED = [
+    '_headers',
+    'functions/_middleware.js',
     'functions/_shared/http.js',
     'functions/_shared/schema.js',
     'functions/_shared/auth.js',
@@ -70,5 +72,40 @@ d1 = (ROOT / 'functions/_shared/d1.js').read_text(encoding='utf-8')
 if 'KETANG_DB.exec(SCHEMA_SQL)' in d1:
     print('FAIL remote D1 schema must run statements individually')
     sys.exit(1)
+
+middleware = (ROOT / 'functions/_middleware.js').read_text(encoding='utf-8')
+for path in [
+    '/docs/*',
+    '/backup/*',
+    '/data/*',
+    '/functions/*',
+    '/package.json',
+    '/wrangler.toml',
+    '/test_cdp.py',
+    '/ketang.db',
+]:
+    path_token = path[:-1] if path.endswith('*') else path
+    if path_token not in middleware:
+        print('FAIL functions/_middleware.js missing public-surface block for %s' % path)
+        sys.exit(1)
+
+if 'status: 404' not in middleware or 'context.next()' not in middleware:
+    print('FAIL functions/_middleware.js must 404 blocked paths and continue allowed paths')
+    sys.exit(1)
+
+if 'globalThis.URL' not in middleware:
+    print('FAIL functions/_middleware.js must use globalThis.URL for ESLint-safe URL parsing')
+    sys.exit(1)
+
+headers = (ROOT / '_headers').read_text(encoding='utf-8')
+for header in [
+    'X-Frame-Options: DENY',
+    'X-Content-Type-Options: nosniff',
+    'Referrer-Policy: no-referrer',
+    'Permissions-Policy:',
+]:
+    if header not in headers:
+        print('FAIL _headers missing security header %s' % header)
+        sys.exit(1)
 
 print('OK online API structure (%d files)' % len(REQUIRED))

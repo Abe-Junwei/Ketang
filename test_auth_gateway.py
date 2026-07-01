@@ -65,6 +65,29 @@ def test_permissions_layer_exists():
     if 'requirePermission' not in check_in or 'lodging.checkin' not in check_in:
         print('FAIL check-in.js missing lodging.checkin permission guard')
         sys.exit(1)
+    delete_lodger = read('functions/api/v1/delete-lodger.js')
+    if 'lodging.edit' not in delete_lodger:
+        print('FAIL delete-lodger.js missing lodging.edit permission guard')
+        sys.exit(1)
+    backup = read('functions/api/v1/admin/data-backup.js')
+    if 'backup.read' not in backup or 'backup.write' not in backup:
+        print('FAIL data-backup.js missing backup permission guards')
+        sys.exit(1)
+
+
+def test_read_model_role_tables():
+    model = read('functions/_shared/read-model.js')
+    if 'ROLE_READ_TABLES' not in model or 'sanitizeRowForRole' not in model:
+        print('FAIL read-model.js missing role table/filter helpers')
+        sys.exit(1)
+    if "'payments'" in model and 'kitchen:' in model:
+        kitchen_block = re.search(r'kitchen:\s*\[([\s\S]*?)\],', model)
+        if not kitchen_block or 'payments' in kitchen_block.group(1):
+            print('FAIL kitchen read-model must not include payments')
+            sys.exit(1)
+    if 'tablesForRole' not in model:
+        print('FAIL read-model.js missing tablesForRole export')
+        sys.exit(1)
 
 
 def test_admin_update_returns_token():
@@ -172,6 +195,7 @@ TESTS = [
     test_users_action_skips_init,
     test_remote_init_marks_ready_after_existing_db,
     test_permissions_layer_exists,
+    test_read_model_role_tables,
     test_admin_update_returns_token,
     test_frontend_unauthorized_handler,
     test_session_query_binding,

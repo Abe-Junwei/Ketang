@@ -1,4 +1,4 @@
-import { json, readJson } from "../../../_shared/http.js";
+import { json, readJson, apiErrorStatus } from "../../../_shared/http.js";
 import { requireSession, signSession } from "../../../_shared/auth.js";
 import {
   initRemoteDatabase,
@@ -24,11 +24,7 @@ export async function onRequestGet({ request, env }) {
     const users = await listUsers(env, session);
     return json({ users });
   } catch (error) {
-    const status = /登录已过期/.test(error.message)
-      ? 401
-      : /管理员/.test(error.message)
-        ? 403
-        : 500;
+    const status = apiErrorStatus(error, 400);
     return json({ error: safeErrorMessage(error) }, status);
   }
 }
@@ -57,11 +53,7 @@ export async function onRequestPost({ request, env }) {
       return json(await resetUserPassword(env, session, body));
     return json({ error: "未知 action" }, 400);
   } catch (error) {
-    const status = /登录已过期/.test(error.message)
-      ? 401
-      : /管理员/.test(error.message)
-        ? 403
-        : 400;
+    const status = apiErrorStatus(error, 400);
     return json({ error: safeErrorMessage(error) }, status);
   }
 }

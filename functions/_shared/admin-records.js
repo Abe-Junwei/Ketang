@@ -6,7 +6,7 @@ import {
   runD1,
 } from "./d1.js";
 import { parsePersonNameInput } from "./person.js";
-import { requireAdmin } from "./auth.js";
+import { requirePermission } from "./permissions.js";
 
 const DORM_TYPES = new Set(["男寮", "女寮", "不限"]);
 const BED_STATUSES = new Set(["可用", "维修", "备用"]);
@@ -658,7 +658,7 @@ async function updateLodgerRecord(env, session, body) {
 }
 
 export async function handleAdminRecord(env, session, body) {
-  requireAdmin(session);
+  await requirePermission(env, session, "settings.write");
   const resource = body.resource;
   const action = body.action;
   if (resource === "room" && (action === "create" || action === "update"))

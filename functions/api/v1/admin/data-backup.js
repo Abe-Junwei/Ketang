@@ -1,5 +1,5 @@
-import { json, readJson } from "../../../_shared/http.js";
-import { requireSession, requireAdmin } from "../../../_shared/auth.js";
+import { json, readJson, apiErrorStatus } from "../../../_shared/http.js";
+import { requireSession } from "../../../_shared/auth.js";
 import {
   batchD1Chunked,
   initRemoteDatabase,
@@ -7,6 +7,7 @@ import {
   runD1,
   safeErrorMessage,
 } from "../../../_shared/d1.js";
+import { requirePermission } from "../../../_shared/permissions.js";
 
 const EXPORT_TABLES = [
   "users",
@@ -45,7 +46,7 @@ export async function onRequestGet({ request, env }) {
     const session = await requireSession(request, env, (sql, p) =>
       queryD1(env, sql, p),
     );
-    requireAdmin(session);
+    await requirePermission(env, session, "backup.read");
     await initRemoteDatabase(env);
     const data = {};
     for (const table of EXPORT_TABLES) {
@@ -53,11 +54,7 @@ export async function onRequestGet({ request, env }) {
     }
     return json({ exported_at: new Date().toISOString(), tables: data });
   } catch (error) {
-    const status = /登录已过期/.test(error.message)
-      ? 401
-      : /管理员/.test(error.message)
-        ? 403
-        : 500;
+    const status = apiErrorStatus(error);
     return json({ error: safeErrorMessage(error) }, status);
   }
 }
@@ -68,7 +65,7 @@ export async function onRequestPost({ request, env }) {
     const session = await requireSession(request, env, (sql, p) =>
       queryD1(env, sql, p),
     );
-    requireAdmin(session);
+    await requirePermission(env, session, "backup.write");
     const body = await readJson(request);
     if (!body?.tables || typeof body.tables !== "object")
       return json({ error: "请求格式错误" }, 400);
@@ -100,11 +97,7 @@ export async function onRequestPost({ request, env }) {
     await batchD1Chunked(env, statements);
     return json({ ok: true, imported_tables: Object.keys(body.tables) });
   } catch (error) {
-    const status = /登录已过期/.test(error.message)
-      ? 401
-      : /管理员/.test(error.message)
-        ? 403
-        : 500;
+    const status = apiErrorStatus(error);
     return json({ error: safeErrorMessage(error) }, status);
   }
 }

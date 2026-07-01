@@ -1,12 +1,11 @@
 import {
-  requireAdmin,
   mustChangePassword,
   verifySession,
   verifyPassword,
   hashPasswordPlain,
 } from "./auth.js";
 import { insertAudit, queryD1, runD1 } from "./d1.js";
-import { getSessionPermissions } from "./permissions.js";
+import { getSessionPermissions, requirePermission } from "./permissions.js";
 
 const WEAK_PASSWORDS = new Set([
   "admin",
@@ -101,7 +100,7 @@ export async function getSessionUser(env, request, queryD1) {
 }
 
 export async function listUsers(env, session) {
-  requireAdmin(session);
+  await requirePermission(env, session, "users.read");
   return queryD1(
     env,
     "SELECT id, username, display_name, role, is_active, must_change_password, created_at FROM users ORDER BY role, username",
@@ -110,7 +109,7 @@ export async function listUsers(env, session) {
 }
 
 export async function createUser(env, session, body) {
-  requireAdmin(session);
+  await requirePermission(env, session, "users.write");
   const username = validateUsername(body.username);
   const password = validateNewPassword(body.password);
   const displayName = String(body.display_name || "").trim() || null;
@@ -139,7 +138,7 @@ export async function createUser(env, session, body) {
 }
 
 export async function updateUser(env, session, body) {
-  requireAdmin(session);
+  await requirePermission(env, session, "users.write");
   const id = parseInt(body.user_id, 10);
   if (!id) throw new Error("缺少用户 ID");
   const rows = await queryD1(env, "SELECT * FROM users WHERE id = ? LIMIT 1", [
@@ -197,7 +196,7 @@ export async function updateUser(env, session, body) {
 }
 
 export async function deactivateUser(env, session, body) {
-  requireAdmin(session);
+  await requirePermission(env, session, "users.write");
   const id = parseInt(body.user_id, 10);
   if (!id) throw new Error("缺少用户 ID");
   if (id === (session.id || session.sub))
@@ -229,7 +228,7 @@ export async function deactivateUser(env, session, body) {
 }
 
 export async function reactivateUser(env, session, body) {
-  requireAdmin(session);
+  await requirePermission(env, session, "users.write");
   const id = parseInt(body.user_id, 10);
   if (!id) throw new Error("缺少用户 ID");
   const rows = await queryD1(env, "SELECT * FROM users WHERE id = ? LIMIT 1", [
@@ -251,7 +250,7 @@ export async function reactivateUser(env, session, body) {
 }
 
 export async function resetUserPassword(env, session, body) {
-  requireAdmin(session);
+  await requirePermission(env, session, "users.write");
   const id = parseInt(body.user_id, 10);
   if (!id) throw new Error("缺少用户 ID");
   const password = validateNewPassword(body.password);
