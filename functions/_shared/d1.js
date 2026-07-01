@@ -52,6 +52,9 @@ async function runSchemaSql(env, schemaSql) {
   }
 }
 
+let remoteInitPromise = null;
+let remoteInitReady = false;
+
 async function repairUsersTableState(env) {
   await runD1(env, "DROP TABLE IF EXISTS users_new", []);
   const tables = await queryD1(
@@ -167,6 +170,15 @@ async function ensureDefaultUsers(env) {
 }
 
 export async function initRemoteDatabase(env) {
+  if (remoteInitReady) return false;
+  if (remoteInitPromise) return remoteInitPromise;
+  remoteInitPromise = initRemoteDatabaseOnce(env).finally(() => {
+    remoteInitPromise = null;
+  });
+  return remoteInitPromise;
+}
+
+async function initRemoteDatabaseOnce(env) {
   await repairUsersTableState(env);
   try {
     await runSchemaSql(env, SCHEMA_SQL);
@@ -196,6 +208,7 @@ export async function initRemoteDatabase(env) {
       [bed.id, bed.status === "维修" ? "维修" : "净房", "云端初始化"],
     );
   }
+  remoteInitReady = true;
   return true;
 }
 

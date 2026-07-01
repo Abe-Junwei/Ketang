@@ -9,6 +9,8 @@ const AUTH_STORAGE_KEY = "ketang_current_user";
 let currentUser = null;
 let cachedAdminUsers = [];
 let pendingLoginPassword = null;
+let loginSubmitting = false;
+let forcePasswordSubmitting = false;
 
 function applySessionRefresh(result) {
   if (!result) return;
@@ -340,6 +342,7 @@ function showLoginOverlay() {
   if (passwordEl) passwordEl.value = "";
   if (overlay) overlay.classList.add("active");
   syncAuthBodyClass();
+  setLoginPending(false);
   populateLoginUsers();
 }
 
@@ -351,12 +354,8 @@ function hideLoginOverlay() {
 
 async function populateLoginUsers() {
   const sel = document.getElementById("login-username");
-  const errorEl = document.getElementById("login-error");
   if (!sel) return;
   teardownLoginSelectPicker(sel);
-  sel.disabled = true;
-  sel.innerHTML = '<option value="">正在加载身份…</option>';
-  if (errorEl) errorEl.textContent = "";
 
   let html = '<option value="">请选择身份</option>';
   USER_ROLE_OPTIONS.forEach((opt) => {
@@ -367,10 +366,34 @@ async function populateLoginUsers() {
 
   sel.innerHTML = html;
   sel.value = "";
-  sel.disabled = false;
+}
+
+function setLoginPending(isPending) {
+  loginSubmitting = !!isPending;
+  setPendingState({
+    inputIds: ["login-username", "login-password"],
+    buttonId: "login-submit-btn",
+    pending: loginSubmitting,
+    pendingText: "登录中…",
+    idleText: "登录",
+  });
+}
+
+function setPendingState(options) {
+  const pending = !!options.pending;
+  (options.inputIds || []).forEach((id) => {
+    const input = document.getElementById(id);
+    if (input) input.disabled = pending;
+  });
+  const btn = document.getElementById(options.buttonId);
+  if (!btn) return;
+  btn.disabled = pending;
+  btn.setAttribute("aria-busy", pending ? "true" : "false");
+  btn.textContent = pending ? options.pendingText : options.idleText;
 }
 
 async function submitLogin() {
+  if (loginSubmitting) return;
   const selectedRole = document.getElementById("login-username").value;
   const password = document.getElementById("login-password").value;
   const errorEl = document.getElementById("login-error");
@@ -382,6 +405,8 @@ async function submitLogin() {
     if (errorEl) errorEl.textContent = "请输入密码";
     return;
   }
+  setLoginPending(true);
+  if (errorEl) errorEl.textContent = "正在验证身份，请稍候…";
   try {
     if (await loginByRole(selectedRole, password)) {
       if (errorEl) errorEl.textContent = "";
@@ -397,6 +422,8 @@ async function submitLogin() {
     }
   } catch (e) {
     if (errorEl) errorEl.textContent = e.message || "登录失败";
+  } finally {
+    setLoginPending(false);
   }
 }
 
@@ -406,8 +433,8 @@ function showForceChangePasswordModal() {
   document.body.insertAdjacentHTML(
     "beforeend",
     `
-    <div class="modal-overlay active" id="force-password-modal">
-      <div class="modal">
+    <div class="modal-backdrop active" id="force-password-modal">
+      <div class="modal force-password-modal-card">
         <div class="modal-header"><h3>请修改密码</h3></div>
         <div class="modal-body">
           <p class="empty-tip">当前账号需要设置新密码后才能继续使用系统。</p>
@@ -415,7 +442,7 @@ function showForceChangePasswordModal() {
           <div class="field"><label>确认新密码</label><input type="password" id="force-new-password2" minlength="6"></div>
           <p class="field-error" id="force-password-error"></p>
           <div class="btn-bar">
-            <button type="button" class="btn btn-primary" onclick="submitForceChangePassword()">保存新密码</button>
+            <button type="button" id="force-password-submit-btn" class="btn btn-primary" onclick="submitForceChangePassword()">保存新密码</button>
           </div>
         </div>
       </div>
@@ -424,7 +451,19 @@ function showForceChangePasswordModal() {
   );
 }
 
+function setForcePasswordPending(isPending) {
+  forcePasswordSubmitting = !!isPending;
+  setPendingState({
+    inputIds: ["force-new-password", "force-new-password2"],
+    buttonId: "force-password-submit-btn",
+    pending: forcePasswordSubmitting,
+    pendingText: "保存中…",
+    idleText: "保存新密码",
+  });
+}
+
 async function submitForceChangePassword() {
+  if (forcePasswordSubmitting) return;
   const p1 = document.getElementById("force-new-password").value;
   const p2 = document.getElementById("force-new-password2").value;
   const errEl = document.getElementById("force-password-error");
@@ -442,6 +481,8 @@ async function submitForceChangePassword() {
     if (errEl) errEl.textContent = e.message;
     return;
   }
+  setForcePasswordPending(true);
+  if (errEl) errEl.textContent = "正在保存新密码，请稍候…";
   try {
     if (typeof isRemoteDB === "function" && isRemoteDB()) {
       const result = await apiChangePassword(pendingLoginPassword || "", p1);
@@ -468,6 +509,8 @@ async function submitForceChangePassword() {
     if (typeof startBoardPolling === "function") startBoardPolling();
   } catch (e) {
     if (errEl) errEl.textContent = e.message || "修改失败";
+  } finally {
+    setForcePasswordPending(false);
   }
 }
 

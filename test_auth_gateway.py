@@ -98,6 +98,30 @@ def test_role_login_gateway():
         sys.exit(1)
 
 
+def test_login_ui_has_no_fake_identity_loading():
+    index = read('index.html')
+    auth = read('js/auth.js')
+    if '正在加载身份' in auth or '正在加载身份' in index:
+        print('FAIL login role selector must render fixed identities without fake loading')
+        sys.exit(1)
+    if 'login-submit-btn' not in index:
+        print('FAIL login submit button missing stable id for pending state')
+        sys.exit(1)
+    if 'setLoginPending' not in auth or '登录中' not in auth or 'aria-busy' not in auth:
+        print('FAIL auth.js missing login pending UI state')
+        sys.exit(1)
+
+
+def test_remote_init_cached_for_auth_latency():
+    d1 = read('functions/_shared/d1.js')
+    if 'remoteInitPromise' not in d1 or 'remoteInitReady' not in d1:
+        print('FAIL initRemoteDatabase must cache successful initialization')
+        sys.exit(1)
+    if 'async function initRemoteDatabaseOnce' not in d1:
+        print('FAIL initRemoteDatabase must delegate full setup to one-shot initializer')
+        sys.exit(1)
+
+
 def test_anonymous_users_action_does_not_enumerate_accounts():
     db_api = read('functions/api/db.js')
     users_action = re.search(r'if \(payload\.action === "users"\) \{([\s\S]*?)\n    \}', db_api)
@@ -118,6 +142,8 @@ TESTS = [
     test_session_query_binding,
     test_user_role_migration_guard,
     test_role_login_gateway,
+    test_login_ui_has_no_fake_identity_loading,
+    test_remote_init_cached_for_auth_latency,
     test_anonymous_users_action_does_not_enumerate_accounts,
 ]
 
