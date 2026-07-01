@@ -135,6 +135,7 @@ function clearAuthSession() {
   currentUser = null;
   localStorage.removeItem(AUTH_STORAGE_KEY);
   if (typeof setRemoteSessionToken === "function") setRemoteSessionToken("");
+  if (typeof resetRemoteReadModelState === "function") resetRemoteReadModelState();
   syncAuthBodyClass();
 }
 
@@ -414,7 +415,7 @@ async function submitLogin() {
       document.getElementById("login-password").value = "";
       hideLoginOverlay();
       if (!document.getElementById("force-password-modal")) {
-        renderAll();
+        await renderAll();
         if (typeof startBoardPolling === "function") startBoardPolling();
       }
     } else if (errorEl) {
@@ -505,7 +506,7 @@ async function submitForceChangePassword() {
     pendingLoginPassword = null;
     hideLoginOverlay();
     showToast("密码已更新");
-    renderAll();
+    await renderAll();
     if (typeof startBoardPolling === "function") startBoardPolling();
   } catch (e) {
     if (errEl) errEl.textContent = e.message || "修改失败";

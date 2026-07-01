@@ -32,7 +32,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       hideLoginOverlay();
       mountFormMealNeedPickers();
       mountLodgerRoleSelects();
-      renderAll();
+      await renderAll();
       document.getElementById("ci-in").valueAsDate = new Date();
       startBoardPolling();
     } else {
@@ -450,8 +450,15 @@ function renderLodgingOccupancyChart() {
   );
 }
 
-function renderAll() {
+async function renderAll(options) {
   if (typeof isLoggedIn === "function" && !isLoggedIn()) return;
+  if (
+    isRemoteDB() &&
+    getRemoteSessionToken() &&
+    !(options && options.skipSync)
+  ) {
+    await syncRemoteReadModel({ force: true });
+  }
   renderRooms();
   renderBoard();
   renderLodgers();
@@ -509,7 +516,7 @@ function startBoardPolling() {
     try {
       const result = await apiBoardVersion();
       if (lastBoardVersion != null && result.version !== lastBoardVersion)
-        renderAll();
+        await renderAll({ forceSync: true });
       lastBoardVersion = result.version;
     } catch (e) {
       /* 轮询失败静默 | ignore poll errors */

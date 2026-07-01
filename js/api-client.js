@@ -165,6 +165,10 @@ async function apiChangePassword(oldPassword, newPassword) {
   });
 }
 
+async function apiReadModel() {
+  return apiFetch("/api/v1/read-model");
+}
+
 async function apiExportJsonBackup() {
   return apiFetch("/api/v1/admin/data-backup");
 }

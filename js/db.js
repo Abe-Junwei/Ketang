@@ -16,6 +16,45 @@ const REMOTE_DB_ENABLED = (() => {
 })();
 
 let remoteLastInsertId = 0;
+let remoteLocalSchemaReady = false;
+let remoteReadModelReady = false;
+let _remoteHydrating = false;
+let remoteSyncPromise = null;
+let lastRemoteSyncAt = 0;
+
+const REMOTE_SNAPSHOT_DELETE_ORDER = [
+  "audit_logs",
+  "housekeeping",
+  "payments",
+  "meals",
+  "reservations",
+  "lodgers",
+  "events",
+  "guests",
+  "beds",
+  "rooms",
+  "users",
+  "schema_version",
+  "app_meta",
+];
+
+const REMOTE_SNAPSHOT_INSERT_ORDER = [
+  "users",
+  "rooms",
+  "beds",
+  "guests",
+  "events",
+  "lodgers",
+  "reservations",
+  "meals",
+  "payments",
+  "housekeeping",
+  "audit_logs",
+  "schema_version",
+  "app_meta",
+];
+
+const REMOTE_SNAPSHOT_TABLE_RE = /^[a-z_][a-z0-9_]*$/i;
 
 function isRemoteDB() {
   return REMOTE_DB_ENABLED;
@@ -99,7 +138,7 @@ function remoteListLoginUsers() {
 }
 
 async function initSqlite() {
-  if (isRemoteDB()) return;
+  if (SQL) return;
   const wasmPath = "./lib/sql-wasm.wasm";
   const response = await fetch(wasmPath);
   if (!response.ok) {
@@ -127,15 +166,124 @@ function openIDB() {
   });
 }
 
+function initLocalSchemaAndMigrations() {
+  initSchema();
+  migrateV1toV2();
+  migrateV2toV3();
+  migrateV3toV4();
+  migrateV4toV5();
+  migrateV5toV6();
+  migrateV6toV7();
+  migrateV7toV8();
+  migrateV8toV9();
+  migrateV9toV10();
+  migrateV10toV11();
+  migrateV11toV12();
+  migrateV12toV13();
+  migrateV13toV14();
+  migrateV14toV15();
+  createIndexes();
+}
+
+function ensureRemoteLocalSchema() {
+  if (remoteLocalSchemaReady && db && typeof db.prepare === "function") return;
+  if (!SQL) throw new Error("SQLite 引擎未加载");
+  db = new SQL.Database();
+  initLocalSchemaAndMigrations();
+  remoteLocalSchemaReady = true;
+}
+
+function insertSnapshotRow(table, row) {
+  const columns = Object.keys(row || {});
+  if (!columns.length) return;
+  const placeholders = columns.map(() => "?").join(", ");
+  const sql = `INSERT INTO ${table} (${columns.join(", ")}) VALUES (${placeholders})`;
+  const values = columns.map((col) => {
+    const value = row[col];
+    return value === undefined ? null : value;
+  });
+  run(sql, values);
+}
+
+function applyRemoteSnapshot(payload) {
+  if (!payload || !payload.tables) throw new Error("读模型数据无效");
+  ensureRemoteLocalSchema();
+  _remoteHydrating = true;
+  try {
+    REMOTE_SNAPSHOT_DELETE_ORDER.forEach(function (table) {
+      if (!REMOTE_SNAPSHOT_TABLE_RE.test(table)) return;
+      try {
+        db.run(`DELETE FROM ${table}`);
+      } catch (e) {
+        /* 表可能不存在 | table may be missing */
+      }
+    });
+    REMOTE_SNAPSHOT_INSERT_ORDER.forEach(function (table) {
+      if (!REMOTE_SNAPSHOT_TABLE_RE.test(table)) return;
+      const rows = payload.tables[table];
+      if (!Array.isArray(rows) || !rows.length) return;
+      rows.forEach(function (row) {
+        insertSnapshotRow(table, row);
+      });
+    });
+    remoteReadModelReady = true;
+    lastRemoteSyncAt = Date.now();
+    if (typeof lastBoardVersion !== "undefined") {
+      lastBoardVersion = payload.version != null ? payload.version : null;
+    }
+  } finally {
+    _remoteHydrating = false;
+  }
+}
+
+function resetRemoteReadModelState() {
+  if (!isRemoteDB()) return;
+  remoteReadModelReady = false;
+  remoteLocalSchemaReady = false;
+  remoteSyncPromise = null;
+  lastRemoteSyncAt = 0;
+  if (db && typeof db.close === "function") {
+    try {
+      db.close();
+    } catch (e) {
+      /* ignore */
+    }
+  }
+  db = null;
+}
+
+async function syncRemoteReadModel(options) {
+  if (!isRemoteDB()) return;
+  if (!getRemoteSessionToken()) return;
+  if (remoteSyncPromise) return remoteSyncPromise;
+  const force = !!(options && options.force);
+  if (
+    !force &&
+    remoteReadModelReady &&
+    Date.now() - lastRemoteSyncAt < (options?.minIntervalMs || 800)
+  ) {
+    return;
+  }
+  remoteSyncPromise = (async function () {
+    try {
+      const payload = await apiReadModel();
+      applyRemoteSnapshot(payload);
+    } finally {
+      remoteSyncPromise = null;
+    }
+  })();
+  return remoteSyncPromise;
+}
+
 async function loadDB() {
   if (isRemoteDB()) {
     try {
-      remoteDBRequest({ action: "init" });
+      await remoteDBRequestAsync({ action: "init" });
     } catch (e) {
-      // 兼容旧版后端：已初始化时 init 可能返回 403 | tolerate legacy init 403
       if (!/已初始化|403/.test(String(e.message))) throw e;
     }
-    db = { remote: true, exec: remoteExec, run: remoteRun };
+    ensureRemoteLocalSchema();
+    remoteReadModelReady = false;
     return;
   }
   let idb;
@@ -240,7 +388,6 @@ async function withTransaction(fn) {
 }
 
 function initSchema() {
-  if (isRemoteDB()) return;
   db.run(`
     PRAGMA foreign_keys = ON;
     CREATE TABLE IF NOT EXISTS rooms (
@@ -1605,7 +1752,10 @@ function safeParams(params) {
 }
 
 function query(sql, params) {
-  if (isRemoteDB()) return remoteQuery(sql, params);
+  if (isRemoteDB()) {
+    if (!remoteReadModelReady && !_remoteHydrating) return [];
+    if (!db || typeof db.prepare !== "function") return [];
+  }
   const stmt = db.prepare(sql);
   if (params) stmt.bind(safeParams(params));
   const rows = [];
@@ -1615,7 +1765,9 @@ function query(sql, params) {
 }
 
 function run(sql, params) {
-  if (isRemoteDB()) return remoteRun(sql, params);
+  if (isRemoteDB() && !_remoteHydrating) {
+    throw new Error("远程模式请使用业务 API 写入");
+  }
   const stmt = db.prepare(sql);
   stmt.run(safeParams(params));
   stmt.free();
@@ -1679,7 +1831,7 @@ async function importDB(input) {
         if (!data.tables) throw new Error("不是有效的客堂 JSON 备份");
         await apiImportJsonBackup(data.tables);
         showToast("云端数据恢复成功");
-        renderAll();
+        await renderAll();
       } catch (err) {
         alert("恢复失败：" + err.message);
       } finally {
@@ -1725,7 +1877,7 @@ async function importDB(input) {
       createIndexes();
       await seedRooms();
       await saveDB();
-      renderAll();
+      await renderAll();
       showToast("数据恢复成功");
     } catch (err) {
       alert("恢复失败：" + err.message);
