@@ -1,0 +1,30 @@
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Windows
+Thumbs.db
+Desktop.ini
+
+# Python (test scripts)
+__pycache__/
+*.py[cod]
+*.pyo
+.Python
+.venv/
+venv/
+
+# Editor / IDE
+.idea/
+*.swp
+*.swo
+*~
+
+# Local runtime data (do not commit live guest records)
+ketang.db
+*.db-journal
+backup/
+
+# Chrome / test artifacts
+chrome_debug.log
