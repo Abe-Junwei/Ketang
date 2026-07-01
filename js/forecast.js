@@ -4,37 +4,43 @@
    ============================================================ */
 
 const FORECAST_ROLE_GROUPS = {
-  '法师': '师',
-  '沙弥师': '师',
-  '行者': '师',
-  '师资': '师资',
-  '禅营': '学员',
-  '修道班': '学员',
-  '后勤义工': '义工',
-  '项目义工': '义工',
-  '访客': '特殊',
-  '工人': '特殊'
+  法师: "师",
+  沙弥师: "师",
+  行者: "师",
+  师资: "师资",
+  禅营: "学员",
+  修道班: "学员",
+  后勤义工: "义工",
+  项目义工: "义工",
+  访客: "特殊",
+  工人: "特殊",
 };
 
 function initForecastDates() {
   const today = todayStr();
-  const d = document.getElementById('fc-today-date');
-  const s = document.getElementById('fc-start-date');
+  const d = document.getElementById("fc-today-date");
+  const s = document.getElementById("fc-start-date");
   if (d && !d.value) d.value = today;
   if (s && !s.value) s.value = today;
 }
 
 function renderForecastTab(tab) {
   // 切换 tab 时统一销毁旧图表，避免 canvas 移除后实例泄漏
-  destroyKetangChartsByPrefix('forecast-');
-  document.querySelectorAll('.forecast-tab-btn').forEach(b => b.classList.remove('active'));
-  document.querySelectorAll('.forecast-tab-panel').forEach(p => p.classList.remove('active'));
-  const btn = document.querySelector('.forecast-tab-btn[data-tab="' + tab + '"]');
-  const panel = document.getElementById('forecast-panel-' + tab);
-  if (btn) btn.classList.add('active');
-  if (panel) panel.classList.add('active');
-  if (tab === 'today') renderTodayForecast();
-  if (tab === 'flow') renderFlowForecast();
+  destroyKetangChartsByPrefix("forecast-");
+  document
+    .querySelectorAll(".forecast-tab-btn")
+    .forEach((b) => b.classList.remove("active"));
+  document
+    .querySelectorAll(".forecast-tab-panel")
+    .forEach((p) => p.classList.remove("active"));
+  const btn = document.querySelector(
+    '.forecast-tab-btn[data-tab="' + tab + '"]',
+  );
+  const panel = document.getElementById("forecast-panel-" + tab);
+  if (btn) btn.classList.add("active");
+  if (panel) panel.classList.add("active");
+  if (tab === "today") renderTodayForecast();
+  if (tab === "flow") renderFlowForecast();
 }
 
 /* ============================================================
@@ -42,22 +48,26 @@ function renderForecastTab(tab) {
    ============================================================ */
 
 function renderTodayForecast() {
-  const dateInput = document.getElementById('fc-today-date');
+  const dateInput = document.getElementById("fc-today-date");
   const date = dateInput ? dateInput.value : todayStr();
   if (!date) return;
 
-  const container = document.getElementById('today-forecast-result');
+  const container = document.getElementById("today-forecast-result");
   if (!container) return;
 
   // 预计到达：预约/在住中 expected_check_in = date，且状态正常
-  const arrivalsResv = query(`
+  const arrivalsResv = query(
+    `
     SELECT r.*, e.name as event_name
     FROM reservations r
     LEFT JOIN events e ON e.id = r.event_id
     WHERE r.expected_check_in = ? AND r.status IN ('预约','已确认')
     ORDER BY e.name, r.name
-  `, [date]);
-  const arrivalsLodger = query(`
+  `,
+    [date],
+  );
+  const arrivalsLodger = query(
+    `
     SELECT l.*, e.name as event_name, r.name as room_name, b.bed_number
     FROM lodgers l
     LEFT JOIN events e ON e.id = l.event_id
@@ -65,10 +75,13 @@ function renderTodayForecast() {
     LEFT JOIN rooms r ON r.id = b.room_id
     WHERE l.check_in_date = ? AND l.status = '在住'
     ORDER BY e.name, l.name
-  `, [date]);
+  `,
+    [date],
+  );
 
   // 预计离开：在住中 expected_check_out = date
-  const departures = query(`
+  const departures = query(
+    `
     SELECT l.*, e.name as event_name, r.name as room_name, b.bed_number
     FROM lodgers l
     LEFT JOIN events e ON e.id = l.event_id
@@ -76,45 +89,64 @@ function renderTodayForecast() {
     LEFT JOIN rooms r ON r.id = b.room_id
     WHERE l.expected_check_out = ? AND l.status = '在住'
     ORDER BY e.name, l.name
-  `, [date]);
+  `,
+    [date],
+  );
 
   // 实际已入住 / 已退房（以 actual_check_out 为空判断）
-  const actualCheckins = query("SELECT COUNT(*) as c FROM lodgers WHERE check_in_date = ? AND status = '在住'", [date])[0].c;
-  const actualCheckouts = query("SELECT COUNT(*) as c FROM lodgers WHERE actual_check_out = ? AND status IN ('在住','已退')", [date])[0].c;
-  const inHouse = query("SELECT COUNT(*) as c FROM lodgers WHERE status='在住' AND check_in_date <= ? AND (expected_check_out IS NULL OR expected_check_out > ?)", [date, date])[0].c;
+  const actualCheckins = query(
+    "SELECT COUNT(*) as c FROM lodgers WHERE check_in_date = ? AND status = '在住'",
+    [date],
+  )[0].c;
+  const actualCheckouts = query(
+    "SELECT COUNT(*) as c FROM lodgers WHERE actual_check_out = ? AND status IN ('在住','已退')",
+    [date],
+  )[0].c;
+  const inHouse = query(
+    "SELECT COUNT(*) as c FROM lodgers WHERE status='在住' AND check_in_date <= ? AND (expected_check_out IS NULL OR expected_check_out > ?)",
+    [date, date],
+  )[0].c;
 
   // 按营期汇总
   const byEvent = {};
-  [...arrivalsResv, ...arrivalsLodger].forEach(a => {
-    const key = a.event_name || '散客';
-    if (!byEvent[key]) byEvent[key] = { arrive: 0, depart: 0, male: 0, female: 0 };
+  [...arrivalsResv, ...arrivalsLodger].forEach((a) => {
+    const key = a.event_name || "散客";
+    if (!byEvent[key])
+      byEvent[key] = { arrive: 0, depart: 0, male: 0, female: 0 };
     byEvent[key].arrive++;
-    if (a.gender === '男') byEvent[key].male++;
-    if (a.gender === '女') byEvent[key].female++;
+    if (a.gender === "男") byEvent[key].male++;
+    if (a.gender === "女") byEvent[key].female++;
   });
-  departures.forEach(d => {
-    const key = d.event_name || '散客';
-    if (!byEvent[key]) byEvent[key] = { arrive: 0, depart: 0, male: 0, female: 0 };
+  departures.forEach((d) => {
+    const key = d.event_name || "散客";
+    if (!byEvent[key])
+      byEvent[key] = { arrive: 0, depart: 0, male: 0, female: 0 };
     byEvent[key].depart++;
   });
 
   // 房间变动清单
-  const arrivalRooms = query(`
+  const arrivalRooms = query(
+    `
     SELECT DISTINCT r.name as room_name, r.location, r.dorm_type
     FROM reservations res
     LEFT JOIN events e ON e.id = res.event_id
     LEFT JOIN rooms r ON (res.room_preference LIKE '%' || r.name || '%' OR (e.gender_type IN ('男','男众') AND r.dorm_type = '男寮') OR (e.gender_type IN ('女','女众') AND r.dorm_type = '女寮') OR r.dorm_type = '不限')
     WHERE res.expected_check_in = ? AND res.status IN ('预约','已确认')
     ORDER BY r.location, r.name
-  `, [date]);
-  const departureRooms = query(`
+  `,
+    [date],
+  );
+  const departureRooms = query(
+    `
     SELECT DISTINCT r.name as room_name, r.location, r.dorm_type
     FROM lodgers l
     JOIN beds b ON b.id = l.bed_id
     JOIN rooms r ON r.id = b.room_id
     WHERE l.expected_check_out = ? AND l.status = '在住'
     ORDER BY r.location, r.name
-  `, [date]);
+  `,
+    [date],
+  );
 
   const totalArrivals = arrivalsResv.length + arrivalsLodger.length;
   const totalDepartures = departures.length;
@@ -140,10 +172,12 @@ function renderTodayForecast() {
     html += `<p class="empty-tip">今日无营期到离记录。</p>`;
   } else {
     html += `<div class="table-wrap"><table><thead><tr><th>营期</th><th>预计到达</th><th>预计离开</th><th>男</th><th>女</th></tr></thead><tbody>`;
-    Object.keys(byEvent).sort().forEach(key => {
-      const e = byEvent[key];
-      html += `<tr><td>${escapeHtml(key)}</td><td>${e.arrive}</td><td>${e.depart}</td><td>${e.male}</td><td>${e.female}</td></tr>`;
-    });
+    Object.keys(byEvent)
+      .sort()
+      .forEach((key) => {
+        const e = byEvent[key];
+        html += `<tr><td>${escapeHtml(key)}</td><td>${e.arrive}</td><td>${e.depart}</td><td>${e.male}</td><td>${e.female}</td></tr>`;
+      });
     html += `</tbody></table></div>`;
   }
 
@@ -152,11 +186,11 @@ function renderTodayForecast() {
   html += `<div class="forecast-room-changes">`;
   html += `<div class="forecast-room-change-col">
     <h4>今日入住房间（${arrivalRooms.length}）</h4>
-    ${arrivalRooms.length ? '<ul>' + arrivalRooms.map(r => `<li>${escapeHtml(r.location || '')} ${escapeHtml(r.name)} <span class="room-tag" style="background:#e3f2fd;color:#1565c0">${escapeHtml(r.dorm_type)}</span></li>`).join('') + '</ul>' : '<p class="empty-tip">无</p>'}
+    ${arrivalRooms.length ? "<ul>" + arrivalRooms.map((r) => `<li>${escapeHtml(r.location || "")} ${escapeHtml(r.name)} <span class="room-tag" style="background:#e3f2fd;color:#1565c0">${escapeHtml(r.dorm_type)}</span></li>`).join("") + "</ul>" : '<p class="empty-tip">无</p>'}
   </div>`;
   html += `<div class="forecast-room-change-col">
     <h4>今日退房房间（${departureRooms.length}）</h4>
-    ${departureRooms.length ? '<ul>' + departureRooms.map(r => `<li>${escapeHtml(r.location || '')} ${escapeHtml(r.name)} <span class="room-tag" style="background:#e3f2fd;color:#1565c0">${escapeHtml(r.dorm_type)}</span></li>`).join('') + '</ul>' : '<p class="empty-tip">无</p>'}
+    ${departureRooms.length ? "<ul>" + departureRooms.map((r) => `<li>${escapeHtml(r.location || "")} ${escapeHtml(r.name)} <span class="room-tag" style="background:#e3f2fd;color:#1565c0">${escapeHtml(r.dorm_type)}</span></li>`).join("") + "</ul>" : '<p class="empty-tip">无</p>'}
   </div>`;
   html += `</div>`;
 
@@ -166,17 +200,19 @@ function renderTodayForecast() {
     html += `<p class="empty-tip">今日无预计到达。</p>`;
   } else {
     html += `<div class="table-wrap"><table><thead><tr><th>姓名 / 法名</th><th>性别</th><th>营期</th><th>身份</th><th>班级</th><th>类型</th><th>预离</th><th>房间偏好/床位</th></tr></thead><tbody>`;
-    [...arrivalsResv, ...arrivalsLodger].forEach(a => {
-      const kind = a.room_name ? '在住' : '预约';
-      const roomInfo = a.room_name ? `${escapeHtml(a.room_name)} / ${escapeHtml(a.bed_number || '')}` : escapeHtml(a.room_preference || '-');
+    [...arrivalsResv, ...arrivalsLodger].forEach((a) => {
+      const kind = a.room_name ? "在住" : "预约";
+      const roomInfo = a.room_name
+        ? `${escapeHtml(a.room_name)} / ${escapeHtml(a.bed_number || "")}`
+        : escapeHtml(a.room_preference || "-");
       html += `<tr>
         <td>${escapeHtml(personDisplayName(a))}</td>
-        <td>${escapeHtml(a.gender) || '-'}</td>
-        <td>${escapeHtml(a.event_name || '散客')}</td>
-        <td>${escapeHtml(a.role) || '-'}</td>
-        <td>${escapeHtml(a.class_name) || '-'}</td>
+        <td>${escapeHtml(a.gender) || "-"}</td>
+        <td>${escapeHtml(a.event_name || "散客")}</td>
+        <td>${escapeHtml(a.role) || "-"}</td>
+        <td>${escapeHtml(a.class_name) || "-"}</td>
         <td>${kind}</td>
-        <td>${escapeHtml(a.expected_check_out) || '-'}</td>
+        <td>${escapeHtml(a.expected_check_out) || "-"}</td>
         <td>${roomInfo}</td>
       </tr>`;
     });
@@ -189,14 +225,14 @@ function renderTodayForecast() {
     html += `<p class="empty-tip">今日无预计离开。</p>`;
   } else {
     html += `<div class="table-wrap"><table><thead><tr><th>姓名 / 法名</th><th>性别</th><th>营期</th><th>身份</th><th>班级</th><th>房间/床位</th></tr></thead><tbody>`;
-    departures.forEach(d => {
+    departures.forEach((d) => {
       html += `<tr>
         <td>${escapeHtml(personDisplayName(d))}</td>
-        <td>${escapeHtml(d.gender) || '-'}</td>
-        <td>${escapeHtml(d.event_name || '散客')}</td>
-        <td>${escapeHtml(d.role) || '-'}</td>
-        <td>${escapeHtml(d.class_name) || '-'}</td>
-        <td>${escapeHtml(d.room_name || '-')} / ${escapeHtml(d.bed_number || '-')}</td>
+        <td>${escapeHtml(d.gender) || "-"}</td>
+        <td>${escapeHtml(d.event_name || "散客")}</td>
+        <td>${escapeHtml(d.role) || "-"}</td>
+        <td>${escapeHtml(d.class_name) || "-"}</td>
+        <td>${escapeHtml(d.room_name || "-")} / ${escapeHtml(d.bed_number || "-")}</td>
       </tr>`;
     });
     html += `</tbody></table></div>`;
@@ -208,41 +244,124 @@ function renderTodayForecast() {
   </div>`;
 
   container.innerHTML = html;
-  renderTodayForecastCharts(date, totalArrivals, totalDepartures, arrivalsResv, arrivalsLodger);
+  renderTodayForecastCharts(
+    date,
+    totalArrivals,
+    totalDepartures,
+    arrivalsResv,
+    arrivalsLodger,
+  );
 }
 
 function exportTodayForecastCSV() {
-  const date = document.getElementById('fc-today-date').value;
-  if (!date) { alert('请选择日期'); return; }
+  const date = document.getElementById("fc-today-date").value;
+  if (!date) {
+    alert("请选择日期");
+    return;
+  }
 
-  const arrivalsResv = query(`
+  const arrivalsResv = query(
+    `
     SELECT r.*, e.name as event_name FROM reservations r LEFT JOIN events e ON e.id = r.event_id
     WHERE r.expected_check_in = ? AND r.status IN ('预约','已确认') ORDER BY r.name
-  `, [date]);
-  const arrivalsLodger = query(`
+  `,
+    [date],
+  );
+  const arrivalsLodger = query(
+    `
     SELECT l.*, e.name as event_name, r.name as room_name, b.bed_number FROM lodgers l
     LEFT JOIN events e ON e.id = l.event_id LEFT JOIN beds b ON b.id = l.bed_id LEFT JOIN rooms r ON r.id = b.room_id
     WHERE l.check_in_date = ? AND l.status = '在住' ORDER BY l.name
-  `, [date]);
-  const departures = query(`
+  `,
+    [date],
+  );
+  const departures = query(
+    `
     SELECT l.*, e.name as event_name, r.name as room_name, b.bed_number FROM lodgers l
     LEFT JOIN events e ON e.id = l.event_id LEFT JOIN beds b ON b.id = l.bed_id LEFT JOIN rooms r ON r.id = b.room_id
     WHERE l.expected_check_out = ? AND l.status = '在住' ORDER BY l.name
-  `, [date]);
+  `,
+    [date],
+  );
 
-  const lines = ['\uFEFF' + ['类型', '姓名 / 法名', '性别', '营期', '身份', '班级', '日期', '预离', '房间/偏好'].map(csvCell).join(',')];
-  arrivalsResv.forEach(a => lines.push(['到达(预约)', personDisplayName(a), a.gender || '', a.event_name || '散客', a.role || '', a.class_name || '', a.expected_check_in || '', a.expected_check_out || '', a.room_preference || ''].map(csvCell).join(',')));
-  arrivalsLodger.forEach(a => lines.push(['到达(已住)', personDisplayName(a), a.gender || '', a.event_name || '散客', a.role || '', a.class_name || '', a.check_in_date || '', a.expected_check_out || '', (a.room_name || '') + '/' + (a.bed_number || '')].map(csvCell).join(',')));
-  departures.forEach(d => lines.push(['离开', personDisplayName(d), d.gender || '', d.event_name || '散客', d.role || '', d.class_name || '', d.expected_check_out || '', '', (d.room_name || '') + '/' + (d.bed_number || '')].map(csvCell).join(',')));
+  const lines = [
+    "\uFEFF" +
+      [
+        "类型",
+        "姓名 / 法名",
+        "性别",
+        "营期",
+        "身份",
+        "班级",
+        "日期",
+        "预离",
+        "房间/偏好",
+      ]
+        .map(csvCell)
+        .join(","),
+  ];
+  arrivalsResv.forEach((a) =>
+    lines.push(
+      [
+        "到达(预约)",
+        personDisplayName(a),
+        a.gender || "",
+        a.event_name || "散客",
+        a.role || "",
+        a.class_name || "",
+        a.expected_check_in || "",
+        a.expected_check_out || "",
+        a.room_preference || "",
+      ]
+        .map(csvCell)
+        .join(","),
+    ),
+  );
+  arrivalsLodger.forEach((a) =>
+    lines.push(
+      [
+        "到达(已住)",
+        personDisplayName(a),
+        a.gender || "",
+        a.event_name || "散客",
+        a.role || "",
+        a.class_name || "",
+        a.check_in_date || "",
+        a.expected_check_out || "",
+        (a.room_name || "") + "/" + (a.bed_number || ""),
+      ]
+        .map(csvCell)
+        .join(","),
+    ),
+  );
+  departures.forEach((d) =>
+    lines.push(
+      [
+        "离开",
+        personDisplayName(d),
+        d.gender || "",
+        d.event_name || "散客",
+        d.role || "",
+        d.class_name || "",
+        d.expected_check_out || "",
+        "",
+        (d.room_name || "") + "/" + (d.bed_number || ""),
+      ]
+        .map(csvCell)
+        .join(","),
+    ),
+  );
 
-  const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8;' });
+  const blob = new Blob([lines.join("\n")], {
+    type: "text/csv;charset=utf-8;",
+  });
   downloadBlob(blob, `today_forecast_${date}.csv`);
 }
 
 function printTodayForecast() {
-  const date = document.getElementById('fc-today-date').value;
-  const content = document.getElementById('today-forecast-result').innerHTML;
-  const win = window.open('', '_blank');
+  const date = document.getElementById("fc-today-date").value;
+  const content = document.getElementById("today-forecast-result").innerHTML;
+  const win = window.open("", "_blank");
   win.document.write(`
     <html><head><title>每日预报 ${date}</title>
     <style>
@@ -266,7 +385,10 @@ function printTodayForecast() {
   `);
   win.document.close();
   win.focus();
-  setTimeout(() => { win.print(); win.close(); }, 300);
+  setTimeout(() => {
+    win.print();
+    win.close();
+  }, 300);
 }
 
 /* ============================================================
@@ -274,13 +396,13 @@ function printTodayForecast() {
    ============================================================ */
 
 function renderFlowForecast() {
-  const startInput = document.getElementById('fc-start-date');
-  const weeksInput = document.getElementById('fc-weeks');
+  const startInput = document.getElementById("fc-start-date");
+  const weeksInput = document.getElementById("fc-weeks");
   const startDate = startInput ? startInput.value : todayStr();
-  const weeks = parseInt(weeksInput ? weeksInput.value : '8', 10) || 8;
+  const weeks = parseInt(weeksInput ? weeksInput.value : "8", 10) || 8;
   if (!startDate) return;
 
-  const container = document.getElementById('flow-forecast-result');
+  const container = document.getElementById("flow-forecast-result");
   if (!container) return;
 
   // 计算每周的周一作为周标签
@@ -295,45 +417,74 @@ function renderFlowForecast() {
     const sunday = formatDateStr(sundayDate);
 
     // 该周日在住人数：入住 <= 周日 且 （未退房 或 退房 > 周日）
-    const inHouse = query(`
+    const inHouse = query(
+      `
       SELECT gender, role, COUNT(*) as c FROM lodgers
       WHERE status = '在住' AND check_in_date <= ? AND (expected_check_out IS NULL OR expected_check_out > ?)
       GROUP BY gender, role
-    `, [sunday, sunday]);
+    `,
+      [sunday, sunday],
+    );
 
     // 该周内预计到达
-    const arrivals = query(`
+    const arrivals = query(
+      `
       SELECT gender, role, COUNT(*) as c FROM (
         SELECT gender, role FROM reservations WHERE expected_check_in >= ? AND expected_check_in <= ? AND status IN ('预约','已确认')
         UNION ALL
         SELECT gender, role FROM lodgers WHERE check_in_date >= ? AND check_in_date <= ? AND status = '在住'
       ) GROUP BY gender, role
-    `, [monday, sunday, monday, sunday]);
+    `,
+      [monday, sunday, monday, sunday],
+    );
 
     // 该周内预计离开
-    const departures = query(`
+    const departures = query(
+      `
       SELECT gender, role, COUNT(*) as c FROM lodgers
       WHERE status = '在住' AND expected_check_out >= ? AND expected_check_out <= ?
       GROUP BY gender, role
-    `, [monday, sunday]);
+    `,
+      [monday, sunday],
+    );
 
-    const stats = { male: 0, female: 0, shi: 0, teacher: 0, student: 0, volunteer: 0, special: 0, arrive: 0, depart: 0 };
-    inHouse.forEach(r => {
-      if (r.gender === '男') stats.male += r.c;
-      if (r.gender === '女') stats.female += r.c;
+    const stats = {
+      male: 0,
+      female: 0,
+      shi: 0,
+      teacher: 0,
+      student: 0,
+      volunteer: 0,
+      special: 0,
+      arrive: 0,
+      depart: 0,
+    };
+    inHouse.forEach((r) => {
+      if (r.gender === "男") stats.male += r.c;
+      if (r.gender === "女") stats.female += r.c;
       accumulateRole(stats, r.role, r.c);
     });
-    arrivals.forEach(r => { stats.arrive += r.c; });
-    departures.forEach(r => { stats.depart += r.c; });
+    arrivals.forEach((r) => {
+      stats.arrive += r.c;
+    });
+    departures.forEach((r) => {
+      stats.depart += r.c;
+    });
 
-    weekData.push({ label: monday + ' ~ ' + sunday, stats });
+    weekData.push({ label: monday + " ~ " + sunday, stats });
     current.setDate(current.getDate() + 7);
   }
 
   // 总床位
-  const totalMaleBeds = query("SELECT COUNT(*) as c FROM beds b JOIN rooms r ON r.id=b.room_id WHERE r.dorm_type='男寮' AND b.status!='维修' AND b.status!='备用'")[0].c;
-  const totalFemaleBeds = query("SELECT COUNT(*) as c FROM beds b JOIN rooms r ON r.id=b.room_id WHERE r.dorm_type='女寮' AND b.status!='维修' AND b.status!='备用'")[0].c;
-  const totalFlexBeds = query("SELECT COUNT(*) as c FROM beds b JOIN rooms r ON r.id=b.room_id WHERE r.dorm_type='不限' AND b.status!='维修' AND b.status!='备用'")[0].c;
+  const totalMaleBeds = query(
+    "SELECT COUNT(*) as c FROM beds b JOIN rooms r ON r.id=b.room_id WHERE r.dorm_type='男寮' AND b.status!='维修' AND b.status!='备用'",
+  )[0].c;
+  const totalFemaleBeds = query(
+    "SELECT COUNT(*) as c FROM beds b JOIN rooms r ON r.id=b.room_id WHERE r.dorm_type='女寮' AND b.status!='维修' AND b.status!='备用'",
+  )[0].c;
+  const totalFlexBeds = query(
+    "SELECT COUNT(*) as c FROM beds b JOIN rooms r ON r.id=b.room_id WHERE r.dorm_type='不限' AND b.status!='维修' AND b.status!='备用'",
+  )[0].c;
 
   // 可用于调剂的不限房间（当前空床）
   const flexRooms = query(`
@@ -345,8 +496,12 @@ function renderFlowForecast() {
     GROUP BY r.id
     ORDER BY beds DESC, r.name
   `);
-  const flexRoomNames = flexRooms.map(r => `${escapeHtml(r.location || '')}${escapeHtml(r.name)}(${r.beds}床)`);
-  const flexRoomHint = flexRoomNames.length ? `可调：${flexRoomNames.join('、')}` : '无可调剂不限房间';
+  const flexRoomNames = flexRooms.map(
+    (r) => `${escapeHtml(r.location || "")}${escapeHtml(r.name)}(${r.beds}床)`,
+  );
+  const flexRoomHint = flexRoomNames.length
+    ? `可调：${flexRoomNames.join("、")}`
+    : "无可调剂不限房间";
 
   let html = `
     <div class="forecast-legend">
@@ -358,26 +513,38 @@ function renderFlowForecast() {
       </tr></thead><tbody>
   `;
 
-  weekData.forEach(w => {
+  weekData.forEach((w) => {
     const s = w.stats;
     const warnings = [];
     const suggestions = [];
     if (s.male > totalMaleBeds) {
       const gap = s.male - totalMaleBeds;
       warnings.push(`男寮缺 ${gap}`);
-      suggestions.push(gap <= totalFlexBeds ? flexRoomHint : `${flexRoomHint}，仍不足 ${gap - totalFlexBeds} 床`);
+      suggestions.push(
+        gap <= totalFlexBeds
+          ? flexRoomHint
+          : `${flexRoomHint}，仍不足 ${gap - totalFlexBeds} 床`,
+      );
     }
     if (s.female > totalFemaleBeds) {
       const gap = s.female - totalFemaleBeds;
       warnings.push(`女寮缺 ${gap}`);
-      suggestions.push(gap <= totalFlexBeds ? flexRoomHint : `${flexRoomHint}，仍不足 ${gap - totalFlexBeds} 床`);
+      suggestions.push(
+        gap <= totalFlexBeds
+          ? flexRoomHint
+          : `${flexRoomHint}，仍不足 ${gap - totalFlexBeds} 床`,
+      );
     }
     const roomingLink = `<a href="javascript:void(0)" onclick="showView('info'); renderInfo('events')" style="text-decoration:underline;color:var(--color-primary)">去营期管理查看排房建议</a>`;
     const warnHtml = warnings.length
-      ? `<span class="forecast-warning">${warnings.join('，')}</span><div class="forecast-suggestion">${suggestions.join('<br>')}<br>${roomingLink}</div>`
+      ? `<span class="forecast-warning">${warnings.join("，")}</span><div class="forecast-suggestion">${suggestions.join("<br>")}<br>${roomingLink}</div>`
       : '<span class="forecast-ok">充足</span>';
-    const barMax = Math.max(totalMaleBeds + totalFemaleBeds + totalFlexBeds, s.male + s.female, 1);
-    const barPct = Math.round((s.male + s.female) / barMax * 100);
+    const barMax = Math.max(
+      totalMaleBeds + totalFemaleBeds + totalFlexBeds,
+      s.male + s.female,
+      1,
+    );
+    const barPct = Math.round(((s.male + s.female) / barMax) * 100);
     html += `<tr>
       <td>${escapeHtml(w.label)}</td>
       <td>${s.male}</td>
@@ -409,9 +576,11 @@ function renderFlowForecast() {
     html += `<p class="empty-tip">暂无营期数据。</p>`;
   } else {
     html += `<div class="table-wrap"><table><thead><tr><th>营期</th><th>预计招生</th><th>已报名</th><th>已入住</th><th>差额</th><th>进度</th></tr></thead><tbody>`;
-    events.forEach(e => {
+    events.forEach((e) => {
       const registered = (e.checked_in || 0) + (e.reserved || 0);
-      const pct = e.expected_count ? Math.round(registered / e.expected_count * 100) : 0;
+      const pct = e.expected_count
+        ? Math.round((registered / e.expected_count) * 100)
+        : 0;
       html += `<tr>
         <td>${escapeHtml(e.name)}</td>
         <td>${e.expected_count || 0}</td>
@@ -437,171 +606,213 @@ function renderFlowForecast() {
 
 function accumulateRole(stats, role, count) {
   const bucket = roleToGroup(role);
-  if (bucket === '师') stats.shi += count;
-  else if (bucket === '师资') stats.teacher += count;
-  else if (bucket === '学员') stats.student += count;
-  else if (bucket === '义工') stats.volunteer += count;
+  if (bucket === "师") stats.shi += count;
+  else if (bucket === "师资") stats.teacher += count;
+  else if (bucket === "学员") stats.student += count;
+  else if (bucket === "义工") stats.volunteer += count;
   else stats.special += count;
 }
 
 function formatDateStr(d) {
   const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
   return `${y}-${m}-${day}`;
 }
-
 
 /* ============================================================
    Chart.js 可视化 | Data Visualization
    ============================================================ */
 
-function renderTodayForecastCharts(date, totalArrivals, totalDepartures, arrivalsResv, arrivalsLodger) {
-  if (typeof Chart === 'undefined') return;
+function renderTodayForecastCharts(
+  date,
+  totalArrivals,
+  totalDepartures,
+  arrivalsResv,
+  arrivalsLodger,
+) {
+  if (typeof Chart === "undefined") return;
   const T = getChartTheme();
 
-  createKetangChart('forecast-today-flow', 'chart-today-flow', {
-    type: 'bar',
+  createKetangChart("forecast-today-flow", "chart-today-flow", {
+    type: "bar",
     data: {
-      labels: ['预计到达', '预计离开'],
-      datasets: [{
-        label: '人数',
-        data: [totalArrivals, totalDepartures],
-        backgroundColor: [T.arrive, T.flowOut],
-        borderWidth: 1
-      }]
+      labels: ["预计到达", "预计离开"],
+      datasets: [
+        {
+          label: "人数",
+          data: [totalArrivals, totalDepartures],
+          backgroundColor: [T.arrive, T.flowOut],
+          borderWidth: 1,
+        },
+      ],
     },
     options: {
       plugins: { legend: { display: false } },
-      scales: { y: { ticks: { stepSize: 1 } } }
-    }
+      scales: { y: { ticks: { stepSize: 1 } } },
+    },
   });
 
   // 2. 按营期到达
   const eventCounts = {};
-  [...arrivalsResv, ...arrivalsLodger].forEach(a => {
-    const key = a.event_name || '散客';
+  [...arrivalsResv, ...arrivalsLodger].forEach((a) => {
+    const key = a.event_name || "散客";
     eventCounts[key] = (eventCounts[key] || 0) + 1;
   });
   if (Object.keys(eventCounts).length > 0) {
     const labels = Object.keys(eventCounts);
-    const data = labels.map(k => eventCounts[k]);
-    createKetangChart('forecast-today-event', 'chart-today-event', {
-      type: 'doughnut',
+    const data = labels.map((k) => eventCounts[k]);
+    createKetangChart("forecast-today-event", "chart-today-event", {
+      type: "doughnut",
       data: {
         labels: labels,
-        datasets: [{
-          data: data,
-          backgroundColor: getChartColors(labels.length),
-          borderWidth: 1
-        }]
+        datasets: [
+          {
+            data: data,
+            backgroundColor: getChartColors(labels.length),
+            borderWidth: 1,
+          },
+        ],
       },
-      options: { plugins: { legend: { position: 'right' } } }
+      options: { plugins: { legend: { position: "right" } } },
     });
   }
 
   // 3. 按身份分布（今日到离人员）
   const roleCounts = {};
-  [...arrivalsResv, ...arrivalsLodger].forEach(a => {
+  [...arrivalsResv, ...arrivalsLodger].forEach((a) => {
     const group = roleToGroup(a.role);
     roleCounts[group] = (roleCounts[group] || 0) + 1;
   });
   if (Object.keys(roleCounts).length > 0) {
     const labels = Object.keys(roleCounts);
-    const data = labels.map(k => roleCounts[k]);
-    createKetangChart('forecast-today-role', 'chart-today-role', {
-      type: 'pie',
+    const data = labels.map((k) => roleCounts[k]);
+    createKetangChart("forecast-today-role", "chart-today-role", {
+      type: "pie",
       data: {
         labels: labels,
-        datasets: [{
-          data: data,
-          backgroundColor: getChartColors(labels.length),
-          borderWidth: 1
-        }]
+        datasets: [
+          {
+            data: data,
+            backgroundColor: getChartColors(labels.length),
+            borderWidth: 1,
+          },
+        ],
       },
-      options: { plugins: { legend: { position: 'right' } } }
+      options: { plugins: { legend: { position: "right" } } },
     });
   }
 }
 
 function renderFlowForecastCharts(weekData, totalMaleBeds, totalFemaleBeds) {
-  if (typeof Chart === 'undefined' || weekData.length === 0) return;
+  if (typeof Chart === "undefined" || weekData.length === 0) return;
   const T = getChartTheme();
 
-  const labels = weekData.map(w => w.label.split(' ~ ')[0]);
-  const maleData = weekData.map(w => w.stats.male);
-  const femaleData = weekData.map(w => w.stats.female);
-  const arriveData = weekData.map(w => w.stats.arrive);
-  const departData = weekData.map(w => w.stats.depart);
-  const capLine = function (n) { return Array(labels.length).fill(n); };
+  const labels = weekData.map((w) => w.label.split(" ~ ")[0]);
+  const maleData = weekData.map((w) => w.stats.male);
+  const femaleData = weekData.map((w) => w.stats.female);
+  const arriveData = weekData.map((w) => w.stats.arrive);
+  const departData = weekData.map((w) => w.stats.depart);
+  const capLine = function (n) {
+    return Array(labels.length).fill(n);
+  };
 
-  createKetangChart('forecast-flow-trend', 'chart-flow-trend', {
-    type: 'bar',
+  createKetangChart("forecast-flow-trend", "chart-flow-trend", {
+    type: "bar",
     data: {
       labels: labels,
       datasets: [
-        { label: '在住男', data: maleData, backgroundColor: T.male, stack: 'male' },
-        { label: '在住女', data: femaleData, backgroundColor: T.female, stack: 'female' },
-        { label: '预计到达', data: arriveData, backgroundColor: T.arrive, stack: 'flowA' },
-        { label: '预计离开', data: departData, backgroundColor: T.depart, stack: 'flowB' },
         {
-          type: 'line',
-          label: '男寮床位',
+          label: "在住男",
+          data: maleData,
+          backgroundColor: T.male,
+          stack: "male",
+        },
+        {
+          label: "在住女",
+          data: femaleData,
+          backgroundColor: T.female,
+          stack: "female",
+        },
+        {
+          label: "预计到达",
+          data: arriveData,
+          backgroundColor: T.arrive,
+          stack: "flowA",
+        },
+        {
+          label: "预计离开",
+          data: departData,
+          backgroundColor: T.depart,
+          stack: "flowB",
+        },
+        {
+          type: "line",
+          label: "男寮床位",
           data: capLine(totalMaleBeds),
           borderColor: T.capacity,
-          backgroundColor: 'transparent',
+          backgroundColor: "transparent",
           borderDash: [6, 4],
           borderWidth: 2,
           pointRadius: 0,
-          order: 0
+          order: 0,
         },
         {
-          type: 'line',
-          label: '女寮床位',
+          type: "line",
+          label: "女寮床位",
           data: capLine(totalFemaleBeds),
           borderColor: T.capacityFemale,
-          backgroundColor: 'transparent',
+          backgroundColor: "transparent",
           borderDash: [4, 4],
           borderWidth: 2,
           pointRadius: 0,
-          order: 0
-        }
-      ]
+          order: 0,
+        },
+      ],
     },
     options: {
       scales: {
         x: { stacked: true },
-        y: { stacked: false, ticks: { stepSize: 1 } }
+        y: { stacked: false, ticks: { stepSize: 1 } },
       },
-      plugins: { tooltip: { mode: 'index', intersect: false } }
-    }
+      plugins: { tooltip: { mode: "index", intersect: false } },
+    },
   });
 
   const last = weekData[weekData.length - 1].stats;
-  const roleData = [last.shi, last.teacher, last.student, last.volunteer, last.special];
-  const roleLabels = ['师', '师资', '学员', '义工', '特殊'];
-  if (roleData.some(v => v > 0)) {
-    createKetangChart('forecast-flow-role', 'chart-flow-role', {
-      type: 'doughnut',
+  const roleData = [
+    last.shi,
+    last.teacher,
+    last.student,
+    last.volunteer,
+    last.special,
+  ];
+  const roleLabels = ["师", "师资", "学员", "义工", "特殊"];
+  if (roleData.some((v) => v > 0)) {
+    createKetangChart("forecast-flow-role", "chart-flow-role", {
+      type: "doughnut",
       data: {
         labels: roleLabels,
-        datasets: [{
-          data: roleData,
-          backgroundColor: getChartColors(roleLabels.length),
-          borderWidth: 1
-        }]
+        datasets: [
+          {
+            data: roleData,
+            backgroundColor: getChartColors(roleLabels.length),
+            borderWidth: 1,
+          },
+        ],
       },
-      options: { plugins: { legend: { position: 'right' } } }
+      options: { plugins: { legend: { position: "right" } } },
     });
   }
 }
 
 function roleToGroup(role) {
-  if (!role) return '未分类';
-  const r = typeof lodgerRoleCanon === 'function' ? lodgerRoleCanon(role) : role;
-  if (['法师', '沙弥', '行者'].includes(r)) return '师';
-  if (r === '老师') return '师资';
-  if (r === '学员') return '学员';
-  if (['管理员', '义工', '营务'].includes(r)) return '义工';
-  return '特殊';
+  if (!role) return "未分类";
+  const r =
+    typeof lodgerRoleCanon === "function" ? lodgerRoleCanon(role) : role;
+  if (["法师", "沙弥", "行者"].includes(r)) return "师";
+  if (r === "老师") return "师资";
+  if (r === "学员") return "学员";
+  if (["管理员", "义工", "营务"].includes(r)) return "义工";
+  return "特殊";
 }

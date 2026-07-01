@@ -3,9 +3,9 @@
    禅修营、法会、修道班等营期的增删改查与批量操作
    ============================================================ */
 
-const EVENT_TYPE_OPTIONS = ['禅营', '禅七', '法会', '修道班', '其他'];
-const EVENT_GENDER_OPTIONS = ['男众', '女众', '混合'];
-const EVENT_STATUS_OPTIONS = ['筹备中', '招生中', '进行中', '已结束', '已取消'];
+const EVENT_TYPE_OPTIONS = ["禅营", "禅七", "法会", "修道班", "其他"];
+const EVENT_GENDER_OPTIONS = ["男众", "女众", "混合"];
+const EVENT_STATUS_OPTIONS = ["筹备中", "招生中", "进行中", "已结束", "已取消"];
 
 // 营期列表（用于基础设置页）
 function renderEventList() {
@@ -35,29 +35,35 @@ function renderEventList() {
   }
 
   html += `<div class="event-grid">`;
-  events.forEach(e => {
+  events.forEach((e) => {
     const registered = (e.reserved || 0) + (e.checked_in || 0);
     const expected = e.expected_count || 0;
-    const pct = expected ? Math.round(registered / expected * 100) : 0;
+    const pct = expected ? Math.round((registered / expected) * 100) : 0;
     const gap = expected - registered;
-    let alertHtml = '';
+    let alertHtml = "";
     if (expected > 0 && gap > 0) {
-      const daysToStart = e.start_date ? Math.ceil((new Date(e.start_date) - new Date(todayStr())) / (1000 * 60 * 60 * 24)) : null;
-      const urgent = daysToStart !== null && daysToStart <= 7 && daysToStart >= 0;
-      alertHtml = `<div class="event-card-alert ${urgent ? 'event-card-alert-urgent' : ''}">还差 ${gap} 人${daysToStart !== null && daysToStart >= 0 ? '，' + (daysToStart === 0 ? '今天开始' : daysToStart + ' 天后开始') : ''}</div>`;
+      const daysToStart = e.start_date
+        ? Math.ceil(
+            (new Date(e.start_date) - new Date(todayStr())) /
+              (1000 * 60 * 60 * 24),
+          )
+        : null;
+      const urgent =
+        daysToStart !== null && daysToStart <= 7 && daysToStart >= 0;
+      alertHtml = `<div class="event-card-alert ${urgent ? "event-card-alert-urgent" : ""}">还差 ${gap} 人${daysToStart !== null && daysToStart >= 0 ? "，" + (daysToStart === 0 ? "今天开始" : daysToStart + " 天后开始") : ""}</div>`;
     } else if (expected > 0 && gap <= 0) {
-      alertHtml = `<div class="event-card-alert event-card-alert-ok">招生完成${registered > expected ? '（超额 ' + (registered - expected) + ' 人）' : ''}</div>`;
+      alertHtml = `<div class="event-card-alert event-card-alert-ok">招生完成${registered > expected ? "（超额 " + (registered - expected) + " 人）" : ""}</div>`;
     }
     html += `
       <div class="event-card">
         <div class="event-card-header">
           <span class="event-card-name">${infoEscape(e.name)}</span>
           <span class="event-tag event-tag-type">${infoEscape(e.event_type)}</span>
-          <span class="event-tag event-tag-gender-${e.gender_type === '男众' ? 'male' : e.gender_type === '女众' ? 'female' : 'mix'}">${infoEscape(e.gender_type)}</span>
+          <span class="event-tag event-tag-gender-${e.gender_type === "男众" ? "male" : e.gender_type === "女众" ? "female" : "mix"}">${infoEscape(e.gender_type)}</span>
           <span class="event-tag event-tag-status-${e.status}">${infoEscape(e.status)}</span>
         </div>
         <div class="event-card-meta">
-          <span>${infoEscape(e.start_date) || '-'} ~ ${infoEscape(e.end_date) || '-'}</span>
+          <span>${infoEscape(e.start_date) || "-"} ~ ${infoEscape(e.end_date) || "-"}</span>
           <span>预计 ${expected} 人</span>
         </div>
         <div class="event-card-stats">
@@ -87,21 +93,27 @@ function renderEventMembers(eventId) {
   const evt = query("SELECT * FROM events WHERE id = ?", [eventId])[0];
   if (!evt) return;
 
-  const lodgers = query(`
+  const lodgers = query(
+    `
     SELECT l.id, l.name, l.dharma_name, l.gender, l.check_in_date, l.expected_check_out, l.role, l.class_name, l.status, r.name as room_name, b.bed_number, 'lodger' as kind
     FROM lodgers l
     LEFT JOIN beds b ON b.id = l.bed_id
     LEFT JOIN rooms r ON r.id = b.room_id
     WHERE l.event_id = ? AND l.status = '在住'
     ORDER BY l.status, l.name
-  `, [eventId]);
+  `,
+    [eventId],
+  );
 
-  const reservations = query(`
+  const reservations = query(
+    `
     SELECT r.id, r.name, r.dharma_name, r.gender, r.expected_check_in, r.expected_check_out, r.role, r.class_name, r.status, r.room_preference, 'reservation' as kind
     FROM reservations r
     WHERE r.event_id = ? AND r.status IN ('预约', '已确认')
     ORDER BY r.expected_check_in, r.name
-  `, [eventId]);
+  `,
+    [eventId],
+  );
 
   const members = [...lodgers, ...reservations];
 
@@ -133,23 +145,25 @@ function renderEventMembers(eventId) {
       </tr></thead><tbody>
   `;
 
-  members.forEach(m => {
-    const kindLabel = m.kind === 'lodger' ? '在住' : '预约';
-    const roomInfo = m.kind === 'lodger'
-      ? `${infoEscape(m.room_name || '-')} / ${infoEscape(m.bed_number || '-')}`
-      : infoEscape(m.room_preference || '-');
-    const checkDate = m.kind === 'lodger' ? m.check_in_date : m.expected_check_in;
+  members.forEach((m) => {
+    const kindLabel = m.kind === "lodger" ? "在住" : "预约";
+    const roomInfo =
+      m.kind === "lodger"
+        ? `${infoEscape(m.room_name || "-")} / ${infoEscape(m.bed_number || "-")}`
+        : infoEscape(m.room_preference || "-");
+    const checkDate =
+      m.kind === "lodger" ? m.check_in_date : m.expected_check_in;
     html += `
       <tr>
         <td><input type="checkbox" class="event-member-checkbox" data-id="${m.id}" data-kind="${m.kind}"></td>
         <td>${infoEscape(personDisplayName(m))}</td>
-        <td>${infoEscape(m.gender) || '-'}</td>
-        <td>${infoEscape(m.role) || '-'}</td>
-        <td>${infoEscape(m.class_name) || '-'}</td>
+        <td>${infoEscape(m.gender) || "-"}</td>
+        <td>${infoEscape(m.role) || "-"}</td>
+        <td>${infoEscape(m.class_name) || "-"}</td>
         <td>${kindLabel}</td>
         <td>${infoEscape(m.status)}</td>
-        <td>${infoEscape(checkDate) || '-'}</td>
-        <td>${infoEscape(m.expected_check_out) || '-'}</td>
+        <td>${infoEscape(checkDate) || "-"}</td>
+        <td>${infoEscape(m.expected_check_out) || "-"}</td>
         <td>${roomInfo}</td>
       </tr>
     `;
@@ -161,14 +175,16 @@ function renderEventMembers(eventId) {
 
 function toggleSelectAllEventMembers(source) {
   const checked = source.checked;
-  document.querySelectorAll('.event-member-checkbox').forEach(cb => cb.checked = checked);
-  document.getElementById('event-member-select-all').checked = checked;
-  document.getElementById('event-member-select-all-header').checked = checked;
+  document
+    .querySelectorAll(".event-member-checkbox")
+    .forEach((cb) => (cb.checked = checked));
+  document.getElementById("event-member-select-all").checked = checked;
+  document.getElementById("event-member-select-all-header").checked = checked;
 }
 
 function getSelectedEventMembers() {
   const selected = [];
-  document.querySelectorAll('.event-member-checkbox:checked').forEach(cb => {
+  document.querySelectorAll(".event-member-checkbox:checked").forEach((cb) => {
     selected.push({ id: parseInt(cb.dataset.id), kind: cb.dataset.kind });
   });
   return selected;
@@ -176,13 +192,19 @@ function getSelectedEventMembers() {
 
 async function batchCancelEventMembers() {
   const selected = getSelectedEventMembers();
-  if (!selected.length) { alert('请先勾选要取消的成员'); return; }
-  if (!confirm(`确定要取消选中的 ${selected.length} 人吗？此操作不可恢复。`)) return;
+  if (!selected.length) {
+    alert("请先勾选要取消的成员");
+    return;
+  }
+  if (!confirm(`确定要取消选中的 ${selected.length} 人吗？此操作不可恢复。`))
+    return;
 
   let eventId = null;
   const first = selected[0];
-  if (first.kind === 'reservation') {
-    const r = query("SELECT event_id FROM reservations WHERE id = ?", [first.id])[0];
+  if (first.kind === "reservation") {
+    const r = query("SELECT event_id FROM reservations WHERE id = ?", [
+      first.id,
+    ])[0];
     eventId = r ? r.event_id : null;
   } else {
     const l = query("SELECT event_id FROM lodgers WHERE id = ?", [first.id])[0];
@@ -191,36 +213,52 @@ async function batchCancelEventMembers() {
 
   try {
     if (useRemoteWriteApi()) {
-      await apiBatchEventMembers({ action: 'cancel', items: selected, event_id: eventId });
+      await apiBatchEventMembers({
+        action: "cancel",
+        items: selected,
+        event_id: eventId,
+      });
     } else {
-    await withTransaction(async () => {
-      for (const item of selected) {
-        if (item.kind === 'reservation') {
-          const r = query("SELECT * FROM reservations WHERE id = ?", [item.id])[0];
-          if (r && r.status !== '已取消') {
-            run("UPDATE reservations SET status = '已取消' WHERE id = ?", [item.id]);
-            logAudit('批量取消预约', 'reservation', item.id, { name: r.name });
-          }
-        } else {
-          const l = query("SELECT * FROM lodgers WHERE id = ?", [item.id])[0];
-          if (l && l.status === '在住') {
-            const today = todayStr();
-            run("UPDATE lodgers SET status = '已取消', bed_id = NULL, actual_check_out = ? WHERE id = ?", [today, item.id]);
-            run("DELETE FROM meals WHERE lodger_id = ? AND date > ?", [item.id, today]);
-            if (l.bed_id) {
-              run("UPDATE beds SET status = '可用' WHERE id = ?", [l.bed_id]);
-              setHouseStatus(l.bed_id, '脏房', '批量取消挂单释放床位');
+      await withTransaction(async () => {
+        for (const item of selected) {
+          if (item.kind === "reservation") {
+            const r = query("SELECT * FROM reservations WHERE id = ?", [
+              item.id,
+            ])[0];
+            if (r && r.status !== "已取消") {
+              run("UPDATE reservations SET status = '已取消' WHERE id = ?", [
+                item.id,
+              ]);
+              logAudit("批量取消预约", "reservation", item.id, {
+                name: r.name,
+              });
             }
-            logAudit('批量取消挂单', 'lodger', item.id, { name: l.name });
+          } else {
+            const l = query("SELECT * FROM lodgers WHERE id = ?", [item.id])[0];
+            if (l && l.status === "在住") {
+              const today = todayStr();
+              run(
+                "UPDATE lodgers SET status = '已取消', bed_id = NULL, actual_check_out = ? WHERE id = ?",
+                [today, item.id],
+              );
+              run("DELETE FROM meals WHERE lodger_id = ? AND date > ?", [
+                item.id,
+                today,
+              ]);
+              if (l.bed_id) {
+                run("UPDATE beds SET status = '可用' WHERE id = ?", [l.bed_id]);
+                setHouseStatus(l.bed_id, "脏房", "批量取消挂单释放床位");
+              }
+              logAudit("批量取消挂单", "lodger", item.id, { name: l.name });
+            }
           }
         }
-      }
-    });
-    await saveDB();
+      });
+      await saveDB();
     }
   } catch (e) {
     console.error(e);
-    alert('批量取消失败：' + e.message);
+    alert("批量取消失败：" + e.message);
     return;
   }
   showToast(`已取消 ${selected.length} 人`);
@@ -232,33 +270,49 @@ async function batchCancelEventMembers() {
 async function batchNoShowEventMembers() {
   const selected = getSelectedEventMembers();
   // No-show 仅适用于预约，过滤掉在住挂单
-  const resvOnly = selected.filter(item => item.kind === 'reservation');
-  if (!resvOnly.length) { alert('No-show 仅适用于预约记录，请勾选预约成员'); return; }
-  if (!confirm(`确定要将选中的 ${resvOnly.length} 人标记为 No-show 吗？`)) return;
+  const resvOnly = selected.filter((item) => item.kind === "reservation");
+  if (!resvOnly.length) {
+    alert("No-show 仅适用于预约记录，请勾选预约成员");
+    return;
+  }
+  if (!confirm(`确定要将选中的 ${resvOnly.length} 人标记为 No-show 吗？`))
+    return;
 
   let eventId = null;
   const first = resvOnly[0];
-  const r0 = query("SELECT event_id FROM reservations WHERE id = ?", [first.id])[0];
+  const r0 = query("SELECT event_id FROM reservations WHERE id = ?", [
+    first.id,
+  ])[0];
   eventId = r0 ? r0.event_id : null;
 
   try {
     if (useRemoteWriteApi()) {
-      await apiBatchEventMembers({ action: 'noshow', items: resvOnly, event_id: eventId });
+      await apiBatchEventMembers({
+        action: "noshow",
+        items: resvOnly,
+        event_id: eventId,
+      });
     } else {
-    await withTransaction(async () => {
-      for (const item of resvOnly) {
-        const r = query("SELECT * FROM reservations WHERE id = ?", [item.id])[0];
-        if (r && r.status !== '已入住' && r.status !== 'No-show') {
-          run("UPDATE reservations SET status = 'No-show' WHERE id = ?", [item.id]);
-          logAudit('批量标记 No-show', 'reservation', item.id, { name: r.name });
+      await withTransaction(async () => {
+        for (const item of resvOnly) {
+          const r = query("SELECT * FROM reservations WHERE id = ?", [
+            item.id,
+          ])[0];
+          if (r && r.status !== "已入住" && r.status !== "No-show") {
+            run("UPDATE reservations SET status = 'No-show' WHERE id = ?", [
+              item.id,
+            ]);
+            logAudit("批量标记 No-show", "reservation", item.id, {
+              name: r.name,
+            });
+          }
         }
-      }
-    });
-    await saveDB();
+      });
+      await saveDB();
     }
   } catch (e) {
     console.error(e);
-    alert('批量标记 No-show 失败：' + e.message);
+    alert("批量标记 No-show 失败：" + e.message);
     return;
   }
   showToast(`已标记 ${resvOnly.length} 人为 No-show`);
@@ -276,24 +330,24 @@ function openEventModal(id) {
     <div class="modal-overlay" id="event-modal" onclick="if(event.target===this)closeEventModal()">
       <div class="modal">
         <div class="modal-header">
-          <h3>${isEdit ? '编辑营期' : '新增营期'}</h3>
+          <h3>${isEdit ? "编辑营期" : "新增营期"}</h3>
           <button type="button" class="modal-close" onclick="closeEventModal()">×</button>
         </div>
         <div class="modal-body">
           <form id="event-form" onsubmit="submitEvent(event)">
-            <input type="hidden" id="event-id" value="${isEdit ? e.id : ''}">
+            <input type="hidden" id="event-id" value="${isEdit ? e.id : ""}">
             <div class="form-grid">
-              ${infoField('营期名称 *', `<input type="text" id="event-name" required value="${isEdit ? infoEscape(e.name) : ''}">`, 'event-name')}
-              ${infoField('营期类型', infoSelectHtml('event-type', EVENT_TYPE_OPTIONS, isEdit ? e.event_type : '禅营'), 'event-type')}
-              ${infoField('性别类型', infoSelectHtml('event-gender', EVENT_GENDER_OPTIONS, isEdit ? e.gender_type : '混合'), 'event-gender')}
-              ${infoField('预计招生人数', `<input type="number" id="event-expected" min="0" value="${isEdit ? e.expected_count || '' : ''}">`, 'event-expected')}
-              ${infoField('开始日期', `<input type="date" id="event-start" value="${isEdit ? infoEscape(e.start_date) : ''}">`, 'event-start')}
-              ${infoField('结束日期', `<input type="date" id="event-end" value="${isEdit ? infoEscape(e.end_date) : ''}">`, 'event-end')}
-              ${infoField('状态', infoSelectHtml('event-status', EVENT_STATUS_OPTIONS, isEdit ? e.status : '筹备中'), 'event-status')}
+              ${infoField("营期名称 *", `<input type="text" id="event-name" required value="${isEdit ? infoEscape(e.name) : ""}">`, "event-name")}
+              ${infoField("营期类型", infoSelectHtml("event-type", EVENT_TYPE_OPTIONS, isEdit ? e.event_type : "禅营"), "event-type")}
+              ${infoField("性别类型", infoSelectHtml("event-gender", EVENT_GENDER_OPTIONS, isEdit ? e.gender_type : "混合"), "event-gender")}
+              ${infoField("预计招生人数", `<input type="number" id="event-expected" min="0" value="${isEdit ? e.expected_count || "" : ""}">`, "event-expected")}
+              ${infoField("开始日期", `<input type="date" id="event-start" value="${isEdit ? infoEscape(e.start_date) : ""}">`, "event-start")}
+              ${infoField("结束日期", `<input type="date" id="event-end" value="${isEdit ? infoEscape(e.end_date) : ""}">`, "event-end")}
+              ${infoField("状态", infoSelectHtml("event-status", EVENT_STATUS_OPTIONS, isEdit ? e.status : "筹备中"), "event-status")}
             </div>
             <div class="field">
               <label>备注</label>
-              <textarea id="event-notes" rows="2">${isEdit ? infoEscape(e.notes) : ''}</textarea>
+              <textarea id="event-notes" rows="2">${isEdit ? infoEscape(e.notes) : ""}</textarea>
             </div>
             <div class="btn-bar">
               <button type="submit" class="btn btn-primary">保存</button>
@@ -304,36 +358,43 @@ function openEventModal(id) {
       </div>
     </div>
   `;
-  document.body.insertAdjacentHTML('beforeend', html);
-  if (typeof upgradeSelects === 'function') {
-    const modalEl = document.getElementById('event-modal');
+  document.body.insertAdjacentHTML("beforeend", html);
+  if (typeof upgradeSelects === "function") {
+    const modalEl = document.getElementById("event-modal");
     if (modalEl) upgradeSelects(modalEl);
   }
 }
 
 function closeEventModal() {
-  const el = document.getElementById('event-modal');
+  const el = document.getElementById("event-modal");
   if (el) el.remove();
 }
 
 async function submitEvent(e) {
   e.preventDefault();
-  const id = document.getElementById('event-id').value;
-  const name = document.getElementById('event-name').value.trim();
-  const eventType = document.getElementById('event-type').value;
-  const genderType = document.getElementById('event-gender').value;
-  const expected = parseInt(document.getElementById('event-expected').value, 10) || 0;
-  const startDate = document.getElementById('event-start').value || null;
-  const endDate = document.getElementById('event-end').value || null;
-  const status = document.getElementById('event-status').value;
-  const notes = document.getElementById('event-notes').value.trim() || null;
+  const id = document.getElementById("event-id").value;
+  const name = document.getElementById("event-name").value.trim();
+  const eventType = document.getElementById("event-type").value;
+  const genderType = document.getElementById("event-gender").value;
+  const expected =
+    parseInt(document.getElementById("event-expected").value, 10) || 0;
+  const startDate = document.getElementById("event-start").value || null;
+  const endDate = document.getElementById("event-end").value || null;
+  const status = document.getElementById("event-status").value;
+  const notes = document.getElementById("event-notes").value.trim() || null;
 
-  if (!name) { alert('请输入营期名称'); return; }
-  if (startDate && endDate && endDate < startDate) { alert('结束日期不能早于开始日期'); return; }
+  if (!name) {
+    alert("请输入营期名称");
+    return;
+  }
+  if (startDate && endDate && endDate < startDate) {
+    alert("结束日期不能早于开始日期");
+    return;
+  }
 
   try {
     if (useRemoteWriteApi()) {
-      await apiAdminRecord('event', id ? 'update' : 'create', {
+      await apiAdminRecord("event", id ? "update" : "create", {
         event_id: id,
         name: name,
         event_type: eventType,
@@ -342,52 +403,93 @@ async function submitEvent(e) {
         start_date: startDate,
         end_date: endDate,
         status: status,
-        notes: notes
+        notes: notes,
       });
     } else {
-    await withTransaction(async () => {
-      if (id) {
-        const old = query("SELECT status FROM events WHERE id=?", [id])[0];
-        const oldStatus = old ? old.status : '';
-        run(`UPDATE events SET name=?, event_type=?, gender_type=?, expected_count=?, start_date=?, end_date=?, status=?, notes=? WHERE id=?`,
-          [name, eventType, genderType, expected, startDate, endDate, status, notes, id]);
-        // 营期取消时级联取消成员、释放床位
-        if (status === '已取消' && oldStatus !== '已取消') {
-          const today = todayStr();
-          const lodgers = query("SELECT * FROM lodgers WHERE event_id=? AND status='在住'", [id]);
-          lodgers.forEach(l => {
-            run("UPDATE lodgers SET status='已取消', bed_id=NULL, actual_check_out=? WHERE id=?", [today, l.id]);
-            if (l.bed_id) {
-              run("UPDATE beds SET status='可用' WHERE id=?", [l.bed_id]);
-              setHouseStatus(l.bed_id, '脏房', '营期取消释放床位');
-            }
-            run("DELETE FROM meals WHERE lodger_id=? AND date>?", [l.id, today]);
-            logAudit('营期取消释放挂单', 'lodger', l.id, { name: l.name, event_id: id });
-          });
-          const reservations = query("SELECT * FROM reservations WHERE event_id=? AND status IN ('预约','已确认')", [id]);
-          reservations.forEach(r => {
-            run("UPDATE reservations SET status='已取消' WHERE id=?", [r.id]);
-            logAudit('营期取消释放预约', 'reservation', r.id, { name: r.name, event_id: id });
-          });
-        }
-        logAudit('更新营期', 'event', id, { name });
-      } else {
-        const result = run(`INSERT INTO events (name, event_type, gender_type, expected_count, start_date, end_date, status, notes)
+      await withTransaction(async () => {
+        if (id) {
+          const old = query("SELECT status FROM events WHERE id=?", [id])[0];
+          const oldStatus = old ? old.status : "";
+          run(
+            `UPDATE events SET name=?, event_type=?, gender_type=?, expected_count=?, start_date=?, end_date=?, status=?, notes=? WHERE id=?`,
+            [
+              name,
+              eventType,
+              genderType,
+              expected,
+              startDate,
+              endDate,
+              status,
+              notes,
+              id,
+            ],
+          );
+          // 营期取消时级联取消成员、释放床位
+          if (status === "已取消" && oldStatus !== "已取消") {
+            const today = todayStr();
+            const lodgers = query(
+              "SELECT * FROM lodgers WHERE event_id=? AND status='在住'",
+              [id],
+            );
+            lodgers.forEach((l) => {
+              run(
+                "UPDATE lodgers SET status='已取消', bed_id=NULL, actual_check_out=? WHERE id=?",
+                [today, l.id],
+              );
+              if (l.bed_id) {
+                run("UPDATE beds SET status='可用' WHERE id=?", [l.bed_id]);
+                setHouseStatus(l.bed_id, "脏房", "营期取消释放床位");
+              }
+              run("DELETE FROM meals WHERE lodger_id=? AND date>?", [
+                l.id,
+                today,
+              ]);
+              logAudit("营期取消释放挂单", "lodger", l.id, {
+                name: l.name,
+                event_id: id,
+              });
+            });
+            const reservations = query(
+              "SELECT * FROM reservations WHERE event_id=? AND status IN ('预约','已确认')",
+              [id],
+            );
+            reservations.forEach((r) => {
+              run("UPDATE reservations SET status='已取消' WHERE id=?", [r.id]);
+              logAudit("营期取消释放预约", "reservation", r.id, {
+                name: r.name,
+                event_id: id,
+              });
+            });
+          }
+          logAudit("更新营期", "event", id, { name });
+        } else {
+          const result = run(
+            `INSERT INTO events (name, event_type, gender_type, expected_count, start_date, end_date, status, notes)
           VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-          [name, eventType, genderType, expected, startDate, endDate, status, notes]);
-        const newId = result.lastInsertId;
-        logAudit('新增营期', 'event', newId, { name });
-      }
-    });
+            [
+              name,
+              eventType,
+              genderType,
+              expected,
+              startDate,
+              endDate,
+              status,
+              notes,
+            ],
+          );
+          const newId = result.lastInsertId;
+          logAudit("新增营期", "event", newId, { name });
+        }
+      });
     }
   } catch (e) {
     console.error(e);
-    alert('保存营期失败：' + e.message);
+    alert("保存营期失败：" + e.message);
     return;
   }
   if (!useRemoteWriteApi()) await saveDB();
   closeEventModal();
-  showToast('营期保存成功');
+  showToast("营期保存成功");
   renderEventList();
   renderAll();
 }
@@ -395,8 +497,11 @@ async function submitEvent(e) {
 async function deleteEvent(id) {
   const e = query("SELECT * FROM events WHERE id = ?", [id])[0];
   if (!e) return;
-  const related = (query("SELECT COUNT(*) as c FROM lodgers WHERE event_id = ?", [id])[0]?.c || 0)
-                + (query("SELECT COUNT(*) as c FROM reservations WHERE event_id = ?", [id])[0]?.c || 0);
+  const related =
+    (query("SELECT COUNT(*) as c FROM lodgers WHERE event_id = ?", [id])[0]
+      ?.c || 0) +
+    (query("SELECT COUNT(*) as c FROM reservations WHERE event_id = ?", [id])[0]
+      ?.c || 0);
   if (related > 0) {
     alert(`该营期下还有 ${related} 条记录，无法删除。请先取消或转移这些记录。`);
     return;
@@ -404,29 +509,31 @@ async function deleteEvent(id) {
   if (!confirm(`确定删除营期「${e.name}」吗？`)) return;
   try {
     if (useRemoteWriteApi()) {
-      await apiAdminRecord('event', 'delete', { event_id: id });
+      await apiAdminRecord("event", "delete", { event_id: id });
     } else {
-    await withTransaction(async () => {
-      run("DELETE FROM events WHERE id = ?", [id]);
-      logAudit('删除营期', 'event', id, { name: e.name });
-    });
-    await saveDB();
+      await withTransaction(async () => {
+        run("DELETE FROM events WHERE id = ?", [id]);
+        logAudit("删除营期", "event", id, { name: e.name });
+      });
+      await saveDB();
     }
-    showToast('营期已删除');
+    showToast("营期已删除");
     renderEventList();
     renderAll();
   } catch (e) {
     console.error(e);
-    alert('删除营期失败：' + e.message);
+    alert("删除营期失败：" + e.message);
   }
 }
 
 // 生成营期下拉选项 HTML（供登记、预约、批量导入表单使用）
 function getEventOptionsHtml(selectedId, allowEmpty) {
-  const events = query("SELECT id, name, event_type, status FROM events WHERE status != '已取消' ORDER BY start_date DESC, id DESC");
-  let html = allowEmpty ? '<option value="">散客 / 不归属营期</option>' : '';
-  events.forEach(e => {
-    const selected = e.id == selectedId ? 'selected' : '';
+  const events = query(
+    "SELECT id, name, event_type, status FROM events WHERE status != '已取消' ORDER BY start_date DESC, id DESC",
+  );
+  let html = allowEmpty ? '<option value="">散客 / 不归属营期</option>' : "";
+  events.forEach((e) => {
+    const selected = e.id == selectedId ? "selected" : "";
     html += `<option value="${e.id}" ${selected}>${infoEscape(e.name)} (${infoEscape(e.event_type)})</option>`;
   });
   return html;
@@ -435,13 +542,16 @@ function getEventOptionsHtml(selectedId, allowEmpty) {
 // 根据营期 ID 返回营期对象（用于批量导入时按名称匹配）
 function findEventByName(name) {
   if (!name) return null;
-  const rows = query("SELECT * FROM events WHERE name = ? LIMIT 1", [name.trim()]);
+  const rows = query("SELECT * FROM events WHERE name = ? LIMIT 1", [
+    name.trim(),
+  ]);
   if (rows.length) return rows[0];
   // 尝试模糊匹配
-  const fuzzy = query("SELECT * FROM events WHERE name LIKE ? LIMIT 1", [`%${name.trim()}%`]);
+  const fuzzy = query("SELECT * FROM events WHERE name LIKE ? LIMIT 1", [
+    `%${name.trim()}%`,
+  ]);
   return fuzzy.length ? fuzzy[0] : null;
 }
-
 
 /* ============================================================
    排房建议 | Rooming Suggestion
@@ -476,7 +586,7 @@ function openRoomingSuggestion(eventId) {
             </div>
             <div class="rooming-summary-item">
               <span class="rooming-summary-label">仍需床位</span>
-              <span class="rooming-summary-value ${suggestion.totalGap > 0 ? 'rooming-gap' : ''}">${suggestion.totalGap > 0 ? '男 ' + suggestion.maleGap + ' / 女 ' + suggestion.femaleGap : '已满足'}</span>
+              <span class="rooming-summary-value ${suggestion.totalGap > 0 ? "rooming-gap" : ""}">${suggestion.totalGap > 0 ? "男 " + suggestion.maleGap + " / 女 " + suggestion.femaleGap : "已满足"}</span>
             </div>
           </div>
   `;
@@ -497,10 +607,10 @@ function openRoomingSuggestion(eventId) {
   if (suggestion.flexRecommendations.length > 0) {
     html += `<h4 class="rooming-section-title">房间调剂建议</h4>`;
     html += `<div class="rooming-flex-list">`;
-    suggestion.flexRecommendations.forEach(r => {
+    suggestion.flexRecommendations.forEach((r) => {
       html += `<div class="rooming-flex-item">
-        <strong>${infoEscape(r.room.name)}</strong>（${infoEscape(r.room.location || '')}）
-        <span class="room-tag" style="background:${r.toGender === '男众' ? '#e3f2fd;color:#1565c0' : '#fce4ec;color:#c2185b'}">改为${infoEscape(r.toGender)}</span>
+        <strong>${infoEscape(r.room.name)}</strong>（${infoEscape(r.room.location || "")}）
+        <span class="room-tag" style="background:${r.toGender === "男众" ? "#e3f2fd;color:#1565c0" : "#fce4ec;color:#c2185b"}">改为${infoEscape(r.toGender)}</span>
         可提供 ${r.beds} 床
       </div>`;
     });
@@ -521,15 +631,15 @@ function openRoomingSuggestion(eventId) {
     </div>
   `;
 
-  document.body.insertAdjacentHTML('beforeend', html);
-  if (typeof upgradeSelects === 'function') {
-    const modalEl = document.getElementById('rooming-modal');
+  document.body.insertAdjacentHTML("beforeend", html);
+  if (typeof upgradeSelects === "function") {
+    const modalEl = document.getElementById("rooming-modal");
     if (modalEl) upgradeSelects(modalEl);
   }
 }
 
 function closeRoomingModal() {
-  const el = document.getElementById('rooming-modal');
+  const el = document.getElementById("rooming-modal");
   if (el) el.remove();
 }
 
@@ -537,22 +647,26 @@ function generateRoomingSuggestion(eventId) {
   const evt = query("SELECT * FROM events WHERE id = ?", [eventId])[0];
 
   // 统计营期人员性别（已入住 + 预约/已确认）
-  const members = query(`
+  const members = query(
+    `
     SELECT gender FROM lodgers WHERE event_id = ? AND status = '在住'
     UNION ALL
     SELECT gender FROM reservations WHERE event_id = ? AND status IN ('预约', '已确认')
-  `, [eventId, eventId]);
+  `,
+    [eventId, eventId],
+  );
 
-  const registeredMale = members.filter(m => m.gender === '男').length;
-  const registeredFemale = members.filter(m => m.gender === '女').length;
+  const registeredMale = members.filter((m) => m.gender === "男").length;
+  const registeredFemale = members.filter((m) => m.gender === "女").length;
   const registered = members.length;
 
   // 营期性别类型决定预估总需求
-  let needMale = registeredMale, needFemale = registeredFemale;
-  if (evt.gender_type === '男众') {
+  let needMale = registeredMale,
+    needFemale = registeredFemale;
+  if (evt.gender_type === "男众") {
     needMale = Math.max(needMale, evt.expected_count || 0);
     needFemale = 0;
-  } else if (evt.gender_type === '女众') {
+  } else if (evt.gender_type === "女众") {
     needMale = 0;
     needFemale = Math.max(needFemale, evt.expected_count || 0);
   } else {
@@ -579,9 +693,9 @@ function generateRoomingSuggestion(eventId) {
   `);
 
   // 分配算法
-  const maleRooms = availRooms.filter(r => r.dorm_type === '男寮');
-  const femaleRooms = availRooms.filter(r => r.dorm_type === '女寮');
-  const flexRooms = availRooms.filter(r => r.dorm_type === '不限');
+  const maleRooms = availRooms.filter((r) => r.dorm_type === "男寮");
+  const femaleRooms = availRooms.filter((r) => r.dorm_type === "女寮");
+  const flexRooms = availRooms.filter((r) => r.dorm_type === "不限");
 
   const malePlan = allocateRooms(needMale, maleRooms);
   const femalePlan = allocateRooms(needFemale, femaleRooms);
@@ -596,27 +710,41 @@ function generateRoomingSuggestion(eventId) {
   let remainingFlex = [...flexRooms];
   if (maleGap > 0) {
     const recs = allocateRooms(maleGap, remainingFlex);
-    recs.forEach(r => {
-      flexRecommendations.push({ room: r.room, toGender: '男众', beds: r.assigned });
-      remainingFlex = remainingFlex.filter(fr => fr.id !== r.room.id);
+    recs.forEach((r) => {
+      flexRecommendations.push({
+        room: r.room,
+        toGender: "男众",
+        beds: r.assigned,
+      });
+      remainingFlex = remainingFlex.filter((fr) => fr.id !== r.room.id);
     });
   }
   if (femaleGap > 0) {
     const recs = allocateRooms(femaleGap, remainingFlex);
-    recs.forEach(r => {
-      flexRecommendations.push({ room: r.room, toGender: '女众', beds: r.assigned });
-      remainingFlex = remainingFlex.filter(fr => fr.id !== r.room.id);
+    recs.forEach((r) => {
+      flexRecommendations.push({
+        room: r.room,
+        toGender: "女众",
+        beds: r.assigned,
+      });
+      remainingFlex = remainingFlex.filter((fr) => fr.id !== r.room.id);
     });
   }
 
   return {
-    registered, registeredMale, registeredFemale,
-    needMale, needFemale,
-    malePlan, femalePlan,
-    maleAssigned, femaleAssigned,
-    maleGap, femaleGap,
+    registered,
+    registeredMale,
+    registeredFemale,
+    needMale,
+    needFemale,
+    malePlan,
+    femalePlan,
+    maleAssigned,
+    femaleAssigned,
+    maleGap,
+    femaleGap,
     totalGap: maleGap + femaleGap,
-    flexRecommendations
+    flexRecommendations,
   };
 }
 
@@ -635,10 +763,10 @@ function allocateRooms(needed, rooms) {
 function renderRoomingPlanTable(plan, gap) {
   if (plan.length === 0) return '<p class="empty-tip">无可用房间。</p>';
   let html = `<div class="table-wrap"><table><thead><tr><th>房间</th><th>位置</th><th>类型</th><th>可用床</th><th>分配人数</th></tr></thead><tbody>`;
-  plan.forEach(p => {
+  plan.forEach((p) => {
     html += `<tr>
       <td>${infoEscape(p.room.name)}</td>
-      <td>${infoEscape(p.room.location || '-')}</td>
+      <td>${infoEscape(p.room.location || "-")}</td>
       <td>${infoEscape(p.room.dorm_type)}</td>
       <td>${p.room.avail_beds}</td>
       <td>${p.assigned}</td>
@@ -654,43 +782,99 @@ function renderRoomingPlanTable(plan, gap) {
 function exportRoomingSuggestionCSV(eventId) {
   const evt = query("SELECT * FROM events WHERE id = ?", [eventId])[0];
   const s = generateRoomingSuggestion(eventId);
-  const lines = ['\uFEFF' + ['营期', '性别需求', '房间', '位置', '类型', '分配人数'].map(csvCell).join(',')];
-  s.malePlan.forEach(p => lines.push([evt.name, '男众', p.room.name, p.room.location || '', p.room.dorm_type, p.assigned].map(csvCell).join(',')));
-  s.femalePlan.forEach(p => lines.push([evt.name, '女众', p.room.name, p.room.location || '', p.room.dorm_type, p.assigned].map(csvCell).join(',')));
-  s.flexRecommendations.forEach(r => lines.push([evt.name, r.toGender + '(调剂)', r.room.name, r.room.location || '', '不限', r.beds].map(csvCell).join(',')));
-  const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8;' });
+  const lines = [
+    "\uFEFF" +
+      ["营期", "性别需求", "房间", "位置", "类型", "分配人数"]
+        .map(csvCell)
+        .join(","),
+  ];
+  s.malePlan.forEach((p) =>
+    lines.push(
+      [
+        evt.name,
+        "男众",
+        p.room.name,
+        p.room.location || "",
+        p.room.dorm_type,
+        p.assigned,
+      ]
+        .map(csvCell)
+        .join(","),
+    ),
+  );
+  s.femalePlan.forEach((p) =>
+    lines.push(
+      [
+        evt.name,
+        "女众",
+        p.room.name,
+        p.room.location || "",
+        p.room.dorm_type,
+        p.assigned,
+      ]
+        .map(csvCell)
+        .join(","),
+    ),
+  );
+  s.flexRecommendations.forEach((r) =>
+    lines.push(
+      [
+        evt.name,
+        r.toGender + "(调剂)",
+        r.room.name,
+        r.room.location || "",
+        "不限",
+        r.beds,
+      ]
+        .map(csvCell)
+        .join(","),
+    ),
+  );
+  const blob = new Blob([lines.join("\n")], {
+    type: "text/csv;charset=utf-8;",
+  });
   downloadBlob(blob, `rooming_suggestion_${evt.id}.csv`);
 }
-
 
 /* ============================================================
    营期招生进度图表 | Event Progress Chart
    ============================================================ */
 
 function renderEventProgressChart(events) {
-  if (typeof Chart === 'undefined') return;
-  const activeEvents = events.filter(e => e.expected_count > 0 && e.status !== '已取消').slice(0, 12);
+  if (typeof Chart === "undefined") return;
+  const activeEvents = events
+    .filter((e) => e.expected_count > 0 && e.status !== "已取消")
+    .slice(0, 12);
   if (activeEvents.length === 0) return;
 
   const T = getChartTheme();
-  const labels = activeEvents.map(e => e.name);
-  const registered = activeEvents.map(e => (e.checked_in || 0) + (e.reserved || 0));
-  const gaps = activeEvents.map(e => Math.max(0, e.expected_count - (e.checked_in || 0) - (e.reserved || 0)));
+  const labels = activeEvents.map((e) => e.name);
+  const registered = activeEvents.map(
+    (e) => (e.checked_in || 0) + (e.reserved || 0),
+  );
+  const gaps = activeEvents.map((e) =>
+    Math.max(0, e.expected_count - (e.checked_in || 0) - (e.reserved || 0)),
+  );
 
-  createKetangChart('events-progress', 'chart-events-progress', {
-    type: 'bar',
+  createKetangChart("events-progress", "chart-events-progress", {
+    type: "bar",
     data: {
       labels: labels,
       datasets: [
-        { label: '已报名', data: registered, backgroundColor: T.registered, stack: 'Stack 0' },
-        { label: '差额', data: gaps, backgroundColor: T.gap, stack: 'Stack 0' }
-      ]
+        {
+          label: "已报名",
+          data: registered,
+          backgroundColor: T.registered,
+          stack: "Stack 0",
+        },
+        { label: "差额", data: gaps, backgroundColor: T.gap, stack: "Stack 0" },
+      ],
     },
     options: {
-      indexAxis: 'y',
+      indexAxis: "y",
       scales: {
         x: { stacked: true },
-        y: { stacked: true }
+        y: { stacked: true },
       },
       plugins: {
         tooltip: {
@@ -698,49 +882,89 @@ function renderEventProgressChart(events) {
             afterLabel: function (context) {
               const idx = context.dataIndex;
               const e = activeEvents[idx];
-              const pct = e.expected_count ? Math.round(((e.checked_in || 0) + (e.reserved || 0)) / e.expected_count * 100) : 0;
-              return '进度 ' + pct + '%';
-            }
-          }
-        }
-      }
-    }
+              const pct = e.expected_count
+                ? Math.round(
+                    (((e.checked_in || 0) + (e.reserved || 0)) /
+                      e.expected_count) *
+                      100,
+                  )
+                : 0;
+              return "进度 " + pct + "%";
+            },
+          },
+        },
+      },
+    },
   });
 }
-
 
 // 导出营期成员名单
 function exportEventMembersCSV(eventId) {
   const evt = query("SELECT * FROM events WHERE id = ?", [eventId])[0];
   if (!evt) return;
 
-  const lodgers = query(`
+  const lodgers = query(
+    `
     SELECT l.name, l.dharma_name, l.gender, l.phone, l.check_in_date, l.expected_check_out, l.role, l.class_name, l.status, r.name as room_name, b.bed_number, '在住' as kind
     FROM lodgers l
     LEFT JOIN beds b ON b.id = l.bed_id
     LEFT JOIN rooms r ON r.id = b.room_id
     WHERE l.event_id = ? AND l.status = '在住'
     ORDER BY l.name
-  `, [eventId]);
+  `,
+    [eventId],
+  );
 
-  const reservations = query(`
+  const reservations = query(
+    `
     SELECT r.name, r.dharma_name, r.gender, r.phone, r.expected_check_in, r.expected_check_out, r.role, r.class_name, r.status, '' as room_name, '' as bed_number, '预约' as kind
     FROM reservations r
     WHERE r.event_id = ?
     ORDER BY r.status, r.name
-  `, [eventId]);
+  `,
+    [eventId],
+  );
 
   const members = [...lodgers, ...reservations];
-  const headers = ['姓名 / 法名', '性别', '手机号', '身份', '班级', '类型', '状态', '入住/预计入住', '预离', '房间', '床位'];
-  const lines = ['\uFEFF' + headers.map(csvCell).join(',')];
-  members.forEach(m => {
-    lines.push([
-      personDisplayName(m), m.gender || '', m.phone || '', m.role || '', m.class_name || '',
-      m.kind, m.status, m.check_in_date || m.expected_check_in || '', m.expected_check_out || '',
-      m.room_name || '', m.bed_number || ''
-    ].map(csvCell).join(','));
+  const headers = [
+    "姓名 / 法名",
+    "性别",
+    "手机号",
+    "身份",
+    "班级",
+    "类型",
+    "状态",
+    "入住/预计入住",
+    "预离",
+    "房间",
+    "床位",
+  ];
+  const lines = ["\uFEFF" + headers.map(csvCell).join(",")];
+  members.forEach((m) => {
+    lines.push(
+      [
+        personDisplayName(m),
+        m.gender || "",
+        m.phone || "",
+        m.role || "",
+        m.class_name || "",
+        m.kind,
+        m.status,
+        m.check_in_date || m.expected_check_in || "",
+        m.expected_check_out || "",
+        m.room_name || "",
+        m.bed_number || "",
+      ]
+        .map(csvCell)
+        .join(","),
+    );
   });
 
-  const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8;' });
-  downloadBlob(blob, `event_members_${evt.id}_${sanitizeFilename(evt.name)}.csv`);
+  const blob = new Blob([lines.join("\n")], {
+    type: "text/csv;charset=utf-8;",
+  });
+  downloadBlob(
+    blob,
+    `event_members_${evt.id}_${sanitizeFilename(evt.name)}.csv`,
+  );
 }
