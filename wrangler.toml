@@ -5,7 +5,7 @@ pages_build_output_dir = "."
 [[d1_databases]]
 binding = "KETANG_DB"
 database_name = "ketang-db"
-database_id = "REPLACE_WITH_YOUR_D1_DATABASE_ID"
+database_id = "818b650f-a6d3-45f8-8934-32857e086771"
 
 [vars]
 # KETANG_PUBLIC_RESERVATIONS = "true"
