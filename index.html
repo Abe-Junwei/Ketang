@@ -1,730 +1,1316 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="zh-CN">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <link rel="stylesheet" href="fonts/fonts.css?v=1">
-  <link rel="stylesheet" href="styles.css?v=46">
-  <title>客堂住宿系统</title>
-</head>
-<body>
-  <!-- 登录覆盖层 | Login overlay -->
-  <div class="login-overlay" id="login-overlay">
-    <div class="login-card">
-      <div class="login-brand">
-        <span class="sidebar-logo" aria-hidden="true"></span>
-        <div>
-          <h1>客堂住宿系统</h1>
-          <p>请选择账号登录</p>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="stylesheet" href="fonts/fonts.css?v=1" />
+    <link rel="stylesheet" href="styles.css?v=47" />
+    <title>客堂住宿系统</title>
+  </head>
+  <body>
+    <!-- 登录覆盖层 | Login overlay -->
+    <div class="login-overlay" id="login-overlay">
+      <div class="login-card">
+        <div class="login-brand">
+          <span class="sidebar-logo" aria-hidden="true"></span>
+          <div>
+            <h1>客堂住宿系统</h1>
+            <p>请选择账号登录</p>
+          </div>
         </div>
-      </div>
-      <div class="field">
-        <label>账号</label>
-        <select id="login-username"><option value="">请选择账号</option></select>
-      </div>
-      <div class="field">
-        <label>密码</label>
-        <input type="password" id="login-password" placeholder="请输入密码" onkeydown="if(event.key==='Enter')submitLogin()">
-      </div>
-      <div class="login-error" id="login-error"></div>
-      <button type="button" class="btn btn-primary btn-block" onclick="submitLogin()">登录</button>
-      <p class="login-hint">默认管理员：admin / admin，知客师：zhike / zhike</p>
-    </div>
-  </div>
-
-  <aside class="sidebar">
-    <div class="sidebar-brand">
-      <span class="sidebar-logo" aria-hidden="true"></span>
-      <div class="sidebar-brand-text">
-        <h1>客堂住宿系统</h1>
-        <p class="sidebar-tagline">静心之地 · 禅意居停</p>
-      </div>
-    </div>
-    <button type="button" class="sidebar-cta" onclick="showView('reservations')">
-      <span class="sidebar-cta-icon" aria-hidden="true"></span>
-      新增预约
-    </button>
-    <nav class="sidebar-nav">
-      <button type="button" class="sidebar-nav-btn active" data-view="board" onclick="showView('board')"><span class="nav-icon nav-icon-dashboard" aria-hidden="true"></span>房态看板</button>
-      <button type="button" class="sidebar-nav-btn" data-view="lodging" onclick="showView('lodging')"><span class="nav-icon nav-icon-room" aria-hidden="true"></span>住宿管理</button>
-      <button type="button" class="sidebar-nav-btn" data-view="lodgers" onclick="showView('lodgers')"><span class="nav-icon nav-icon-people" aria-hidden="true"></span>在住挂单</button>
-      <button type="button" class="sidebar-nav-btn" data-view="stay" onclick="showView('stay')"><span class="nav-icon nav-icon-checkin" aria-hidden="true"></span>住宿办理</button>
-      <button type="button" class="sidebar-nav-btn" data-view="reports" onclick="showView('reports')"><span class="nav-icon nav-icon-payments" aria-hidden="true"></span>账务报表</button>
-      <button type="button" class="sidebar-nav-btn" data-view="forecast" onclick="showView('forecast')"><span class="nav-icon nav-icon-calendar" aria-hidden="true"></span>流动预测</button>
-      <button type="button" class="sidebar-nav-btn" data-view="housekeeping" onclick="showView('housekeeping')"><span class="nav-icon nav-icon-cleaning" aria-hidden="true"></span>客房维护</button>
-      <button type="button" class="sidebar-nav-btn" data-view="info" onclick="showView('info')"><span class="nav-icon nav-icon-settings" aria-hidden="true"></span>基础设置</button>
-    </nav>
-    <div class="sidebar-footer">
-      <button type="button" class="sidebar-footer-btn" data-view="info" onclick="showView('info')"><span class="nav-icon nav-icon-account" aria-hidden="true"></span>个人中心</button>
-      <button type="button" class="sidebar-footer-btn" data-view="backup" onclick="showView('backup')"><span class="nav-icon nav-icon-tune" aria-hidden="true"></span>系统设置</button>
-      <div class="sidebar-zen" aria-hidden="true">
-        <span class="sidebar-zen-icon"></span>
-        <p>安住当下，<br>即是清凉。</p>
-      </div>
-    </div>
-  </aside>
-
-  <div class="app-shell">
-    <header class="topbar">
-      <div class="topbar-left">
-        <h2 class="topbar-title" id="topbar-title">客堂大盘</h2>
-        <div class="topbar-search">
-          <span class="topbar-search-icon" aria-hidden="true"></span>
-          <input type="search" id="board-search" class="topbar-search-input" placeholder="搜索居士姓名 / 房号..." autocomplete="off" oninput="handleBoardSearch(this.value)">
+        <div class="field login-field">
+          <label for="login-username">账号</label>
+          <select id="login-username" data-no-picker>
+            <option value="">请选择账号</option>
+          </select>
         </div>
-      </div>
-      <div class="topbar-right">
-        <button type="button" class="topbar-icon-btn" title="通知" aria-label="通知"><span class="topbar-icon topbar-icon-bell" aria-hidden="true"></span><span class="topbar-badge" aria-hidden="true"></span></button>
-        <button type="button" class="topbar-icon-btn" title="帮助" aria-label="帮助" onclick="showView('backup')"><span class="topbar-icon topbar-icon-help" aria-hidden="true"></span></button>
-        <button type="button" class="topbar-profile" onclick="if(confirm('确定要退出登录吗？'))logout()" title="当前用户，点击退出">
-          <span class="topbar-avatar" aria-hidden="true">知</span>
-          <span class="topbar-profile-name" id="topbar-profile-name">知客师</span>
+        <div class="field login-field">
+          <label for="login-password">密码</label>
+          <input
+            type="password"
+            id="login-password"
+            placeholder="请输入密码"
+            autocomplete="current-password"
+            onkeydown="if (event.key === 'Enter') submitLogin();"
+          />
+        </div>
+        <div class="login-error" id="login-error" aria-live="polite"></div>
+        <button
+          type="button"
+          class="btn btn-primary btn-block login-submit"
+          onclick="submitLogin()"
+        >
+          登录
         </button>
+        <p class="login-hint" id="login-hint" hidden>
+          本地演示默认账号：admin / admin，zhike / zhike
+        </p>
       </div>
-    </header>
+    </div>
 
-  <main class="content">
-    <!-- 房态看板 -->
-    <div id="view-board" class="view active board-view">
-      <div id="kpi-strip" class="kpi-strip">
-        <div class="kpi-item"><span class="kpi-label">总床位</span><span class="kpi-num" id="stat-total">0</span></div>
-        <div class="kpi-item"><span class="kpi-label">已住</span><span class="kpi-num kpi-num-primary">0</span></div>
-        <div class="kpi-item"><span class="kpi-label">空床</span><span class="kpi-num">0</span></div>
-        <div class="kpi-item"><span class="kpi-label">在住人数</span><span class="kpi-num">0</span></div>
-        <div class="kpi-item"><span class="kpi-label">脏房</span><span class="kpi-num kpi-num-dai">0</span></div>
-        <div class="kpi-item"><span class="kpi-label">今日预约</span><span class="kpi-num">0</span></div>
+    <aside class="sidebar">
+      <div class="sidebar-brand">
+        <span class="sidebar-logo" aria-hidden="true"></span>
+        <div class="sidebar-brand-text">
+          <h1>客堂住宿系统</h1>
+          <p class="sidebar-tagline">静心之地 · 禅意居停</p>
+        </div>
       </div>
+      <button
+        type="button"
+        class="sidebar-cta"
+        onclick="showView('reservations')"
+      >
+        <span class="sidebar-cta-icon" aria-hidden="true"></span>
+        新增预约
+      </button>
+      <nav class="sidebar-nav">
+        <button
+          type="button"
+          class="sidebar-nav-btn active"
+          data-view="board"
+          onclick="showView('board')"
+        >
+          <span class="nav-icon nav-icon-dashboard" aria-hidden="true"></span
+          >房态看板
+        </button>
+        <button
+          type="button"
+          class="sidebar-nav-btn"
+          data-view="lodging"
+          onclick="showView('lodging')"
+        >
+          <span class="nav-icon nav-icon-room" aria-hidden="true"></span
+          >住宿管理
+        </button>
+        <button
+          type="button"
+          class="sidebar-nav-btn"
+          data-view="lodgers"
+          onclick="showView('lodgers')"
+        >
+          <span class="nav-icon nav-icon-people" aria-hidden="true"></span
+          >在住挂单
+        </button>
+        <button
+          type="button"
+          class="sidebar-nav-btn"
+          data-view="stay"
+          onclick="showView('stay')"
+        >
+          <span class="nav-icon nav-icon-checkin" aria-hidden="true"></span
+          >住宿办理
+        </button>
+        <button
+          type="button"
+          class="sidebar-nav-btn"
+          data-view="reports"
+          onclick="showView('reports')"
+        >
+          <span class="nav-icon nav-icon-payments" aria-hidden="true"></span
+          >账务报表
+        </button>
+        <button
+          type="button"
+          class="sidebar-nav-btn"
+          data-view="forecast"
+          onclick="showView('forecast')"
+        >
+          <span class="nav-icon nav-icon-calendar" aria-hidden="true"></span
+          >流动预测
+        </button>
+        <button
+          type="button"
+          class="sidebar-nav-btn"
+          data-view="housekeeping"
+          onclick="showView('housekeeping')"
+        >
+          <span class="nav-icon nav-icon-cleaning" aria-hidden="true"></span
+          >客房维护
+        </button>
+        <button
+          type="button"
+          class="sidebar-nav-btn"
+          data-view="info"
+          onclick="showView('info')"
+        >
+          <span class="nav-icon nav-icon-settings" aria-hidden="true"></span
+          >基础设置
+        </button>
+      </nav>
+      <div class="sidebar-footer">
+        <button
+          type="button"
+          class="sidebar-footer-btn"
+          data-view="info"
+          onclick="showView('info')"
+        >
+          <span class="nav-icon nav-icon-account" aria-hidden="true"></span
+          >个人中心
+        </button>
+        <button
+          type="button"
+          class="sidebar-footer-btn"
+          data-view="backup"
+          onclick="showView('backup')"
+        >
+          <span class="nav-icon nav-icon-tune" aria-hidden="true"></span
+          >系统设置
+        </button>
+        <div class="sidebar-zen" aria-hidden="true">
+          <span class="sidebar-zen-icon"></span>
+          <p>安住当下，<br />即是清凉。</p>
+        </div>
+      </div>
+    </aside>
 
-      <div id="board-charts" class="board-charts" aria-label="实时统计">
-        <article class="board-chart-card">
-          <header class="board-chart-card-head">
-            <h3 class="board-chart-card-title">床位概览</h3>
-            <span class="board-chart-card-sub" id="board-chart-occ-sub"></span>
-          </header>
-          <div class="board-chart-body board-chart-body--ring">
-            <div class="chart-ring-wrap">
-              <canvas id="chart-board-occ" role="img" aria-label="床位概览"></canvas>
-              <div class="chart-ring-center">
-                <span class="chart-ring-pct" id="board-occ-pct">0%</span>
-                <span class="chart-ring-label">入住率</span>
+    <div class="app-shell">
+      <header class="topbar">
+        <div class="topbar-left">
+          <h2 class="topbar-title" id="topbar-title">客堂大盘</h2>
+          <div class="topbar-search">
+            <span class="topbar-search-icon" aria-hidden="true"></span>
+            <input
+              type="search"
+              id="board-search"
+              class="topbar-search-input"
+              placeholder="搜索居士姓名 / 房号..."
+              autocomplete="off"
+              oninput="handleBoardSearch(this.value)"
+            />
+          </div>
+        </div>
+        <div class="topbar-right">
+          <button
+            type="button"
+            class="topbar-icon-btn"
+            title="通知"
+            aria-label="通知"
+          >
+            <span class="topbar-icon topbar-icon-bell" aria-hidden="true"></span
+            ><span class="topbar-badge" aria-hidden="true"></span>
+          </button>
+          <button
+            type="button"
+            class="topbar-icon-btn"
+            title="帮助"
+            aria-label="帮助"
+            onclick="showView('backup')"
+          >
+            <span
+              class="topbar-icon topbar-icon-help"
+              aria-hidden="true"
+            ></span>
+          </button>
+          <div class="topbar-profile-wrap" id="topbar-profile-wrap">
+            <button
+              type="button"
+              class="topbar-profile"
+              id="topbar-profile-btn"
+              onclick="toggleProfileMenu(event)"
+              title="当前用户"
+            >
+              <span class="topbar-avatar" aria-hidden="true">—</span>
+              <span class="topbar-profile-name" id="topbar-profile-name"
+                >未登录</span
+              >
+              <span class="topbar-profile-chevron" aria-hidden="true"></span>
+            </button>
+            <div class="topbar-profile-menu" id="topbar-profile-menu" hidden>
+              <div class="topbar-profile-menu-head">
+                <span class="topbar-profile-menu-role" id="topbar-profile-role"
+                  >—</span
+                >
+              </div>
+              <button
+                type="button"
+                class="topbar-profile-menu-item"
+                onclick="logout()"
+              >
+                退出登录
+              </button>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      <main class="content">
+        <!-- 房态看板 -->
+        <div id="view-board" class="view active board-view">
+          <div id="kpi-strip" class="kpi-strip">
+            <div class="kpi-item">
+              <span class="kpi-label">总床位</span
+              ><span class="kpi-num" id="stat-total">0</span>
+            </div>
+            <div class="kpi-item">
+              <span class="kpi-label">已住</span
+              ><span class="kpi-num kpi-num-primary">0</span>
+            </div>
+            <div class="kpi-item">
+              <span class="kpi-label">空床</span><span class="kpi-num">0</span>
+            </div>
+            <div class="kpi-item">
+              <span class="kpi-label">在住人数</span
+              ><span class="kpi-num">0</span>
+            </div>
+            <div class="kpi-item">
+              <span class="kpi-label">脏房</span
+              ><span class="kpi-num kpi-num-dai">0</span>
+            </div>
+            <div class="kpi-item">
+              <span class="kpi-label">今日预约</span
+              ><span class="kpi-num">0</span>
+            </div>
+          </div>
+
+          <div id="board-charts" class="board-charts" aria-label="实时统计">
+            <article class="board-chart-card">
+              <header class="board-chart-card-head">
+                <h3 class="board-chart-card-title">床位概览</h3>
+                <span
+                  class="board-chart-card-sub"
+                  id="board-chart-occ-sub"
+                ></span>
+              </header>
+              <div class="board-chart-body board-chart-body--ring">
+                <div class="chart-ring-wrap">
+                  <canvas
+                    id="chart-board-occ"
+                    role="img"
+                    aria-label="床位概览"
+                  ></canvas>
+                  <div class="chart-ring-center">
+                    <span class="chart-ring-pct" id="board-occ-pct">0%</span>
+                    <span class="chart-ring-label">入住率</span>
+                  </div>
+                </div>
+                <div class="chart-legend-inline" id="board-occ-legend"></div>
+              </div>
+            </article>
+            <article class="board-chart-card">
+              <header class="board-chart-card-head">
+                <h3 class="board-chart-card-title">今日到离</h3>
+                <span class="board-chart-card-sub">预计 vs 实际</span>
+              </header>
+              <div class="board-chart-body board-chart-body--bar">
+                <canvas
+                  id="chart-board-flow"
+                  role="img"
+                  aria-label="今日到离"
+                ></canvas>
+              </div>
+            </article>
+            <article class="board-chart-card">
+              <header class="board-chart-card-head">
+                <h3 class="board-chart-card-title">寮别余床</h3>
+                <span
+                  class="board-chart-card-sub"
+                  id="board-chart-dorm-sub"
+                ></span>
+              </header>
+              <div class="board-chart-body board-chart-body--bar">
+                <canvas
+                  id="chart-board-dorm"
+                  role="img"
+                  aria-label="寮别余床"
+                ></canvas>
+              </div>
+            </article>
+          </div>
+
+          <hr class="board-divider" />
+
+          <div class="ops-panel panel-card">
+            <div class="ops-panel-left">
+              <div class="ops-notice-header">
+                <span
+                  class="ops-notice-icon ops-notice-icon-campaign"
+                  aria-hidden="true"
+                ></span>
+                <h3>运营动态</h3>
+              </div>
+              <div
+                id="backup-reminder"
+                class="backup-reminder ops-notice-body"
+                style="display: none"
+              >
+                <strong>今日尚未备份</strong>：请前往「系统设置」导出
+                ketang.db。
+              </div>
+              <div class="ops-notice-row">
+                <span
+                  class="ops-notice-icon ops-notice-icon-info"
+                  aria-hidden="true"
+                ></span>
+                <p id="ops-notice-text" class="ops-notice-body">暂无待办提醒</p>
               </div>
             </div>
-            <div class="chart-legend-inline" id="board-occ-legend"></div>
+            <div class="ops-panel-right">
+              <div id="reminder-tabs" class="panel-tabs" role="tablist"></div>
+              <div id="reminders" class="reminder-list" role="tabpanel"></div>
+            </div>
           </div>
-        </article>
-        <article class="board-chart-card">
-          <header class="board-chart-card-head">
-            <h3 class="board-chart-card-title">今日到离</h3>
-            <span class="board-chart-card-sub">预计 vs 实际</span>
-          </header>
-          <div class="board-chart-body board-chart-body--bar">
-            <canvas id="chart-board-flow" role="img" aria-label="今日到离"></canvas>
-          </div>
-        </article>
-        <article class="board-chart-card">
-          <header class="board-chart-card-head">
-            <h3 class="board-chart-card-title">寮别余床</h3>
-            <span class="board-chart-card-sub" id="board-chart-dorm-sub"></span>
-          </header>
-          <div class="board-chart-body board-chart-body--bar">
-            <canvas id="chart-board-dorm" role="img" aria-label="寮别余床"></canvas>
-          </div>
-        </article>
-      </div>
 
-      <hr class="board-divider">
-
-      <div class="ops-panel panel-card">
-        <div class="ops-panel-left">
-          <div class="ops-notice-header">
-            <span class="ops-notice-icon ops-notice-icon-campaign" aria-hidden="true"></span>
-            <h3>运营动态</h3>
-          </div>
-          <div id="backup-reminder" class="backup-reminder ops-notice-body" style="display:none;">
-            <strong>今日尚未备份</strong>：请前往「系统设置」导出 ketang.db。
-          </div>
-          <div class="ops-notice-row">
-            <span class="ops-notice-icon ops-notice-icon-info" aria-hidden="true"></span>
-            <p id="ops-notice-text" class="ops-notice-body">暂无待办提醒</p>
-          </div>
-        </div>
-        <div class="ops-panel-right">
-          <div id="reminder-tabs" class="panel-tabs" role="tablist"></div>
-          <div id="reminders" class="reminder-list" role="tabpanel"></div>
-        </div>
-      </div>
-
-      <div class="meals-panel panel-card" id="meals-panel">
-        <header class="meals-panel-head">
-          <h3>今日用斋</h3>
-          <p class="panel-card-desc" id="today-meals-desc">统计当日在寺挂单与待入住预约</p>
-        </header>
-        <div id="today-meals" class="meals-panel-stats"></div>
-        <div id="today-meals-detail" class="meals-panel-detail">
-          <div class="meals-chart-row">
-            <article class="meals-meal-chart">
-              <h4 class="meals-meal-chart-title">早斋</h4>
-              <div class="meals-meal-chart-inner">
-                <div class="meals-meal-chart-body meals-meal-chart-body--pie">
-                  <canvas id="chart-meals-bf" role="img" aria-label="早斋按身份"></canvas>
-                </div>
-                <div class="meals-role-stats-wrap" id="meals-role-stats-bf" aria-label="早斋按身份统计"></div>
-              </div>
-            </article>
-            <article class="meals-meal-chart">
-              <h4 class="meals-meal-chart-title">午斋</h4>
-              <div class="meals-meal-chart-inner">
-                <div class="meals-meal-chart-body meals-meal-chart-body--pie">
-                  <canvas id="chart-meals-lc" role="img" aria-label="午斋按身份"></canvas>
-                </div>
-                <div class="meals-role-stats-wrap" id="meals-role-stats-lc" aria-label="午斋按身份统计"></div>
-              </div>
-            </article>
-            <article class="meals-meal-chart">
-              <h4 class="meals-meal-chart-title">药石</h4>
-              <div class="meals-meal-chart-inner">
-                <div class="meals-meal-chart-body meals-meal-chart-body--pie">
-                  <canvas id="chart-meals-dn" role="img" aria-label="药石按身份"></canvas>
-                </div>
-                <div class="meals-role-stats-wrap" id="meals-role-stats-dn" aria-label="药石按身份统计"></div>
-              </div>
-            </article>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- 在住挂单 -->
-    <div id="view-lodgers" class="view lodgers-view">
-      <div class="lodgers-page panel-card">
-        <header class="lodgers-page-head">
-          <div class="lodgers-page-head-text">
-            <h2 class="lodgers-page-title"><span class="section-icon section-icon-people" aria-hidden="true"></span>在住挂单</h2>
-            <p class="lodgers-page-desc" id="lodgers-page-count">加载中…</p>
-          </div>
-          <div class="lodgers-page-search">
-            <span class="lodgers-search-icon" aria-hidden="true"></span>
-            <input type="search" id="lodger-search" class="lodgers-search-input" placeholder="搜索姓名 / 房号 / 手机号…" autocomplete="off" oninput="handleLodgerSearch(this.value)">
-          </div>
-        </header>
-        <div class="lodgers-table-scroll" id="lodgers-table-scroll">
-          <table class="lodger-table">
-            <thead>
-              <tr>
-                <th>姓名</th>
-                <th>性别</th>
-                <th>房号/床位</th>
-                <th>入住日期</th>
-                <th>预计离寺</th>
-                <th>用斋情况</th>
-                <th class="col-actions">操作</th>
-              </tr>
-            </thead>
-            <tbody id="lodger-table"></tbody>
-          </table>
-        </div>
-        <p class="lodgers-search-hint" id="lodgers-search-hint" hidden></p>
-      </div>
-    </div>
-
-    <!-- 住宿管理（房态分布） -->
-    <div id="view-lodging" class="view lodging-view">
-      <div class="room-section">
-        <div class="section-header section-header-legend lodging-section-header">
-          <div class="board-legend-inline lodging-legend-heading" role="group" aria-label="房态图例">
-            <span class="legend-item"><span class="legend-dot legend-avail"></span>可住</span>
-            <span class="legend-item"><span class="legend-dot legend-occ"></span>在住</span>
-            <span class="legend-item"><span class="legend-dot legend-blocked"></span>不可住</span>
-            <span class="legend-item legend-dorm-male"><span class="legend-dorm-swatch"></span>男寮</span>
-            <span class="legend-item legend-dorm-female"><span class="legend-dorm-swatch"></span>女寮</span>
-          </div>
-          <div class="lodging-occ-chart board-chart-card board-chart-card--compact">
-            <header class="board-chart-card-head">
-              <h3 class="board-chart-card-title">床位概览</h3>
+          <div class="meals-panel panel-card" id="meals-panel">
+            <header class="meals-panel-head">
+              <h3>今日用斋</h3>
+              <p class="panel-card-desc" id="today-meals-desc">
+                统计当日在寺挂单与待入住预约
+              </p>
             </header>
-            <div class="board-chart-body board-chart-body--ring">
-              <div class="chart-ring-wrap chart-ring-wrap--sm">
-                <canvas id="chart-lodging-occ" role="img" aria-label="床位概览"></canvas>
-                <div class="chart-ring-center">
-                  <span class="chart-ring-pct" id="lodging-occ-pct">0%</span>
-                  <span class="chart-ring-label">入住率</span>
-                </div>
+            <div id="today-meals" class="meals-panel-stats"></div>
+            <div id="today-meals-detail" class="meals-panel-detail">
+              <div class="meals-chart-row">
+                <article class="meals-meal-chart">
+                  <h4 class="meals-meal-chart-title">早斋</h4>
+                  <div class="meals-meal-chart-inner">
+                    <div
+                      class="meals-meal-chart-body meals-meal-chart-body--pie"
+                    >
+                      <canvas
+                        id="chart-meals-bf"
+                        role="img"
+                        aria-label="早斋按身份"
+                      ></canvas>
+                    </div>
+                    <div
+                      class="meals-role-stats-wrap"
+                      id="meals-role-stats-bf"
+                      aria-label="早斋按身份统计"
+                    ></div>
+                  </div>
+                </article>
+                <article class="meals-meal-chart">
+                  <h4 class="meals-meal-chart-title">午斋</h4>
+                  <div class="meals-meal-chart-inner">
+                    <div
+                      class="meals-meal-chart-body meals-meal-chart-body--pie"
+                    >
+                      <canvas
+                        id="chart-meals-lc"
+                        role="img"
+                        aria-label="午斋按身份"
+                      ></canvas>
+                    </div>
+                    <div
+                      class="meals-role-stats-wrap"
+                      id="meals-role-stats-lc"
+                      aria-label="午斋按身份统计"
+                    ></div>
+                  </div>
+                </article>
+                <article class="meals-meal-chart">
+                  <h4 class="meals-meal-chart-title">药石</h4>
+                  <div class="meals-meal-chart-inner">
+                    <div
+                      class="meals-meal-chart-body meals-meal-chart-body--pie"
+                    >
+                      <canvas
+                        id="chart-meals-dn"
+                        role="img"
+                        aria-label="药石按身份"
+                      ></canvas>
+                    </div>
+                    <div
+                      class="meals-role-stats-wrap"
+                      id="meals-role-stats-dn"
+                      aria-label="药石按身份统计"
+                    ></div>
+                  </div>
+                </article>
               </div>
             </div>
           </div>
         </div>
-        <div id="room-grid"></div>
-        <div id="room-detail-home"><div id="room-detail-panel" class="room-detail-panel" hidden></div></div>
-      </div>
-    </div>
 
-    <!-- 住宿办理：现场入住 + 提前预约 -->
-    <div id="view-stay" class="view">
-      <div class="panel-tabs stay-mode-tabs" role="tablist" aria-label="住宿办理模式">
-        <button type="button" class="tab-btn active" id="stay-tab-checkin" role="tab" aria-selected="true" onclick="setStayMode('checkin')">现场入住</button>
-        <button type="button" class="tab-btn" id="stay-tab-reservation" role="tab" aria-selected="false" onclick="setStayMode('reservation')">提前预约</button>
-      </div>
-      <div id="stay-panel-checkin">
-      <div class="card">
-        <h2 class="section-title">现场入住</h2>
-        <form id="checkin-form" novalidate>
-          <div class="form-grid">
-            <div class="field">
-              <label>姓名 / 法名 *</label>
-              <input type="text" id="ci-name" required placeholder="姓名或法名">
-              <div class="field-error" id="ci-name-error"></div>
-            </div>
-            <div class="field">
-              <label>性别 *</label>
-              <select id="ci-gender" required>
-                <option value="">请选择</option>
-                <option value="男">男</option>
-                <option value="女">女</option>
-              </select>
-            </div>
-            <div class="field">
-              <label>手机号</label>
-              <input type="tel" id="ci-phone" placeholder="13800138000"
-                inputmode="numeric"
-                pattern="1[3-9]\d{9}"
-                oninput="filterDigits(this)"
-                onblur="validateField(this)">
-              <div class="field-error" id="ci-phone-error"></div>
-            </div>
-            <div class="field">
-              <label>身份证</label>
-              <input type="text" id="ci-idcard" placeholder="18 位，可选"
-                inputmode="numeric"
-                pattern="\d{17}[\dXx]"
-                oninput="filterIdCard(this)"
-                onblur="validateField(this)">
-              <div class="field-error" id="ci-idcard-error"></div>
-            </div>
-            <div class="field">
-              <label>分配床位 *</label>
-              <div class="bed-picker" id="ci-bed-picker">
-                <div class="bed-picker-trigger" onclick="toggleBedPicker()">
-                  <span id="ci-bed-label">请选择床位</span>
-                  <span class="bed-picker-arrow">▾</span>
-                </div>
-                <div class="bed-picker-dropdown" id="ci-bed-dropdown"></div>
+        <!-- 在住挂单 -->
+        <div id="view-lodgers" class="view lodgers-view">
+          <div class="lodgers-page panel-card">
+            <header class="lodgers-page-head">
+              <div class="lodgers-page-head-text">
+                <h2 class="lodgers-page-title">
+                  <span
+                    class="section-icon section-icon-people"
+                    aria-hidden="true"
+                  ></span
+                  >在住挂单
+                </h2>
+                <p class="lodgers-page-desc" id="lodgers-page-count">加载中…</p>
               </div>
-              <input type="hidden" id="ci-bed" required>
+              <div class="lodgers-page-search">
+                <span class="lodgers-search-icon" aria-hidden="true"></span>
+                <input
+                  type="search"
+                  id="lodger-search"
+                  class="lodgers-search-input"
+                  placeholder="搜索姓名 / 房号 / 手机号…"
+                  autocomplete="off"
+                  oninput="handleLodgerSearch(this.value)"
+                />
+              </div>
+            </header>
+            <div class="lodgers-table-scroll" id="lodgers-table-scroll">
+              <table class="lodger-table">
+                <thead>
+                  <tr>
+                    <th>姓名</th>
+                    <th>性别</th>
+                    <th>房号/床位</th>
+                    <th>入住日期</th>
+                    <th>预计离寺</th>
+                    <th>用斋情况</th>
+                    <th class="col-actions">操作</th>
+                  </tr>
+                </thead>
+                <tbody id="lodger-table"></tbody>
+              </table>
             </div>
-            <div class="field">
-              <label>身份</label>
-              <select id="ci-role" class="lodger-role-select"></select>
-            </div>
-            <div class="field">
-              <label>入住日期 *</label>
-              <input type="date" id="ci-in" required>
-            </div>
-            <div class="field">
-              <label>预计离院日期</label>
-              <input type="date" id="ci-out">
-            </div>
-            <div class="field">
-              <label>入住来源</label>
-              <select id="ci-source">
-                <option value="">请选择</option>
-                <option value="现场">现场</option>
-                <option value="电话">电话</option>
-                <option value="微信">微信</option>
-                <option value="法会预约">法会预约</option>
-                <option value="其他">其他</option>
-              </select>
-            </div>
-            <div class="field">
-              <label>所属营期</label>
-              <select id="ci-event"><option value="">散客 / 不归属营期</option></select>
-            </div>
-            <div class="field">
-              <label>班级/分组</label>
-              <input type="text" id="ci-class" placeholder="如：一班、师父组">
-            </div>
-            <div class="field">
-              <label>紧急联系人</label>
-              <input type="text" id="ci-emergency-name" placeholder="姓名">
-            </div>
-            <div class="field">
-              <label>紧急联系电话</label>
-              <input type="tel" id="ci-emergency-phone" placeholder="电话">
-            </div>
+            <p class="lodgers-search-hint" id="lodgers-search-hint" hidden></p>
           </div>
-          <div class="section-title" style="margin-top: var(--space-4);">收款信息</div>
-          <div class="form-grid">
-            <div class="field">
-              <label>押金</label>
-              <input type="number" id="ci-deposit" min="0" step="0.01" placeholder="0.00">
-            </div>
-            <div class="field">
-              <label>房费</label>
-              <input type="number" id="ci-room-fee" min="0" step="0.01" placeholder="0.00">
-            </div>
-            <div class="field">
-              <label>收款方式</label>
-              <select id="ci-pay-method">
-                <option value="">请选择</option>
-                <option value="现金">现金</option>
-                <option value="微信">微信</option>
-                <option value="支付宝">支付宝</option>
-                <option value="刷卡">刷卡</option>
-                <option value="挂账">挂账</option>
-                <option value="免费">免费</option>
-              </select>
-            </div>
-            <div class="field">
-              <label>收款备注</label>
-              <input type="text" id="ci-pay-remark" placeholder="收据号/团账等">
-            </div>
-          </div>
-          <div class="field">
-            <label>用斋默认 *</label>
-            <div id="ci-meal-need-wrap"></div>
-            <div class="field-error" id="ci-meal-need-error"></div>
-          </div>
-          <div class="field">
-            <label>备注</label>
-            <textarea id="ci-notes" rows="2" placeholder="如：随众、病号、老人等"></textarea>
-          </div>
-          <input type="hidden" id="ci-resv-id">
-          <button type="submit" class="btn btn-primary">办理入住</button>
-          <button type="button" class="btn" onclick="resetCheckin()">清空</button>
-        </form>
-      </div>
+        </div>
 
-      <div class="card">
-        <h2 class="section-title">批量导入（法会/批次）</h2>
-        <p>支持 CSV 文件，列名：姓名/法名（或分列「姓名」「法名」）、性别、手机号、身份证、身份、入住日期、预离日期、营期、班级、房间偏好、备注。</p>
-        <div class="field">
-          <label>用斋默认 *</label>
-          <div id="batch-meal-need-wrap"></div>
-          <div class="field-error" id="batch-meal-need-error"></div>
+        <!-- 住宿管理（房态分布） -->
+        <div id="view-lodging" class="view lodging-view">
+          <div class="room-section">
+            <div
+              class="section-header section-header-legend lodging-section-header"
+            >
+              <div
+                class="board-legend-inline lodging-legend-heading"
+                role="group"
+                aria-label="房态图例"
+              >
+                <span class="legend-item"
+                  ><span class="legend-dot legend-avail"></span>可住</span
+                >
+                <span class="legend-item"
+                  ><span class="legend-dot legend-occ"></span>在住</span
+                >
+                <span class="legend-item"
+                  ><span class="legend-dot legend-blocked"></span>不可住</span
+                >
+                <span class="legend-item legend-dorm-male"
+                  ><span class="legend-dorm-swatch"></span>男寮</span
+                >
+                <span class="legend-item legend-dorm-female"
+                  ><span class="legend-dorm-swatch"></span>女寮</span
+                >
+              </div>
+              <div
+                class="lodging-occ-chart board-chart-card board-chart-card--compact"
+              >
+                <header class="board-chart-card-head">
+                  <h3 class="board-chart-card-title">床位概览</h3>
+                </header>
+                <div class="board-chart-body board-chart-body--ring">
+                  <div class="chart-ring-wrap chart-ring-wrap--sm">
+                    <canvas
+                      id="chart-lodging-occ"
+                      role="img"
+                      aria-label="床位概览"
+                    ></canvas>
+                    <div class="chart-ring-center">
+                      <span class="chart-ring-pct" id="lodging-occ-pct"
+                        >0%</span
+                      >
+                      <span class="chart-ring-label">入住率</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div id="room-grid"></div>
+            <div id="room-detail-home">
+              <div
+                id="room-detail-panel"
+                class="room-detail-panel"
+                hidden
+              ></div>
+            </div>
+          </div>
         </div>
-        <div class="btn-bar">
-          <button class="btn btn-primary" onclick="document.getElementById('batch-file').click()">选择 CSV 文件</button>
-          <button class="btn btn-default" onclick="downloadBatchTemplate()">下载模板</button>
-          <input type="file" id="batch-file" hidden accept=".csv" onchange="importBatchCSV(this)">
-        </div>
-        <div id="batch-result"></div>
-      </div>
-      </div>
 
-      <div id="stay-panel-reservation" hidden>
-      <div class="card">
-        <h2 class="section-title">添加预约</h2>
-        <form id="resv-form" novalidate>
-          <div class="form-grid">
-            <div class="field"><label>姓名 / 法名 *</label><input type="text" id="resv-name" required placeholder="姓名或法名"></div>
-            <div class="field"><label>性别 *</label>
-              <select id="resv-gender" required>
-                <option value="">请选择</option>
-                <option value="男">男</option>
-                <option value="女">女</option>
-              </select>
+        <!-- 住宿办理：现场入住 + 提前预约 -->
+        <div id="view-stay" class="view">
+          <div
+            class="panel-tabs stay-mode-tabs"
+            role="tablist"
+            aria-label="住宿办理模式"
+          >
+            <button
+              type="button"
+              class="tab-btn active"
+              id="stay-tab-checkin"
+              role="tab"
+              aria-selected="true"
+              onclick="setStayMode('checkin')"
+            >
+              现场入住
+            </button>
+            <button
+              type="button"
+              class="tab-btn"
+              id="stay-tab-reservation"
+              role="tab"
+              aria-selected="false"
+              onclick="setStayMode('reservation')"
+            >
+              提前预约
+            </button>
+          </div>
+          <div id="stay-panel-checkin">
+            <div class="card">
+              <h2 class="section-title">现场入住</h2>
+              <form id="checkin-form" novalidate>
+                <div class="form-grid">
+                  <div class="field">
+                    <label>姓名 / 法名 *</label>
+                    <input
+                      type="text"
+                      id="ci-name"
+                      required
+                      placeholder="姓名或法名"
+                    />
+                    <div class="field-error" id="ci-name-error"></div>
+                  </div>
+                  <div class="field">
+                    <label>性别 *</label>
+                    <select id="ci-gender" required>
+                      <option value="">请选择</option>
+                      <option value="男">男</option>
+                      <option value="女">女</option>
+                    </select>
+                  </div>
+                  <div class="field">
+                    <label>手机号</label>
+                    <input
+                      type="tel"
+                      id="ci-phone"
+                      placeholder="13800138000"
+                      inputmode="numeric"
+                      pattern="1[3-9]\d{9}"
+                      oninput="filterDigits(this)"
+                      onblur="validateField(this)"
+                    />
+                    <div class="field-error" id="ci-phone-error"></div>
+                  </div>
+                  <div class="field">
+                    <label>身份证</label>
+                    <input
+                      type="text"
+                      id="ci-idcard"
+                      placeholder="18 位，可选"
+                      inputmode="numeric"
+                      pattern="\d{17}[\dXx]"
+                      oninput="filterIdCard(this)"
+                      onblur="validateField(this)"
+                    />
+                    <div class="field-error" id="ci-idcard-error"></div>
+                  </div>
+                  <div class="field">
+                    <label>分配床位 *</label>
+                    <div class="bed-picker" id="ci-bed-picker">
+                      <div
+                        class="bed-picker-trigger"
+                        onclick="toggleBedPicker()"
+                      >
+                        <span id="ci-bed-label">请选择床位</span>
+                        <span class="bed-picker-arrow">▾</span>
+                      </div>
+                      <div
+                        class="bed-picker-dropdown"
+                        id="ci-bed-dropdown"
+                      ></div>
+                    </div>
+                    <input type="hidden" id="ci-bed" required />
+                  </div>
+                  <div class="field">
+                    <label>身份</label>
+                    <select id="ci-role" class="lodger-role-select"></select>
+                  </div>
+                  <div class="field">
+                    <label>入住日期 *</label>
+                    <input type="date" id="ci-in" required />
+                  </div>
+                  <div class="field">
+                    <label>预计离院日期</label>
+                    <input type="date" id="ci-out" />
+                  </div>
+                  <div class="field">
+                    <label>入住来源</label>
+                    <select id="ci-source">
+                      <option value="">请选择</option>
+                      <option value="现场">现场</option>
+                      <option value="电话">电话</option>
+                      <option value="微信">微信</option>
+                      <option value="法会预约">法会预约</option>
+                      <option value="其他">其他</option>
+                    </select>
+                  </div>
+                  <div class="field">
+                    <label>所属营期</label>
+                    <select id="ci-event">
+                      <option value="">散客 / 不归属营期</option>
+                    </select>
+                  </div>
+                  <div class="field">
+                    <label>班级/分组</label>
+                    <input
+                      type="text"
+                      id="ci-class"
+                      placeholder="如：一班、师父组"
+                    />
+                  </div>
+                  <div class="field">
+                    <label>紧急联系人</label>
+                    <input
+                      type="text"
+                      id="ci-emergency-name"
+                      placeholder="姓名"
+                    />
+                  </div>
+                  <div class="field">
+                    <label>紧急联系电话</label>
+                    <input
+                      type="tel"
+                      id="ci-emergency-phone"
+                      placeholder="电话"
+                    />
+                  </div>
+                </div>
+                <div class="section-title" style="margin-top: var(--space-4)">
+                  收款信息
+                </div>
+                <div class="form-grid">
+                  <div class="field">
+                    <label>押金</label>
+                    <input
+                      type="number"
+                      id="ci-deposit"
+                      min="0"
+                      step="0.01"
+                      placeholder="0.00"
+                    />
+                  </div>
+                  <div class="field">
+                    <label>房费</label>
+                    <input
+                      type="number"
+                      id="ci-room-fee"
+                      min="0"
+                      step="0.01"
+                      placeholder="0.00"
+                    />
+                  </div>
+                  <div class="field">
+                    <label>收款方式</label>
+                    <select id="ci-pay-method">
+                      <option value="">请选择</option>
+                      <option value="现金">现金</option>
+                      <option value="微信">微信</option>
+                      <option value="支付宝">支付宝</option>
+                      <option value="刷卡">刷卡</option>
+                      <option value="挂账">挂账</option>
+                      <option value="免费">免费</option>
+                    </select>
+                  </div>
+                  <div class="field">
+                    <label>收款备注</label>
+                    <input
+                      type="text"
+                      id="ci-pay-remark"
+                      placeholder="收据号/团账等"
+                    />
+                  </div>
+                </div>
+                <div class="field">
+                  <label>用斋默认 *</label>
+                  <div id="ci-meal-need-wrap"></div>
+                  <div class="field-error" id="ci-meal-need-error"></div>
+                </div>
+                <div class="field">
+                  <label>备注</label>
+                  <textarea
+                    id="ci-notes"
+                    rows="2"
+                    placeholder="如：随众、病号、老人等"
+                  ></textarea>
+                </div>
+                <input type="hidden" id="ci-resv-id" />
+                <button type="submit" class="btn btn-primary">办理入住</button>
+                <button type="button" class="btn" onclick="resetCheckin()">
+                  清空
+                </button>
+              </form>
             </div>
-            <div class="field"><label>手机号</label>
-              <input type="tel" id="resv-phone" placeholder="13800138000"
-                inputmode="numeric"
-                oninput="filterDigits(this)"
-                onblur="validateField(this)">
-              <div class="field-error" id="resv-phone-error"></div></div>
-            <div class="field"><label>身份证</label>
-              <input type="text" id="resv-idcard" placeholder="18 位，可选"
-                inputmode="numeric"
-                oninput="filterIdCard(this)"
-                onblur="validateField(this)">
-              <div class="field-error" id="resv-idcard-error"></div></div>
-            <div class="field"><label>身份</label>
-              <select id="resv-role" class="lodger-role-select"></select>
-            </div>
-            <div class="field"><label>预计入住 *</label><input type="date" id="resv-in" required></div>
-            <div class="field"><label>预计离院</label><input type="date" id="resv-out"></div>
-            <div class="field"><label>房间偏好</label><input type="text" id="resv-room" placeholder="如：101 / 男众"></div>
-            <div class="field"><label>所属营期</label><select id="resv-event"><option value="">散客 / 不归属营期</option></select></div>
-            <div class="field"><label>班级/分组</label><input type="text" id="resv-class" placeholder="如：一班、师父组"></div>
-            <div class="field"><label>来源</label>
-              <select id="resv-source">
-                <option value="">请选择</option>
-                <option value="电话">电话</option>
-                <option value="微信">微信</option>
-                <option value="现场">现场</option>
-                <option value="其他">其他</option>
-              </select>
+
+            <div class="card">
+              <h2 class="section-title">批量导入（法会/批次）</h2>
+              <p>
+                支持 CSV
+                文件，列名：姓名/法名（或分列「姓名」「法名」）、性别、手机号、身份证、身份、入住日期、预离日期、营期、班级、房间偏好、备注。
+              </p>
+              <div class="field">
+                <label>用斋默认 *</label>
+                <div id="batch-meal-need-wrap"></div>
+                <div class="field-error" id="batch-meal-need-error"></div>
+              </div>
+              <div class="btn-bar">
+                <button
+                  class="btn btn-primary"
+                  onclick="document.getElementById('batch-file').click()"
+                >
+                  选择 CSV 文件
+                </button>
+                <button
+                  class="btn btn-default"
+                  onclick="downloadBatchTemplate()"
+                >
+                  下载模板
+                </button>
+                <input
+                  type="file"
+                  id="batch-file"
+                  hidden
+                  accept=".csv"
+                  onchange="importBatchCSV(this)"
+                />
+              </div>
+              <div id="batch-result"></div>
             </div>
           </div>
-          <div class="field">
-            <label>用斋需求 *</label>
-            <div id="resv-meal-need-wrap"></div>
-            <div class="field-error" id="resv-meal-need-error"></div>
+
+          <div id="stay-panel-reservation" hidden>
+            <div class="card">
+              <h2 class="section-title">添加预约</h2>
+              <form id="resv-form" novalidate>
+                <div class="form-grid">
+                  <div class="field">
+                    <label>姓名 / 法名 *</label
+                    ><input
+                      type="text"
+                      id="resv-name"
+                      required
+                      placeholder="姓名或法名"
+                    />
+                  </div>
+                  <div class="field">
+                    <label>性别 *</label>
+                    <select id="resv-gender" required>
+                      <option value="">请选择</option>
+                      <option value="男">男</option>
+                      <option value="女">女</option>
+                    </select>
+                  </div>
+                  <div class="field">
+                    <label>手机号</label>
+                    <input
+                      type="tel"
+                      id="resv-phone"
+                      placeholder="13800138000"
+                      inputmode="numeric"
+                      oninput="filterDigits(this)"
+                      onblur="validateField(this)"
+                    />
+                    <div class="field-error" id="resv-phone-error"></div>
+                  </div>
+                  <div class="field">
+                    <label>身份证</label>
+                    <input
+                      type="text"
+                      id="resv-idcard"
+                      placeholder="18 位，可选"
+                      inputmode="numeric"
+                      oninput="filterIdCard(this)"
+                      onblur="validateField(this)"
+                    />
+                    <div class="field-error" id="resv-idcard-error"></div>
+                  </div>
+                  <div class="field">
+                    <label>身份</label>
+                    <select id="resv-role" class="lodger-role-select"></select>
+                  </div>
+                  <div class="field">
+                    <label>预计入住 *</label
+                    ><input type="date" id="resv-in" required />
+                  </div>
+                  <div class="field">
+                    <label>预计离院</label><input type="date" id="resv-out" />
+                  </div>
+                  <div class="field">
+                    <label>房间偏好</label
+                    ><input
+                      type="text"
+                      id="resv-room"
+                      placeholder="如：101 / 男众"
+                    />
+                  </div>
+                  <div class="field">
+                    <label>所属营期</label
+                    ><select id="resv-event">
+                      <option value="">散客 / 不归属营期</option>
+                    </select>
+                  </div>
+                  <div class="field">
+                    <label>班级/分组</label
+                    ><input
+                      type="text"
+                      id="resv-class"
+                      placeholder="如：一班、师父组"
+                    />
+                  </div>
+                  <div class="field">
+                    <label>来源</label>
+                    <select id="resv-source">
+                      <option value="">请选择</option>
+                      <option value="电话">电话</option>
+                      <option value="微信">微信</option>
+                      <option value="现场">现场</option>
+                      <option value="其他">其他</option>
+                    </select>
+                  </div>
+                </div>
+                <div class="field">
+                  <label>用斋需求 *</label>
+                  <div id="resv-meal-need-wrap"></div>
+                  <div class="field-error" id="resv-meal-need-error"></div>
+                </div>
+                <div class="field">
+                  <label>备注</label
+                  ><textarea
+                    id="resv-notes"
+                    rows="2"
+                    placeholder="特殊需求"
+                  ></textarea>
+                </div>
+                <input type="hidden" id="resv-id" />
+                <button
+                  type="submit"
+                  class="btn btn-primary"
+                  id="resv-submit-btn"
+                >
+                  添加预约
+                </button>
+                <button type="button" class="btn" onclick="resetResvForm()">
+                  清空
+                </button>
+              </form>
+            </div>
+            <div class="card">
+              <h2 class="section-title">预约列表</h2>
+              <div class="btn-bar">
+                <button
+                  class="btn btn-default btn-sm"
+                  onclick="renderReservations('全部')"
+                >
+                  全部
+                </button>
+                <button
+                  class="btn btn-primary btn-sm"
+                  onclick="renderReservations('预约')"
+                >
+                  预约
+                </button>
+                <button
+                  class="btn btn-success btn-sm"
+                  onclick="renderReservations('已确认')"
+                >
+                  已确认
+                </button>
+                <button
+                  class="btn btn-warning btn-sm"
+                  onclick="renderReservations('已入住')"
+                >
+                  已入住
+                </button>
+                <button
+                  class="btn btn-danger btn-sm"
+                  onclick="renderReservations('已取消')"
+                >
+                  已取消
+                </button>
+                <button
+                  class="btn btn-default btn-sm"
+                  onclick="renderReservations('No-show')"
+                >
+                  No-show
+                </button>
+              </div>
+              <table>
+                <thead>
+                  <tr>
+                    <th>姓名</th>
+                    <th>性别</th>
+                    <th>手机号</th>
+                    <th>预计入住</th>
+                    <th>预计离院</th>
+                    <th>用斋需求</th>
+                    <th>身份</th>
+                    <th>房间偏好</th>
+                    <th>状态</th>
+                    <th>来源</th>
+                    <th>操作</th>
+                  </tr>
+                </thead>
+                <tbody id="resv-table"></tbody>
+              </table>
+            </div>
           </div>
-          <div class="field"><label>备注</label><textarea id="resv-notes" rows="2" placeholder="特殊需求"></textarea></div>
-          <input type="hidden" id="resv-id">
-          <button type="submit" class="btn btn-primary" id="resv-submit-btn">添加预约</button>
-          <button type="button" class="btn" onclick="resetResvForm()">清空</button>
-        </form>
-      </div>
-      <div class="card">
-        <h2 class="section-title">预约列表</h2>
-        <div class="btn-bar">
-          <button class="btn btn-default btn-sm" onclick="renderReservations('全部')">全部</button>
-          <button class="btn btn-primary btn-sm" onclick="renderReservations('预约')">预约</button>
-          <button class="btn btn-success btn-sm" onclick="renderReservations('已确认')">已确认</button>
-          <button class="btn btn-warning btn-sm" onclick="renderReservations('已入住')">已入住</button>
-          <button class="btn btn-danger btn-sm" onclick="renderReservations('已取消')">已取消</button>
-          <button class="btn btn-default btn-sm" onclick="renderReservations('No-show')">No-show</button>
         </div>
-        <table>
-          <thead>
-            <tr><th>姓名</th><th>性别</th><th>手机号</th><th>预计入住</th><th>预计离院</th><th>用斋需求</th><th>身份</th><th>房间偏好</th><th>状态</th><th>来源</th><th>操作</th></tr>
-          </thead>
-          <tbody id="resv-table"></tbody>
-        </table>
-      </div>
+
+        <!-- 流动预测 -->
+        <div id="view-forecast" class="view">
+          <div class="card">
+            <div class="forecast-tabs">
+              <button
+                class="forecast-tab-btn active"
+                data-tab="today"
+                onclick="renderForecastTab('today')"
+              >
+                每日预报
+              </button>
+              <button
+                class="forecast-tab-btn"
+                data-tab="flow"
+                onclick="renderForecastTab('flow')"
+              >
+                周流动预测
+              </button>
+            </div>
+
+            <div id="forecast-panel-today" class="forecast-tab-panel active">
+              <div class="forecast-controls">
+                <div class="field">
+                  <label>日期</label>
+                  <input
+                    type="date"
+                    id="fc-today-date"
+                    onchange="renderTodayForecast()"
+                  />
+                </div>
+                <button
+                  class="btn btn-default"
+                  onclick="
+                    document.getElementById('fc-today-date').value = todayStr();
+                    renderTodayForecast();
+                  "
+                >
+                  今天
+                </button>
+              </div>
+              <div id="today-forecast-result"></div>
+            </div>
+
+            <div id="forecast-panel-flow" class="forecast-tab-panel">
+              <div class="forecast-controls">
+                <div class="field">
+                  <label>起始日期</label>
+                  <input
+                    type="date"
+                    id="fc-start-date"
+                    onchange="renderFlowForecast()"
+                  />
+                </div>
+                <div class="field">
+                  <label>预测周数</label>
+                  <select id="fc-weeks" onchange="renderFlowForecast()">
+                    <option value="4">4 周</option>
+                    <option value="8" selected>8 周</option>
+                    <option value="12">12 周</option>
+                  </select>
+                </div>
+                <button
+                  class="btn btn-default"
+                  onclick="
+                    document.getElementById('fc-start-date').value = todayStr();
+                    renderFlowForecast();
+                  "
+                >
+                  从今天起
+                </button>
+              </div>
+              <div id="flow-forecast-result"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 房务清洁 -->
+        <div id="view-housekeeping" class="view">
+          <div class="card">
+            <h2 class="section-title">客房维护</h2>
+            <p>
+              退房后床位自动标记为「脏房」，清洁后点击「已净房」方可再次分配。
+            </p>
+            <div id="hk-grid" class="room-grid"></div>
+          </div>
+        </div>
+
+        <!-- 报表 -->
+        <div id="view-reports" class="view">
+          <div class="card">
+            <h2 class="section-title">厨房用斋汇总</h2>
+            <div class="filter-row">
+              <div class="field">
+                <label>日期</label>
+                <input type="date" id="r-meal-date" value="" />
+              </div>
+            </div>
+            <div class="btn-bar">
+              <button class="btn btn-primary" onclick="renderMealReport()">
+                查询
+              </button>
+              <button class="btn btn-default" onclick="exportMealReportCSV()">
+                导出 CSV
+              </button>
+            </div>
+            <div id="meal-report-result"></div>
+          </div>
+
+          <div class="card">
+            <h2 class="section-title">账务报表</h2>
+            <div class="filter-row">
+              <div class="field">
+                <label>日期</label>
+                <input type="date" id="r-daily-date" value="" />
+              </div>
+            </div>
+            <div class="btn-bar">
+              <button class="btn btn-primary" onclick="renderDailyReport()">
+                查询
+              </button>
+              <button class="btn btn-default" onclick="exportDailyReportCSV()">
+                导出 CSV
+              </button>
+            </div>
+            <div id="daily-report-result"></div>
+          </div>
+
+          <div class="card">
+            <h2 class="section-title">月报</h2>
+            <div class="filter-row">
+              <div class="field">
+                <label>月份</label>
+                <input type="month" id="r-month" value="" />
+              </div>
+            </div>
+            <div class="btn-bar">
+              <button class="btn btn-primary" onclick="renderMonthlyReport()">
+                查询
+              </button>
+              <button
+                class="btn btn-default"
+                onclick="exportMonthlyReportCSV()"
+              >
+                导出 CSV
+              </button>
+            </div>
+            <div id="monthly-report-result"></div>
+          </div>
+
+          <div class="card">
+            <h2 class="section-title">营期统计</h2>
+            <div class="filter-row">
+              <div class="field">
+                <label>营期</label>
+                <select id="r-event" onchange="renderEventReport()">
+                  <option value="">全部营期</option>
+                </select>
+              </div>
+              <div class="field">
+                <label>分组方式</label>
+                <select id="r-event-group" onchange="renderEventReport()">
+                  <option value="role">按身份</option>
+                  <option value="class_name">按班级</option>
+                  <option value="gender">按性别</option>
+                </select>
+              </div>
+            </div>
+            <div class="btn-bar">
+              <button class="btn btn-primary" onclick="renderEventReport()">
+                查询
+              </button>
+              <button class="btn btn-default" onclick="exportEventReportCSV()">
+                导出 CSV
+              </button>
+            </div>
+            <div id="event-report-result"></div>
+          </div>
+        </div>
+
+        <!-- 历史查询 -->
+        <div id="view-history" class="view">
+          <div class="card">
+            <h2 class="section-title">历史挂单查询</h2>
+            <div class="filter-row">
+              <div class="field">
+                <label>开始日期</label>
+                <input type="date" id="h-start" />
+              </div>
+              <div class="field">
+                <label>结束日期</label>
+                <input type="date" id="h-end" />
+              </div>
+              <div class="field">
+                <label>姓名 / 法名 / 手机号</label>
+                <input type="text" id="h-keyword" placeholder="输入关键字" />
+              </div>
+              <div class="field">
+                <label>房间号</label>
+                <input type="text" id="h-room" placeholder="如 101" />
+              </div>
+              <div class="field">
+                <label>身份</label>
+                <select
+                  id="h-role"
+                  class="lodger-role-select"
+                  data-empty-label="全部"
+                ></select>
+              </div>
+            </div>
+            <div class="btn-bar">
+              <button class="btn btn-primary" onclick="renderHistory()">
+                查询
+              </button>
+              <button class="btn btn-default" onclick="resetHistoryFilter()">
+                重置
+              </button>
+            </div>
+            <table>
+              <thead>
+                <tr>
+                  <th>床位</th>
+                  <th>姓名</th>
+                  <th>身份</th>
+                  <th>性别</th>
+                  <th>手机号</th>
+                  <th>入住日</th>
+                  <th>预离日</th>
+                  <th>实际离院</th>
+                  <th>状态</th>
+                  <th>用斋</th>
+                  <th>备注</th>
+                  <th>操作</th>
+                </tr>
+              </thead>
+              <tbody id="history-table"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- 基础设置 -->
+        <div id="view-info" class="view">
+          <div class="card">
+            <h2 class="section-title">基础设置</h2>
+            <div class="info-tabs" id="info-tabs">
+              <button class="active" onclick="renderInfo('rooms')">
+                房间管理
+              </button>
+              <button onclick="renderInfo('beds')">床位管理</button>
+              <button onclick="renderInfo('guests')">住客档案</button>
+              <button onclick="renderInfo('lodgers')">挂单记录</button>
+              <button onclick="renderInfo('events')">营期管理</button>
+            </div>
+            <div id="info-content"></div>
+          </div>
+        </div>
+
+        <div id="view-backup" class="view">
+          <div class="card">
+            <h2 class="section-title">系统设置</h2>
+            <p id="backup-mode-desc">
+              数据自动保存在本机浏览器内。建议每天导出
+              <strong>ketang.db</strong> 到 U 盘备份。
+            </p>
+            <div class="btn-bar">
+              <button class="btn btn-default" onclick="showView('history')">
+                历史查询
+              </button>
+              <button class="btn btn-default" onclick="toggleTheme()">
+                切换明暗主题
+              </button>
+            </div>
+            <div class="btn-bar">
+              <button class="btn btn-success" onclick="exportDB()">
+                导出数据库到 U 盘 / 电脑
+              </button>
+              <button class="btn btn-primary" onclick="exportCSV()">
+                导出 CSV 台账
+              </button>
+              <button
+                class="btn btn-warning"
+                onclick="document.getElementById('import-file').click()"
+              >
+                从文件恢复数据
+              </button>
+              <input
+                type="file"
+                id="import-file"
+                hidden
+                accept=".db,.json"
+                onchange="importDB(this)"
+              />
+            </div>
+            <div class="card card-info">
+              <h3>每日备份三步</h3>
+              <ol id="backup-mode-steps">
+                <li>点击「导出数据库」，保存到 U 盘或桌面。</li>
+                <li>文件名为 <code>ketang.db</code>，复制多一份更安全。</li>
+                <li>
+                  如需恢复：点击「从文件恢复数据」，选择备份的
+                  <code>ketang.db</code>。
+                </li>
+              </ol>
+            </div>
+          </div>
+
+          <div class="card">
+            <h2 class="section-title">用户管理</h2>
+            <div class="btn-bar" style="margin-bottom: var(--space-4)">
+              <button class="btn btn-primary" onclick="openUserModal()">
+                + 新增用户
+              </button>
+            </div>
+            <div id="user-list"></div>
+          </div>
+        </div>
+      </main>
+    </div>
+
+    <!-- 入住确认弹窗 -->
+    <div class="modal-backdrop" id="modal">
+      <div class="modal">
+        <div class="modal-header">
+          <h3 id="modal-title">办理入住</h3>
+          <span class="close" onclick="closeModal()">&times;</span>
+        </div>
+        <div id="modal-body"></div>
       </div>
     </div>
 
-    <!-- 流动预测 -->
-    <div id="view-forecast" class="view">
-      <div class="card">
-        <div class="forecast-tabs">
-          <button class="forecast-tab-btn active" data-tab="today" onclick="renderForecastTab('today')">每日预报</button>
-          <button class="forecast-tab-btn" data-tab="flow" onclick="renderForecastTab('flow')">周流动预测</button>
-        </div>
+    <div class="toast" id="toast"></div>
 
-        <div id="forecast-panel-today" class="forecast-tab-panel active">
-          <div class="forecast-controls">
-            <div class="field">
-              <label>日期</label>
-              <input type="date" id="fc-today-date" onchange="renderTodayForecast()">
-            </div>
-            <button class="btn btn-default" onclick="document.getElementById('fc-today-date').value=todayStr(); renderTodayForecast()">今天</button>
-          </div>
-          <div id="today-forecast-result"></div>
-        </div>
-
-        <div id="forecast-panel-flow" class="forecast-tab-panel">
-          <div class="forecast-controls">
-            <div class="field">
-              <label>起始日期</label>
-              <input type="date" id="fc-start-date" onchange="renderFlowForecast()">
-            </div>
-            <div class="field">
-              <label>预测周数</label>
-              <select id="fc-weeks" onchange="renderFlowForecast()">
-                <option value="4">4 周</option>
-                <option value="8" selected>8 周</option>
-                <option value="12">12 周</option>
-              </select>
-            </div>
-            <button class="btn btn-default" onclick="document.getElementById('fc-start-date').value=todayStr(); renderFlowForecast()">从今天起</button>
-          </div>
-          <div id="flow-forecast-result"></div>
-        </div>
-      </div>
-    </div>
-
-    <!-- 房务清洁 -->
-    <div id="view-housekeeping" class="view">
-      <div class="card">
-        <h2 class="section-title">客房维护</h2>
-        <p>退房后床位自动标记为「脏房」，清洁后点击「已净房」方可再次分配。</p>
-        <div id="hk-grid" class="room-grid"></div>
-      </div>
-    </div>
-
-    <!-- 报表 -->
-    <div id="view-reports" class="view">
-      <div class="card">
-        <h2 class="section-title">厨房用斋汇总</h2>
-        <div class="filter-row">
-          <div class="field">
-            <label>日期</label>
-            <input type="date" id="r-meal-date" value="">
-          </div>
-        </div>
-        <div class="btn-bar">
-          <button class="btn btn-primary" onclick="renderMealReport()">查询</button>
-          <button class="btn btn-default" onclick="exportMealReportCSV()">导出 CSV</button>
-        </div>
-        <div id="meal-report-result"></div>
-      </div>
-
-      <div class="card">
-        <h2 class="section-title">账务报表</h2>
-        <div class="filter-row">
-          <div class="field">
-            <label>日期</label>
-            <input type="date" id="r-daily-date" value="">
-          </div>
-        </div>
-        <div class="btn-bar">
-          <button class="btn btn-primary" onclick="renderDailyReport()">查询</button>
-          <button class="btn btn-default" onclick="exportDailyReportCSV()">导出 CSV</button>
-        </div>
-        <div id="daily-report-result"></div>
-      </div>
-
-      <div class="card">
-        <h2 class="section-title">月报</h2>
-        <div class="filter-row">
-          <div class="field">
-            <label>月份</label>
-            <input type="month" id="r-month" value="">
-          </div>
-        </div>
-        <div class="btn-bar">
-          <button class="btn btn-primary" onclick="renderMonthlyReport()">查询</button>
-          <button class="btn btn-default" onclick="exportMonthlyReportCSV()">导出 CSV</button>
-        </div>
-        <div id="monthly-report-result"></div>
-      </div>
-
-      <div class="card">
-        <h2 class="section-title">营期统计</h2>
-        <div class="filter-row">
-          <div class="field">
-            <label>营期</label>
-            <select id="r-event" onchange="renderEventReport()"><option value="">全部营期</option></select>
-          </div>
-          <div class="field">
-            <label>分组方式</label>
-            <select id="r-event-group" onchange="renderEventReport()">
-              <option value="role">按身份</option>
-              <option value="class_name">按班级</option>
-              <option value="gender">按性别</option>
-            </select>
-          </div>
-        </div>
-        <div class="btn-bar">
-          <button class="btn btn-primary" onclick="renderEventReport()">查询</button>
-          <button class="btn btn-default" onclick="exportEventReportCSV()">导出 CSV</button>
-        </div>
-        <div id="event-report-result"></div>
-      </div>
-    </div>
-
-    <!-- 历史查询 -->
-    <div id="view-history" class="view">
-      <div class="card">
-        <h2 class="section-title">历史挂单查询</h2>
-        <div class="filter-row">
-          <div class="field">
-            <label>开始日期</label>
-            <input type="date" id="h-start">
-          </div>
-          <div class="field">
-            <label>结束日期</label>
-            <input type="date" id="h-end">
-          </div>
-          <div class="field">
-            <label>姓名 / 法名 / 手机号</label>
-            <input type="text" id="h-keyword" placeholder="输入关键字">
-          </div>
-          <div class="field">
-            <label>房间号</label>
-            <input type="text" id="h-room" placeholder="如 101">
-          </div>
-          <div class="field">
-            <label>身份</label>
-            <select id="h-role" class="lodger-role-select" data-empty-label="全部"></select>
-          </div>
-        </div>
-        <div class="btn-bar">
-          <button class="btn btn-primary" onclick="renderHistory()">查询</button>
-          <button class="btn btn-default" onclick="resetHistoryFilter()">重置</button>
-        </div>
-        <table>
-          <thead>
-            <tr><th>床位</th><th>姓名</th><th>身份</th><th>性别</th><th>手机号</th><th>入住日</th><th>预离日</th><th>实际离院</th><th>状态</th><th>用斋</th><th>备注</th><th>操作</th></tr>
-          </thead>
-          <tbody id="history-table"></tbody>
-        </table>
-      </div>
-    </div>
-
-    <!-- 基础设置 -->
-    <div id="view-info" class="view">
-      <div class="card">
-        <h2 class="section-title">基础设置</h2>
-        <div class="info-tabs" id="info-tabs">
-          <button class="active" onclick="renderInfo('rooms')">房间管理</button>
-          <button onclick="renderInfo('beds')">床位管理</button>
-          <button onclick="renderInfo('guests')">住客档案</button>
-          <button onclick="renderInfo('lodgers')">挂单记录</button>
-          <button onclick="renderInfo('events')">营期管理</button>
-        </div>
-        <div id="info-content"></div>
-      </div>
-    </div>
-
-    <div id="view-backup" class="view">
-      <div class="card">
-        <h2 class="section-title">系统设置</h2>
-        <p id="backup-mode-desc">数据自动保存在本机浏览器内。建议每天导出 <strong>ketang.db</strong> 到 U 盘备份。</p>
-        <div class="btn-bar">
-          <button class="btn btn-default" onclick="showView('history')">历史查询</button>
-          <button class="btn btn-default" onclick="toggleTheme()">切换明暗主题</button>
-        </div>
-        <div class="btn-bar">
-          <button class="btn btn-success" onclick="exportDB()">导出数据库到 U 盘 / 电脑</button>
-          <button class="btn btn-primary" onclick="exportCSV()">导出 CSV 台账</button>
-          <button class="btn btn-warning" onclick="document.getElementById('import-file').click()">从文件恢复数据</button>
-          <input type="file" id="import-file" hidden accept=".db,.json" onchange="importDB(this)">
-        </div>
-        <div class="card card-info">
-          <h3>每日备份三步</h3>
-          <ol id="backup-mode-steps">
-            <li>点击「导出数据库」，保存到 U 盘或桌面。</li>
-            <li>文件名为 <code>ketang.db</code>，复制多一份更安全。</li>
-            <li>如需恢复：点击「从文件恢复数据」，选择备份的 <code>ketang.db</code>。</li>
-          </ol>
-        </div>
-      </div>
-
-      <div class="card">
-        <h2 class="section-title">用户管理</h2>
-        <div class="btn-bar" style="margin-bottom: var(--space-4);">
-          <button class="btn btn-primary" onclick="openUserModal()">+ 新增用户</button>
-        </div>
-        <div id="user-list"></div>
-      </div>
-    </div>
-  </main>
-  </div>
-
-  <!-- 入住确认弹窗 -->
-  <div class="modal-backdrop" id="modal">
-    <div class="modal">
-      <div class="modal-header"><h3 id="modal-title">办理入住</h3><span class="close" onclick="closeModal()">&times;</span></div>
-      <div id="modal-body"></div>
-    </div>
-  </div>
-
-  <div class="toast" id="toast"></div>
-
-  <script src="./lib/sql-wasm.js?v=2"></script>
-  <script src="./js/utils.js?v=6"></script>
-  <script src="./js/db.js?v=8"></script>
-  <script src="./js/api-client.js?v=1"></script>
-  <script src="./js/guests.js?v=3"></script>
-  <script src="./js/audit.js?v=3"></script>
-  <script src="./js/housekeeping.js?v=6"></script>
-  <script src="./js/meals.js?v=21"></script>
-  <script src="./js/checkin.js?v=18"></script>
-  <script src="./js/lodger-actions.js?v=14"></script>
-  <script src="./js/reservations.js?v=8"></script>
-  <script src="./js/history.js?v=5"></script>
-  <script src="./js/validation.js?v=4"></script>
-  <script src="./lib/chart.umd.min.js?v=1"></script>
-  <script src="./js/chart-theme.js?v=3"></script>
-  <script src="./js/forecast.js?v=6"></script>
-  <script src="./js/reports.js?v=10"></script>
-  <script src="./js/events.js?v=6"></script>
-  <script src="./js/info.js?v=10"></script>
-  <script src="./js/auth.js?v=6"></script>
-  <script src="./js/icons.js?v=6"></script>
-  <script src="./js/picker.js?v=3"></script>
-  <script src="./js/app.js?v=34"></script>
-</body>
+    <script src="./lib/sql-wasm.js?v=2"></script>
+    <script src="./js/utils.js?v=6"></script>
+    <script src="./js/db.js?v=8"></script>
+    <script src="./js/api-client.js?v=1"></script>
+    <script src="./js/guests.js?v=3"></script>
+    <script src="./js/audit.js?v=3"></script>
+    <script src="./js/housekeeping.js?v=6"></script>
+    <script src="./js/meals.js?v=21"></script>
+    <script src="./js/checkin.js?v=18"></script>
+    <script src="./js/lodger-actions.js?v=14"></script>
+    <script src="./js/reservations.js?v=8"></script>
+    <script src="./js/history.js?v=5"></script>
+    <script src="./js/validation.js?v=4"></script>
+    <script src="./lib/chart.umd.min.js?v=1"></script>
+    <script src="./js/chart-theme.js?v=3"></script>
+    <script src="./js/forecast.js?v=6"></script>
+    <script src="./js/reports.js?v=10"></script>
+    <script src="./js/events.js?v=6"></script>
+    <script src="./js/info.js?v=10"></script>
+    <script src="./js/auth.js?v=7"></script>
+    <script src="./js/icons.js?v=6"></script>
+    <script src="./js/picker.js?v=4"></script>
+    <script src="./js/app.js?v=35"></script>
+  </body>
 </html>

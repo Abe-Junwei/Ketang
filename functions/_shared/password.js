@@ -3,35 +3,36 @@
 export const PBKDF2_ITERATIONS = 600000;
 
 function bytesToHex(bytes) {
-  return [...bytes].map(byte => byte.toString(16).padStart(2, '0')).join('');
+  return [...bytes].map((byte) => byte.toString(16).padStart(2, "0")).join("");
 }
 
 function hexToBytes(hex) {
-  const value = String(hex || '');
+  const value = String(hex || "");
   const out = new Uint8Array(value.length / 2);
-  for (let i = 0; i < out.length; i++) out[i] = parseInt(value.slice(i * 2, i * 2 + 2), 16);
+  for (let i = 0; i < out.length; i++)
+    out[i] = parseInt(value.slice(i * 2, i * 2 + 2), 16);
   return out;
 }
 
 async function pbkdf2Sha256(password, saltBytes, iterations) {
   const key = await crypto.subtle.importKey(
-    'raw',
+    "raw",
     new TextEncoder().encode(password),
-    { name: 'PBKDF2' },
+    { name: "PBKDF2" },
     false,
-    ['deriveBits']
+    ["deriveBits"],
   );
   const bits = await crypto.subtle.deriveBits(
-    { name: 'PBKDF2', salt: saltBytes, iterations, hash: 'SHA-256' },
+    { name: "PBKDF2", salt: saltBytes, iterations, hash: "SHA-256" },
     key,
-    256
+    256,
   );
   return bytesToHex(new Uint8Array(bits));
 }
 
 export async function sha256Hex(text) {
   const bytes = new TextEncoder().encode(text);
-  const hash = await crypto.subtle.digest('SHA-256', bytes);
+  const hash = await crypto.subtle.digest("SHA-256", bytes);
   return bytesToHex(new Uint8Array(hash));
 }
 
@@ -42,20 +43,20 @@ export async function hashPasswordPlain(password) {
 }
 
 export async function verifyPassword(password, stored) {
-  const value = String(stored || '');
-  const parts = value.split('$');
-  if (parts[0] === 'pbkdf2' && parts.length === 4) {
+  const value = String(stored || "");
+  const parts = value.split("$");
+  if (parts[0] === "pbkdf2" && parts.length === 4) {
     const iterations = parseInt(parts[1], 10);
     if (!iterations || iterations < 100000) return false;
     const hash = await pbkdf2Sha256(password, hexToBytes(parts[2]), iterations);
     return hash === parts[3];
   }
-  if (parts.length === 3 && parts[0] === 'sha256') {
-    return await sha256Hex(parts[1] + password) === parts[2];
+  if (parts.length === 3 && parts[0] === "sha256") {
+    return (await sha256Hex(parts[1] + password)) === parts[2];
   }
   return value === password;
 }
 
 export function isLegacySha256Hash(stored) {
-  return String(stored || '').startsWith('sha256$');
+  return String(stored || "").startsWith("sha256$");
 }
