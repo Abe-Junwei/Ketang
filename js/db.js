@@ -62,7 +62,7 @@ function remoteExec(sql) {
 function remoteLogin(username, password) {
   const result = remoteDBRequest({ action: 'login', username, password });
   setRemoteSessionToken(result.token);
-  return result.user;
+  return { user: result.user, must_change_password: !!result.must_change_password };
 }
 
 function remoteLogout() {
@@ -1219,7 +1219,15 @@ function run(sql, params) {
 function exportDB() {
   if (!requireAdmin()) { alert('需要管理员权限'); return; }
   if (isRemoteDB()) {
-    alert('云端模式暂不支持导出 ketang.db；请先在 Cloudflare D1 控制台导出或备份数据库。');
+    apiExportJsonBackup().then(function (data) {
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json;charset=utf-8' });
+      downloadBlob(blob, 'ketang-backup-' + todayStr() + '.json');
+      localStorage.setItem('ketang_last_backup', todayStr());
+      checkBackupReminder();
+      showToast('已导出 JSON 备份');
+    }).catch(function (e) {
+      alert('导出失败：' + e.message);
+    });
     return;
   }
   const data = db.export();
@@ -1241,8 +1249,24 @@ function exportDB() {
 async function importDB(input) {
   if (!requireAdmin()) { alert('需要管理员权限'); input.value = ''; return; }
   if (isRemoteDB()) {
-    alert('云端模式暂不支持从 ketang.db 直接恢复；请在 Cloudflare D1 控制台导入。');
-    input.value = '';
+    const file = input.files[0];
+    if (!file) return;
+    if (!confirm('恢复备份会覆盖当前云端数据，是否继续？')) { input.value = ''; return; }
+    const reader = new FileReader();
+    reader.onload = async e => {
+      try {
+        const data = JSON.parse(e.target.result);
+        if (!data.tables) throw new Error('不是有效的客堂 JSON 备份');
+        await apiImportJsonBackup(data.tables);
+        showToast('云端数据恢复成功');
+        renderAll();
+      } catch (err) {
+        alert('恢复失败：' + err.message);
+      } finally {
+        input.value = '';
+      }
+    };
+    reader.readAsText(file);
     return;
   }
   const file = input.files[0];

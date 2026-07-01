@@ -1,0 +1,112 @@
+import { batchD1, bumpBoardVersion, insertAudit, queryD1, runD1 } from './d1.js';
+import { parsePersonNameInput } from './person.js';
+
+async function findOrCreateGuest(env, displayName, gender, phone, idCard) {
+  const person = parsePersonNameInput(displayName);
+  if (!person.name) return null;
+  let guest = null;
+  if (phone || idCard) {
+    const conds = [];
+    const params = [];
+    if (phone) { conds.push('phone = ?'); params.push(phone); }
+    if (idCard) { conds.push('id_card = ?'); params.push(idCard); }
+    const rows = await queryD1(env, `SELECT * FROM guests WHERE ${conds.join(' OR ')} LIMIT 1`, params);
+    guest = rows[0] || null;
+  }
+  if (!guest) {
+    const rows = await queryD1(env, 'SELECT * FROM guests WHERE name = ? LIMIT 1', [person.name]);
+    guest = rows[0] || null;
+  }
+  if (guest) return guest.id;
+  const meta = await runD1(env, 'INSERT INTO guests (name, dharma_name, gender, phone, id_card, visit_count, updated_at) VALUES (?, ?, ?, ?, ?, 0, ?)',
+    [person.name, null, gender || null, phone || null, idCard || null, new Date().toISOString()]);
+  return meta.last_row_id;
+}
+
+export async function apiUpsertReservation(env, session, body) {
+  const person = parsePersonNameInput(body.name);
+  if (!person.name) throw new Error('请填写姓名');
+  if (!body.gender || !body.expected_check_in) throw new Error('请填写性别和预计入住日期');
+  const checkOut = body.expected_check_out || null;
+  if (checkOut && checkOut < body.expected_check_in) throw new Error('预离日期不能早于入住日期');
+  const guestId = body.guest_id || await findOrCreateGuest(env, person.name, body.gender, body.phone || null, body.id_card || null);
+  const mealBf = body.meal_breakfast ? 1 : 0;
+  const mealLc = body.meal_lunch ? 1 : 0;
+  const mealDn = body.meal_dinner ? 1 : 0;
+  const resvId = parseInt(body.reservation_id, 10);
+
+  if (resvId) {
+    const existing = await queryD1(env, 'SELECT * FROM reservations WHERE id=?', [resvId]);
+    const row = existing[0];
+    if (!row) throw new Error('预约记录不存在');
+    if (row.status === '已入住' || row.status === '已取消') throw new Error('已入住或已取消的预约不可编辑');
+    await runD1(env, `UPDATE reservations SET
+      guest_id=?, event_id=?, name=?, dharma_name=?, gender=?, phone=?, id_card=?,
+      role=?, class_name=?, expected_check_in=?, expected_check_out=?,
+      room_preference=?, source=?, notes=?, meal_breakfast=?, meal_lunch=?, meal_dinner=?
+      WHERE id=?`, [
+      guestId, body.event_id || null, person.name, person.dharma_name, body.gender, body.phone || null, body.id_card || null,
+      body.role || null, body.class_name || null, body.expected_check_in, checkOut,
+      body.room_preference || null, body.source || null, body.notes || null, mealBf, mealLc, mealDn, resvId
+    ]);
+    await insertAudit(env, '更新预约', 'reservation', resvId, { guest_id: guestId, name: person.name }, session);
+    await bumpBoardVersion(env);
+    return { reservation_id: resvId };
+  }
+
+  const meta = await runD1(env, `INSERT INTO reservations
+    (guest_id, event_id, name, dharma_name, gender, phone, id_card, role, class_name, expected_check_in, expected_check_out, room_preference, source, status, notes, meal_breakfast, meal_lunch, meal_dinner)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '预约', ?, ?, ?, ?)`, [
+    guestId, body.event_id || null, person.name, person.dharma_name, body.gender, body.phone || null, body.id_card || null,
+    body.role || null, body.class_name || null, body.expected_check_in, checkOut,
+    body.room_preference || null, body.source || null, body.notes || null, mealBf, mealLc, mealDn
+  ]);
+  await insertAudit(env, '添加预约', 'reservation', meta.last_row_id, { guest_id: guestId, name: person.name }, session);
+  await bumpBoardVersion(env);
+  return { reservation_id: meta.last_row_id };
+}
+
+export async function apiUpdateReservationStatus(env, session, body) {
+  const id = parseInt(body.reservation_id, 10);
+  const status = body.status;
+  const rows = await queryD1(env, 'SELECT * FROM reservations WHERE id=?', [id]);
+  const r = rows[0];
+  if (!r) throw new Error('预约不存在');
+  await runD1(env, 'UPDATE reservations SET status=? WHERE id=?', [status, id]);
+  await insertAudit(env, '更新预约状态', 'reservation', id, { name: r.name, from: r.status, to: status }, session);
+  await bumpBoardVersion(env);
+  return { ok: true };
+}
+
+export async function apiBatchEventMembers(env, session, body) {
+  const action = body.action;
+  const items = Array.isArray(body.items) ? body.items : [];
+  if (!items.length) throw new Error('未选择成员');
+  const today = new Date().toISOString().slice(0, 10);
+  const statements = [];
+
+  for (const item of items) {
+    if (item.kind === 'reservation') {
+      if (action === 'cancel') statements.push({ sql: "UPDATE reservations SET status='已取消' WHERE id=? AND status NOT IN ('已取消','已入住')", params: [item.id] });
+      if (action === 'noshow') statements.push({ sql: "UPDATE reservations SET status='No-show' WHERE id=? AND status NOT IN ('已入住','No-show','已取消')", params: [item.id] });
+      continue;
+    }
+    if (item.kind === 'lodger' && action === 'cancel') {
+      const rows = await queryD1(env, "SELECT bed_id FROM lodgers WHERE id=? AND status='在住'", [item.id]);
+      const l = rows[0];
+      if (!l) continue;
+      statements.push({ sql: "UPDATE lodgers SET status='已取消', bed_id=NULL, actual_check_out=? WHERE id=? AND status='在住'", params: [today, item.id] });
+      statements.push({ sql: 'DELETE FROM meals WHERE lodger_id=? AND date>?', params: [item.id, today] });
+      if (l.bed_id) {
+        statements.push({ sql: "UPDATE beds SET status='可用' WHERE id=?", params: [l.bed_id] });
+        statements.push({ sql: 'INSERT INTO housekeeping (bed_id, status, operator, notes) VALUES (?, ?, ?, ?)', params: [l.bed_id, '脏房', session.username, '批量取消挂单释放床位'] });
+      }
+    }
+  }
+
+  if (!statements.length) throw new Error('没有可执行的变更');
+  await batchD1(env, statements);
+  await insertAudit(env, action === 'noshow' ? '批量标记 No-show' : '批量取消成员', 'event', body.event_id || null, { count: items.length }, session);
+  await bumpBoardVersion(env);
+  return { ok: true, count: items.length };
+}

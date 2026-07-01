@@ -270,14 +270,18 @@ async function assignExistingLodgerToBed(lodgerId, bedId) {
     return;
   }
   try {
-    await withTransaction(async () => {
-      run("UPDATE lodgers SET bed_id=? WHERE id=? AND status='在住'", [bedId, lodgerId]);
-      run("UPDATE beds SET status='占用' WHERE id=?", [bedId]);
-      setHouseStatus(bedId, '占用', '分配床位');
-      logAudit('分配床位', 'lodger', lodgerId, { guest_id: l.guest_id, bed_id: bedId, name: l.name });
-      await ensureLodgerMeals(lodgerId);
-    });
-    await saveDB();
+    if (useRemoteWriteApi()) {
+      await apiAssignBed({ lodger_id: lodgerId, bed_id: parseInt(bedId, 10) });
+    } else {
+      await withTransaction(async () => {
+        run("UPDATE lodgers SET bed_id=? WHERE id=? AND status='在住'", [bedId, lodgerId]);
+        run("UPDATE beds SET status='占用' WHERE id=?", [bedId]);
+        setHouseStatus(bedId, '占用', '分配床位');
+        logAudit('分配床位', 'lodger', lodgerId, { guest_id: l.guest_id, bed_id: bedId, name: l.name });
+        await ensureLodgerMeals(lodgerId);
+      });
+      await saveDB();
+    }
     closeModal();
     showToast('已分配床位');
     renderAll();
@@ -311,8 +315,10 @@ async function assignReservationToBed(resvId, bedId) {
     return;
   }
   try {
-    await withTransaction(async () => {
-      // 再次校验预约状态 | Re-check reservation status inside transaction
+    if (useRemoteWriteApi()) {
+      await apiAssignBed({ reservation_id: parseInt(resvId, 10), bed_id: parseInt(bedId, 10) });
+    } else {
+      await withTransaction(async () => {
       const rNow = query('SELECT status FROM reservations WHERE id=?', [resvId])[0];
       if (!rNow || (rNow.status !== '预约' && rNow.status !== '已确认')) {
         throw new Error('该预约状态已变更，请刷新后重试');
@@ -348,6 +354,7 @@ async function assignReservationToBed(resvId, bedId) {
       logAudit('预约转入住', 'reservation', resvId, { lodger_id: lodgerId });
     });
     await saveDB();
+    }
     closeModal();
     showToast('已分配床位');
     renderAll();
@@ -414,6 +421,32 @@ document.getElementById('checkin-form').addEventListener('submit', async e => {
   }
 
   try {
+    if (useRemoteWriteApi()) {
+      await apiCheckIn({
+        bed_id: parseInt(bedId, 10),
+        name: name,
+        gender: gender || null,
+        phone: phone,
+        id_card: idCard,
+        check_in_date: checkIn,
+        expected_check_out: checkOut,
+        event_id: document.getElementById('ci-event').value || null,
+        role: readLodgerRoleInput('ci-role'),
+        class_name: document.getElementById('ci-class').value.trim() || null,
+        source: document.getElementById('ci-source').value || null,
+        notes: document.getElementById('ci-notes').value.trim() || null,
+        emergency_name: document.getElementById('ci-emergency-name').value.trim() || null,
+        emergency_phone: document.getElementById('ci-emergency-phone').value.trim() || null,
+        meal_breakfast: ciMeal.breakfast,
+        meal_lunch: ciMeal.lunch,
+        meal_dinner: ciMeal.dinner,
+        deposit: parseFloat(document.getElementById('ci-deposit').value) || 0,
+        room_fee: parseFloat(document.getElementById('ci-room-fee').value) || 0,
+        pay_method: document.getElementById('ci-pay-method').value || null,
+        pay_remark: document.getElementById('ci-pay-remark').value.trim() || null,
+        reservation_id: resvId ? parseInt(resvId, 10) : null
+      });
+    } else {
     await withTransaction(async () => {
       const person = parsePersonNameInput(name);
       const guestId = findOrCreateGuest(person.name, gender || null, phone, idCard);
@@ -481,6 +514,7 @@ document.getElementById('checkin-form').addEventListener('submit', async e => {
       }
     });
     await saveDB();
+    }
     document.getElementById('ci-resv-id').value = '';
     showToast('入住登记成功');
     resetCheckin();
@@ -600,6 +634,11 @@ function findAssignableBed(gender, roomPreference) {
 
 
 async function importBatchCSV(input) {
+  if (useRemoteWriteApi()) {
+    alert('云端模式暂不支持 CSV 批量导入，请逐条办理入住或使用本地模式。');
+    input.value = '';
+    return;
+  }
   const file = input.files[0];
   if (!file) return;
   const resultDiv = document.getElementById('batch-result');

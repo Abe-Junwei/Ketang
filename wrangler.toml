@@ -1,0 +1,15 @@
+name = "ketang"
+compatibility_date = "2024-06-01"
+pages_build_output_dir = "."
+
+[[d1_databases]]
+binding = "KETANG_DB"
+database_name = "ketang-db"
+database_id = "REPLACE_WITH_YOUR_D1_DATABASE_ID"
+
+[vars]
+# KETANG_PUBLIC_RESERVATIONS = "true"
+
+# Secrets (set via `wrangler secret put` or Cloudflare dashboard):
+# - KETANG_SESSION_SECRET (required, min 32 chars)
+# - KETANG_BOOTSTRAP_SECRET (optional, protects re-init on non-empty DB)

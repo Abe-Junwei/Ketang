@@ -315,3 +315,12 @@ function verifyPassword(password, stored) {
   // 兼容旧明文（首次登录后会被重写为哈希）
   return stored === password;
 }
+
+const DEFAULT_PASSWORD_HASHES = new Set([
+  'sha256$ketang_default_salt$8d62959035f9b60a02e709f9826f3f996d07a09a4f5091e2884642fa01adf8a3',
+  'sha256$ketang_default_salt$fc286955fb12bec3fb16b4f2619f9b675337b1240537bc21d830b5f495121565'
+]);
+
+function isDefaultPasswordHash(hash) {
+  return DEFAULT_PASSWORD_HASHES.has(String(hash || ''));
+}

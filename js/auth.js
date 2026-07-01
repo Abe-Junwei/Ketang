@@ -38,24 +38,26 @@ function isZhike() {
 
 function login(username, password) {
   if (typeof isRemoteDB === 'function' && isRemoteDB()) {
-    let user;
+    let result;
     try {
-      user = remoteLogin(username, password);
+      result = remoteLogin(username, password);
     } catch (err) {
       console.warn('云端登录失败 | Remote login failed:', err);
       return false;
     }
-    currentUser = user;
+    currentUser = result.user;
     localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(currentUser));
-    logAudit('用户登录', 'user', user.id, { username: user.username, role: user.role });
+    logAudit('用户登录', 'user', result.user.id, { username: result.user.username, role: result.user.role });
     updateAuthUI();
     applyPermissions();
     if (typeof mountFormMealNeedPickers === 'function') mountFormMealNeedPickers();
     if (typeof mountLodgerRoleSelects === 'function') mountLodgerRoleSelects();
+    if (result.must_change_password) showForceChangePasswordModal();
     return true;
   }
   const user = query("SELECT * FROM users WHERE username = ? AND (is_active IS NULL OR is_active = 1) LIMIT 1", [username])[0];
   if (!user || !verifyPassword(password, user.password)) return false;
+  const mustChange = isDefaultPasswordHash(user.password);
   // 如果密码仍是明文，登录成功后自动升级为哈希
   if (!String(user.password).startsWith('sha256$')) {
     run("UPDATE users SET password = ? WHERE id = ?", [hashPassword(password), user.id]);
@@ -72,6 +74,7 @@ function login(username, password) {
   applyPermissions();
   if (typeof mountFormMealNeedPickers === 'function') mountFormMealNeedPickers();
   if (typeof mountLodgerRoleSelects === 'function') mountLodgerRoleSelects();
+  if (mustChange) showForceChangePasswordModal();
   return true;
 }
 
@@ -136,11 +139,59 @@ function submitLogin() {
   }
   if (login(username, password)) {
     if (errorEl) errorEl.textContent = '';
+    window._ketang_last_login_password = password;
     document.getElementById('login-password').value = '';
-    hideLoginOverlay();
-    renderAll();
+    if (!document.getElementById('force-password-modal')) {
+      hideLoginOverlay();
+      renderAll();
+      if (typeof startBoardPolling === 'function') startBoardPolling();
+    }
   } else {
     if (errorEl) errorEl.textContent = '账号或密码错误';
+  }
+}
+
+function showForceChangePasswordModal() {
+  if (document.getElementById('force-password-modal')) return;
+  hideLoginOverlay();
+  document.body.insertAdjacentHTML('beforeend', `
+    <div class="modal-overlay active" id="force-password-modal">
+      <div class="modal">
+        <div class="modal-header"><h3>请修改默认密码</h3></div>
+        <div class="modal-body">
+          <p class="empty-tip">当前账号仍使用系统默认密码，上线后必须立即修改。</p>
+          <div class="field"><label>新密码</label><input type="password" id="force-new-password" minlength="6"></div>
+          <div class="field"><label>确认新密码</label><input type="password" id="force-new-password2" minlength="6"></div>
+          <p class="field-error" id="force-password-error"></p>
+          <div class="btn-bar">
+            <button type="button" class="btn btn-primary" onclick="submitForceChangePassword()">保存新密码</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  `);
+}
+
+async function submitForceChangePassword() {
+  const p1 = document.getElementById('force-new-password').value;
+  const p2 = document.getElementById('force-new-password2').value;
+  const errEl = document.getElementById('force-password-error');
+  if (p1.length < 6) { if (errEl) errEl.textContent = '新密码至少 6 位'; return; }
+  if (p1 !== p2) { if (errEl) errEl.textContent = '两次输入不一致'; return; }
+  try {
+    if (typeof isRemoteDB === 'function' && isRemoteDB()) {
+      await apiChangePassword(window._ketang_last_login_password || '', p1);
+    } else if (currentUser) {
+      run('UPDATE users SET password = ? WHERE id = ?', [hashPassword(p1), currentUser.id]);
+      await saveDB();
+    }
+    const el = document.getElementById('force-password-modal');
+    if (el) el.remove();
+    delete window._ketang_last_login_password;
+    showToast('密码已更新');
+    renderAll();
+  } catch (e) {
+    if (errEl) errEl.textContent = e.message || '修改失败';
   }
 }
 

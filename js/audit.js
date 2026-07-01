@@ -9,8 +9,15 @@ function logAudit(action, targetType, targetId, detail) {
         enriched._operator_role = user.role;
       }
     }
-    run("INSERT INTO audit_logs (action, target_type, target_id, detail) VALUES (?, ?, ?, ?)",
-      [action, targetType || null, targetId || null, JSON.stringify(enriched)]);
+    const sql = 'INSERT INTO audit_logs (action, target_type, target_id, detail) VALUES (?, ?, ?, ?)';
+    const params = [action, targetType || null, targetId || null, JSON.stringify(enriched)];
+    if (typeof isRemoteDB === 'function' && isRemoteDB() && typeof remoteDBRequestAsync === 'function') {
+      remoteDBRequestAsync({ action: 'run', sql: sql, params: params }).catch(function (e) {
+        console.warn('审计日志写入失败：', e);
+      });
+      return true;
+    }
+    run(sql, params);
     return true;
   } catch (e) {
     console.warn('审计日志写入失败：', e);
@@ -20,4 +27,3 @@ function logAudit(action, targetType, targetId, detail) {
     return false;
   }
 }
-

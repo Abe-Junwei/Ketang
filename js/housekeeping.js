@@ -65,6 +65,9 @@ async function setHkAndRender(bedId, status) {
     }
   }
   try {
+    if (useRemoteWriteApi()) {
+      await apiSetHouseStatus({ bed_id: bedId, status: status, notes: `手动设置${status}` });
+    } else {
     await withTransaction(async () => {
       setHouseStatus(bedId, status, `手动设置${status}`);
       if (status === '维修') run("UPDATE beds SET status='维修' WHERE id=?", [bedId]);
@@ -75,6 +78,7 @@ async function setHkAndRender(bedId, status) {
       logAudit('房务状态变更', 'bed', bedId, { status: status });
     });
     await saveDB();
+    }
     renderHousekeeping();
     renderAll();
   } catch (e) {

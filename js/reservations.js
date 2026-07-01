@@ -16,12 +16,32 @@ document.getElementById('resv-form').addEventListener('submit', async e => {
     const evt = query("SELECT id FROM events WHERE id=? AND status != '已取消'", [eventId])[0];
     if (!evt) { alert('所选营期不存在或已取消，请重新选择'); return; }
   }
-  const guestId = findOrCreateGuest(person.name, gender, phone, idCard);
   const meal = readMealNeedPicker('resv-meal-need');
   if (!validateMealNeedPicker('resv-meal-need')) return;
 
   const resvId = document.getElementById('resv-id').value;
   try {
+    if (useRemoteWriteApi()) {
+      await apiUpsertReservation({
+        reservation_id: resvId ? parseInt(resvId, 10) : null,
+        name: name,
+        gender: gender || null,
+        phone: phone,
+        id_card: idCard,
+        event_id: eventId,
+        role: readLodgerRoleInput('resv-role'),
+        class_name: document.getElementById('resv-class').value.trim() || null,
+        expected_check_in: checkIn,
+        expected_check_out: checkOut,
+        room_preference: document.getElementById('resv-room').value.trim() || null,
+        source: document.getElementById('resv-source').value || null,
+        notes: document.getElementById('resv-notes').value.trim() || null,
+        meal_breakfast: meal.breakfast,
+        meal_lunch: meal.lunch,
+        meal_dinner: meal.dinner
+      });
+    } else {
+    const guestId = findOrCreateGuest(person.name, gender, phone, idCard);
     await withTransaction(async () => {
       if (resvId) {
         // 编辑模式 | Edit mode
@@ -65,12 +85,13 @@ document.getElementById('resv-form').addEventListener('submit', async e => {
         logAudit('添加预约', 'reservation', newId, { guest_id: guestId, name: name });
       }
     });
+    await saveDB();
+    }
   } catch (e) {
     console.error(e);
     alert('保存预约失败：' + e.message);
     return;
   }
-  await saveDB();
   showToast(resvId ? '预约更新成功' : '预约添加成功');
   resetResvForm();
   renderReservations('全部');
@@ -169,11 +190,15 @@ async function updateResvStatus(id, status) {
   if (!r) return;
   const oldStatus = r.status;
   try {
+    if (useRemoteWriteApi()) {
+      await apiUpdateReservationStatus({ reservation_id: id, status: status });
+    } else {
     await withTransaction(async () => {
       run("UPDATE reservations SET status=? WHERE id=?", [status, id]);
       logAudit('更新预约状态', 'reservation', id, { name: r.name, from: oldStatus, to: status });
     });
     await saveDB();
+    }
     showToast(`预约已标记为「${status}」`);
     renderReservations('全部');
     renderAll();

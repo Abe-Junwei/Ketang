@@ -725,7 +725,9 @@ function mealGridSkipToday() {
 
 async function submitMeals(lodgerId) {
   const defaults = readMealModalDefaults();
-  setLodgerMealDefaults(lodgerId, defaults.breakfast, defaults.lunch, defaults.dinner);
+  if (!useRemoteWriteApi()) {
+    setLodgerMealDefaults(lodgerId, defaults.breakfast, defaults.lunch, defaults.dinner);
+  }
   const l = query('SELECT * FROM lodgers WHERE id=?', [lodgerId])[0];
   const map = {};
   document.querySelectorAll('.meal-skip-cb').forEach(function (cb) {
@@ -743,6 +745,24 @@ async function submitMeals(lodgerId) {
     };
   });
   try {
+    if (useRemoteWriteApi()) {
+      const days = {};
+      document.querySelectorAll('.meal-skip-cb').forEach(function (cb) {
+        const d = cb.dataset.date;
+        const t = cb.dataset.type;
+        if (!days[d]) days[d] = { breakfast: 0, lunch: 0, dinner: 0 };
+        days[d][t] = defaults[t] && !cb.checked ? 1 : 0;
+      });
+      getLodgerStayDates(l).forEach(function (d) {
+        if (days[d]) return;
+        days[d] = {
+          breakfast: defaults.breakfast ? 1 : 0,
+          lunch: defaults.lunch ? 1 : 0,
+          dinner: defaults.dinner ? 1 : 0
+        };
+      });
+      await apiSaveMeals({ lodger_id: lodgerId, defaults: defaults, days: days });
+    } else {
     await withTransaction(async () => {
       Object.entries(map).forEach(function (entry) {
         const date = entry[0];
@@ -757,6 +777,7 @@ async function submitMeals(lodgerId) {
       });
     });
     await saveDB();
+    }
     closeModal();
     showToast('用斋设置已保存');
     renderAll();

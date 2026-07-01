@@ -1,0 +1,92 @@
+import { SCHEMA_SQL, SEED_ROOMS } from './schema.js';
+
+export const normalizeParams = params => Array.isArray(params) ? params.map(value => value === undefined ? null : value) : [];
+
+export async function queryD1(env, sql, params) {
+  const result = await env.KETANG_DB.prepare(sql).bind(...normalizeParams(params)).all();
+  return result.results || [];
+}
+
+export async function runD1(env, sql, params) {
+  const result = await env.KETANG_DB.prepare(sql).bind(...normalizeParams(params)).run();
+  return result.meta || {};
+}
+
+export async function batchD1(env, statements) {
+  const prepared = statements.map(item => env.KETANG_DB.prepare(item.sql).bind(...normalizeParams(item.params || [])));
+  return env.KETANG_DB.batch(prepared);
+}
+
+export async function initRemoteDatabase(env) {
+  await env.KETANG_DB.exec(SCHEMA_SQL);
+  const count = await queryD1(env, 'SELECT COUNT(*) AS c FROM rooms', []);
+  if ((count[0]?.c || 0) > 0) return false;
+  for (const item of SEED_ROOMS) await runD1(env, item.sql, item.params);
+  const beds = await queryD1(env, 'SELECT id, status FROM beds ORDER BY id', []);
+  for (const bed of beds) {
+    await runD1(env, 'INSERT INTO housekeeping (bed_id, status, notes) VALUES (?, ?, ?)', [bed.id, bed.status === '维修' ? '维修' : '净房', '云端初始化']);
+  }
+  return true;
+}
+
+export async function isDatabaseEmpty(env) {
+  const count = await queryD1(env, 'SELECT COUNT(*) AS c FROM rooms', []);
+  return (count[0]?.c || 0) === 0;
+}
+
+export async function bumpBoardVersion(env) {
+  await runD1(env, `INSERT INTO app_meta (key, value) VALUES ('board_version', '1')
+    ON CONFLICT(key) DO UPDATE SET value = CAST(CAST(value AS INTEGER) + 1 AS TEXT)`, []);
+}
+
+export async function getBoardVersion(env) {
+  const rows = await queryD1(env, "SELECT value FROM app_meta WHERE key = 'board_version'", []);
+  return parseInt(rows[0]?.value || '0', 10) || 0;
+}
+
+export function safeErrorMessage(error) {
+  const message = error?.message || String(error);
+  if (/登录|权限|KETANG_|不允许|账号或密码|管理员|尝试过多|bootstrap/.test(message)) return message;
+  if (/UNIQUE constraint failed: lodgers\.bed_id/.test(message)) return '该床位已有在住挂单，请刷新后重新选择床位';
+  return '操作失败，请刷新后重试';
+}
+
+export function normalizeSql(sql) {
+  const cleaned = String(sql || '').trim().replace(/;+\s*$/, '');
+  if (!cleaned || cleaned.includes(';')) throw new Error('不允许执行多条 SQL');
+  return cleaned;
+}
+
+export function assertAllowedSql(action, sql, session) {
+  const cleaned = normalizeSql(sql);
+  const isQuery = action === 'query' || action === 'exec' || action === 'batch_query';
+  const allowedStart = isQuery ? /^(SELECT|PRAGMA)\b/i : /^(INSERT|UPDATE|DELETE)\b/i;
+  if (!allowedStart.test(cleaned)) throw new Error('不允许执行该类型 SQL');
+  if (/\b(DROP|ALTER|CREATE|ATTACH|DETACH|REINDEX|VACUUM)\b/i.test(cleaned)) throw new Error('不允许执行结构变更 SQL');
+
+  if (session.role === 'admin') {
+    if (/\busers\b/i.test(cleaned) && /\b(DELETE|UPDATE)\b/i.test(cleaned) && !/\bpassword\b/i.test(cleaned) && !/\bis_active\b/i.test(cleaned) && !/\bdisplay_name\b/i.test(cleaned) && !/\brole\b/i.test(cleaned)) {
+      // admin user management allowed
+    }
+    return cleaned;
+  }
+
+  // 知客师：仅允许 SELECT/PRAGMA 与 audit_logs 写入 | Zhike: read-only + audit insert
+  if (!isQuery) {
+    if (!/^INSERT INTO audit_logs\b/i.test(cleaned)) {
+      throw new Error('该写操作请使用业务接口');
+    }
+  }
+  return cleaned;
+}
+
+export async function insertAudit(env, action, targetType, targetId, detail, operator) {
+  const payload = detail && typeof detail === 'object' ? { ...detail } : {};
+  if (operator) {
+    payload._operator = operator.display_name || operator.username;
+    payload._operator_id = operator.id;
+    payload._operator_role = operator.role;
+  }
+  await runD1(env, 'INSERT INTO audit_logs (action, target_type, target_id, detail) VALUES (?, ?, ?, ?)',
+    [action, targetType || null, targetId || null, JSON.stringify(payload)]);
+}

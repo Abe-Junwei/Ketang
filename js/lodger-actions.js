@@ -114,6 +114,9 @@ async function submitExtend(id) {
   const l = query("SELECT * FROM lodgers WHERE id=?", [id])[0];
   if (date < l.check_in_date) { alert('预离日期不能早于入住日期'); return; }
   try {
+    if (useRemoteWriteApi()) {
+      await apiExtendStay({ lodger_id: id, expected_check_out: date });
+    } else {
     await withTransaction(async () => {
       run("UPDATE lodgers SET expected_check_out=? WHERE id=? AND status='在住'", [date, id]);
       logAudit('续住', 'lodger', id, { guest_id: l.guest_id, name: l.name, new_check_out: date });
@@ -125,6 +128,7 @@ async function submitExtend(id) {
       await generateMeals(id, start, date, defaults.breakfast, defaults.lunch, defaults.dinner);
     });
     await saveDB();
+    }
     closeModal();
     showToast('续住成功');
     renderAll();
@@ -208,6 +212,9 @@ async function submitChangeBed(lodgerId, gender) {
   if (occ > 0) { alert('该床位已有人'); return; }
   if (!isBedAssignable(bedId)) { alert('该床位当前不可分配（可能未清洁或处于维修状态）'); return; }
   try {
+    if (useRemoteWriteApi()) {
+      await apiChangeBed({ lodger_id: lodgerId, bed_id: parseInt(bedId, 10) });
+    } else {
     await withTransaction(async () => {
       // 查出旧床位 ID 以便释放 | Get old bed ID for release
       const old = query("SELECT bed_id, guest_id, name FROM lodgers WHERE id=?", [lodgerId])[0];
@@ -222,6 +229,7 @@ async function submitChangeBed(lodgerId, gender) {
       logAudit('换床', 'lodger', lodgerId, { guest_id: old.guest_id, old_bed_id: old.bed_id, new_bed_id: bedId, name: old.name });
     });
     await saveDB();
+    }
     closeModal();
     showToast('换床成功');
     renderAll();
@@ -309,6 +317,21 @@ async function submitEditLodger(id) {
   }
 
   try {
+    if (useRemoteWriteApi()) {
+      await apiEditLodger({
+        lodger_id: id,
+        name: name,
+        gender: gender || null,
+        phone: phone,
+        id_card: idCard,
+        check_in_date: checkIn,
+        expected_check_out: checkOut,
+        role: readLodgerRoleInput('edit-role'),
+        class_name: document.getElementById('edit-class').value.trim() || null,
+        event_id: document.getElementById('edit-event').value || null,
+        notes: document.getElementById('edit-notes').value.trim() || null
+      });
+    } else {
     await withTransaction(async () => {
       run(`UPDATE lodgers SET
         name=?, dharma_name=?, gender=?, phone=?, id_card=?,
@@ -355,6 +378,7 @@ async function submitEditLodger(id) {
       });
     });
     await saveDB();
+    }
     closeModal();
     showToast('修改成功');
     renderAll();
@@ -377,6 +401,9 @@ async function deleteLodger(id) {
   });
   if (!ok) return;
   try {
+    if (useRemoteWriteApi()) {
+      await apiDeleteLodger({ lodger_id: id });
+    } else {
     await withTransaction(async () => {
       run("DELETE FROM meals WHERE lodger_id=?", [id]);
       run("DELETE FROM payments WHERE lodger_id=?", [id]);
@@ -388,6 +415,7 @@ async function deleteLodger(id) {
       logAudit('删除挂单', 'lodger', id, { guest_id: l.guest_id, name: l.name });
     });
     await saveDB();
+    }
     showToast('已删除');
     renderAll();
   } catch (e) {
@@ -449,6 +477,14 @@ async function submitCheckout(id) {
   const l = query("SELECT bed_id, guest_id, name FROM lodgers WHERE id=?", [id])[0];
   const today = new Date().toISOString().slice(0,10);
   try {
+    if (useRemoteWriteApi()) {
+      await apiCheckout({
+        lodger_id: id,
+        refund: refund,
+        refund_method: method,
+        notes: notes
+      });
+    } else {
     await withTransaction(async () => {
       run("UPDATE lodgers SET status='已退', actual_check_out=?, bed_id=NULL WHERE id=?", [today, id]);
       if (l && l.bed_id) {
@@ -467,6 +503,7 @@ async function submitCheckout(id) {
       logAudit('退房', 'lodger', id, { guest_id: l.guest_id, bed_id: l.bed_id, refund: refund, name: l.name });
     });
     await saveDB();
+    }
     closeModal();
     showToast('退房成功');
     renderAll();

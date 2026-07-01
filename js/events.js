@@ -179,7 +179,20 @@ async function batchCancelEventMembers() {
   if (!selected.length) { alert('请先勾选要取消的成员'); return; }
   if (!confirm(`确定要取消选中的 ${selected.length} 人吗？此操作不可恢复。`)) return;
 
+  let eventId = null;
+  const first = selected[0];
+  if (first.kind === 'reservation') {
+    const r = query("SELECT event_id FROM reservations WHERE id = ?", [first.id])[0];
+    eventId = r ? r.event_id : null;
+  } else {
+    const l = query("SELECT event_id FROM lodgers WHERE id = ?", [first.id])[0];
+    eventId = l ? l.event_id : null;
+  }
+
   try {
+    if (useRemoteWriteApi()) {
+      await apiBatchEventMembers({ action: 'cancel', items: selected, event_id: eventId });
+    } else {
     await withTransaction(async () => {
       for (const item of selected) {
         if (item.kind === 'reservation') {
@@ -203,6 +216,8 @@ async function batchCancelEventMembers() {
         }
       }
     });
+    await saveDB();
+    }
   } catch (e) {
     console.error(e);
     alert('批量取消失败：' + e.message);
@@ -211,16 +226,6 @@ async function batchCancelEventMembers() {
   await saveDB();
   showToast(`已取消 ${selected.length} 人`);
   renderAll();
-  // 重新渲染当前营期成员（通过页面状态或重取第一个选中项的 event_id）
-  const first = selected[0];
-  let eventId = null;
-  if (first.kind === 'reservation') {
-    const r = query("SELECT event_id FROM reservations WHERE id = ?", [first.id])[0];
-    eventId = r ? r.event_id : null;
-  } else {
-    const l = query("SELECT event_id FROM lodgers WHERE id = ?", [first.id])[0];
-    eventId = l ? l.event_id : null;
-  }
   if (eventId) renderEventMembers(eventId);
   else renderEventList();
 }
@@ -232,7 +237,15 @@ async function batchNoShowEventMembers() {
   if (!resvOnly.length) { alert('No-show 仅适用于预约记录，请勾选预约成员'); return; }
   if (!confirm(`确定要将选中的 ${resvOnly.length} 人标记为 No-show 吗？`)) return;
 
+  let eventId = null;
+  const first = resvOnly[0];
+  const r0 = query("SELECT event_id FROM reservations WHERE id = ?", [first.id])[0];
+  eventId = r0 ? r0.event_id : null;
+
   try {
+    if (useRemoteWriteApi()) {
+      await apiBatchEventMembers({ action: 'noshow', items: resvOnly, event_id: eventId });
+    } else {
     await withTransaction(async () => {
       for (const item of resvOnly) {
         const r = query("SELECT * FROM reservations WHERE id = ?", [item.id])[0];
@@ -242,6 +255,8 @@ async function batchNoShowEventMembers() {
         }
       }
     });
+    await saveDB();
+    }
   } catch (e) {
     console.error(e);
     alert('批量标记 No-show 失败：' + e.message);
@@ -250,15 +265,6 @@ async function batchNoShowEventMembers() {
   await saveDB();
   showToast(`已标记 ${resvOnly.length} 人为 No-show`);
   renderAll();
-  const first = selected[0];
-  let eventId = null;
-  if (first.kind === 'reservation') {
-    const r = query("SELECT event_id FROM reservations WHERE id = ?", [first.id])[0];
-    eventId = r ? r.event_id : null;
-  } else {
-    const l = query("SELECT event_id FROM lodgers WHERE id = ?", [first.id])[0];
-    eventId = l ? l.event_id : null;
-  }
   if (eventId) renderEventMembers(eventId);
   else renderEventList();
 }

@@ -661,7 +661,7 @@
     <div id="view-backup" class="view">
       <div class="card">
         <h2 class="section-title">系统设置</h2>
-        <p>数据自动保存在本机浏览器内。建议每天导出 <strong>ketang.db</strong> 到 U 盘备份。</p>
+        <p id="backup-mode-desc">数据自动保存在本机浏览器内。建议每天导出 <strong>ketang.db</strong> 到 U 盘备份。</p>
         <div class="btn-bar">
           <button class="btn btn-default" onclick="showView('history')">历史查询</button>
           <button class="btn btn-default" onclick="toggleTheme()">切换明暗主题</button>
@@ -670,11 +670,11 @@
           <button class="btn btn-success" onclick="exportDB()">导出数据库到 U 盘 / 电脑</button>
           <button class="btn btn-primary" onclick="exportCSV()">导出 CSV 台账</button>
           <button class="btn btn-warning" onclick="document.getElementById('import-file').click()">从文件恢复数据</button>
-          <input type="file" id="import-file" hidden accept=".db" onchange="importDB(this)">
+          <input type="file" id="import-file" hidden accept=".db,.json" onchange="importDB(this)">
         </div>
         <div class="card card-info">
           <h3>每日备份三步</h3>
-          <ol>
+          <ol id="backup-mode-steps">
             <li>点击「导出数据库」，保存到 U 盘或桌面。</li>
             <li>文件名为 <code>ketang.db</code>，复制多一份更安全。</li>
             <li>如需恢复：点击「从文件恢复数据」，选择备份的 <code>ketang.db</code>。</li>
@@ -705,7 +705,8 @@
 
   <script src="./lib/sql-wasm.js?v=2"></script>
   <script src="./js/utils.js?v=6"></script>
-  <script src="./js/db.js?v=7"></script>
+  <script src="./js/db.js?v=8"></script>
+  <script src="./js/api-client.js?v=1"></script>
   <script src="./js/guests.js?v=3"></script>
   <script src="./js/audit.js?v=3"></script>
   <script src="./js/housekeeping.js?v=6"></script>

@@ -22,6 +22,8 @@
      ```bash
      openssl rand -hex 32
      ```
+   - （可选）Name: `KETANG_BOOTSTRAP_SECRET` — 保护非空库重复 `init`
+   - （可选）Name: `KETANG_PUBLIC_RESERVATIONS` — 设为 `false` 关闭公开预约 API
 5. 重新部署 Pages。
 
 首次访问线上站点时，后端会自动创建表结构和初始房间/床位。
@@ -45,10 +47,39 @@
 ## 当前边界
 
 - 云端模式支持多人访问同一份 D1 数据。
-- 云端模式暂不支持浏览器内直接导出/导入 `ketang.db`。
-- 现阶段为兼容旧页面，同步 SQL 调用会经由 `/api/db` 转发；后续应逐步改成专用业务 API。
-- 远程 SQL 网关已限制为登录后执行单条 `SELECT/PRAGMA/INSERT/UPDATE/DELETE`；普通知客师不能直接读写 `users` 表。
-- 数据库已增加「同一床位只能有一条在住记录」的唯一约束，降低并发重复分床风险。
+- 业务写操作走 `/api/v1/*` 接口（入住/退房/换床/续住/分床/编辑删除挂单/用斋/房务/预约/营期批量操作），D1 `batch()` 保证原子性。
+- `/api/db` 网关：知客师仅允许 `SELECT`/`PRAGMA` 与 `INSERT audit_logs`；管理员可管理用户与房间设置。
+- 管理员可在「系统设置」导出/导入 JSON 备份（含 `users` 表，`/api/v1/admin/data-backup`）。
+- 房态看板在云端模式每 8 秒轮询 `board-version` 自动刷新。
+- 公开预约：`POST /api/public/reservations`（IP 限流；可用 `KETANG_PUBLIC_RESERVATIONS=false` 关闭）。
+- `init` 在非空库时需 `x-ketang-bootstrap` 头匹配 `KETANG_BOOTSTRAP_SECRET`。
+- 登录与公开预约均有限流；默认密码登录后会强制改密（本地与云端）。
+- 云端模式暂不支持 CSV 批量导入入住。
+
+## API 路由
+
+| 路径 | 说明 |
+|------|------|
+| `POST /api/db` | 登录、query/run/batch_query、改密 |
+| `POST /api/v1/check-in` | 入住登记 |
+| `POST /api/v1/checkout` | 退房 |
+| `POST /api/v1/change-bed` | 换床 |
+| `POST /api/v1/extend-stay` | 续住 |
+| `POST /api/v1/assign-bed` | 分床（含预约转入住） |
+| `POST /api/v1/edit-lodger` | 编辑在住挂单 |
+| `POST /api/v1/delete-lodger` | 删除历史挂单 |
+| `POST /api/v1/save-meals` | 保存用斋 |
+| `POST /api/v1/set-house-status` | 房务状态 |
+| `POST /api/v1/upsert-reservation` | 新增/编辑预约 |
+| `POST /api/v1/reservation-status` | 更新预约状态 |
+| `POST /api/v1/batch-event-members` | 营期批量取消/No-show |
+| `GET /api/v1/board-version` | 看板版本号 |
+| `GET/POST /api/v1/admin/data-backup` | JSON 导入导出 |
+| `POST /api/public/reservations` | 公开预约 |
+
+## 本地 wrangler
+
+见根目录 `wrangler.toml`；部署前替换 D1 `database_id`，并设置 `KETANG_SESSION_SECRET`。
 
 ## 回滚
 

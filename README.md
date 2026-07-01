@@ -239,12 +239,13 @@ python3 test_headless.py
 项目已支持 Cloudflare Pages + Functions + D1 的在线模式：
 
 - 本地 `localhost` / `file://`：继续使用浏览器 IndexedDB/sql.js。
-- 线上 HTTPS 域名：自动通过 `/api/db` 访问 Cloudflare D1，多人共享同一份数据。
+- 线上 HTTPS 域名：自动访问 Cloudflare D1；入住/退房/换床/续住等关键操作走 `/api/v1/*` 业务接口。
 
 部署前需要在 Pages 项目中配置：
 
 - D1 binding：`KETANG_DB`
-- 环境变量：`KETANG_SESSION_SECRET`
+- 环境变量：`KETANG_SESSION_SECRET`（必填）
+- 可选：`KETANG_BOOTSTRAP_SECRET`、`KETANG_PUBLIC_RESERVATIONS`
 
 完整步骤见 [docs/cloudflare-online-mode.md](docs/cloudflare-online-mode.md)。
 
@@ -253,7 +254,7 @@ python3 test_headless.py
 - 日常：进入「系统设置」页面 → 导出 `ketang.db` → 复制到 U 盘。
 - 换电脑：在新电脑上打开本系统 → 「从文件恢复数据」→ 选择 `ketang.db`。
 - 灾难恢复：只要 `ketang.db` 在手，数据即可完全恢复。
-- Cloudflare 在线模式：请在 Cloudflare D1 控制台做云端备份；浏览器内 `ketang.db` 导入/导出仅适用于本地模式。
+- Cloudflare 在线模式：管理员可在「系统设置」导出/导入 JSON 备份；亦可在 Cloudflare D1 控制台做数据库级备份。
 
 ## 八、设计取舍
 

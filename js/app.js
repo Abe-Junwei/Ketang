@@ -19,12 +19,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     createIndexes();
     await seedRooms();
     initAuth();
+    applyDeploymentModeUI();
     applyPermissions();
     if (isLoggedIn()) {
       mountFormMealNeedPickers();
       mountLodgerRoleSelects();
       renderAll();
       document.getElementById('ci-in').valueAsDate = new Date();
+      startBoardPolling();
     } else {
       showLoginOverlay();
     }
@@ -359,9 +361,46 @@ function renderAll() {
 function checkBackupReminder() {
   const el = document.getElementById('backup-reminder');
   if (!el) return;
+  if (typeof isRemoteDB === 'function' && isRemoteDB()) {
+    el.style.display = 'none';
+    return;
+  }
   const last = localStorage.getItem('ketang_last_backup');
   const today = todayStr();
   el.style.display = (last === today) ? 'none' : 'block';
+}
+
+let boardPollTimer = null;
+let lastBoardVersion = null;
+
+function startBoardPolling() {
+  if (typeof useRemoteWriteApi !== 'function' || !useRemoteWriteApi()) return;
+  stopBoardPolling();
+  boardPollTimer = setInterval(async function () {
+    if (!document.getElementById('view-board')?.classList.contains('active')) return;
+    if (!isLoggedIn || (typeof isLoggedIn === 'function' && !isLoggedIn())) return;
+    try {
+      const result = await apiBoardVersion();
+      if (lastBoardVersion != null && result.version !== lastBoardVersion) renderAll();
+      lastBoardVersion = result.version;
+    } catch (e) { /* 轮询失败静默 | ignore poll errors */ }
+  }, 8000);
+}
+
+function stopBoardPolling() {
+  if (boardPollTimer) {
+    clearInterval(boardPollTimer);
+    boardPollTimer = null;
+  }
+}
+
+function applyDeploymentModeUI() {
+  const backupDesc = document.getElementById('backup-mode-desc');
+  const backupSteps = document.getElementById('backup-mode-steps');
+  if (typeof isRemoteDB === 'function' && isRemoteDB()) {
+    if (backupDesc) backupDesc.textContent = '数据保存在 Cloudflare D1 云端。管理员可在系统设置导出 JSON 备份。';
+    if (backupSteps) backupSteps.innerHTML = '<li>点击「导出数据库」，保存 JSON 备份到 U 盘或桌面。</li><li>如需恢复：使用「从文件恢复数据」导入 JSON 备份（仅管理员）。</li><li>也可在 Cloudflare D1 控制台执行数据库级备份。</li>';
+  }
 }
 
 

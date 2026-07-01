@@ -24,7 +24,8 @@ applies_to: ["cursor", "github-copilot", "kimi-cli"]
 ├── styles.css              # 全局样式
 ├── js/                     # 原生 JS 模块（普通 <script src>，非 ES Module）
 │   ├── utils.js            # 工具函数
-│   ├── db.js               # SQLite + IndexedDB + schema/migration
+│   ├── db.js               # SQLite + IndexedDB + schema/migration；HTTPS 时远程 D1
+│   ├── api-client.js       # 云端 /api/v1 业务 API 客户端
 │   ├── app.js              # 路由与首页渲染
 │   ├── checkin.js          # 挂单登记
 │   ├── lodger-actions.js   # 续住/换床/编辑/退房/凭证打印
@@ -86,6 +87,7 @@ python3 -m http.server 8080
 python3 test_cdp.py              # HTTP 模式：渲染所有视图并检查 console 错误
 python3 test_cdp_migration.py    # V3 备份迁移至最新结构
 python3 test_headless.py         # HTTP 模式 headless 初始化冒烟
+python3 test_api_structure.py    # 云端 API 文件结构检查
 python3 test_file_protocol.py    # file:// 模式：验证本地双击打开可正常初始化
 ```
 
