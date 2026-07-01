@@ -17,6 +17,13 @@ export async function batchD1(env, statements) {
   return env.KETANG_DB.batch(prepared);
 }
 
+/** D1 batch 单次语句过多会失败，按块提交 | Chunk large imports */
+export async function batchD1Chunked(env, statements, chunkSize = 80) {
+  for (let i = 0; i < statements.length; i += chunkSize) {
+    await batchD1(env, statements.slice(i, i + chunkSize));
+  }
+}
+
 export async function initRemoteDatabase(env) {
   await env.KETANG_DB.exec(SCHEMA_SQL);
   const count = await queryD1(env, 'SELECT COUNT(*) AS c FROM rooms', []);

@@ -25,6 +25,7 @@ venv/
 ketang.db
 *.db-journal
 backup/
+data/ketang-cloud-import.json
 
 # Chrome / test artifacts
 chrome_debug.log

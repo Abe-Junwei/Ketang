@@ -81,6 +81,30 @@
 
 见根目录 `wrangler.toml`；部署前替换 D1 `database_id`，并设置 `KETANG_SESSION_SECRET`。
 
+## 从本地 ketang.db 导入已有数据
+
+若寺院已在本地模式使用过客堂，可把 `ketang.db` 迁到云端 D1：
+
+1. 在本机项目根目录执行（默认读取 `ketang.db`）：
+
+   ```bash
+   python3 scripts/export_ketang_db_to_json.py
+   ```
+
+   会生成 `data/ketang-cloud-import.json`（含房间/床位/挂单等，已映射到 schema v13）。
+
+2. 确保 Pages 已部署最新代码且 D1 已绑定。
+
+3. 用 **HTTPS** 打开线上站点，**管理员**登录 → **系统设置** → **从文件恢复数据**，选择上述 JSON 文件。
+
+4. 确认覆盖提示后等待导入完成；刷新后房态看板应显示原有房间与在住挂单。
+
+说明：
+
+- JSON 含真实住客信息，已在 `.gitignore` 中忽略，请勿提交到 Git。
+- 旧库若无 `users` 表，导出时会自动补上默认 `admin` / `zhike` 账号。
+- 大量数据导入已按 80 条/批写入 D1，避免 batch 超限。
+
 ## 回滚
 
 如需临时回到本地模式：

@@ -1,6 +1,6 @@
 import { json, readJson } from '../../../_shared/http.js';
 import { requireSession, requireAdmin } from '../../../_shared/auth.js';
-import { batchD1, initRemoteDatabase, queryD1, runD1, safeErrorMessage } from '../../../_shared/d1.js';
+import { batchD1Chunked, initRemoteDatabase, queryD1, runD1, safeErrorMessage } from '../../../_shared/d1.js';
 
 const EXPORT_TABLES = ['users', 'rooms', 'beds', 'guests', 'events', 'lodgers', 'reservations', 'meals', 'payments', 'housekeeping', 'audit_logs', 'schema_version', 'app_meta'];
 const DELETE_ORDER = ['audit_logs', 'housekeeping', 'payments', 'meals', 'reservations', 'lodgers', 'events', 'guests', 'beds', 'rooms', 'users', 'schema_version', 'app_meta'];
@@ -49,7 +49,7 @@ export async function onRequestPost({ request, env }) {
       });
     }
     statements.push({ sql: "INSERT INTO app_meta (key, value) VALUES ('board_version', '1') ON CONFLICT(key) DO UPDATE SET value = CAST(CAST(value AS INTEGER) + 1 AS TEXT)", params: [] });
-    await batchD1(env, statements);
+    await batchD1Chunked(env, statements);
     return json({ ok: true, imported_tables: Object.keys(body.tables) });
   } catch (error) {
     const status = /登录已过期/.test(error.message) ? 401 : (/管理员/.test(error.message) ? 403 : 500);
