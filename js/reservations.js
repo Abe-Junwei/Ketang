@@ -48,7 +48,7 @@ document.getElementById('resv-form').addEventListener('submit', async e => {
         logAudit('更新预约', 'reservation', resvId, { guest_id: guestId, name: name });
       } else {
         // 新增模式 | Add mode
-        run(`INSERT INTO reservations
+        const result = run(`INSERT INTO reservations
           (guest_id, event_id, name, dharma_name, gender, phone, id_card, role, class_name, expected_check_in, expected_check_out, room_preference, source, status, notes, meal_breakfast, meal_lunch, meal_dinner)
           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '预约', ?, ?, ?, ?)`, [
           guestId, eventId,
@@ -61,7 +61,7 @@ document.getElementById('resv-form').addEventListener('submit', async e => {
           document.getElementById('resv-notes').value.trim() || null,
           meal.breakfast, meal.lunch, meal.dinner
         ]);
-        const newId = db.exec("SELECT last_insert_rowid() as id")[0].values[0][0];
+        const newId = result.lastInsertId;
         logAudit('添加预约', 'reservation', newId, { guest_id: guestId, name: name });
       }
     });

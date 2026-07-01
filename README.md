@@ -61,6 +61,7 @@
 | 前端 | 原生 HTML + CSS + JS | 无构建步骤，直接打开即用 |
 | 本地数据库 | SQLite（sql.js） | 浏览器内运行，导出即文件 |
 | 持久化 | IndexedDB | 保存 SQLite 二进制，关闭浏览器不丢失 |
+| 在线数据库 | Cloudflare D1（可选） | Pages 线上 HTTPS 访问时多人共享同一份数据 |
 | 备份 | 文件导出/导入 | 生成标准 `.db` 文件，可复制到 U 盘 |
 
 ## 四、核心数据模型
@@ -233,11 +234,26 @@ python3 test_cdp_migration.py
 python3 test_headless.py
 ```
 
+### Cloudflare 在线多人模式
+
+项目已支持 Cloudflare Pages + Functions + D1 的在线模式：
+
+- 本地 `localhost` / `file://`：继续使用浏览器 IndexedDB/sql.js。
+- 线上 HTTPS 域名：自动通过 `/api/db` 访问 Cloudflare D1，多人共享同一份数据。
+
+部署前需要在 Pages 项目中配置：
+
+- D1 binding：`KETANG_DB`
+- 环境变量：`KETANG_SESSION_SECRET`
+
+完整步骤见 [docs/cloudflare-online-mode.md](docs/cloudflare-online-mode.md)。
+
 ## 七、备份与迁移
 
 - 日常：进入「系统设置」页面 → 导出 `ketang.db` → 复制到 U 盘。
 - 换电脑：在新电脑上打开本系统 → 「从文件恢复数据」→ 选择 `ketang.db`。
 - 灾难恢复：只要 `ketang.db` 在手，数据即可完全恢复。
+- Cloudflare 在线模式：请在 Cloudflare D1 控制台做云端备份；浏览器内 `ketang.db` 导入/导出仅适用于本地模式。
 
 ## 八、设计取舍
 

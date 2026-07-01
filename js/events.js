@@ -355,10 +355,10 @@ async function submitEvent(e) {
         }
         logAudit('更新营期', 'event', id, { name });
       } else {
-        run(`INSERT INTO events (name, event_type, gender_type, expected_count, start_date, end_date, status, notes)
+        const result = run(`INSERT INTO events (name, event_type, gender_type, expected_count, start_date, end_date, status, notes)
           VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
           [name, eventType, genderType, expected, startDate, endDate, status, notes]);
-        const newId = db.exec("SELECT last_insert_rowid() as id")[0].values[0][0];
+        const newId = result.lastInsertId;
         logAudit('新增营期', 'event', newId, { name });
       }
     });

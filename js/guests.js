@@ -41,10 +41,10 @@ function findOrCreateGuest(displayName, gender, phone, idCard) {
     }
     return guest.id;
   }
-  run(`INSERT INTO guests (name, dharma_name, gender, phone, id_card, visit_count, updated_at)
+  const result = run(`INSERT INTO guests (name, dharma_name, gender, phone, id_card, visit_count, updated_at)
     VALUES (?, ?, ?, ?, ?, 0, ?)`,
     [name, null, gender || null, phone || null, idCard || null, new Date().toISOString()]);
-  return db.exec("SELECT last_insert_rowid() as id")[0].values[0][0];
+  return result.lastInsertId;
 }
 
 

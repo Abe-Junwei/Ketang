@@ -184,9 +184,9 @@ async function submitRoom(id) {
           [name, location, floor || 1, dorm, notes, id]);
         logAudit('更新房间', 'room', id, { name });
       } else {
-        run('INSERT INTO rooms (name, location, floor, dorm_type, notes) VALUES (?, ?, ?, ?, ?)',
+        const result = run('INSERT INTO rooms (name, location, floor, dorm_type, notes) VALUES (?, ?, ?, ?, ?)',
           [name, location, floor || 1, dorm, notes]);
-        const newId = db.exec('SELECT last_insert_rowid() as id')[0].values[0][0];
+        const newId = result.lastInsertId;
         logAudit('新增房间', 'room', newId, { name });
       }
     });
@@ -339,9 +339,9 @@ async function submitBed(id) {
         }
         logAudit('更新床位', 'bed', id, { room_id: roomId, bed_number: number, status });
       } else {
-        run('INSERT INTO beds (room_id, bed_number, status, notes) VALUES (?, ?, ?, ?)',
+        const result = run('INSERT INTO beds (room_id, bed_number, status, notes) VALUES (?, ?, ?, ?)',
           [roomId, number, status, notes]);
-        const newId = db.exec('SELECT last_insert_rowid() as id')[0].values[0][0];
+        const newId = result.lastInsertId;
         setHouseStatus(newId, status, '新增床位');
         logAudit('新增床位', 'bed', newId, { room_id: roomId, bed_number: number, status });
       }
@@ -507,11 +507,11 @@ async function submitGuest(id) {
           [name, person.dharma_name, gender, phone, idCard, id]);
         logAudit('更新住客档案', 'guest', id, { name, phone });
       } else {
-        run(`INSERT INTO guests (name, dharma_name, gender, phone, id_card,
+        const result = run(`INSERT INTO guests (name, dharma_name, gender, phone, id_card,
              emergency_contact, emergency_phone, notes, created_at, updated_at)
              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           [name, person.dharma_name, gender, phone, idCard, emergency, emergencyPhone, notes, now, now]);
-        const newId = db.exec('SELECT last_insert_rowid() as id')[0].values[0][0];
+        const newId = result.lastInsertId;
         logAudit('新增住客档案', 'guest', newId, { name, phone });
       }
     });

@@ -2,8 +2,79 @@ let SQL, db;
 const DB_NAME = 'ketang';
 const STORE_NAME = 'db';
 const KEY = 'main';
+const REMOTE_SESSION_KEY = 'ketang_remote_session_token';
+const REMOTE_DB_ENABLED = (() => {
+  if (typeof window === 'undefined' || !window.location) return false;
+  if (window.KETANG_FORCE_LOCAL_DB === true) return false;
+  if (window.KETANG_REMOTE_DB === true) return true;
+  const host = window.location.hostname;
+  return window.location.protocol === 'https:' && host !== 'localhost' && host !== '127.0.0.1';
+})();
+
+let remoteLastInsertId = 0;
+
+function isRemoteDB() {
+  return REMOTE_DB_ENABLED;
+}
+
+function getRemoteSessionToken() {
+  return localStorage.getItem(REMOTE_SESSION_KEY) || '';
+}
+
+function setRemoteSessionToken(token) {
+  if (token) localStorage.setItem(REMOTE_SESSION_KEY, token);
+  else localStorage.removeItem(REMOTE_SESSION_KEY);
+}
+
+function remoteDBRequest(payload, options) {
+  const xhr = new XMLHttpRequest();
+  xhr.open('POST', '/api/db', false);
+  xhr.setRequestHeader('Content-Type', 'application/json');
+  const token = getRemoteSessionToken();
+  if (token) xhr.setRequestHeader('Authorization', 'Bearer ' + token);
+  xhr.send(JSON.stringify(payload));
+  let body = {};
+  try { body = JSON.parse(xhr.responseText || '{}'); } catch (e) { body = {}; }
+  if (xhr.status < 200 || xhr.status >= 300) {
+    if (xhr.status === 401) setRemoteSessionToken('');
+    throw new Error(body.error || '云端数据库请求失败');
+  }
+  return body;
+}
+
+function remoteQuery(sql, params) {
+  return remoteDBRequest({ action: 'query', sql, params }).rows || [];
+}
+
+function remoteRun(sql, params) {
+  const meta = remoteDBRequest({ action: 'run', sql, params }).meta || {};
+  remoteLastInsertId = meta.last_row_id || meta.lastRowId || remoteLastInsertId;
+  return { lastInsertId: remoteLastInsertId, meta };
+}
+
+function remoteExec(sql) {
+  if (/last_insert_rowid\s*\(/i.test(sql)) {
+    return [{ columns: ['id'], values: [[remoteLastInsertId]] }];
+  }
+  return remoteDBRequest({ action: 'exec', sql }).result || [];
+}
+
+function remoteLogin(username, password) {
+  const result = remoteDBRequest({ action: 'login', username, password });
+  setRemoteSessionToken(result.token);
+  return result.user;
+}
+
+function remoteLogout() {
+  setRemoteSessionToken('');
+}
+
+function remoteListLoginUsers() {
+  return remoteDBRequest({ action: 'users' }).rows || [];
+}
 
 async function initSqlite() {
+  if (isRemoteDB()) return;
   const wasmPath = './lib/sql-wasm.wasm';
   const response = await fetch(wasmPath);
   if (!response.ok) {
@@ -31,6 +102,11 @@ function openIDB() {
 
 
 async function loadDB() {
+  if (isRemoteDB()) {
+    remoteDBRequest({ action: 'init' });
+    db = { remote: true, exec: remoteExec, run: remoteRun };
+    return;
+  }
   let idb;
   try {
     idb = await Promise.race([
@@ -71,6 +147,7 @@ let saveLock = Promise.resolve();
 
 
 async function saveDB() {
+  if (isRemoteDB()) return;
   // 串行化所有写入操作 | Serialize all write operations
   const prev = saveLock;
   let release;
@@ -99,6 +176,11 @@ async function saveDB() {
 // 业务事务包装 | Business transaction wrapper
 let inTransaction = false;
 async function withTransaction(fn) {
+  if (isRemoteDB()) {
+    // 云端兼容模式：D1 每条写入独立提交；关键唯一约束由数据库兜底。
+    // Remote compatibility mode: D1 commits each write; critical uniqueness is enforced by DB constraints.
+    return await fn();
+  }
   if (inTransaction) {
     return await fn();
   }
@@ -118,6 +200,7 @@ async function withTransaction(fn) {
 
 
 function initSchema() {
+  if (isRemoteDB()) return;
   db.run(`
     PRAGMA foreign_keys = ON;
     CREATE TABLE IF NOT EXISTS rooms (
@@ -1078,6 +1161,7 @@ function createIndexes() {
 
 
 async function seedRooms() {
+  if (isRemoteDB()) return;
   const count = db.exec("SELECT COUNT(*) as c FROM rooms")[0]?.values[0][0] || 0;
   if (count > 0) return;
   for (let f = 1; f <= 2; f++) {
@@ -1112,6 +1196,7 @@ function safeParams(params) {
 
 
 function query(sql, params) {
+  if (isRemoteDB()) return remoteQuery(sql, params);
   const stmt = db.prepare(sql);
   if (params) stmt.bind(safeParams(params));
   const rows = [];
@@ -1122,14 +1207,21 @@ function query(sql, params) {
 
 
 function run(sql, params) {
+  if (isRemoteDB()) return remoteRun(sql, params);
   const stmt = db.prepare(sql);
   stmt.run(safeParams(params));
   stmt.free();
+  const result = db.exec("SELECT last_insert_rowid() as id");
+  return { lastInsertId: result[0]?.values[0]?.[0] || 0 };
 }
 
 
 function exportDB() {
   if (!requireAdmin()) { alert('需要管理员权限'); return; }
+  if (isRemoteDB()) {
+    alert('云端模式暂不支持导出 ketang.db；请先在 Cloudflare D1 控制台导出或备份数据库。');
+    return;
+  }
   const data = db.export();
   const blob = new Blob([data], { type: 'application/octet-stream' });
   const url = URL.createObjectURL(blob);
@@ -1148,6 +1240,11 @@ function exportDB() {
 
 async function importDB(input) {
   if (!requireAdmin()) { alert('需要管理员权限'); input.value = ''; return; }
+  if (isRemoteDB()) {
+    alert('云端模式暂不支持从 ketang.db 直接恢复；请在 Cloudflare D1 控制台导入。');
+    input.value = '';
+    return;
+  }
   const file = input.files[0];
   if (!file) return;
   if (!confirm('恢复备份会覆盖当前数据，是否继续？')) { input.value = ''; return; }
@@ -1193,6 +1290,10 @@ async function importDB(input) {
 
 async function resetDatabase() {
   if (!requireAdmin()) { alert('需要管理员权限'); return; }
+  if (isRemoteDB()) {
+    alert('云端模式不允许从浏览器重置数据库；请在 Cloudflare D1 控制台执行维护操作。');
+    return;
+  }
   // 彻底删除 IndexedDB 数据库（而非仅删记录）| Delete entire IndexedDB database (not just record)
   try {
     await new Promise((resolve, reject) => {

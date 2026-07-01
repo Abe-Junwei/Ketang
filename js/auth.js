@@ -37,6 +37,23 @@ function isZhike() {
 }
 
 function login(username, password) {
+  if (typeof isRemoteDB === 'function' && isRemoteDB()) {
+    let user;
+    try {
+      user = remoteLogin(username, password);
+    } catch (err) {
+      console.warn('云端登录失败 | Remote login failed:', err);
+      return false;
+    }
+    currentUser = user;
+    localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(currentUser));
+    logAudit('用户登录', 'user', user.id, { username: user.username, role: user.role });
+    updateAuthUI();
+    applyPermissions();
+    if (typeof mountFormMealNeedPickers === 'function') mountFormMealNeedPickers();
+    if (typeof mountLodgerRoleSelects === 'function') mountLodgerRoleSelects();
+    return true;
+  }
   const user = query("SELECT * FROM users WHERE username = ? AND (is_active IS NULL OR is_active = 1) LIMIT 1", [username])[0];
   if (!user || !verifyPassword(password, user.password)) return false;
   // 如果密码仍是明文，登录成功后自动升级为哈希
@@ -64,6 +81,7 @@ function logout() {
   }
   currentUser = null;
   localStorage.removeItem(AUTH_STORAGE_KEY);
+  if (typeof remoteLogout === 'function') remoteLogout();
   updateAuthUI();
   showLoginOverlay();
 }
@@ -93,7 +111,9 @@ function hideLoginOverlay() {
 function populateLoginUsers() {
   const sel = document.getElementById('login-username');
   if (!sel) return;
-  const users = query("SELECT * FROM users WHERE is_active IS NULL OR is_active = 1 ORDER BY role, username");
+  const users = (typeof isRemoteDB === 'function' && isRemoteDB())
+    ? remoteListLoginUsers()
+    : query("SELECT * FROM users WHERE is_active IS NULL OR is_active = 1 ORDER BY role, username");
   let html = '<option value=\"\">请选择账号</option>';
   users.forEach(u => {
     html += `<option value="${escapeHtml(u.username)}">${escapeHtml(u.display_name || u.username)} (${u.role === 'admin' ? '管理员' : '知客师'})</option>`;
@@ -286,8 +306,8 @@ async function submitUser(e) {
   } else {
     // 新增
     try {
-      run("INSERT INTO users (username, display_name, role, password) VALUES (?, ?, ?, ?)", [username, displayName, role, hashPassword(password)]);
-      const newId = db.exec("SELECT last_insert_rowid() as id")[0].values[0][0];
+      const result = run("INSERT INTO users (username, display_name, role, password) VALUES (?, ?, ?, ?)", [username, displayName, role, hashPassword(password)]);
+      const newId = result.lastInsertId;
       logAudit('新增用户', 'user', newId, { username, role });
     } catch (err) {
       alert('账号已存在或保存失败：' + err.message);

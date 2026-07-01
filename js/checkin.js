@@ -320,7 +320,7 @@ async function assignReservationToBed(resvId, bedId) {
       const person = mergePersonNameFields(r.name, r.dharma_name);
       const guestId = r.guest_id || findOrCreateGuest(person.name, r.gender, r.phone, r.id_card);
       incrementGuestVisit(guestId, checkIn);
-      run(`INSERT INTO lodgers
+      const result = run(`INSERT INTO lodgers
         (guest_id, event_id, name, dharma_name, gender, phone, id_card, check_in_date, expected_check_out, bed_id, role, class_name, status, source, notes)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '在住', ?, ?)`, [
         guestId,
@@ -338,7 +338,7 @@ async function assignReservationToBed(resvId, bedId) {
         r.source || '预约分配',
         r.notes || null
       ]);
-      const lodgerId = db.exec('SELECT last_insert_rowid() as id')[0].values[0][0];
+      const lodgerId = result.lastInsertId;
       run("UPDATE beds SET status='占用' WHERE id=?", [bedId]);
       setHouseStatus(bedId, '占用', '预约分配床位');
       run("UPDATE reservations SET status='已入住' WHERE id=?", [resvId]);
@@ -427,7 +427,7 @@ document.getElementById('checkin-form').addEventListener('submit', async e => {
           [emergencyName, emergencyPhone, new Date().toISOString(), guestId]);
       }
 
-      run(`INSERT INTO lodgers
+      const result = run(`INSERT INTO lodgers
         (guest_id, event_id, name, dharma_name, gender, phone, id_card, check_in_date, expected_check_out, bed_id, role, class_name, status, source, notes)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '在住', ?, ?)`, [
         guestId,
@@ -449,7 +449,7 @@ document.getElementById('checkin-form').addEventListener('submit', async e => {
       run("UPDATE beds SET status='占用' WHERE id=?", [bedId]);
       setHouseStatus(bedId, '占用', '办理入住');
 
-      const lodgerId = db.exec("SELECT last_insert_rowid() as id")[0].values[0][0];
+      const lodgerId = result.lastInsertId;
       await generateMeals(lodgerId, checkIn, checkOut, ciMeal.breakfast, ciMeal.lunch, ciMeal.dinner);
 
       // 收款记录
@@ -637,13 +637,13 @@ async function importBatchCSV(input) {
           incrementGuestVisit(guestId, checkIn);
 
           await withTransaction(async () => {
-            run(`INSERT INTO lodgers
+            const result = run(`INSERT INTO lodgers
               (guest_id, event_id, name, dharma_name, gender, phone, id_card, check_in_date, expected_check_out, bed_id, role, class_name, status, source, notes)
               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '在住', '法会批量导入', ?)`, [
               guestId, evt ? evt.id : null, row.name, row.dharma_name || null, row.gender, row.phone || null, row.id_card || null,
               checkIn, checkOut, bed.id, row.role || null, row.class_name || null, row.notes || null
             ]);
-            const lodgerId = db.exec("SELECT last_insert_rowid() as id")[0].values[0][0];
+            const lodgerId = result.lastInsertId;
             run("UPDATE beds SET status='占用' WHERE id=?", [bed.id]);
             setHouseStatus(bed.id, '占用', '法会批量导入');
             await generateMeals(lodgerId, checkIn, checkOut, breakfast, lunch, dinner);
