@@ -131,6 +131,11 @@ def main():
             print("FAIL: app did not initialize")
             sys.exit(1)
 
+        login_options = evaluate(ws, "Array.from(document.getElementById('login-username').options).map(o => o.textContent)").get('value') or []
+        if '管理员' not in login_options or '知客师' not in login_options:
+            print('FAIL: login identity options missing:', login_options)
+            sys.exit(1)
+
         # Sanity-check that main stylesheet parsed (guards against fatal CSS syntax errors)
         res = evaluate(ws, 'Array.from(document.querySelectorAll(\'link[rel="stylesheet"]\')).reduce((n,l)=>n+(l.sheet?l.sheet.cssRules.length:0),0)')
         rule_count = res.get('value', 0)
@@ -140,8 +145,11 @@ def main():
 
         errors = collect_errors(ws, 1.5)
 
-        # Login as admin so that restricted views (info/backup) can render
-        evaluate(ws, "login('admin','admin')")
+        # Login through the visible identity selector so role-to-account mapping is covered.
+        role = evaluate(ws, "(async()=>{document.getElementById('login-username').value='admin';document.getElementById('login-password').value='admin';await submitLogin();return getCurrentUser() && getCurrentUser().role;})()").get('value')
+        if role != 'admin':
+            print('FAIL: admin identity login failed, role=', role)
+            sys.exit(1)
         time.sleep(0.5)
 
         # Switch views and check no errors

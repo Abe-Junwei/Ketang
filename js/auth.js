@@ -230,6 +230,68 @@ async function login(username, password) {
   return true;
 }
 
+async function loginByRole(role, password) {
+  if (typeof isRemoteDB === "function" && isRemoteDB()) {
+    let result;
+    try {
+      result = await remoteDBRequestAsync({
+        action: "login_role",
+        role: role,
+        password: password,
+      });
+    } catch (err) {
+      console.warn("云端身份登录失败 | Remote role login failed:", err);
+      throw err;
+    }
+    setRemoteSessionToken(result.token);
+    currentUser = result.user;
+    localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(currentUser));
+    logAudit("用户登录", "user", result.user.id, {
+      username: result.user.username,
+      role: result.user.role,
+    });
+    updateAuthUI();
+    applyPermissions();
+    if (typeof mountFormMealNeedPickers === "function")
+      mountFormMealNeedPickers();
+    if (typeof mountLodgerRoleSelects === "function") mountLodgerRoleSelects();
+    if (result.must_change_password) showForceChangePasswordModal();
+    return true;
+  }
+
+  const users = query(
+    "SELECT * FROM users WHERE role = ? AND (is_active IS NULL OR is_active = 1) ORDER BY CASE WHEN username = ? THEN 0 ELSE 1 END, username",
+    [role, role],
+  );
+  for (const user of users) {
+    if (!(await verifyPasswordAsync(password, user.password))) continue;
+    await upgradePasswordHashIfLegacy(user.id, password, user.password);
+    const fresh =
+      query("SELECT * FROM users WHERE id = ? LIMIT 1", [user.id])[0] || user;
+    const mustChange = mustChangePasswordForUser(fresh);
+    currentUser = {
+      id: fresh.id,
+      username: fresh.username,
+      display_name: fresh.display_name,
+      role: fresh.role,
+      auth_version: fresh.auth_version || 1,
+    };
+    localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(currentUser));
+    logAudit("用户登录", "user", user.id, {
+      username: user.username,
+      role: user.role,
+    });
+    updateAuthUI();
+    applyPermissions();
+    if (typeof mountFormMealNeedPickers === "function")
+      mountFormMealNeedPickers();
+    if (typeof mountLodgerRoleSelects === "function") mountLodgerRoleSelects();
+    if (mustChange) showForceChangePasswordModal();
+    return true;
+  }
+  return false;
+}
+
 function logout() {
   closeProfileMenu();
   if (currentUser) {
@@ -296,57 +358,12 @@ async function populateLoginUsers() {
   sel.innerHTML = '<option value="">正在加载身份…</option>';
   if (errorEl) errorEl.textContent = "";
 
-  let users = [];
-  try {
-    if (typeof isRemoteDB === "function" && isRemoteDB()) {
-      const result = await remoteDBRequestAsync({ action: "users" });
-      users = result.rows || [];
-    } else {
-      users = query(
-        "SELECT username, display_name, role FROM users WHERE is_active IS NULL OR is_active = 1 ORDER BY role, username",
-      );
-    }
-  } catch (e) {
-    console.warn("加载账号列表失败 | Failed to load login users:", e);
-    sel.disabled = false;
-    sel.innerHTML = '<option value="">加载失败</option>';
-    if (errorEl)
-      errorEl.textContent = e.message || "加载身份列表失败，请刷新后重试";
-    return;
-  }
-
-  const roleBuckets = new Map();
-  users.forEach((u) => {
-    if (!u || !u.role || !u.username) return;
-    if (!roleBuckets.has(u.role)) roleBuckets.set(u.role, []);
-    roleBuckets.get(u.role).push(u);
-  });
-
-  const pickRoleUser = (role) => {
-    const list = roleBuckets.get(role) || [];
-    if (!list.length) return null;
-    const exact = list.find((u) => String(u.username || "") === role);
-    return exact || list[0];
-  };
-
   let html = '<option value="">请选择身份</option>';
   USER_ROLE_OPTIONS.forEach((opt) => {
     const role = opt[0];
     const roleLabel = opt[1];
-    const picked = pickRoleUser(role);
-    if (!picked) return;
-    html += `<option value="${escapeHtml(picked.username)}">${escapeHtml(roleLabel)}</option>`;
+    html += `<option value="${escapeHtml(role)}">${escapeHtml(roleLabel)}</option>`;
   });
-
-  if (html === '<option value="">请选择身份</option>') {
-    html += '<option value="" disabled>暂无可登录身份</option>';
-    if (errorEl) {
-      errorEl.textContent =
-        typeof isRemoteDB === "function" && isRemoteDB()
-          ? "云端暂无可用身份，请确认 Pages 已绑定 D1 且数据库已初始化"
-          : "本地暂无可用身份，请从备份恢复或联系管理员";
-    }
-  }
 
   sel.innerHTML = html;
   sel.value = "";
@@ -354,10 +371,10 @@ async function populateLoginUsers() {
 }
 
 async function submitLogin() {
-  const username = document.getElementById("login-username").value;
+  const selectedRole = document.getElementById("login-username").value;
   const password = document.getElementById("login-password").value;
   const errorEl = document.getElementById("login-error");
-  if (!username) {
+  if (!selectedRole) {
     if (errorEl) errorEl.textContent = "请选择身份";
     return;
   }
@@ -366,7 +383,7 @@ async function submitLogin() {
     return;
   }
   try {
-    if (await login(username, password)) {
+    if (await loginByRole(selectedRole, password)) {
       if (errorEl) errorEl.textContent = "";
       pendingLoginPassword = password;
       document.getElementById("login-password").value = "";

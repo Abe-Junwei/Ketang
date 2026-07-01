@@ -168,8 +168,25 @@ CREATE INDEX IF NOT EXISTS idx_reservations_checkin ON reservations(expected_che
 CREATE INDEX IF NOT EXISTS idx_meals_date ON meals(date);
 CREATE INDEX IF NOT EXISTS idx_audit_target ON audit_logs(target_type, target_id);
 CREATE INDEX IF NOT EXISTS idx_audit_created ON audit_logs(created_at);
-CREATE UNIQUE INDEX IF NOT EXISTS idx_one_active_lodger_per_bed ON lodgers(bed_id) WHERE status = '在住' AND bed_id IS NOT NULL;
 `;
+
+/** 部分环境 D1 对 partial unique index 支持不稳定，单独执行 | Apply partial index separately */
+export const LODGER_BED_UNIQUE_INDEX_SQL = `CREATE UNIQUE INDEX IF NOT EXISTS idx_one_active_lodger_per_bed ON lodgers(bed_id) WHERE status = '在住' AND bed_id IS NOT NULL`;
+
+export const DEFAULT_USER_INSERTS = [
+  [
+    "admin",
+    "管理员",
+    "admin",
+    "sha256$ketang_default_salt$8d62959035f9b60a02e709f9826f3f996d07a09a4f5091e2884642fa01adf8a3",
+  ],
+  [
+    "zhike",
+    "知客师",
+    "zhike",
+    "sha256$ketang_default_salt$fc286955fb12bec3fb16b4f2619f9b675337b1240537bc21d830b5f495121565",
+  ],
+];
 
 export const SEED_ROOMS = [];
 for (let floor = 1; floor <= 2; floor++) {

@@ -22,6 +22,23 @@ import { checkRateLimit } from "../_shared/rate-limit.js";
 
 const bindQuery = (env) => (sql, params) => queryD1(env, sql, params);
 const bindRun = (env) => (sql, params) => runD1(env, sql, params);
+const PUBLIC_LOGIN_ROLES = [
+  ["admin", "管理员"],
+  ["zhike", "知客师"],
+  ["kitchen", "厨房"],
+  ["housekeeping", "房务"],
+  ["viewer", "只读"],
+];
+
+function sessionUserPayload(user) {
+  return {
+    id: user.id,
+    username: user.username,
+    display_name: user.display_name,
+    role: user.role,
+    auth_version: user.auth_version || 1,
+  };
+}
 
 export async function onRequestPost({ request, env }) {
   if (!env.KETANG_DB) return json({ error: "缺少 D1 绑定 KETANG_DB" }, 500);
@@ -58,12 +75,57 @@ export async function onRequestPost({ request, env }) {
         bindRun(env),
         60,
       );
+      const rows = PUBLIC_LOGIN_ROLES.map(([role, label]) => ({
+        username: role,
+        display_name: label,
+        role,
+      }));
+      return json({ rows });
+    }
+
+    if (payload.action === "login_role") {
+      await initRemoteDatabase(env);
+      await checkLoginRateLimit(env, ip, bindQuery(env), bindRun(env));
+      const role = String(payload.role || "");
+      if (!PUBLIC_LOGIN_ROLES.some(([value]) => value === role)) {
+        await recordLoginFailure(env, ip, bindQuery(env), bindRun(env));
+        return json({ error: "身份或密码错误" }, 401);
+      }
       const rows = await queryD1(
         env,
-        "SELECT username, display_name, role FROM users WHERE is_active IS NULL OR is_active = 1 ORDER BY role, username",
-        [],
+        "SELECT * FROM users WHERE role = ? AND (is_active IS NULL OR is_active = 1) ORDER BY CASE WHEN username = ? THEN 0 ELSE 1 END, username",
+        [role, role],
       );
-      return json({ rows });
+      let matchedUser = null;
+      for (const user of rows) {
+        if (await verifyPassword(payload.password || "", user.password)) {
+          matchedUser = user;
+          break;
+        }
+      }
+      if (!matchedUser) {
+        await recordLoginFailure(env, ip, bindQuery(env), bindRun(env));
+        return json({ error: "身份或密码错误" }, 401);
+      }
+      await upgradePasswordHashIfLegacy(
+        matchedUser.id,
+        payload.password || "",
+        matchedUser.password,
+        bindRun(env),
+      );
+      await clearLoginFailures(env, ip, bindRun(env));
+      const freshRows = await queryD1(
+        env,
+        "SELECT * FROM users WHERE id = ? LIMIT 1",
+        [matchedUser.id],
+      );
+      const freshUser = freshRows[0] || matchedUser;
+      const token = await signSession(env, freshUser);
+      return json({
+        token,
+        user: sessionUserPayload(freshUser),
+        must_change_password: mustChangePassword(freshUser),
+      });
     }
 
     if (payload.action === "login") {
@@ -98,13 +160,7 @@ export async function onRequestPost({ request, env }) {
       const token = await signSession(env, freshUser);
       return json({
         token,
-        user: {
-          id: freshUser.id,
-          username: freshUser.username,
-          display_name: freshUser.display_name,
-          role: freshUser.role,
-          auth_version: freshUser.auth_version || 1,
-        },
+        user: sessionUserPayload(freshUser),
         must_change_password: mustChangePassword(freshUser),
       });
     }

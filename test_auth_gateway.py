@@ -65,6 +65,45 @@ def test_user_role_migration_guard():
     if "ddl.includes(\"'admin','zhike'\") && !ddl.includes(\"'kitchen'\")" not in d1:
         print('FAIL d1.js user role migration guard too broad (runs every init)')
         sys.exit(1)
+    if 'repairUsersTableState' not in d1:
+        print('FAIL d1.js missing repairUsersTableState')
+        sys.exit(1)
 
 
-test_user_role_migration_guard()
+def test_role_login_gateway():
+    db_api = read('functions/api/db.js')
+    auth = read('js/auth.js')
+    if 'payload.action === "login_role"' not in db_api:
+        print('FAIL api/db.js missing login_role action')
+        sys.exit(1)
+    if 'action: "login_role"' not in auth or 'loginByRole' not in auth:
+        print('FAIL auth.js missing role-based login call')
+        sys.exit(1)
+
+
+def test_anonymous_users_action_does_not_enumerate_accounts():
+    db_api = read('functions/api/db.js')
+    users_action = re.search(r'if \(payload\.action === "users"\) \{([\s\S]*?)\n    \}', db_api)
+    if not users_action:
+        print('FAIL api/db.js missing users action')
+        sys.exit(1)
+    if 'FROM users' in users_action.group(1):
+        print('FAIL anonymous users action still queries real user accounts')
+        sys.exit(1)
+
+
+TESTS = [
+    test_upgrade_password_run_signature,
+    test_zhike_users_select_blocked,
+    test_session_init_migration,
+    test_admin_update_returns_token,
+    test_frontend_unauthorized_handler,
+    test_user_role_migration_guard,
+    test_role_login_gateway,
+    test_anonymous_users_action_does_not_enumerate_accounts,
+]
+
+for test in TESTS:
+    test()
+
+print('OK auth gateway checks passed')

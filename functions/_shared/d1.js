@@ -1,4 +1,9 @@
-import { SCHEMA_SQL, SEED_ROOMS } from "./schema.js";
+import {
+  SCHEMA_SQL,
+  SEED_ROOMS,
+  LODGER_BED_UNIQUE_INDEX_SQL,
+  DEFAULT_USER_INSERTS,
+} from "./schema.js";
 
 export const normalizeParams = (params) =>
   Array.isArray(params)
@@ -33,8 +38,22 @@ export async function batchD1Chunked(env, statements, chunkSize = 80) {
   }
 }
 
+async function repairUsersTableState(env) {
+  await runD1(env, "DROP TABLE IF EXISTS users_new", []);
+  const tables = await queryD1(
+    env,
+    "SELECT name FROM sqlite_master WHERE type='table' AND name IN ('users', 'users_new')",
+    [],
+  );
+  const names = new Set(tables.map((row) => row.name));
+  if (!names.has("users") && names.has("users_new")) {
+    await runD1(env, "ALTER TABLE users_new RENAME TO users", []);
+  }
+}
+
 async function ensureUserAuthColumns(env) {
   const cols = await queryD1(env, "PRAGMA table_info(users)", []);
+  if (!cols.length) return;
   const names = new Set(cols.map((col) => col.name));
   if (!names.has("auth_version")) {
     await runD1(
@@ -54,7 +73,15 @@ async function ensureUserAuthColumns(env) {
 
 async function ensureUserRoleColumns(env) {
   const cols = await queryD1(env, "PRAGMA table_info(users)", []);
+  if (!cols.length) return;
   const names = new Set(cols.map((col) => col.name));
+  if (!names.has("is_active")) {
+    await runD1(
+      env,
+      "ALTER TABLE users ADD COLUMN is_active INTEGER DEFAULT 1",
+      [],
+    );
+  }
   if (!names.has("is_advanced")) {
     await runD1(
       env,
@@ -107,10 +134,39 @@ async function ensureUserRoleColumns(env) {
   }
 }
 
+async function ensureDefaultUsers(env) {
+  const exists = await queryD1(
+    env,
+    "SELECT 1 AS ok FROM sqlite_master WHERE type='table' AND name='users' LIMIT 1",
+    [],
+  );
+  if (!exists.length) return;
+  const count = await queryD1(env, "SELECT COUNT(*) AS c FROM users", []);
+  if ((count[0]?.c || 0) > 0) return;
+  for (const [username, displayName, role, password] of DEFAULT_USER_INSERTS) {
+    await runD1(
+      env,
+      "INSERT OR IGNORE INTO users (username, display_name, role, password) VALUES (?, ?, ?, ?)",
+      [username, displayName, role, password],
+    );
+  }
+}
+
 export async function initRemoteDatabase(env) {
-  await env.KETANG_DB.exec(SCHEMA_SQL);
+  await repairUsersTableState(env);
+  try {
+    await env.KETANG_DB.exec(SCHEMA_SQL);
+  } catch (error) {
+    throw new Error(`schema exec: ${error?.message || error}`);
+  }
+  try {
+    await runD1(env, LODGER_BED_UNIQUE_INDEX_SQL, []);
+  } catch (error) {
+    console.warn("lodger partial index skipped:", error);
+  }
   await ensureUserAuthColumns(env);
   await ensureUserRoleColumns(env);
+  await ensureDefaultUsers(env);
   const count = await queryD1(env, "SELECT COUNT(*) AS c FROM rooms", []);
   if ((count[0]?.c || 0) > 0) return false;
   for (const item of SEED_ROOMS) await runD1(env, item.sql, item.params);
@@ -168,6 +224,12 @@ export function safeErrorMessage(error) {
     return message;
   if (/UNIQUE constraint failed: lodgers\.bed_id/.test(message))
     return "该床位已有在住挂单，请刷新后重新选择床位";
+  if (
+    /schema exec:|no such table|no such column|SQLITE_|database is locked|duplicate column name/i.test(
+      message,
+    )
+  )
+    return `数据库初始化异常：${message}`;
   return "操作失败，请刷新后重试";
 }
 
