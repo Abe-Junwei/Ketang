@@ -86,7 +86,7 @@ def main():
                 const guests = db.exec('SELECT COUNT(*) FROM guests')[0].values[0][0];
                 const lodgers = db.exec('SELECT COUNT(*) FROM lodgers WHERE guest_id IS NOT NULL')[0].values[0][0];
                 const hk = db.exec('SELECT COUNT(*) FROM housekeeping')[0].values[0][0];
-                return { version, dormCol, mealCol, lodgerMealCol, eventsExists, usersExists, users, eventCount, guests, lodgers, hk };
+                return { version, roleCheck, advancedCol, permissionsCol, dormCol, mealCol, lodgerMealCol, eventsExists, usersExists, users, eventCount, guests, lodgers, hk };
             })()
         """
         ws.send(json.dumps({'id': 3, 'method': 'Runtime.evaluate', 'params': {'expression': import_expr, 'awaitPromise': True, 'returnByValue': True}}))
