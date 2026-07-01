@@ -49,9 +49,13 @@ CREATE TABLE IF NOT EXISTS users (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   username TEXT UNIQUE NOT NULL,
   display_name TEXT,
-  role TEXT NOT NULL CHECK(role IN ('admin','zhike')),
+  role TEXT NOT NULL CHECK(role IN ('admin','zhike','kitchen','housekeeping','viewer')),
+  is_advanced INTEGER DEFAULT 0 CHECK(is_advanced IN (0,1)),
+  permissions TEXT,
   password TEXT NOT NULL,
   is_active INTEGER DEFAULT 1 CHECK(is_active IN (0,1)),
+  auth_version INTEGER DEFAULT 1,
+  must_change_password INTEGER DEFAULT 0 CHECK(must_change_password IN (0,1)),
   created_at TEXT DEFAULT CURRENT_TIMESTAMP
 );
 INSERT OR IGNORE INTO users (username, display_name, role, password) VALUES ('admin', '管理员', 'admin', 'sha256$ketang_default_salt$8d62959035f9b60a02e709f9826f3f996d07a09a4f5091e2884642fa01adf8a3');
@@ -139,7 +143,7 @@ CREATE TABLE IF NOT EXISTS audit_logs (
   created_at TEXT DEFAULT CURRENT_TIMESTAMP
 );
 CREATE TABLE IF NOT EXISTS schema_version (version INTEGER PRIMARY KEY);
-INSERT INTO schema_version (version) SELECT 13 WHERE NOT EXISTS (SELECT 1 FROM schema_version);
+INSERT INTO schema_version (version) SELECT 14 WHERE NOT EXISTS (SELECT 1 FROM schema_version);
 CREATE TABLE IF NOT EXISTS app_meta (
   key TEXT PRIMARY KEY,
   value TEXT NOT NULL

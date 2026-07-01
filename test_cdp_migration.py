@@ -6,13 +6,17 @@ import time
 import json
 import websocket
 from test_cdp import start_server, wait_for_cdp, cdp_ws_url, evaluate, collect_errors
+from test_file_protocol import chrome_binary
 
 PORT = 8125
 CDP_PORT = 9224
 
 def main():
     server = start_server()
-    chrome = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
+    chrome = chrome_binary()
+    if not chrome:
+        print("SKIP: Chrome not found")
+        sys.exit(0)
     proc = subprocess.Popen([
         chrome,
         f"--remote-debugging-port={CDP_PORT}",
@@ -63,10 +67,15 @@ def main():
                 migrateV10toV11();
                 migrateV11toV12();
                 migrateV12toV13();
+                migrateV13toV14();
+                migrateV14toV15();
                 createIndexes();
                 seedRooms();
                 await saveDB();
                 const version = db.exec('SELECT version FROM schema_version')[0].values[0][0];
+                const roleCheck = db.exec("SELECT sql FROM sqlite_master WHERE type='table' AND name='users'")[0].values[0][0];
+                const advancedCol = db.exec("PRAGMA table_info(users)")[0].values.some(c => c[1] === 'is_advanced');
+                const permissionsCol = db.exec("PRAGMA table_info(users)")[0].values.some(c => c[1] === 'permissions');
                 const dormCol = db.exec("PRAGMA table_info(rooms)")[0].values.some(c => c[1] === 'dorm_type');
                 const mealCol = db.exec("PRAGMA table_info(reservations)")[0].values.some(c => c[1] === 'meal_breakfast');
                 const lodgerMealCol = db.exec("PRAGMA table_info(lodgers)")[0].values.some(c => c[1] === 'meal_default_breakfast');
@@ -86,8 +95,17 @@ def main():
         if result.get('type') == 'object' and 'value' in result:
             values = result['value']
             print('Migration result:', values)
-            if values.get('version') != 13:
-                print("FAIL: schema version not migrated to 13")
+            if values.get('version') != 15:
+                print("FAIL: schema version not migrated to 15")
+                sys.exit(1)
+            if not values.get('advancedCol'):
+                print("FAIL: users.is_advanced column missing after V14→V15 migration")
+                sys.exit(1)
+            if not values.get('permissionsCol'):
+                print("FAIL: users.permissions column missing after V14→V15 migration")
+                sys.exit(1)
+            if 'viewer' not in values.get('roleCheck', ''):
+                print("FAIL: users role CHECK not expanded to include new roles")
                 sys.exit(1)
             if not values.get('dormCol'):
                 print("FAIL: rooms.dorm_type column missing after migration")
@@ -110,7 +128,7 @@ def main():
             if values.get('lodgers', 0) < 1:
                 print("FAIL: lodgers not linked to guests")
                 sys.exit(1)
-            print("PASS: V3→V13 migration via app succeeded")
+            print("PASS: V3→V15 migration via app succeeded")
         else:
             print("FAIL: unexpected result", resp)
             sys.exit(1)

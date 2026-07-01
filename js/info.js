@@ -178,6 +178,16 @@ async function submitRoom(id) {
   }
 
   try {
+    if (useRemoteWriteApi()) {
+      await apiAdminRecord('room', id ? 'update' : 'create', {
+        room_id: id,
+        name: name,
+        location: location,
+        floor: floor || 1,
+        dorm_type: dorm,
+        notes: notes
+      });
+    } else {
     await withTransaction(async () => {
       if (id) {
         run('UPDATE rooms SET name=?, location=?, floor=?, dorm_type=?, notes=? WHERE id=?',
@@ -191,6 +201,7 @@ async function submitRoom(id) {
       }
     });
     await saveDB();
+    }
     closeModal();
     infoToast(id ? '房间已更新' : '房间已新增');
     renderInfo('rooms');
@@ -210,11 +221,15 @@ async function deleteRoom(id) {
   }
   if (!infoConfirm(`确定删除房间「${r.name}」吗？此操作不可恢复。`)) return;
   try {
+    if (useRemoteWriteApi()) {
+      await apiAdminRecord('room', 'delete', { room_id: id });
+    } else {
     await withTransaction(async () => {
       run('DELETE FROM rooms WHERE id = ?', [id]);
       logAudit('删除房间', 'room', id, { name: r.name });
     });
     await saveDB();
+    }
     infoToast('房间已删除');
     renderInfo('rooms');
     renderAll();
@@ -329,6 +344,15 @@ async function submitBed(id) {
   }
 
   try {
+    if (useRemoteWriteApi()) {
+      await apiAdminRecord('bed', id ? 'update' : 'create', {
+        bed_id: id,
+        room_id: roomId,
+        bed_number: number,
+        status: status,
+        notes: notes
+      });
+    } else {
     await withTransaction(async () => {
       if (id) {
         const old = query('SELECT status FROM beds WHERE id = ?', [id])[0];
@@ -347,6 +371,7 @@ async function submitBed(id) {
       }
     });
     await saveDB();
+    }
     closeModal();
     infoToast(id ? '床位已更新' : '床位已新增');
     renderInfo('beds');
@@ -370,12 +395,16 @@ async function deleteBed(id) {
   }
   if (!infoConfirm(`确定删除 ${infoEscape(b.room_name)} 的 ${infoEscape(b.bed_number)} 吗？此操作不可恢复。`)) return;
   try {
+    if (useRemoteWriteApi()) {
+      await apiAdminRecord('bed', 'delete', { bed_id: id });
+    } else {
     await withTransaction(async () => {
       run('DELETE FROM housekeeping WHERE bed_id = ?', [id]);
       run('DELETE FROM beds WHERE id = ?', [id]);
       logAudit('删除床位', 'bed', id, { room_id: b.room_id, bed_number: b.bed_number });
     });
     await saveDB();
+    }
     infoToast('床位已删除');
     renderInfo('beds');
     renderAll();
@@ -470,6 +499,10 @@ async function submitGuest(id) {
     infoShowFieldError('info-guest-name', '姓名 / 法名为必填');
     return scrollToFirstError(['info-guest-name']);
   }
+  if (!idCard) {
+    infoShowFieldError('info-guest-idcard', '身份证号为必填');
+    return;
+  }
   if (phone && !RULES.phone.test(phone)) {
     infoShowFieldError('info-guest-phone', RULES.phone.msg);
     return;
@@ -495,6 +528,18 @@ async function submitGuest(id) {
 
   const now = new Date().toISOString();
   try {
+    if (useRemoteWriteApi()) {
+      await apiAdminRecord('guest', id ? 'update' : 'create', {
+        guest_id: id,
+        name: name,
+        gender: gender,
+        phone: phone,
+        id_card: idCard,
+        emergency_contact: emergency,
+        emergency_phone: emergencyPhone,
+        notes: notes
+      });
+    } else {
     await withTransaction(async () => {
       if (id) {
         run(`UPDATE guests SET name=?, dharma_name=?, gender=?, phone=?, id_card=?,
@@ -516,6 +561,7 @@ async function submitGuest(id) {
       }
     });
     await saveDB();
+    }
     closeModal();
     infoToast(id ? '住客档案已更新' : '住客档案已新增');
     renderInfo('guests');
@@ -535,11 +581,15 @@ async function deleteGuest(id) {
   }
   if (!infoConfirm(`确定删除住客档案「${personDisplayName(g)}」吗？此操作不可恢复。`)) return;
   try {
+    if (useRemoteWriteApi()) {
+      await apiAdminRecord('guest', 'delete', { guest_id: id });
+    } else {
     await withTransaction(async () => {
       run('DELETE FROM guests WHERE id = ?', [id]);
       logAudit('删除住客档案', 'guest', id, { name: g.name });
     });
     await saveDB();
+    }
     infoToast('住客档案已删除');
     renderInfo('guests');
     renderAll();
@@ -671,6 +721,10 @@ async function submitLodger(id) {
     infoShowFieldError('info-lodger-name', '姓名 / 法名为必填');
     return scrollToFirstError(['info-lodger-name']);
   }
+  if (!idCard) {
+    infoShowFieldError('info-lodger-idcard', '身份证号为必填');
+    return;
+  }
   if (phone && !RULES.phone.test(phone)) {
     infoShowFieldError('info-lodger-phone', RULES.phone.msg);
     return;
@@ -726,6 +780,21 @@ async function submitLodger(id) {
   }
 
   try {
+    if (useRemoteWriteApi()) {
+      await apiAdminRecord('lodger', 'update', {
+        lodger_id: id,
+        name: name,
+        gender: gender,
+        phone: phone,
+        id_card: idCard,
+        check_in_date: checkIn,
+        expected_check_out: expectedOut,
+        status: status,
+        source: source,
+        bed_id: finalBedId,
+        notes: notes
+      });
+    } else {
     await withTransaction(async () => {
       run(`UPDATE lodgers SET name=?, dharma_name=?, gender=?, phone=?, id_card=?,
            check_in_date=?, expected_check_out=?, actual_check_out=?, status=?,
@@ -759,6 +828,7 @@ async function submitLodger(id) {
       logAudit('更新挂单记录', 'lodger', id, { name, bed_id: bedId, status });
     });
     await saveDB();
+    }
     closeModal();
     infoToast('挂单记录已更新');
     renderInfo('lodgers');
@@ -775,6 +845,9 @@ async function deleteInfoLodger(id) {
   const info = personDisplayName(l) + (l.phone ? ' · ' + l.phone : '');
   if (!infoConfirm(`确定删除挂单记录？\n${info}\n删除后不可恢复。`)) return;
   try {
+    if (useRemoteWriteApi()) {
+      await apiDeleteLodger({ lodger_id: id });
+    } else {
     await withTransaction(async () => {
       run('DELETE FROM meals WHERE lodger_id = ?', [id]);
       run('DELETE FROM payments WHERE lodger_id = ?', [id]);
@@ -787,6 +860,7 @@ async function deleteInfoLodger(id) {
       logAudit('删除支付记录', 'lodger', id, { guest_id: l.guest_id, name: l.name });
     });
     await saveDB();
+    }
     infoToast('已删除');
     renderInfo('lodgers');
     renderAll();

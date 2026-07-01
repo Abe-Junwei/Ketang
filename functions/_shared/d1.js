@@ -24,8 +24,58 @@ export async function batchD1Chunked(env, statements, chunkSize = 80) {
   }
 }
 
+async function ensureUserAuthColumns(env) {
+  const cols = await queryD1(env, 'PRAGMA table_info(users)', []);
+  const names = new Set(cols.map(col => col.name));
+  if (!names.has('auth_version')) {
+    await runD1(env, 'ALTER TABLE users ADD COLUMN auth_version INTEGER DEFAULT 1', []);
+  }
+  if (!names.has('must_change_password')) {
+    await runD1(env, 'ALTER TABLE users ADD COLUMN must_change_password INTEGER DEFAULT 0', []);
+  }
+}
+
+async function ensureUserRoleColumns(env) {
+  const cols = await queryD1(env, 'PRAGMA table_info(users)', []);
+  const names = new Set(cols.map(col => col.name));
+  if (!names.has('is_advanced')) {
+    await runD1(env, 'ALTER TABLE users ADD COLUMN is_advanced INTEGER DEFAULT 0', []);
+  }
+  if (!names.has('permissions')) {
+    await runD1(env, 'ALTER TABLE users ADD COLUMN permissions TEXT', []);
+  }
+  // 更新旧 CHECK 约束以包含新角色 | Update old CHECK constraint to include new roles
+  const tableSql = await queryD1(env, "SELECT sql FROM sqlite_master WHERE type='table' AND name='users'", []);
+  const ddl = tableSql[0]?.sql || '';
+  if (ddl.includes("'admin','zhike'")) {
+    await runD1(env, `
+      CREATE TABLE users_new (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        username TEXT UNIQUE NOT NULL,
+        display_name TEXT,
+        role TEXT NOT NULL CHECK(role IN ('admin','zhike','kitchen','housekeeping','viewer')),
+        is_advanced INTEGER DEFAULT 0 CHECK(is_advanced IN (0,1)),
+        permissions TEXT,
+        password TEXT NOT NULL,
+        is_active INTEGER DEFAULT 1 CHECK(is_active IN (0,1)),
+        auth_version INTEGER DEFAULT 1,
+        must_change_password INTEGER DEFAULT 0 CHECK(must_change_password IN (0,1)),
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP
+      )
+    `, []);
+    await runD1(env, `
+      INSERT INTO users_new (id, username, display_name, role, is_advanced, permissions, password, is_active, auth_version, must_change_password, created_at)
+      SELECT id, username, display_name, role, COALESCE(is_advanced, 0), permissions, password, COALESCE(is_active, 1), COALESCE(auth_version, 1), COALESCE(must_change_password, 0), created_at FROM users
+    `, []);
+    await runD1(env, 'DROP TABLE users', []);
+    await runD1(env, 'ALTER TABLE users_new RENAME TO users', []);
+  }
+}
+
 export async function initRemoteDatabase(env) {
   await env.KETANG_DB.exec(SCHEMA_SQL);
+  await ensureUserAuthColumns(env);
+  await ensureUserRoleColumns(env);
   const count = await queryD1(env, 'SELECT COUNT(*) AS c FROM rooms', []);
   if ((count[0]?.c || 0) > 0) return false;
   for (const item of SEED_ROOMS) await runD1(env, item.sql, item.params);
@@ -55,7 +105,7 @@ export async function getBoardVersion(env) {
 
 export function safeErrorMessage(error) {
   const message = error?.message || String(error);
-  if (/登录|权限|KETANG_|不允许|账号或密码|管理员|尝试过多|bootstrap/.test(message)) return message;
+  if (/登录|权限|KETANG_|不允许|账号或密码|管理员|尝试过多|bootstrap|密码|账号|用户/.test(message)) return message;
   if (/UNIQUE constraint failed: lodgers\.bed_id/.test(message)) return '该床位已有在住挂单，请刷新后重新选择床位';
   return '操作失败，请刷新后重试';
 }
@@ -74,8 +124,8 @@ export function assertAllowedSql(action, sql, session) {
   if (/\b(DROP|ALTER|CREATE|ATTACH|DETACH|REINDEX|VACUUM)\b/i.test(cleaned)) throw new Error('不允许执行结构变更 SQL');
 
   if (session.role === 'admin') {
-    if (/\busers\b/i.test(cleaned) && /\b(DELETE|UPDATE)\b/i.test(cleaned) && !/\bpassword\b/i.test(cleaned) && !/\bis_active\b/i.test(cleaned) && !/\bdisplay_name\b/i.test(cleaned) && !/\brole\b/i.test(cleaned)) {
-      // admin user management allowed
+    if (!isQuery && /\b(users|rooms|beds|guests|events|lodgers|reservations)\b/i.test(cleaned)) {
+      throw new Error('该写操作请使用业务接口');
     }
     return cleaned;
   }
@@ -85,6 +135,8 @@ export function assertAllowedSql(action, sql, session) {
     if (!/^INSERT INTO audit_logs\b/i.test(cleaned)) {
       throw new Error('该写操作请使用业务接口');
     }
+  } else if (/\busers\b/i.test(cleaned)) {
+    throw new Error('不允许查询用户表');
   }
   return cleaned;
 }

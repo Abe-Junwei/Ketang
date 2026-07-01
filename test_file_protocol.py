@@ -46,7 +46,7 @@ def main():
     url = f'file://{HTML}'
     cmd = [
         chrome,
-        '--headless=old',
+        '--headless=new',
         '--disable-gpu',
         '--no-sandbox',
         '--allow-file-access-from-files',

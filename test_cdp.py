@@ -8,6 +8,7 @@ import threading
 import time
 import json
 import websocket
+from test_file_protocol import chrome_binary
 
 PORT = 8125
 CDP_PORT = 9224
@@ -94,7 +95,10 @@ def collect_errors(ws, duration):
 
 def main():
     server = start_server()
-    chrome = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
+    chrome = chrome_binary()
+    if not chrome:
+        print("SKIP: Chrome not found")
+        sys.exit(0)
     proc = subprocess.Popen([
         chrome,
         f"--remote-debugging-port={CDP_PORT}",

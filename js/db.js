@@ -36,7 +36,7 @@ function remoteDBRequest(payload, options) {
   let body = {};
   try { body = JSON.parse(xhr.responseText || '{}'); } catch (e) { body = {}; }
   if (xhr.status < 200 || xhr.status >= 300) {
-    if (xhr.status === 401) setRemoteSessionToken('');
+    if (xhr.status === 401 && typeof handleApiUnauthorized === 'function') handleApiUnauthorized();
     throw new Error(body.error || '云端数据库请求失败');
   }
   return body;
@@ -61,6 +61,12 @@ function remoteExec(sql) {
 
 function remoteLogin(username, password) {
   const result = remoteDBRequest({ action: 'login', username, password });
+  setRemoteSessionToken(result.token);
+  return { user: result.user, must_change_password: !!result.must_change_password };
+}
+
+async function remoteLoginAsync(username, password) {
+  const result = await remoteDBRequestAsync({ action: 'login', username, password });
   setRemoteSessionToken(result.token);
   return { user: result.user, must_change_password: !!result.must_change_password };
 }
@@ -257,9 +263,13 @@ function initSchema() {
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       username TEXT UNIQUE NOT NULL,
       display_name TEXT,
-      role TEXT NOT NULL CHECK(role IN ('admin','zhike')),
+      role TEXT NOT NULL CHECK(role IN ('admin','zhike','kitchen','housekeeping','viewer')),
+      is_advanced INTEGER DEFAULT 0 CHECK(is_advanced IN (0,1)),
+      permissions TEXT,
       password TEXT NOT NULL,
       is_active INTEGER DEFAULT 1 CHECK(is_active IN (0,1)),
+      auth_version INTEGER DEFAULT 1,
+      must_change_password INTEGER DEFAULT 0 CHECK(must_change_password IN (0,1)),
       created_at TEXT DEFAULT CURRENT_TIMESTAMP
     );
     INSERT OR IGNORE INTO users (username, display_name, role, password) VALUES ('admin', '管理员', 'admin', 'sha256$ketang_default_salt$8d62959035f9b60a02e709f9826f3f996d07a09a4f5091e2884642fa01adf8a3');
@@ -350,7 +360,7 @@ function initSchema() {
       version INTEGER PRIMARY KEY
     );
     -- 仅当表为空时才插入初始版本号 | Only insert initial version if table is empty
-    INSERT INTO schema_version (version) SELECT 13 WHERE NOT EXISTS (SELECT 1 FROM schema_version);
+    INSERT INTO schema_version (version) SELECT 14 WHERE NOT EXISTS (SELECT 1 FROM schema_version);
   `);
 }
 
@@ -1146,6 +1156,64 @@ function migrateV12toV13() {
 }
 
 
+function migrateV13toV14() {
+  const version = db.exec('SELECT MIN(version) as v FROM schema_version')[0]?.values[0][0] || 0;
+  if (version >= 14) return;
+  db.run('BEGIN TRANSACTION;');
+  try {
+    try { db.run('ALTER TABLE users ADD COLUMN auth_version INTEGER DEFAULT 1'); } catch (e) { /* 已存在则忽略 */ }
+    try { db.run('ALTER TABLE users ADD COLUMN must_change_password INTEGER DEFAULT 0'); } catch (e) { /* 已存在则忽略 */ }
+    db.run('DELETE FROM schema_version WHERE version < 14');
+    db.run('INSERT OR REPLACE INTO schema_version (version) VALUES (14)');
+    db.run('COMMIT;');
+  } catch (e) {
+    try { db.run('ROLLBACK;'); } catch (rollbackErr) { /* ignore */ }
+    throw new Error('migrateV13toV14 failed: ' + e.message);
+  }
+}
+
+
+function migrateV14toV15() {
+  const version = db.exec('SELECT MIN(version) as v FROM schema_version')[0]?.values[0][0] || 0;
+  if (version >= 15) return;
+  db.run('BEGIN TRANSACTION;');
+  try {
+    // 扩展角色枚举并增加高级知客与权限字段 | Expand roles and add advanced zhike / permissions fields
+    try { db.run('ALTER TABLE users ADD COLUMN is_advanced INTEGER DEFAULT 0'); } catch (e) { /* 已存在则忽略 */ }
+    try { db.run('ALTER TABLE users ADD COLUMN permissions TEXT'); } catch (e) { /* 已存在则忽略 */ }
+    // SQLite 不支持直接修改 CHECK 约束；通过重建 users 表更新角色枚举
+    const hasOldCheck = db.exec("SELECT sql FROM sqlite_master WHERE type='table' AND name='users'")[0]?.values[0][0] || '';
+    if (hasOldCheck.includes("'admin','zhike'")) {
+      db.run(`
+        CREATE TABLE users_new (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          username TEXT UNIQUE NOT NULL,
+          display_name TEXT,
+          role TEXT NOT NULL CHECK(role IN ('admin','zhike','kitchen','housekeeping','viewer')),
+          is_advanced INTEGER DEFAULT 0 CHECK(is_advanced IN (0,1)),
+          permissions TEXT,
+          password TEXT NOT NULL,
+          is_active INTEGER DEFAULT 1 CHECK(is_active IN (0,1)),
+          auth_version INTEGER DEFAULT 1,
+          must_change_password INTEGER DEFAULT 0 CHECK(must_change_password IN (0,1)),
+          created_at TEXT DEFAULT CURRENT_TIMESTAMP
+        )
+      `);
+      db.run(`INSERT INTO users_new (id, username, display_name, role, is_advanced, permissions, password, is_active, auth_version, must_change_password, created_at)
+              SELECT id, username, display_name, role, COALESCE(is_advanced, 0), permissions, password, COALESCE(is_active, 1), COALESCE(auth_version, 1), COALESCE(must_change_password, 0), created_at FROM users`);
+      db.run('DROP TABLE users');
+      db.run('ALTER TABLE users_new RENAME TO users');
+    }
+    db.run('DELETE FROM schema_version WHERE version < 15');
+    db.run('INSERT OR REPLACE INTO schema_version (version) VALUES (15)');
+    db.run('COMMIT;');
+  } catch (e) {
+    try { db.run('ROLLBACK;'); } catch (rollbackErr) { /* ignore */ }
+    throw new Error('migrateV14toV15 failed: ' + e.message);
+  }
+}
+
+
 function createIndexes() {
   db.run(`
     CREATE INDEX IF NOT EXISTS idx_events_name ON events(name);
@@ -1302,6 +1370,8 @@ async function importDB(input) {
       migrateV10toV11();
       migrateV11toV12();
       migrateV12toV13();
+      migrateV13toV14();
+      migrateV14toV15();
       createIndexes();
       await seedRooms();
       await saveDB();

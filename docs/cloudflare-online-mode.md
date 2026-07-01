@@ -74,6 +74,9 @@
 | `POST /api/v1/reservation-status` | 更新预约状态 |
 | `POST /api/v1/batch-event-members` | 营期批量取消/No-show |
 | `GET /api/v1/board-version` | 看板版本号 |
+| `GET /api/v1/session` | 校验当前登录会话 |
+| `GET/POST /api/v1/admin/users` | 用户列表 / 增改停用 / 重置密码 / 启用 |
+| `GET/POST /api/v1/admin/records` | 房间床位营期等基础资料写操作 |
 | `GET/POST /api/v1/admin/data-backup` | JSON 导入导出 |
 | `POST /api/public/reservations` | 公开预约 |
 

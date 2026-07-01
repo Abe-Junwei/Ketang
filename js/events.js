@@ -223,7 +223,6 @@ async function batchCancelEventMembers() {
     alert('批量取消失败：' + e.message);
     return;
   }
-  await saveDB();
   showToast(`已取消 ${selected.length} 人`);
   renderAll();
   if (eventId) renderEventMembers(eventId);
@@ -262,7 +261,6 @@ async function batchNoShowEventMembers() {
     alert('批量标记 No-show 失败：' + e.message);
     return;
   }
-  await saveDB();
   showToast(`已标记 ${resvOnly.length} 人为 No-show`);
   renderAll();
   if (eventId) renderEventMembers(eventId);
@@ -334,6 +332,19 @@ async function submitEvent(e) {
   if (startDate && endDate && endDate < startDate) { alert('结束日期不能早于开始日期'); return; }
 
   try {
+    if (useRemoteWriteApi()) {
+      await apiAdminRecord('event', id ? 'update' : 'create', {
+        event_id: id,
+        name: name,
+        event_type: eventType,
+        gender_type: genderType,
+        expected_count: expected,
+        start_date: startDate,
+        end_date: endDate,
+        status: status,
+        notes: notes
+      });
+    } else {
     await withTransaction(async () => {
       if (id) {
         const old = query("SELECT status FROM events WHERE id=?", [id])[0];
@@ -368,12 +379,13 @@ async function submitEvent(e) {
         logAudit('新增营期', 'event', newId, { name });
       }
     });
+    }
   } catch (e) {
     console.error(e);
     alert('保存营期失败：' + e.message);
     return;
   }
-  await saveDB();
+  if (!useRemoteWriteApi()) await saveDB();
   closeEventModal();
   showToast('营期保存成功');
   renderEventList();
@@ -391,11 +403,15 @@ async function deleteEvent(id) {
   }
   if (!confirm(`确定删除营期「${e.name}」吗？`)) return;
   try {
+    if (useRemoteWriteApi()) {
+      await apiAdminRecord('event', 'delete', { event_id: id });
+    } else {
     await withTransaction(async () => {
       run("DELETE FROM events WHERE id = ?", [id]);
       logAudit('删除营期', 'event', id, { name: e.name });
     });
     await saveDB();
+    }
     showToast('营期已删除');
     renderEventList();
     renderAll();

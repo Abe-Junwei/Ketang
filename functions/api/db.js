@@ -1,11 +1,12 @@
 import { json, readJson, clientIp } from '../_shared/http.js';
 import {
   verifyPassword, signSession, requireSession, checkLoginRateLimit,
-  recordLoginFailure, clearLoginFailures, mustChangePassword, sha256Hex
+  recordLoginFailure, clearLoginFailures, mustChangePassword, upgradePasswordHashIfLegacy
 } from '../_shared/auth.js';
 import {
   queryD1, runD1, initRemoteDatabase, isDatabaseEmpty, assertAllowedSql, safeErrorMessage
 } from '../_shared/d1.js';
+import { changeUserPassword } from '../_shared/users.js';
 import { checkRateLimit } from '../_shared/rate-limit.js';
 
 const bindQuery = (env) => (sql, params) => queryD1(env, sql, params);
@@ -48,29 +49,35 @@ export async function onRequestPost({ request, env }) {
         await recordLoginFailure(env, ip, bindQuery(env), bindRun(env));
         return json({ error: '账号或密码错误' }, 401);
       }
+      await upgradePasswordHashIfLegacy(user.id, payload.password || '', user.password, bindRun(env));
       await clearLoginFailures(env, ip, bindRun(env));
-      const token = await signSession(env, user);
+      const freshRows = await queryD1(env, 'SELECT * FROM users WHERE id = ? LIMIT 1', [user.id]);
+      const freshUser = freshRows[0] || user;
+      const token = await signSession(env, freshUser);
       return json({
         token,
-        user: { id: user.id, username: user.username, display_name: user.display_name, role: user.role },
-        must_change_password: mustChangePassword(user)
+        user: { id: freshUser.id, username: freshUser.username, display_name: freshUser.display_name, role: freshUser.role, auth_version: freshUser.auth_version || 1 },
+        must_change_password: mustChangePassword(freshUser)
       });
     }
 
     const session = await requireSession(request, env, bindQuery);
 
     if (payload.action === 'change_password') {
-      const rows = await queryD1(env, 'SELECT * FROM users WHERE id = ? LIMIT 1', [session.sub || session.id]);
-      const user = rows[0];
-      if (!user || !(await verifyPassword(payload.old_password || '', user.password))) {
-        return json({ error: '原密码错误' }, 401);
-      }
-      const newPassword = String(payload.new_password || '');
-      if (newPassword.length < 6) return json({ error: '新密码至少 6 位' }, 400);
-      const salt = crypto.randomUUID().replace(/-/g, '').slice(0, 16);
-      const hash = 'sha256$' + salt + '$' + await sha256Hex(salt + newPassword);
-      await runD1(env, 'UPDATE users SET password = ? WHERE id = ?', [hash, user.id]);
-      return json({ ok: true });
+      const result = await changeUserPassword(env, session.sub || session.id, payload.old_password, payload.new_password);
+      const token = await signSession(env, result.user);
+      return json({
+        ok: true,
+        token,
+        user: {
+          id: result.user.id,
+          username: result.user.username,
+          display_name: result.user.display_name,
+          role: result.user.role,
+          auth_version: result.user.auth_version || 1
+        },
+        must_change_password: false
+      });
     }
 
     if (payload.action === 'batch_query') {
@@ -106,7 +113,9 @@ export async function onRequestPost({ request, env }) {
     return json({ error: '未知操作' }, 400);
   } catch (error) {
     console.error('Ketang API error:', error);
-    const status = /登录已过期/.test(error.message) ? 401 : (/过于频繁|尝试过多/.test(error.message) ? 429 : 500);
+    const status = /登录已过期|原密码错误/.test(error.message) ? 401
+      : (/过于频繁|尝试过多/.test(error.message) ? 429
+      : (/密码|账号|用户|管理员|缺少/.test(error.message) ? 400 : 500));
     return json({ error: safeErrorMessage(error) }, status);
   }
 }

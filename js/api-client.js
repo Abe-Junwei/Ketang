@@ -7,6 +7,12 @@ function apiAuthHeaders() {
   return headers;
 }
 
+function handleApiUnauthorized() {
+  if (typeof clearAuthSession === 'function') clearAuthSession();
+  if (typeof stopBoardPolling === 'function') stopBoardPolling();
+  if (typeof showLoginOverlay === 'function') showLoginOverlay();
+}
+
 async function apiFetch(path, options) {
   const response = await fetch(path, {
     method: options?.method || 'GET',
@@ -15,9 +21,7 @@ async function apiFetch(path, options) {
   });
   let data = {};
   try { data = await response.json(); } catch (e) { data = {}; }
-  if (response.status === 401 && typeof setRemoteSessionToken === 'function') {
-    setRemoteSessionToken('');
-  }
+  if (response.status === 401) handleApiUnauthorized();
   if (!response.ok) throw new Error(data.error || '请求失败');
   return data;
 }
@@ -81,6 +85,38 @@ async function apiBatchEventMembers(payload) {
 
 async function apiBoardVersion() {
   return apiFetch('/api/v1/board-version');
+}
+
+async function apiSessionMe() {
+  return apiFetch('/api/v1/session');
+}
+
+async function apiAdminListUsers() {
+  return apiFetch('/api/v1/admin/users');
+}
+
+async function apiAdminCreateUser(payload) {
+  return apiFetch('/api/v1/admin/users', { method: 'POST', body: { action: 'create', ...payload } });
+}
+
+async function apiAdminUpdateUser(payload) {
+  return apiFetch('/api/v1/admin/users', { method: 'POST', body: { action: 'update', ...payload } });
+}
+
+async function apiAdminDeactivateUser(userId) {
+  return apiFetch('/api/v1/admin/users', { method: 'POST', body: { action: 'deactivate', user_id: userId } });
+}
+
+async function apiAdminReactivateUser(userId) {
+  return apiFetch('/api/v1/admin/users', { method: 'POST', body: { action: 'reactivate', user_id: userId } });
+}
+
+async function apiAdminResetUserPassword(userId, password) {
+  return apiFetch('/api/v1/admin/users', { method: 'POST', body: { action: 'reset_password', user_id: userId, password: password } });
+}
+
+async function apiAdminRecord(resource, action, payload) {
+  return apiFetch('/api/v1/admin/records', { method: 'POST', body: { resource: resource, action: action, ...payload } });
 }
 
 async function apiChangePassword(oldPassword, newPassword) {

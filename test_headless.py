@@ -5,6 +5,7 @@ import sys
 import time
 
 from test_cdp import start_server, PORT
+from test_file_protocol import chrome_binary
 
 def main():
     server = start_server()
@@ -23,7 +24,10 @@ def main():
             print(f"FAIL: server not reachable: {e}")
             sys.exit(1)
 
-        chrome = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
+        chrome = chrome_binary()
+        if not chrome:
+            print("SKIP: Chrome not found")
+            return
         proc = subprocess.Popen([
             chrome,
             "--headless=new",

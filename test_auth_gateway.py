@@ -1,0 +1,63 @@
+#!/usr/bin/env python3
+"""认证与 SQL 网关静态检查 | Auth and SQL gateway static checks."""
+from pathlib import Path
+import re
+import sys
+
+ROOT = Path(__file__).resolve().parent
+
+
+def read(path: str) -> str:
+    return (ROOT / path).read_text(encoding='utf-8')
+
+
+def test_upgrade_password_run_signature():
+    auth = read('functions/_shared/auth.js')
+    if re.search(r"await runD1\(env,\s*'UPDATE users SET password", auth):
+        print('FAIL upgradePasswordHashIfLegacy still calls runD1(env, ...)')
+        sys.exit(1)
+
+
+def test_zhike_users_select_blocked():
+    d1 = read('functions/_shared/d1.js')
+    if '不允许查询用户表' not in d1:
+        print('FAIL missing zhike users table block')
+        sys.exit(1)
+    if not re.search(r"isQuery\)[\s\S]*\\busers\\b", d1):
+        print('FAIL zhike users regex guard not found after isQuery branch')
+        sys.exit(1)
+
+
+def test_session_init_migration():
+    session = read('functions/api/v1/session.js')
+    if 'initRemoteDatabase' not in session:
+        print('FAIL session.js missing initRemoteDatabase')
+        sys.exit(1)
+
+
+def test_admin_update_returns_token():
+    users_api = read('functions/api/v1/admin/users.js')
+    users_shared = read('functions/_shared/users.js')
+    if 'signSession' not in users_api:
+        print('FAIL admin/users.js missing signSession on update')
+        sys.exit(1)
+    if 'result.user' not in users_shared:
+        print('FAIL users.js updateUser missing result.user for self password change')
+        sys.exit(1)
+
+
+def test_frontend_unauthorized_handler():
+    api_client = read('js/api-client.js')
+    auth = read('js/auth.js')
+    if 'handleApiUnauthorized' not in api_client:
+        print('FAIL api-client.js missing handleApiUnauthorized')
+        sys.exit(1)
+    if 'function handleApiUnauthorized' not in auth:
+        print('FAIL auth.js missing handleApiUnauthorized')
+        sys.exit(1)
+    if 'window._ketang_last_login_password' in auth:
+        print('FAIL auth.js still uses window._ketang_last_login_password')
+        sys.exit(1)
+
+
+print('OK auth gateway checks passed')

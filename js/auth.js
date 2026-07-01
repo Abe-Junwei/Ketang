@@ -7,17 +7,98 @@ const AUTH_STORAGE_KEY = 'ketang_current_user';
 
 // 当前登录用户缓存
 let currentUser = null;
+let cachedAdminUsers = [];
+let pendingLoginPassword = null;
+
+function applySessionRefresh(result) {
+  if (!result) return;
+  if (result.token && typeof setRemoteSessionToken === 'function') setRemoteSessionToken(result.token);
+  if (result.user) {
+    currentUser = result.user;
+    localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(currentUser));
+    updateAuthUI();
+    applyPermissions();
+  }
+}
+
+function handleApiUnauthorized() {
+  clearAuthSession();
+  if (typeof stopBoardPolling === 'function') stopBoardPolling();
+  showLoginOverlay();
+}
+
+function useRemoteAdminUsers() {
+  return typeof useRemoteWriteApi === 'function' && useRemoteWriteApi();
+}
+
+async function ensureAdminUsersCache() {
+  if (!useRemoteAdminUsers()) return cachedAdminUsers;
+  const data = await apiAdminListUsers();
+  cachedAdminUsers = data.users || [];
+  return cachedAdminUsers;
+}
+
+function findAdminUserById(id) {
+  const numericId = parseInt(id, 10);
+  return cachedAdminUsers.find(function (u) { return u.id === numericId; }) || null;
+}
+
+async function lookupAdminUser(id) {
+  if (!useRemoteAdminUsers()) {
+    return query('SELECT id, username, display_name, role, is_active FROM users WHERE id = ?', [id])[0] || null;
+  }
+  let user = findAdminUserById(id);
+  if (!user) {
+    await ensureAdminUsersCache();
+    user = findAdminUserById(id);
+  }
+  return user;
+}
 
 function initAuth() {
   const saved = localStorage.getItem(AUTH_STORAGE_KEY);
   if (saved) {
     try {
       currentUser = JSON.parse(saved);
+      const isRemote = typeof isRemoteDB === 'function' && isRemoteDB();
+      if (currentUser && typeof query === 'function' && !isRemote) {
+        const row = query('SELECT auth_version, is_active FROM users WHERE id = ? LIMIT 1', [currentUser.id])[0];
+        if (!row || row.is_active === 0 || (row.auth_version || 1) !== (currentUser.auth_version || 1)) {
+          currentUser = null;
+          localStorage.removeItem(AUTH_STORAGE_KEY);
+        }
+      }
     } catch (e) {
       currentUser = null;
     }
   }
   updateAuthUI();
+}
+
+function clearAuthSession() {
+  currentUser = null;
+  localStorage.removeItem(AUTH_STORAGE_KEY);
+  if (typeof setRemoteSessionToken === 'function') setRemoteSessionToken('');
+}
+
+async function restoreRemoteSession() {
+  if (typeof isRemoteDB !== 'function' || !isRemoteDB()) return true;
+  if (!getRemoteSessionToken() || !currentUser) {
+    clearAuthSession();
+    return false;
+  }
+  try {
+    const data = await apiSessionMe();
+    currentUser = data.user;
+    localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(currentUser));
+    updateAuthUI();
+    applyPermissions();
+    if (data.must_change_password) showForceChangePasswordModal();
+    return true;
+  } catch (e) {
+    clearAuthSession();
+    return false;
+  }
 }
 
 function getCurrentUser() {
@@ -36,14 +117,14 @@ function isZhike() {
   return currentUser && currentUser.role === 'zhike';
 }
 
-function login(username, password) {
+async function login(username, password) {
   if (typeof isRemoteDB === 'function' && isRemoteDB()) {
     let result;
     try {
-      result = remoteLogin(username, password);
+      result = await remoteLoginAsync(username, password);
     } catch (err) {
       console.warn('云端登录失败 | Remote login failed:', err);
-      return false;
+      throw err;
     }
     currentUser = result.user;
     localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(currentUser));
@@ -56,17 +137,16 @@ function login(username, password) {
     return true;
   }
   const user = query("SELECT * FROM users WHERE username = ? AND (is_active IS NULL OR is_active = 1) LIMIT 1", [username])[0];
-  if (!user || !verifyPassword(password, user.password)) return false;
-  const mustChange = isDefaultPasswordHash(user.password);
-  // 如果密码仍是明文，登录成功后自动升级为哈希
-  if (!String(user.password).startsWith('sha256$')) {
-    run("UPDATE users SET password = ? WHERE id = ?", [hashPassword(password), user.id]);
-  }
+  if (!user || !(await verifyPasswordAsync(password, user.password))) return false;
+  await upgradePasswordHashIfLegacy(user.id, password, user.password);
+  const fresh = query('SELECT * FROM users WHERE id = ? LIMIT 1', [user.id])[0] || user;
+  const mustChange = mustChangePasswordForUser(fresh);
   currentUser = {
-    id: user.id,
-    username: user.username,
-    display_name: user.display_name,
-    role: user.role
+    id: fresh.id,
+    username: fresh.username,
+    display_name: fresh.display_name,
+    role: fresh.role,
+    auth_version: fresh.auth_version || 1
   };
   localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(currentUser));
   logAudit('用户登录', 'user', user.id, { username: user.username, role: user.role });
@@ -82,10 +162,10 @@ function logout() {
   if (currentUser) {
     logAudit('用户登出', 'user', currentUser.id, { username: currentUser.username });
   }
-  currentUser = null;
-  localStorage.removeItem(AUTH_STORAGE_KEY);
+  clearAuthSession();
   if (typeof remoteLogout === 'function') remoteLogout();
   updateAuthUI();
+  if (typeof stopBoardPolling === 'function') stopBoardPolling();
   showLoginOverlay();
 }
 
@@ -114,18 +194,24 @@ function hideLoginOverlay() {
 function populateLoginUsers() {
   const sel = document.getElementById('login-username');
   if (!sel) return;
-  const users = (typeof isRemoteDB === 'function' && isRemoteDB())
-    ? remoteListLoginUsers()
-    : query("SELECT * FROM users WHERE is_active IS NULL OR is_active = 1 ORDER BY role, username");
+  let users = [];
+  try {
+    users = (typeof isRemoteDB === 'function' && isRemoteDB())
+      ? remoteListLoginUsers()
+      : query("SELECT * FROM users WHERE is_active IS NULL OR is_active = 1 ORDER BY role, username");
+  } catch (e) {
+    console.warn('加载账号列表失败 | Failed to load login users:', e);
+  }
   let html = '<option value=\"\">请选择账号</option>';
   users.forEach(u => {
-    html += `<option value="${escapeHtml(u.username)}">${escapeHtml(u.display_name || u.username)} (${u.role === 'admin' ? '管理员' : '知客师'})</option>`;
+    const loginRoleLabel = USER_ROLE_OPTIONS.find(opt => opt[0] === u.role)?.[1] || (u.role === 'admin' ? '管理员' : '知客师');
+    html += `<option value="${escapeHtml(u.username)}">${escapeHtml(u.display_name || u.username)} (${loginRoleLabel})</option>`;
   });
   sel.innerHTML = html;
   if (typeof rebuildSelectPicker === 'function') rebuildSelectPicker(sel);
 }
 
-function submitLogin() {
+async function submitLogin() {
   const username = document.getElementById('login-username').value;
   const password = document.getElementById('login-password').value;
   const errorEl = document.getElementById('login-error');
@@ -137,17 +223,21 @@ function submitLogin() {
     if (errorEl) errorEl.textContent = '请输入密码';
     return;
   }
-  if (login(username, password)) {
-    if (errorEl) errorEl.textContent = '';
-    window._ketang_last_login_password = password;
-    document.getElementById('login-password').value = '';
-    if (!document.getElementById('force-password-modal')) {
-      hideLoginOverlay();
-      renderAll();
-      if (typeof startBoardPolling === 'function') startBoardPolling();
+  try {
+    if (await login(username, password)) {
+      if (errorEl) errorEl.textContent = '';
+      pendingLoginPassword = password;
+      document.getElementById('login-password').value = '';
+      if (!document.getElementById('force-password-modal')) {
+        hideLoginOverlay();
+        renderAll();
+        if (typeof startBoardPolling === 'function') startBoardPolling();
+      }
+    } else if (errorEl) {
+      errorEl.textContent = '账号或密码错误';
     }
-  } else {
-    if (errorEl) errorEl.textContent = '账号或密码错误';
+  } catch (e) {
+    if (errorEl) errorEl.textContent = e.message || '登录失败';
   }
 }
 
@@ -157,9 +247,9 @@ function showForceChangePasswordModal() {
   document.body.insertAdjacentHTML('beforeend', `
     <div class="modal-overlay active" id="force-password-modal">
       <div class="modal">
-        <div class="modal-header"><h3>请修改默认密码</h3></div>
+        <div class="modal-header"><h3>请修改密码</h3></div>
         <div class="modal-body">
-          <p class="empty-tip">当前账号仍使用系统默认密码，上线后必须立即修改。</p>
+          <p class="empty-tip">当前账号需要设置新密码后才能继续使用系统。</p>
           <div class="field"><label>新密码</label><input type="password" id="force-new-password" minlength="6"></div>
           <div class="field"><label>确认新密码</label><input type="password" id="force-new-password2" minlength="6"></div>
           <p class="field-error" id="force-password-error"></p>
@@ -179,17 +269,29 @@ async function submitForceChangePassword() {
   if (p1.length < 6) { if (errEl) errEl.textContent = '新密码至少 6 位'; return; }
   if (p1 !== p2) { if (errEl) errEl.textContent = '两次输入不一致'; return; }
   try {
+    validateNewPassword(p1, pendingLoginPassword || '');
+  } catch (e) {
+    if (errEl) errEl.textContent = e.message;
+    return;
+  }
+  try {
     if (typeof isRemoteDB === 'function' && isRemoteDB()) {
-      await apiChangePassword(window._ketang_last_login_password || '', p1);
+      const result = await apiChangePassword(pendingLoginPassword || '', p1);
+      applySessionRefresh(result);
     } else if (currentUser) {
-      run('UPDATE users SET password = ? WHERE id = ?', [hashPassword(p1), currentUser.id]);
+      bumpLocalAuthVersion(currentUser.id);
+      run('UPDATE users SET password = ?, must_change_password = 0 WHERE id = ?', [await hashPasswordAsync(p1), currentUser.id]);
+      currentUser.auth_version = query('SELECT auth_version FROM users WHERE id = ?', [currentUser.id])[0]?.auth_version || currentUser.auth_version;
+      localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(currentUser));
       await saveDB();
     }
     const el = document.getElementById('force-password-modal');
     if (el) el.remove();
-    delete window._ketang_last_login_password;
+    pendingLoginPassword = null;
+    hideLoginOverlay();
     showToast('密码已更新');
     renderAll();
+    if (typeof startBoardPolling === 'function') startBoardPolling();
   } catch (e) {
     if (errEl) errEl.textContent = e.message || '修改失败';
   }
@@ -240,7 +342,13 @@ function requireAdmin() {
    用户管理 | User Management（仅管理员）
    ============================================================ */
 
-const USER_ROLE_OPTIONS = [['zhike', '知客师'], ['admin', '管理员']];
+const USER_ROLE_OPTIONS = [
+  ['admin', '管理员'],
+  ['zhike', '知客师'],
+  ['kitchen', '厨房'],
+  ['housekeeping', '房务'],
+  ['viewer', '只读']
+];
 
 function renderUserList() {
   const container = document.getElementById('user-list');
@@ -249,8 +357,19 @@ function renderUserList() {
     container.innerHTML = '<p class="empty-tip">需要管理员权限。</p>';
     return;
   }
+  if (typeof useRemoteWriteApi === 'function' && useRemoteWriteApi()) {
+    apiAdminListUsers().then(function (data) {
+      paintUserList(container, data.users || []);
+    }).catch(function (e) {
+      container.innerHTML = '<p class="empty-tip">加载用户失败：' + escapeHtml(e.message) + '</p>';
+    });
+    return;
+  }
+  paintUserList(container, query("SELECT * FROM users ORDER BY role, username"));
+}
 
-  const users = query("SELECT * FROM users ORDER BY role, username");
+function paintUserList(container, users) {
+  cachedAdminUsers = users.slice();
   if (!users.length) {
     container.innerHTML = '<p class="empty-tip">暂无用户。</p>';
     return;
@@ -259,17 +378,21 @@ function renderUserList() {
   let html = `<div class="table-wrap"><table>
     <thead><tr><th>账号</th><th>显示名</th><th>角色</th><th>创建时间</th><th>操作</th></tr></thead><tbody>`;
   users.forEach(u => {
-    const roleLabel = u.role === 'admin' ? '管理员' : '知客师';
+    const roleLabel = USER_ROLE_OPTIONS.find(opt => opt[0] === u.role)?.[1] || u.role;
     const isCurrent = currentUser && currentUser.id === u.id;
     const activeLabel = (u.is_active === 0) ? '<span class="room-tag" style="background:#ffebee;color:#c62828">已停用</span>' : '';
+    const resetLabel = (u.must_change_password === 1 && u.is_active !== 0) ? '<span class="room-tag" style="background:#fff3e0;color:#e65100">待改密</span>' : '';
     html += `<tr>
-      <td>${escapeHtml(u.username)} ${isCurrent ? '<span class="room-tag" style="background:#e3f2fd;color:#1565c0">当前</span>' : ''} ${activeLabel}</td>
+      <td>${escapeHtml(u.username)} ${isCurrent ? '<span class="room-tag" style="background:#e3f2fd;color:#1565c0">当前</span>' : ''} ${activeLabel} ${resetLabel}</td>
       <td>${escapeHtml(u.display_name || '-')}</td>
       <td>${roleLabel}</td>
       <td>${escapeHtml(u.created_at) || '-'}</td>
       <td>
         <button class="btn btn-sm btn-default" onclick="openUserModal(${u.id})">编辑</button>
-        ${!isCurrent ? `<button class="btn btn-sm btn-danger" onclick="deleteUser(${u.id})">停用</button>` : ''}
+        ${u.is_active === 0
+          ? `<button class="btn btn-sm btn-primary" onclick="reactivateUser(${u.id})">启用</button>`
+          : `<button class="btn btn-sm btn-default" onclick="resetUserPassword(${u.id})">重置密码</button>
+             ${!isCurrent ? `<button class="btn btn-sm btn-danger" onclick="deleteUser(${u.id})">停用</button>` : ''}`}
       </td>
     </tr>`;
   });
@@ -280,8 +403,22 @@ function renderUserList() {
 function openUserModal(id) {
   if (!requireAdmin()) return;
   const isEdit = !!id;
-  const u = isEdit ? query("SELECT * FROM users WHERE id = ?", [id])[0] : null;
+  if (isEdit) {
+    lookupAdminUser(id).then(function (u) {
+      if (!u) {
+        alert('用户不存在');
+        return;
+      }
+      mountUserModal(u, true);
+    }).catch(function (e) {
+      alert('加载用户失败：' + (e.message || '未知错误'));
+    });
+    return;
+  }
+  mountUserModal(null, false);
+}
 
+function mountUserModal(u, isEdit) {
   const html = `
     <div class="modal-overlay" id="user-modal" onclick="if(event.target===this)closeUserModal()">
       <div class="modal">
@@ -336,37 +473,82 @@ async function submitUser(e) {
   if (!username) { alert('请输入账号'); return; }
   if (!id && !password) { alert('请输入密码'); return; }
 
+  try {
+    if (!id) validateUsername(username);
+    if (password) validateNewPassword(password);
+  } catch (e) {
+    alert(e.message);
+    return;
+  }
+
   if (id) {
-    // 编辑
-    const existing = query("SELECT * FROM users WHERE id = ?", [id])[0];
-    if (!existing) return;
-    if (password) {
-      run("UPDATE users SET display_name=?, role=?, password=? WHERE id=?", [displayName, role, hashPassword(password), id]);
-    } else {
-      run("UPDATE users SET display_name=?, role=? WHERE id=?", [displayName, role, id]);
+    const existing = useRemoteAdminUsers()
+      ? findAdminUserById(parseInt(id, 10))
+      : query('SELECT id, username, role FROM users WHERE id = ?', [id])[0];
+    if (!existing && useRemoteAdminUsers()) {
+      try {
+        await ensureAdminUsersCache();
+      } catch (e) {
+        alert('加载用户失败：' + e.message);
+        return;
+      }
     }
-    logAudit('更新用户', 'user', id, { username: existing.username, role });
-    // 如果编辑的是当前用户，更新缓存
-    if (currentUser && currentUser.id == id) {
-      currentUser.display_name = displayName;
-      currentUser.role = role;
-      localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(currentUser));
-      updateAuthUI();
-      applyPermissions();
-    }
-  } else {
-    // 新增
-    try {
-      const result = run("INSERT INTO users (username, display_name, role, password) VALUES (?, ?, ?, ?)", [username, displayName, role, hashPassword(password)]);
-      const newId = result.lastInsertId;
-      logAudit('新增用户', 'user', newId, { username, role });
-    } catch (err) {
-      alert('账号已存在或保存失败：' + err.message);
+    const resolved = useRemoteAdminUsers() ? findAdminUserById(parseInt(id, 10)) : existing;
+    if (!resolved) return;
+    if (resolved.role === 'admin' && role !== 'admin' && countActiveAdmins(id) === 0) {
+      alert('不能移除最后一名管理员');
       return;
     }
   }
 
-  await saveDB();
+  try {
+    if (typeof useRemoteWriteApi === 'function' && useRemoteWriteApi()) {
+      if (id) {
+        const result = await apiAdminUpdateUser({
+          user_id: parseInt(id, 10),
+          display_name: displayName,
+          role: role,
+          password: password || undefined
+        });
+        applySessionRefresh(result);
+      } else {
+        await apiAdminCreateUser({
+          username: username,
+          display_name: displayName,
+          role: role,
+          password: password
+        });
+      }
+    } else if (id) {
+      const existing = query('SELECT id, username, role FROM users WHERE id = ?', [id])[0];
+      if (!existing) return;
+      if (password) {
+        bumpLocalAuthVersion(id);
+        run("UPDATE users SET display_name=?, role=?, password=?, must_change_password=0 WHERE id=?", [displayName, role, await hashPasswordAsync(password), id]);
+      } else {
+        run("UPDATE users SET display_name=?, role=? WHERE id=?", [displayName, role, id]);
+      }
+      logAudit('更新用户', 'user', id, { username: existing.username, role });
+      if (currentUser && currentUser.id == id) {
+        currentUser.display_name = displayName;
+        currentUser.role = role;
+        if (password) currentUser.auth_version = query('SELECT auth_version FROM users WHERE id = ?', [id])[0]?.auth_version || currentUser.auth_version;
+        localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(currentUser));
+        updateAuthUI();
+        applyPermissions();
+      }
+    } else {
+      const result = run("INSERT INTO users (username, display_name, role, password, auth_version, must_change_password) VALUES (?, ?, ?, ?, 1, 0)", [username, displayName, role, await hashPasswordAsync(password)]);
+      logAudit('新增用户', 'user', result.lastInsertId, { username, role });
+    }
+  } catch (err) {
+    alert('保存失败：' + err.message);
+    return;
+  }
+
+  if (!(typeof useRemoteWriteApi === 'function' && useRemoteWriteApi())) {
+    await saveDB();
+  }
   closeUserModal();
   showToast('用户保存成功');
   renderUserList();
@@ -374,16 +556,95 @@ async function submitUser(e) {
 
 async function deleteUser(id) {
   if (!requireAdmin()) return;
-  const u = query("SELECT * FROM users WHERE id = ?", [id])[0];
+  let u;
+  try {
+    u = await lookupAdminUser(id);
+  } catch (e) {
+    alert('加载用户失败：' + e.message);
+    return;
+  }
   if (!u) return;
   if (currentUser && currentUser.id === id) {
-    alert('不能删除当前登录账号');
+    alert('不能停用当前登录账号');
+    return;
+  }
+  if (u.role === 'admin' && countActiveAdmins(id) === 0) {
+    alert('不能停用最后一名管理员');
     return;
   }
   if (!confirm(`确定停用用户「${u.username}」吗？`)) return;
-  run("UPDATE users SET is_active = 0 WHERE id = ?", [id]);
-  logAudit('停用用户', 'user', id, { username: u.username });
-  await saveDB();
-  showToast('用户已删除');
+  try {
+    if (typeof useRemoteWriteApi === 'function' && useRemoteWriteApi()) {
+      await apiAdminDeactivateUser(id);
+    } else {
+      run("UPDATE users SET is_active = 0, auth_version = COALESCE(auth_version, 1) + 1 WHERE id = ?", [id]);
+      logAudit('停用用户', 'user', id, { username: u.username });
+      await saveDB();
+    }
+  } catch (e) {
+    alert('停用失败：' + e.message);
+    return;
+  }
+  showToast('用户已停用');
+  renderUserList();
+}
+
+async function reactivateUser(id) {
+  if (!requireAdmin()) return;
+  if (!confirm('确定重新启用该用户吗？')) return;
+  try {
+    if (typeof useRemoteWriteApi === 'function' && useRemoteWriteApi()) {
+      await apiAdminReactivateUser(id);
+    } else {
+      const u = query('SELECT username FROM users WHERE id = ?', [id])[0];
+      if (!u) return;
+      run('UPDATE users SET is_active = 1 WHERE id = ?', [id]);
+      logAudit('启用用户', 'user', id, { username: u.username });
+      await saveDB();
+    }
+  } catch (e) {
+    alert('启用失败：' + e.message);
+    return;
+  }
+  showToast('用户已启用');
+  renderUserList();
+}
+
+async function resetUserPassword(id) {
+  if (!requireAdmin()) return;
+  let username = '';
+  try {
+    const u = await lookupAdminUser(id);
+    username = u?.username || '';
+    if (!u) return;
+  } catch (e) {
+    alert('加载用户失败：' + e.message);
+    return;
+  }
+  const temp = prompt(`为「${username || id}」设置临时密码（至少 6 位）：`);
+  if (temp == null) return;
+  try {
+    validateNewPassword(temp);
+  } catch (e) {
+    alert(e.message);
+    return;
+  }
+  if (!confirm(`确定重置「${username}」的密码吗？该用户下次登录必须修改密码，其他设备会话将失效。`)) return;
+  try {
+    if (typeof useRemoteWriteApi === 'function' && useRemoteWriteApi()) {
+      await apiAdminResetUserPassword(id, temp);
+    } else {
+      const u = query('SELECT * FROM users WHERE id = ?', [id])[0];
+      if (!u) return;
+      bumpLocalAuthVersion(id);
+      run('UPDATE users SET password = ?, must_change_password = 1 WHERE id = ?', [await hashPasswordAsync(temp), id]);
+      logAudit('重置用户密码', 'user', id, { username: u.username });
+      await saveDB();
+    }
+  } catch (e) {
+    alert('重置失败：' + e.message);
+    return;
+  }
+  showToast('密码已重置，请告知用户临时密码');
   renderUserList();
 }

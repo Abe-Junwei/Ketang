@@ -298,10 +298,45 @@ function generateSalt(len) {
   return salt;
 }
 
+const PBKDF2_ITERATIONS = 600000;
+
+function bytesToHex(bytes) {
+  return Array.from(bytes).map(byte => byte.toString(16).padStart(2, '0')).join('');
+}
+
+function hexToBytes(hex) {
+  const value = String(hex || '');
+  const out = new Uint8Array(value.length / 2);
+  for (let i = 0; i < out.length; i++) out[i] = parseInt(value.slice(i * 2, i * 2 + 2), 16);
+  return out;
+}
+
+async function pbkdf2Sha256(password, saltBytes, iterations) {
+  const key = await crypto.subtle.importKey(
+    'raw',
+    new TextEncoder().encode(password),
+    { name: 'PBKDF2' },
+    false,
+    ['deriveBits']
+  );
+  const bits = await crypto.subtle.deriveBits(
+    { name: 'PBKDF2', salt: saltBytes, iterations: iterations, hash: 'SHA-256' },
+    key,
+    256
+  );
+  return bytesToHex(new Uint8Array(bits));
+}
+
 function hashPassword(password) {
   const salt = generateSalt(16);
   const hash = sha256(salt + password);
   return `sha256$${salt}$${hash}`;
+}
+
+async function hashPasswordAsync(password) {
+  const salt = crypto.getRandomValues(new Uint8Array(16));
+  const hash = await pbkdf2Sha256(password, salt, PBKDF2_ITERATIONS);
+  return `pbkdf2$${PBKDF2_ITERATIONS}$${bytesToHex(salt)}$${hash}`;
 }
 
 function verifyPassword(password, stored) {
@@ -312,8 +347,39 @@ function verifyPassword(password, stored) {
     const [, salt, hash] = parts;
     return sha256(salt + password) === hash;
   }
-  // 兼容旧明文（首次登录后会被重写为哈希）
   return stored === password;
+}
+
+async function verifyPasswordAsync(password, stored) {
+  if (!stored) return false;
+  const parts = String(stored).split('$');
+  if (parts[0] === 'pbkdf2' && parts.length === 4) {
+    const iterations = parseInt(parts[1], 10);
+    if (!iterations || iterations < 100000) return false;
+    const hash = await pbkdf2Sha256(password, hexToBytes(parts[2]), iterations);
+    return hash === parts[3];
+  }
+  return verifyPassword(password, stored);
+}
+
+function isLegacySha256Hash(stored) {
+  return String(stored || '').startsWith('sha256$');
+}
+
+function mustChangePasswordForUser(user) {
+  return isDefaultPasswordHash(user.password) || user.must_change_password === 1;
+}
+
+async function upgradePasswordHashIfLegacy(userId, password, storedHash) {
+  if (!isLegacySha256Hash(storedHash)) return storedHash;
+  const hash = await hashPasswordAsync(password);
+  run('UPDATE users SET password = ? WHERE id = ?', [hash, userId]);
+  return hash;
+}
+
+function bumpLocalAuthVersion(userId) {
+  run('UPDATE users SET auth_version = COALESCE(auth_version, 1) + 1 WHERE id = ?', [userId]);
+  return query('SELECT auth_version FROM users WHERE id = ?', [userId])[0]?.auth_version || 1;
 }
 
 const DEFAULT_PASSWORD_HASHES = new Set([
@@ -323,4 +389,26 @@ const DEFAULT_PASSWORD_HASHES = new Set([
 
 function isDefaultPasswordHash(hash) {
   return DEFAULT_PASSWORD_HASHES.has(String(hash || ''));
+}
+
+function validateUsername(username) {
+  const value = String(username || '').trim();
+  if (!/^[a-zA-Z][a-zA-Z0-9_]{2,19}$/.test(value)) {
+    throw new Error('账号须 3-20 位，字母开头，仅含字母、数字、下划线');
+  }
+  return value;
+}
+
+function validateNewPassword(password, oldPassword) {
+  const value = String(password || '');
+  if (value.length < 6) throw new Error('密码至少 6 位');
+  if (oldPassword != null && value === String(oldPassword)) throw new Error('新密码不能与原密码相同');
+  if (['admin', 'zhike', '123456', 'password', '111111'].includes(value)) {
+    throw new Error('不能使用过于简单的密码');
+  }
+  return value;
+}
+
+function countActiveAdmins(excludeId) {
+  return query("SELECT COUNT(*) as c FROM users WHERE role='admin' AND (is_active IS NULL OR is_active = 1) AND id != ?", [excludeId || 0])[0]?.c || 0;
 }

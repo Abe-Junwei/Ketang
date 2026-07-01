@@ -17,10 +17,15 @@ document.addEventListener('DOMContentLoaded', async () => {
       migrateV10toV11();
       migrateV11toV12();
       migrateV12toV13();
+      migrateV13toV14();
+      migrateV14toV15();
       createIndexes();
       await seedRooms();
     }
     initAuth();
+    if (typeof isRemoteDB === 'function' && isRemoteDB()) {
+      await restoreRemoteSession();
+    }
     applyDeploymentModeUI();
     applyPermissions();
     if (isLoggedIn()) {
@@ -402,6 +407,8 @@ function applyDeploymentModeUI() {
   if (typeof isRemoteDB === 'function' && isRemoteDB()) {
     if (backupDesc) backupDesc.textContent = '数据保存在 Cloudflare D1 云端。管理员可在系统设置导出 JSON 备份。';
     if (backupSteps) backupSteps.innerHTML = '<li>点击「导出数据库」，保存 JSON 备份到 U 盘或桌面。</li><li>如需恢复：使用「从文件恢复数据」导入 JSON 备份（仅管理员）。</li><li>也可在 Cloudflare D1 控制台执行数据库级备份。</li>';
+    const loginHint = document.querySelector('.login-hint');
+    if (loginHint) loginHint.style.display = 'none';
   }
 }
 

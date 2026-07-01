@@ -1,18 +1,7 @@
 import { isDefaultPasswordHash } from './schema.js';
+import { verifyPassword, hashPasswordPlain, isLegacySha256Hash } from './password.js';
 
-export async function sha256Hex(text) {
-  const bytes = new TextEncoder().encode(text);
-  const hash = await crypto.subtle.digest('SHA-256', bytes);
-  return [...new Uint8Array(hash)].map(byte => byte.toString(16).padStart(2, '0')).join('');
-}
-
-export async function verifyPassword(password, stored) {
-  const parts = String(stored || '').split('$');
-  if (parts.length === 3 && parts[0] === 'sha256') {
-    return await sha256Hex(parts[1] + password) === parts[2];
-  }
-  return stored === password;
-}
+export { verifyPassword, hashPasswordPlain, isLegacySha256Hash };
 
 function base64UrlEncode(value) {
   return btoa(typeof value === 'string' ? value : JSON.stringify(value)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
@@ -38,7 +27,15 @@ export function assertSessionSecret(env) {
 export async function signSession(env, user) {
   assertSessionSecret(env);
   const now = Math.floor(Date.now() / 1000);
-  const payload = base64UrlEncode({ sub: user.id, username: user.username, role: user.role, iat: now, exp: now + 60 * 60 * 12 });
+  const authVersion = user.auth_version != null ? user.auth_version : 1;
+  const payload = base64UrlEncode({
+    sub: user.id,
+    username: user.username,
+    role: user.role,
+    av: authVersion,
+    iat: now,
+    exp: now + 60 * 60 * 12
+  });
   const signature = await hmac(env.KETANG_SESSION_SECRET, payload);
   return `${payload}.${signature}`;
 }
@@ -51,10 +48,30 @@ export async function verifySession(request, env, queryD1) {
   if (!payload || !signature) return null;
   const expected = await hmac(env.KETANG_SESSION_SECRET, payload);
   if (signature !== expected) return null;
-  const session = JSON.parse(base64UrlDecode(payload));
+  let session;
+  try {
+    session = JSON.parse(base64UrlDecode(payload));
+  } catch (e) {
+    return null;
+  }
   if (!session.exp || session.exp < Math.floor(Date.now() / 1000)) return null;
-  const users = await queryD1('SELECT id, username, role FROM users WHERE id = ? AND (is_active IS NULL OR is_active = 1) LIMIT 1', [session.sub]);
-  return users[0] ? { ...session, role: users[0].role, username: users[0].username, id: users[0].id } : null;
+  const users = await queryD1(
+    'SELECT id, username, display_name, role, auth_version FROM users WHERE id = ? AND (is_active IS NULL OR is_active = 1) LIMIT 1',
+    [session.sub]
+  );
+  const user = users[0];
+  if (!user) return null;
+  const dbAuthVersion = user.auth_version != null ? user.auth_version : 1;
+  const tokenAuthVersion = session.av != null ? session.av : 1;
+  if (dbAuthVersion !== tokenAuthVersion) return null;
+  return {
+    ...session,
+    role: user.role,
+    username: user.username,
+    id: user.id,
+    display_name: user.display_name,
+    auth_version: dbAuthVersion
+  };
 }
 
 export async function requireSession(request, env, queryD1) {
@@ -98,5 +115,12 @@ export async function clearLoginFailures(env, ip, runD1) {
 }
 
 export function mustChangePassword(user) {
-  return isDefaultPasswordHash(user.password);
+  return isDefaultPasswordHash(user.password) || user.must_change_password === 1;
+}
+
+export async function upgradePasswordHashIfLegacy(userId, password, storedHash, runD1) {
+  if (!isLegacySha256Hash(storedHash)) return storedHash;
+  const hash = await hashPasswordPlain(password);
+  await runD1('UPDATE users SET password = ? WHERE id = ?', [hash, userId]);
+  return hash;
 }
