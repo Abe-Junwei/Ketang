@@ -4490,8 +4490,7 @@ form .field {
 
 body.auth-login-required .sidebar,
 body.auth-login-required .app-shell {
-  visibility: hidden;
-  pointer-events: none;
+  display: none !important;
 }
 
 .login-card {

@@ -66,12 +66,12 @@ async function lookupAdminUser(id) {
 }
 
 function initAuth() {
+  const isRemote = typeof isRemoteDB === "function" && isRemoteDB();
   const saved = localStorage.getItem(AUTH_STORAGE_KEY);
-  if (saved) {
+  if (saved && !isRemote) {
     try {
       currentUser = JSON.parse(saved);
-      const isRemote = typeof isRemoteDB === "function" && isRemoteDB();
-      if (currentUser && typeof query === "function" && !isRemote) {
+      if (currentUser && typeof query === "function") {
         const row = query(
           "SELECT auth_version, is_active FROM users WHERE id = ? LIMIT 1",
           [currentUser.id],
@@ -129,14 +129,19 @@ function teardownLoginSelectPicker(sel) {
 }
 
 function clearAuthSession() {
+  closeProfileMenu();
   currentUser = null;
   localStorage.removeItem(AUTH_STORAGE_KEY);
   if (typeof setRemoteSessionToken === "function") setRemoteSessionToken("");
+  syncAuthBodyClass();
 }
 
 async function restoreRemoteSession() {
-  if (typeof isRemoteDB !== "function" || !isRemoteDB()) return true;
-  if (!getRemoteSessionToken() || !currentUser) {
+  if (typeof isRemoteDB !== "function" || !isRemoteDB()) {
+    return !!currentUser;
+  }
+  const token = getRemoteSessionToken();
+  if (!token) {
     clearAuthSession();
     return false;
   }
@@ -146,6 +151,7 @@ async function restoreRemoteSession() {
     localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(currentUser));
     updateAuthUI();
     applyPermissions();
+    hideLoginOverlay();
     if (data.must_change_password) showForceChangePasswordModal();
     return true;
   } catch (e) {
@@ -324,8 +330,8 @@ async function submitLogin() {
       if (errorEl) errorEl.textContent = "";
       pendingLoginPassword = password;
       document.getElementById("login-password").value = "";
+      hideLoginOverlay();
       if (!document.getElementById("force-password-modal")) {
-        hideLoginOverlay();
         renderAll();
         if (typeof startBoardPolling === "function") startBoardPolling();
       }

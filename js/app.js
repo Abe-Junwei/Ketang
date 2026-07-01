@@ -29,6 +29,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     applyDeploymentModeUI();
     applyPermissions();
     if (isLoggedIn()) {
+      hideLoginOverlay();
       mountFormMealNeedPickers();
       mountLodgerRoleSelects();
       renderAll();
@@ -173,7 +174,16 @@ function setStayMode(mode) {
   else renderReservations("全部");
 }
 
+function requireAuth() {
+  if (!isLoggedIn()) {
+    showLoginOverlay();
+    return false;
+  }
+  return true;
+}
+
 function showView(name) {
+  if (!requireAuth()) return;
   // 权限检查：info 和 backup 仅管理员可访问
   if ((name === "info" || name === "backup") && !isAdmin()) {
     alert("需要管理员权限");
@@ -441,6 +451,7 @@ function renderLodgingOccupancyChart() {
 }
 
 function renderAll() {
+  if (typeof isLoggedIn === "function" && !isLoggedIn()) return;
   renderRooms();
   renderBoard();
   renderLodgers();
