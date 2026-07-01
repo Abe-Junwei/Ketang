@@ -302,13 +302,34 @@ function populateLoginUsers() {
   } catch (e) {
     console.warn("加载账号列表失败 | Failed to load login users:", e);
   }
-  let html = '<option value="">请选择账号</option>';
+
+  const roleBuckets = new Map();
   users.forEach((u) => {
-    const loginRoleLabel =
-      USER_ROLE_OPTIONS.find((opt) => opt[0] === u.role)?.[1] ||
-      (u.role === "admin" ? "管理员" : "知客师");
-    html += `<option value="${escapeHtml(u.username)}">${escapeHtml(u.display_name || u.username)}（${loginRoleLabel}）</option>`;
+    if (!u || !u.role || !u.username) return;
+    if (!roleBuckets.has(u.role)) roleBuckets.set(u.role, []);
+    roleBuckets.get(u.role).push(u);
   });
+
+  const pickRoleUser = (role) => {
+    const list = roleBuckets.get(role) || [];
+    if (!list.length) return null;
+    const exact = list.find((u) => String(u.username || "") === role);
+    return exact || list[0];
+  };
+
+  let html = '<option value="">请选择身份</option>';
+  USER_ROLE_OPTIONS.forEach((opt) => {
+    const role = opt[0];
+    const roleLabel = opt[1];
+    const picked = pickRoleUser(role);
+    if (!picked) return;
+    html += `<option value="${escapeHtml(picked.username)}">${escapeHtml(roleLabel)}</option>`;
+  });
+
+  if (html === '<option value="">请选择身份</option>') {
+    html += '<option value="" disabled>暂无可登录身份</option>';
+  }
+
   sel.innerHTML = html;
   sel.value = "";
 }
@@ -318,7 +339,7 @@ async function submitLogin() {
   const password = document.getElementById("login-password").value;
   const errorEl = document.getElementById("login-error");
   if (!username) {
-    if (errorEl) errorEl.textContent = "请选择账号";
+    if (errorEl) errorEl.textContent = "请选择身份";
     return;
   }
   if (!password) {
