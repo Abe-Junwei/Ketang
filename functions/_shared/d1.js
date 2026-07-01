@@ -72,7 +72,9 @@ async function ensureUserRoleColumns(env) {
     [],
   );
   const ddl = tableSql[0]?.sql || "";
-  if (ddl.includes("'admin','zhike'")) {
+  // 仅旧 CHECK(admin,zhike) 需重建；新枚举含 kitchen 时跳过 | Skip if roles already expanded
+  if (ddl.includes("'admin','zhike'") && !ddl.includes("'kitchen'")) {
+    await runD1(env, "DROP TABLE IF EXISTS users_new", []);
     await runD1(
       env,
       `

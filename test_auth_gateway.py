@@ -60,4 +60,11 @@ def test_frontend_unauthorized_handler():
         sys.exit(1)
 
 
-print('OK auth gateway checks passed')
+def test_user_role_migration_guard():
+    d1 = read('functions/_shared/d1.js')
+    if "ddl.includes(\"'admin','zhike'\") && !ddl.includes(\"'kitchen'\")" not in d1:
+        print('FAIL d1.js user role migration guard too broad (runs every init)')
+        sys.exit(1)
+
+
+test_user_role_migration_guard()

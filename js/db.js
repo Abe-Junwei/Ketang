@@ -1501,7 +1501,11 @@ function migrateV14toV15() {
       db.exec(
         "SELECT sql FROM sqlite_master WHERE type='table' AND name='users'",
       )[0]?.values[0][0] || "";
-    if (hasOldCheck.includes("'admin','zhike'")) {
+    if (
+      hasOldCheck.includes("'admin','zhike'") &&
+      !hasOldCheck.includes("'kitchen'")
+    ) {
+      db.run("DROP TABLE IF EXISTS users_new");
       db.run(`
         CREATE TABLE users_new (
           id INTEGER PRIMARY KEY AUTOINCREMENT,
