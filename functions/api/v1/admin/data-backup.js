@@ -1,6 +1,6 @@
-import { json, readJson } from '../../_shared/http.js';
-import { requireSession, requireAdmin } from '../../_shared/auth.js';
-import { batchD1, initRemoteDatabase, queryD1, runD1, safeErrorMessage } from '../../_shared/d1.js';
+import { json, readJson } from '../../../_shared/http.js';
+import { requireSession, requireAdmin } from '../../../_shared/auth.js';
+import { batchD1, initRemoteDatabase, queryD1, runD1, safeErrorMessage } from '../../../_shared/d1.js';
 
 const EXPORT_TABLES = ['users', 'rooms', 'beds', 'guests', 'events', 'lodgers', 'reservations', 'meals', 'payments', 'housekeeping', 'audit_logs', 'schema_version', 'app_meta'];
 const DELETE_ORDER = ['audit_logs', 'housekeeping', 'payments', 'meals', 'reservations', 'lodgers', 'events', 'guests', 'beds', 'rooms', 'users', 'schema_version', 'app_meta'];
