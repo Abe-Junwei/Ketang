@@ -287,20 +287,32 @@ function hideLoginOverlay() {
   syncAuthBodyClass();
 }
 
-function populateLoginUsers() {
+async function populateLoginUsers() {
   const sel = document.getElementById("login-username");
+  const errorEl = document.getElementById("login-error");
   if (!sel) return;
   teardownLoginSelectPicker(sel);
+  sel.disabled = true;
+  sel.innerHTML = '<option value="">正在加载身份…</option>';
+  if (errorEl) errorEl.textContent = "";
+
   let users = [];
   try {
-    users =
-      typeof isRemoteDB === "function" && isRemoteDB()
-        ? remoteListLoginUsers()
-        : query(
-            "SELECT username, display_name, role FROM users WHERE is_active IS NULL OR is_active = 1 ORDER BY role, username",
-          );
+    if (typeof isRemoteDB === "function" && isRemoteDB()) {
+      const result = await remoteDBRequestAsync({ action: "users" });
+      users = result.rows || [];
+    } else {
+      users = query(
+        "SELECT username, display_name, role FROM users WHERE is_active IS NULL OR is_active = 1 ORDER BY role, username",
+      );
+    }
   } catch (e) {
     console.warn("加载账号列表失败 | Failed to load login users:", e);
+    sel.disabled = false;
+    sel.innerHTML = '<option value="">加载失败</option>';
+    if (errorEl)
+      errorEl.textContent = e.message || "加载身份列表失败，请刷新后重试";
+    return;
   }
 
   const roleBuckets = new Map();
@@ -328,10 +340,17 @@ function populateLoginUsers() {
 
   if (html === '<option value="">请选择身份</option>') {
     html += '<option value="" disabled>暂无可登录身份</option>';
+    if (errorEl) {
+      errorEl.textContent =
+        typeof isRemoteDB === "function" && isRemoteDB()
+          ? "云端暂无可用身份，请确认 Pages 已绑定 D1 且数据库已初始化"
+          : "本地暂无可用身份，请从备份恢复或联系管理员";
+    }
   }
 
   sel.innerHTML = html;
   sel.value = "";
+  sel.disabled = false;
 }
 
 async function submitLogin() {

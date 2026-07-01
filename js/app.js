@@ -536,9 +536,15 @@ function applyDeploymentModeUI() {
     if (backupSteps)
       backupSteps.innerHTML =
         "<li>点击「导出数据库」，保存 JSON 备份到 U 盘或桌面。</li><li>如需恢复：使用「从文件恢复数据」导入 JSON 备份（仅管理员）。</li><li>也可在 Cloudflare D1 控制台执行数据库级备份。</li>";
-    if (loginHint) loginHint.hidden = true;
+    if (loginHint) {
+      loginHint.hidden = false;
+      loginHint.textContent =
+        "首次使用：选「管理员」密码 admin，选「知客师」密码 zhike。登录后请立即修改密码。";
+    }
   } else if (loginHint) {
     loginHint.hidden = false;
+    loginHint.textContent =
+      "本地演示：选「管理员」密码 admin，选「知客师」密码 zhike";
   }
 }
 
