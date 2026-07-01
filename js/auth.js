@@ -820,12 +820,7 @@ async function resetUserPassword(id) {
     alert(e.message);
     return;
   }
-  if (
-    !confirm(
-      `确定重置「${username}」的密码吗？其他设备会话将失效。`,
-    )
-  )
-    return;
+  if (!confirm(`确定重置「${username}」的密码吗？其他设备会话将失效。`)) return;
   try {
     if (typeof useRemoteWriteApi === "function" && useRemoteWriteApi()) {
       await apiAdminResetUserPassword(id, temp);

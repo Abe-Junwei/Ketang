@@ -1,4 +1,9 @@
-import { json, readJson, clientIp, checkMemoryRateLimit } from "../_shared/http.js";
+import {
+  json,
+  readJson,
+  clientIp,
+  checkMemoryRateLimit,
+} from "../_shared/http.js";
 import {
   verifyPassword,
   signSession,
@@ -89,7 +94,12 @@ async function authenticateUsername(env, ip, username, password) {
     await recordLoginFailure(env, ip, bindQuery(env), bindRun(env));
     return null;
   }
-  await upgradePasswordHashBestEffort(user.id, password || "", user.password, env);
+  await upgradePasswordHashBestEffort(
+    user.id,
+    password || "",
+    user.password,
+    env,
+  );
   await clearLoginFailures(env, ip, bindRun(env));
   const freshRows = await queryD1(
     env,

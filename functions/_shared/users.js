@@ -1,8 +1,4 @@
-import {
-  verifySession,
-  verifyPassword,
-  hashPasswordPlain,
-} from "./auth.js";
+import { verifySession, verifyPassword, hashPasswordPlain } from "./auth.js";
 import { insertAudit, queryD1, runD1 } from "./d1.js";
 import { getSessionPermissions, requirePermission } from "./permissions.js";
 

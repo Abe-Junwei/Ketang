@@ -31,8 +31,7 @@ const READ_MODEL_SYNC_PERMISSIONS = [
 const ROLE_READ_TABLES = {
   admin: READ_MODEL_TABLES,
   zhike: READ_MODEL_TABLES.filter(
-    (name) =>
-      name !== "users" && name !== "audit_logs" && name !== "payments",
+    (name) => name !== "users" && name !== "audit_logs" && name !== "payments",
   ),
   kitchen: ["rooms", "beds", "guests", "lodgers", "meals"],
   housekeeping: ["rooms", "beds", "lodgers", "housekeeping"],
