@@ -482,6 +482,22 @@ function requireAdmin() {
   return true;
 }
 
+function requireBackupRead() {
+  if (!hasPermission("backup.read")) {
+    alert("需要备份读取权限");
+    return false;
+  }
+  return true;
+}
+
+function requireBackupWrite() {
+  if (!hasPermission("backup.write")) {
+    alert("需要备份写入权限");
+    return false;
+  }
+  return true;
+}
+
 /* ============================================================
    用户管理 | User Management（仅管理员）
    ============================================================ */

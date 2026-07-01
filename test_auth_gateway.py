@@ -240,6 +240,56 @@ def test_anonymous_users_action_does_not_enumerate_accounts():
         sys.exit(1)
 
 
+def test_data_backup_import_hardening():
+    backup = read('functions/api/v1/admin/data-backup.js')
+    if 'batchD1' not in backup or 'BEGIN IMMEDIATE' not in backup:
+        print('FAIL data-backup.js must import in D1 transaction with batch writes')
+        sys.exit(1)
+    if 'validateForeignKeys' not in backup or 'validateBackupCompleteness' not in backup:
+        print('FAIL data-backup.js missing import pre-validation helpers')
+        sys.exit(1)
+    if 'summarizeImport' not in backup:
+        print('FAIL data-backup.js missing post-import summary')
+        sys.exit(1)
+    if 'TABLE_IMPORT_COLUMNS' not in backup:
+        print('FAIL data-backup.js missing table column whitelist')
+        sys.exit(1)
+
+
+def test_backup_permissions_on_frontend():
+    db_js = read('js/db.js')
+    auth = read('js/auth.js')
+    if 'requireBackupRead' not in auth or 'requireBackupWrite' not in auth:
+        print('FAIL auth.js missing backup permission helpers')
+        sys.exit(1)
+    if 'requireBackupRead()' not in db_js or 'requireBackupWrite()' not in db_js:
+        print('FAIL db.js must gate import/export with backup permissions')
+        sys.exit(1)
+    if 'resetRemoteReadModelState()' not in db_js or 'syncRemoteReadModel({ force: true })' not in db_js:
+        print('FAIL remote import must force read-model resync')
+        sys.exit(1)
+
+
+def test_batch_csv_class_name_binding():
+    checkin = read('js/checkin.js')
+    if re.search(
+        r"class_name, status, source, notes\)\s*\n\s*VALUES \(\?, \?, \?, \?, \?, \?, \?, \?, \?, \?, \?, \?, '在住', '法会批量导入', \?\)",
+        checkin,
+    ) is None:
+        print('FAIL checkin.js batch CSV insert must bind class_name placeholder')
+        sys.exit(1)
+
+
+def test_export_script_reads_users_and_v15():
+    script = read('scripts/export_ketang_db_to_json.py')
+    if 'export_users' not in script or "SCHEMA_VERSION = 15" not in script:
+        print('FAIL export script must read users table and emit schema v15')
+        sys.exit(1)
+    if "'users': DEFAULT_USERS" in script:
+        print('FAIL export script must not always overwrite users with defaults only')
+        sys.exit(1)
+
+
 TESTS = [
     test_upgrade_password_run_signature,
     test_zhike_users_select_blocked,
@@ -259,6 +309,10 @@ TESTS = [
     test_login_ui_has_no_fake_identity_loading,
     test_remote_init_cached_for_auth_latency,
     test_anonymous_users_action_does_not_enumerate_accounts,
+    test_data_backup_import_hardening,
+    test_backup_permissions_on_frontend,
+    test_batch_csv_class_name_binding,
+    test_export_script_reads_users_and_v15,
 ]
 
 for test in TESTS:

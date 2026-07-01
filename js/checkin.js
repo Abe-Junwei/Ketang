@@ -902,7 +902,7 @@ async function importBatchCSV(input) {
             const result = run(
               `INSERT INTO lodgers
               (guest_id, event_id, name, dharma_name, gender, phone, id_card, check_in_date, expected_check_out, bed_id, role, class_name, status, source, notes)
-              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '在住', '法会批量导入', ?)`,
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '在住', '法会批量导入', ?)`,
               [
                 guestId,
                 evt ? evt.id : null,

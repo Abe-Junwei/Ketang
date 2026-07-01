@@ -275,7 +275,8 @@ python3 test_headless.py
 - 日常：进入「系统设置」页面 → 导出 `ketang.db` → 复制到 U 盘。
 - 换电脑：在新电脑上打开本系统 → 「从文件恢复数据」→ 选择 `ketang.db`。
 - 灾难恢复：只要 `ketang.db` 在手，数据即可完全恢复。
-- Cloudflare 在线模式：管理员可在「系统设置」导出/导入 JSON 备份；亦可在 Cloudflare D1 控制台做数据库级备份。
+- Cloudflare 在线模式：管理员可在「系统设置」导出/导入 JSON 备份；导入前校验外键与占床冲突，事务内批量写入，完成后强制刷新读模型。
+- 本地迁云：运行 `python3 scripts/export_ketang_db_to_json.py` 生成 JSON（保留 users、schema v15），再在线导入。
 
 ## 八、设计取舍
 

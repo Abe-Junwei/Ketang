@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""将本地 ketang.db 导出为云端 JSON 备份格式（schema v13）。
+"""将本地 ketang.db 导出为云端 JSON 备份格式（schema v15）。
 
 用法:
   python3 scripts/export_ketang_db_to_json.py [输入.db] [输出.json]
@@ -15,14 +15,19 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
+SCHEMA_VERSION = 15
 DEFAULT_USERS = [
     {
         'id': 1,
         'username': 'admin',
         'display_name': '管理员',
         'role': 'admin',
+        'is_advanced': 0,
+        'permissions': None,
         'password': 'sha256$ketang_default_salt$8d62959035f9b60a02e709f9826f3f996d07a09a4f5091e2884642fa01adf8a3',
         'is_active': 1,
+        'auth_version': 1,
+        'must_change_password': 0,
         'created_at': None,
     },
     {
@@ -30,8 +35,12 @@ DEFAULT_USERS = [
         'username': 'zhike',
         'display_name': '知客师',
         'role': 'zhike',
+        'is_advanced': 0,
+        'permissions': None,
         'password': 'sha256$ketang_default_salt$fc286955fb12bec3fb16b4f2619f9b675337b1240537bc21d830b5f495121565',
         'is_active': 1,
+        'auth_version': 1,
+        'must_change_password': 0,
         'created_at': None,
     },
 ]
@@ -39,6 +48,11 @@ DEFAULT_USERS = [
 EXPORT_TABLES = [
     'users', 'rooms', 'beds', 'guests', 'events', 'lodgers', 'reservations',
     'meals', 'payments', 'housekeeping', 'audit_logs', 'schema_version', 'app_meta',
+]
+
+USER_EXPORT_COLUMNS = [
+    'id', 'username', 'display_name', 'role', 'is_advanced', 'permissions',
+    'password', 'is_active', 'auth_version', 'must_change_password', 'created_at',
 ]
 
 
@@ -56,6 +70,41 @@ def table_columns(conn: sqlite3.Connection, name: str) -> set[str]:
 def fetch_rows(conn: sqlite3.Connection, table: str) -> list[dict]:
     conn.row_factory = sqlite3.Row
     return [dict(row) for row in conn.execute(f'SELECT * FROM {table}')]
+
+
+def normalize_user_row(row: dict, cols: set[str]) -> dict:
+    username = str(row.get('username') or '').strip()
+    role = str(row.get('role') or 'zhike').strip() or 'zhike'
+    password = row.get('password')
+    if not password or not str(password).strip():
+        password = DEFAULT_USERS[0]['password'] if username == 'admin' else DEFAULT_USERS[1]['password']
+    normalized = {
+        'id': row.get('id'),
+        'username': username,
+        'display_name': row.get('display_name') or username,
+        'role': role,
+        'is_advanced': row.get('is_advanced', 0) if 'is_advanced' in cols else 0,
+        'permissions': row.get('permissions') if 'permissions' in cols else None,
+        'password': password,
+        'is_active': row.get('is_active', 1) if 'is_active' in cols else 1,
+        'auth_version': row.get('auth_version', 1) if 'auth_version' in cols else 1,
+        'must_change_password': row.get('must_change_password', 0) if 'must_change_password' in cols else 0,
+        'created_at': row.get('created_at'),
+    }
+    return {key: normalized[key] for key in USER_EXPORT_COLUMNS}
+
+
+def export_users(conn: sqlite3.Connection) -> list[dict]:
+    if not table_exists(conn, 'users'):
+        return [dict(row) for row in DEFAULT_USERS]
+    cols = table_columns(conn, 'users')
+    rows = fetch_rows(conn, 'users')
+    if not rows:
+        return [dict(row) for row in DEFAULT_USERS]
+    users = [normalize_user_row(row, cols) for row in rows if str(row.get('username') or '').strip()]
+    if not any(user['role'] == 'admin' and user.get('is_active', 1) != 0 for user in users):
+        users.insert(0, dict(DEFAULT_USERS[0]))
+    return users
 
 
 def parse_group_code(code: str | None) -> tuple[str | None, str | None]:
@@ -183,7 +232,7 @@ def export_db(src: Path) -> dict:
     try:
         events, event_map, class_map = build_events(conn)
         tables: dict[str, list] = {
-            'users': DEFAULT_USERS,
+            'users': export_users(conn),
             'rooms': fetch_rows(conn, 'rooms') if table_exists(conn, 'rooms') else [],
             'beds': fetch_rows(conn, 'beds') if table_exists(conn, 'beds') else [],
             'guests': fetch_rows(conn, 'guests') if table_exists(conn, 'guests') else [],
@@ -194,12 +243,13 @@ def export_db(src: Path) -> dict:
             'payments': fetch_rows(conn, 'payments') if table_exists(conn, 'payments') else [],
             'housekeeping': fetch_rows(conn, 'housekeeping') if table_exists(conn, 'housekeeping') else [],
             'audit_logs': fetch_rows(conn, 'audit_logs') if table_exists(conn, 'audit_logs') else [],
-            'schema_version': [{'version': 13}],
+            'schema_version': [{'version': SCHEMA_VERSION}],
             'app_meta': [{'key': 'board_version', 'value': '0'}],
         }
         return {
             'exported_at': datetime.now(timezone.utc).isoformat(),
             'source': str(src),
+            'schema_version': SCHEMA_VERSION,
             'tables': tables,
         }
     finally:
@@ -217,7 +267,7 @@ def main() -> int:
     tables = payload['tables']
     summary = {name: len(tables.get(name) or []) for name in EXPORT_TABLES}
     dst.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding='utf-8')
-    print(f'OK: 已导出到 {dst}')
+    print(f'OK: 已导出到 {dst} (schema v{SCHEMA_VERSION})')
     for name in EXPORT_TABLES:
         print(f'  - {name}: {summary[name]}')
     return 0

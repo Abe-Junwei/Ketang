@@ -53,7 +53,7 @@
 - 房态看板在云端模式每 8 秒轮询 `board-version` 自动刷新。
 - 公开预约：`POST /api/public/reservations`（IP 限流；可用 `KETANG_PUBLIC_RESERVATIONS=false` 关闭）。
 - `init` 在非空库时默认幂等；仅 `force: true` 且带 `x-ketang-bootstrap` 才允许强制 reseed。
-- 登录与公开预约均有限流；默认密码登录后会强制改密（本地与云端）。
+- 登录与公开预约均有限流。
 - 云端模式暂不支持 CSV 批量导入入住。
 
 ## API 路由
@@ -94,19 +94,19 @@
    python3 scripts/export_ketang_db_to_json.py
    ```
 
-   会生成 `data/ketang-cloud-import.json`（含房间/床位/挂单等，已映射到 schema v13）。
+   会生成 `data/ketang-cloud-import.json`（含房间/床位/挂单等，已映射到 schema v15）。
 
 2. 确保 Pages 已部署最新代码且 D1 已绑定。
 
 3. 用 **HTTPS** 打开线上站点，**管理员**登录 → **系统设置** → **从文件恢复数据**，选择上述 JSON 文件。
 
-4. 确认覆盖提示后等待导入完成；刷新后房态看板应显示原有房间与在住挂单。
+4. 确认覆盖提示后等待导入完成；成功后会显示房间/床位/在住人数摘要，房态看板应显示原有数据。
 
 说明：
 
 - JSON 含真实住客信息，已在 `.gitignore` 中忽略，请勿提交到 Git。
-- 旧库若无 `users` 表，导出时会自动补上默认 `admin` / `zhike` 账号。
-- 大量数据导入已按 80 条/批写入 D1，避免 batch 超限。
+- 导出时会保留源库 `users` 表；若无 `users` 表则自动补上默认 `admin` / `zhike` 账号。
+- 导入前会校验必需表、外键引用与在住占床冲突；写入在 D1 事务中按 80 条/批提交，失败会自动回滚。
 
 ## 回滚
 

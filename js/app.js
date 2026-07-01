@@ -58,10 +58,12 @@ document.addEventListener("DOMContentLoaded", async () => {
         b.style.opacity = "0.5";
       });
     const isAdminUser = isAdmin();
+    const isRemote = typeof isRemoteDB === "function" && isRemoteDB();
+    const importAccept = isRemote ? ".json" : ".db,.json";
     const recoveryButtons = isAdminUser
       ? `
       <button class="btn btn-warning" onclick="document.getElementById('import-file').click()">从文件恢复数据</button>
-      <input type="file" id="import-file" style="display:none" accept=".db" onchange="importDB(this)">
+      <input type="file" id="import-file" style="display:none" accept="${importAccept}" onchange="importDB(this)">
       <button class="btn btn-danger" onclick="if(confirm('确定要重置所有数据吗？此操作不可恢复！')){resetDatabase()}">重置数据库</button>
     `
       : `<p class="empty-tip">需要管理员权限才能恢复或重置数据。请使用管理员账号登录后刷新页面。</p>`;
@@ -565,7 +567,7 @@ function applyDeploymentModeUI() {
     if (loginHint) {
       loginHint.hidden = false;
       loginHint.textContent =
-        "首次使用：选「管理员」密码 admin，选「知客师」密码 zhike。登录后请立即修改密码。";
+        "首次使用：选「管理员」密码 admin，选「知客师」密码 zhike。";
     }
   } else if (loginHint) {
     loginHint.hidden = false;

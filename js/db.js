@@ -1773,11 +1773,32 @@ function run(sql, params) {
   return { lastInsertId: result[0]?.values[0]?.[0] || 0 };
 }
 
+function summarizeLocalImportCounts() {
+  return {
+    rooms: query("SELECT COUNT(*) AS c FROM rooms")[0]?.c || 0,
+    beds: query("SELECT COUNT(*) AS c FROM beds")[0]?.c || 0,
+    lodgers: query("SELECT COUNT(*) AS c FROM lodgers")[0]?.c || 0,
+    active_lodgers:
+      query("SELECT COUNT(*) AS c FROM lodgers WHERE status = '在住'")[0]?.c ||
+      0,
+    guests: query("SELECT COUNT(*) AS c FROM guests")[0]?.c || 0,
+  };
+}
+
+function formatImportSummary(summary) {
+  if (!summary) return "数据恢复成功";
+  return (
+    "恢复成功：" +
+    (summary.rooms != null ? `${summary.rooms} 间房间` : "") +
+    (summary.beds != null ? `，${summary.beds} 张床位` : "") +
+    (summary.active_lodgers != null
+      ? `，${summary.active_lodgers} 人在住`
+      : "")
+  );
+}
+
 function exportDB() {
-  if (!requireAdmin()) {
-    alert("需要管理员权限");
-    return;
-  }
+  if (!requireBackupRead()) return;
   if (isRemoteDB()) {
     apiExportJsonBackup()
       .then(function (data) {
@@ -1810,8 +1831,7 @@ function exportDB() {
 }
 
 async function importDB(input) {
-  if (!requireAdmin()) {
-    alert("需要管理员权限");
+  if (!requireBackupWrite()) {
     input.value = "";
     return;
   }
@@ -1827,9 +1847,11 @@ async function importDB(input) {
       try {
         const data = JSON.parse(e.target.result);
         if (!data.tables) throw new Error("不是有效的客堂 JSON 备份");
-        await apiImportJsonBackup(data.tables);
-        await renderAll();
-        showToast("云端数据恢复成功");
+        const result = await apiImportJsonBackup(data.tables);
+        resetRemoteReadModelState();
+        await syncRemoteReadModel({ force: true });
+        await renderAll({ forceSync: true });
+        showToast(formatImportSummary(result.summary));
       } catch (err) {
         alert("恢复失败：" + err.message);
       } finally {
@@ -1876,7 +1898,7 @@ async function importDB(input) {
       await seedRooms();
       await saveDB();
       await renderAll();
-      showToast("数据恢复成功");
+      showToast(formatImportSummary(summarizeLocalImportCounts()));
     } catch (err) {
       alert("恢复失败：" + err.message);
     } finally {
