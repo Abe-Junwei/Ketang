@@ -38,6 +38,20 @@ export async function batchD1Chunked(env, statements, chunkSize = 80) {
   }
 }
 
+export function splitSqlStatements(sql) {
+  return String(sql || "")
+    .split(";")
+    .map((statement) => statement.trim())
+    .filter(Boolean);
+}
+
+async function runSchemaSql(env, schemaSql) {
+  const statements = splitSqlStatements(schemaSql);
+  for (const statement of statements) {
+    await runD1(env, statement, []);
+  }
+}
+
 async function repairUsersTableState(env) {
   await runD1(env, "DROP TABLE IF EXISTS users_new", []);
   const tables = await queryD1(
@@ -155,7 +169,7 @@ async function ensureDefaultUsers(env) {
 export async function initRemoteDatabase(env) {
   await repairUsersTableState(env);
   try {
-    await env.KETANG_DB.exec(SCHEMA_SQL);
+    await runSchemaSql(env, SCHEMA_SQL);
   } catch (error) {
     throw new Error(`schema exec: ${error?.message || error}`);
   }

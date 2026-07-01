@@ -58,4 +58,9 @@ if 'PRAGMA foreign_keys' in schema:
     print('FAIL remote D1 schema must not include PRAGMA foreign_keys')
     sys.exit(1)
 
+d1 = (ROOT / 'functions/_shared/d1.js').read_text(encoding='utf-8')
+if 'KETANG_DB.exec(SCHEMA_SQL)' in d1:
+    print('FAIL remote D1 schema must run statements individually')
+    sys.exit(1)
+
 print('OK online API structure (%d files)' % len(REQUIRED))
