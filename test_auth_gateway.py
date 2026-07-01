@@ -82,6 +82,9 @@ def test_role_login_gateway():
     if 'upgradePasswordHashBestEffort' not in db_api:
         print('FAIL api/db.js login must not fail when legacy hash upgrade fails')
         sys.exit(1)
+    if 'requireSession(request, env, bindQuery)' in db_api:
+        print('FAIL api/db.js passes bindQuery factory instead of bound query function')
+        sys.exit(1)
 
 
 def test_anonymous_users_action_does_not_enumerate_accounts():

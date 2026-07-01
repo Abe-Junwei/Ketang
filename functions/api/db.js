@@ -184,7 +184,7 @@ export async function onRequestPost({ request, env }) {
       });
     }
 
-    const session = await requireSession(request, env, bindQuery);
+    const session = await requireSession(request, env, bindQuery(env));
 
     if (payload.action === "change_password") {
       const result = await changeUserPassword(
