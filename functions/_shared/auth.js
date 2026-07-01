@@ -1,4 +1,3 @@
-import { isDefaultPasswordHash } from "./schema.js";
 import {
   verifyPassword,
   hashPasswordPlain,
@@ -147,12 +146,6 @@ export async function recordLoginFailure(env, ip, queryD1, runD1) {
 
 export async function clearLoginFailures(env, ip, runD1) {
   await runD1("DELETE FROM login_attempts WHERE ip = ?", [ip]);
-}
-
-export function mustChangePassword(user) {
-  return (
-    isDefaultPasswordHash(user.password) || user.must_change_password === 1
-  );
 }
 
 export async function upgradePasswordHashIfLegacy(

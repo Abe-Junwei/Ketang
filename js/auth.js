@@ -8,9 +8,7 @@ const AUTH_STORAGE_KEY = "ketang_current_user";
 // 当前登录用户缓存
 let currentUser = null;
 let cachedAdminUsers = [];
-let pendingLoginPassword = null;
 let loginSubmitting = false;
-let forcePasswordSubmitting = false;
 
 function applySessionRefresh(result) {
   if (!result) return;
@@ -168,7 +166,6 @@ async function restoreRemoteSession() {
     updateAuthUI();
     applyPermissions();
     hideLoginOverlay();
-    if (data.must_change_password) showForceChangePasswordModal();
     return true;
   } catch (e) {
     clearAuthSession();
@@ -216,7 +213,6 @@ async function login(username, password) {
     if (typeof mountFormMealNeedPickers === "function")
       mountFormMealNeedPickers();
     if (typeof mountLodgerRoleSelects === "function") mountLodgerRoleSelects();
-    if (result.must_change_password) showForceChangePasswordModal();
     return true;
   }
   const user = query(
@@ -228,7 +224,6 @@ async function login(username, password) {
   await upgradePasswordHashIfLegacy(user.id, password, user.password);
   const fresh =
     query("SELECT * FROM users WHERE id = ? LIMIT 1", [user.id])[0] || user;
-  const mustChange = mustChangePasswordForUser(fresh);
   currentUser = {
     id: fresh.id,
     username: fresh.username,
@@ -247,7 +242,6 @@ async function login(username, password) {
   if (typeof mountFormMealNeedPickers === "function")
     mountFormMealNeedPickers();
   if (typeof mountLodgerRoleSelects === "function") mountLodgerRoleSelects();
-  if (mustChange) showForceChangePasswordModal();
   return true;
 }
 
@@ -278,7 +272,6 @@ async function loginByRole(role, password) {
     if (typeof mountFormMealNeedPickers === "function")
       mountFormMealNeedPickers();
     if (typeof mountLodgerRoleSelects === "function") mountLodgerRoleSelects();
-    if (result.must_change_password) showForceChangePasswordModal();
     return true;
   }
 
@@ -291,7 +284,6 @@ async function loginByRole(role, password) {
     await upgradePasswordHashIfLegacy(user.id, password, user.password);
     const fresh =
       query("SELECT * FROM users WHERE id = ? LIMIT 1", [user.id])[0] || user;
-    const mustChange = mustChangePasswordForUser(fresh);
     currentUser = {
       id: fresh.id,
       username: fresh.username,
@@ -310,7 +302,6 @@ async function loginByRole(role, password) {
     if (typeof mountFormMealNeedPickers === "function")
       mountFormMealNeedPickers();
     if (typeof mountLodgerRoleSelects === "function") mountLodgerRoleSelects();
-    if (mustChange) showForceChangePasswordModal();
     return true;
   }
   return false;
@@ -432,13 +423,10 @@ async function submitLogin() {
   try {
     if (await loginByRole(selectedRole, password)) {
       if (errorEl) errorEl.textContent = "";
-      pendingLoginPassword = password;
       document.getElementById("login-password").value = "";
       hideLoginOverlay();
-      if (!document.getElementById("force-password-modal")) {
-        await renderAll();
-        if (typeof startBoardPolling === "function") startBoardPolling();
-      }
+      await renderAll();
+      if (typeof startBoardPolling === "function") startBoardPolling();
     } else if (errorEl) {
       errorEl.textContent = "账号或密码错误";
     }
@@ -446,93 +434,6 @@ async function submitLogin() {
     if (errorEl) errorEl.textContent = e.message || "登录失败";
   } finally {
     setLoginPending(false);
-  }
-}
-
-function showForceChangePasswordModal() {
-  if (document.getElementById("force-password-modal")) return;
-  hideLoginOverlay();
-  document.body.insertAdjacentHTML(
-    "beforeend",
-    `
-    <div class="modal-backdrop active" id="force-password-modal">
-      <div class="modal force-password-modal-card">
-        <div class="modal-header"><h3>请修改密码</h3></div>
-        <div class="modal-body">
-          <p class="empty-tip">当前账号需要设置新密码后才能继续使用系统。</p>
-          <div class="field"><label>新密码</label><input type="password" id="force-new-password" minlength="6"></div>
-          <div class="field"><label>确认新密码</label><input type="password" id="force-new-password2" minlength="6"></div>
-          <p class="field-error" id="force-password-error"></p>
-          <div class="btn-bar">
-            <button type="button" id="force-password-submit-btn" class="btn btn-primary" onclick="submitForceChangePassword()">保存新密码</button>
-          </div>
-        </div>
-      </div>
-    </div>
-  `,
-  );
-}
-
-function setForcePasswordPending(isPending) {
-  forcePasswordSubmitting = !!isPending;
-  setPendingState({
-    inputIds: ["force-new-password", "force-new-password2"],
-    buttonId: "force-password-submit-btn",
-    pending: forcePasswordSubmitting,
-    pendingText: "保存中…",
-    idleText: "保存新密码",
-  });
-}
-
-async function submitForceChangePassword() {
-  if (forcePasswordSubmitting) return;
-  const p1 = document.getElementById("force-new-password").value;
-  const p2 = document.getElementById("force-new-password2").value;
-  const errEl = document.getElementById("force-password-error");
-  if (p1.length < 6) {
-    if (errEl) errEl.textContent = "新密码至少 6 位";
-    return;
-  }
-  if (p1 !== p2) {
-    if (errEl) errEl.textContent = "两次输入不一致";
-    return;
-  }
-  try {
-    validateNewPassword(p1, pendingLoginPassword || "");
-  } catch (e) {
-    if (errEl) errEl.textContent = e.message;
-    return;
-  }
-  setForcePasswordPending(true);
-  if (errEl) errEl.textContent = "正在保存新密码，请稍候…";
-  try {
-    if (typeof isRemoteDB === "function" && isRemoteDB()) {
-      const result = await apiChangePassword(pendingLoginPassword || "", p1);
-      applySessionRefresh(result);
-    } else if (currentUser) {
-      bumpLocalAuthVersion(currentUser.id);
-      run(
-        "UPDATE users SET password = ?, must_change_password = 0 WHERE id = ?",
-        [await hashPasswordAsync(p1), currentUser.id],
-      );
-      currentUser.auth_version =
-        query("SELECT auth_version FROM users WHERE id = ?", [
-          currentUser.id,
-        ])[0]?.auth_version || currentUser.auth_version;
-      localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(currentUser));
-      await saveDB();
-    }
-    const el = document.getElementById("force-password-modal");
-    if (el) el.remove();
-    pendingLoginPassword = null;
-    hideLoginOverlay();
-    showToast("密码已更新");
-    await renderAll();
-    if (typeof startBoardPolling === "function") startBoardPolling();
-  } catch (e) {
-    if (errEl) errEl.textContent = e.message || "修改失败";
-  } finally {
-    setForcePasswordPending(false);
   }
 }
 
@@ -636,12 +537,8 @@ function paintUserList(container, users) {
       u.is_active === 0
         ? '<span class="room-tag" style="background:#ffebee;color:#c62828">已停用</span>'
         : "";
-    const resetLabel =
-      u.must_change_password === 1 && u.is_active !== 0
-        ? '<span class="room-tag" style="background:#fff3e0;color:#e65100">待改密</span>'
-        : "";
     html += `<tr>
-      <td>${escapeHtml(u.username)} ${isCurrent ? '<span class="room-tag" style="background:#e3f2fd;color:#1565c0">当前</span>' : ""} ${activeLabel} ${resetLabel}</td>
+      <td>${escapeHtml(u.username)} ${isCurrent ? '<span class="room-tag" style="background:#e3f2fd;color:#1565c0">当前</span>' : ""} ${activeLabel}</td>
       <td>${escapeHtml(u.display_name || "-")}</td>
       <td>${roleLabel}</td>
       <td>${escapeHtml(u.created_at) || "-"}</td>
@@ -925,7 +822,7 @@ async function resetUserPassword(id) {
   }
   if (
     !confirm(
-      `确定重置「${username}」的密码吗？该用户下次登录必须修改密码，其他设备会话将失效。`,
+      `确定重置「${username}」的密码吗？其他设备会话将失效。`,
     )
   )
     return;
@@ -937,7 +834,7 @@ async function resetUserPassword(id) {
       if (!u) return;
       bumpLocalAuthVersion(id);
       run(
-        "UPDATE users SET password = ?, must_change_password = 1 WHERE id = ?",
+        "UPDATE users SET password = ?, must_change_password = 0 WHERE id = ?",
         [await hashPasswordAsync(temp), id],
       );
       logAudit("重置用户密码", "user", id, { username: u.username });

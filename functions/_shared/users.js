@@ -1,5 +1,4 @@
 import {
-  mustChangePassword,
   verifySession,
   verifyPassword,
   hashPasswordPlain,
@@ -75,7 +74,7 @@ export async function getSessionUser(env, request, queryD1) {
   if (!session) return null;
   const rows = await queryD1(
     env,
-    "SELECT id, username, display_name, role, password, must_change_password FROM users WHERE id = ? AND (is_active IS NULL OR is_active = 1) LIMIT 1",
+    "SELECT id, username, display_name, role FROM users WHERE id = ? AND (is_active IS NULL OR is_active = 1) LIMIT 1",
     [session.id || session.sub],
   );
   const user = rows[0];
@@ -95,7 +94,6 @@ export async function getSessionUser(env, request, queryD1) {
       auth_version: session.auth_version || user.auth_version || 1,
     },
     permissions,
-    must_change_password: mustChangePassword(user),
   };
 }
 
@@ -103,7 +101,7 @@ export async function listUsers(env, session) {
   await requirePermission(env, session, "users.read");
   return queryD1(
     env,
-    "SELECT id, username, display_name, role, is_active, must_change_password, created_at FROM users ORDER BY role, username",
+    "SELECT id, username, display_name, role, is_active, created_at FROM users ORDER BY role, username",
     [],
   );
 }
@@ -263,7 +261,7 @@ export async function resetUserPassword(env, session, body) {
   const authVersion = await bumpAuthVersion(env, id);
   await runD1(
     env,
-    "UPDATE users SET password = ?, must_change_password = 1 WHERE id = ?",
+    "UPDATE users SET password = ?, must_change_password = 0 WHERE id = ?",
     [hash, id],
   );
   await insertAudit(
@@ -283,12 +281,12 @@ export async function changeUserPassword(
   oldPassword,
   newPassword,
 ) {
-  validateNewPassword(newPassword, oldPassword);
   const rows = await queryD1(env, "SELECT * FROM users WHERE id = ? LIMIT 1", [
     userId,
   ]);
   const user = rows[0];
   if (!user) throw new Error("用户不存在");
+  validateNewPassword(newPassword, oldPassword);
   if (!(await verifyPassword(oldPassword || "", user.password)))
     throw new Error("原密码错误");
   const hash = await hashPasswordPlain(newPassword);

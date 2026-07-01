@@ -112,7 +112,6 @@ function remoteLogin(username, password) {
   setRemoteSessionToken(result.token);
   return {
     user: result.user,
-    must_change_password: !!result.must_change_password,
   };
 }
 
@@ -125,7 +124,6 @@ async function remoteLoginAsync(username, password) {
   setRemoteSessionToken(result.token);
   return {
     user: result.user,
-    must_change_password: !!result.must_change_password,
   };
 }
 

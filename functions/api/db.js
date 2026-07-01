@@ -6,7 +6,6 @@ import {
   checkLoginRateLimit,
   recordLoginFailure,
   clearLoginFailures,
-  mustChangePassword,
   upgradePasswordHashIfLegacy,
 } from "../_shared/auth.js";
 import {
@@ -74,7 +73,6 @@ async function buildLoginSuccess(env, request, freshUser, timer) {
     token,
     user: sessionUserPayload(freshUser),
     permissions,
-    must_change_password: mustChangePassword(freshUser),
   };
   return timer ? timer.finish(body, request) : json(body);
 }
@@ -224,7 +222,6 @@ export async function onRequestPost({ request, env }) {
           auth_version: result.user.auth_version || 1,
         },
         permissions,
-        must_change_password: false,
       });
     }
 

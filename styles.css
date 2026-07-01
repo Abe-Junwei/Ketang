@@ -3322,39 +3322,6 @@ form .field {
   align-items: center;
 }
 
-#force-password-modal {
-  z-index: 2100;
-}
-
-.force-password-modal-card {
-  width: min(92vw, 460px);
-}
-
-.force-password-modal-card .modal-body {
-  padding-top: var(--space-2);
-}
-
-.force-password-modal-card .field {
-  margin-bottom: var(--space-3);
-}
-
-.force-password-modal-card .field label {
-  display: block;
-  margin-bottom: var(--space-1);
-  font-size: var(--font-size-sm);
-  color: var(--color-muted);
-  font-weight: var(--font-weight-medium);
-}
-
-.force-password-modal-card .field input[type="password"] {
-  width: 100%;
-  box-sizing: border-box;
-}
-
-#force-password-submit-btn[aria-busy="true"] {
-  cursor: wait;
-}
-
 .close {
   font-size: var(--font-size-2xl);
   cursor: pointer;
