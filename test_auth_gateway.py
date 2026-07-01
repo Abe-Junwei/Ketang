@@ -79,6 +79,9 @@ def test_role_login_gateway():
     if 'action: "login_role"' not in auth or 'loginByRole' not in auth:
         print('FAIL auth.js missing role-based login call')
         sys.exit(1)
+    if 'upgradePasswordHashBestEffort' not in db_api:
+        print('FAIL api/db.js login must not fail when legacy hash upgrade fails')
+        sys.exit(1)
 
 
 def test_anonymous_users_action_does_not_enumerate_accounts():

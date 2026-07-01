@@ -40,6 +40,25 @@ function sessionUserPayload(user) {
   };
 }
 
+async function upgradePasswordHashBestEffort(
+  userId,
+  password,
+  storedHash,
+  env,
+) {
+  try {
+    return await upgradePasswordHashIfLegacy(
+      userId,
+      password,
+      storedHash,
+      bindRun(env),
+    );
+  } catch (error) {
+    console.warn("password hash upgrade skipped:", error);
+    return storedHash;
+  }
+}
+
 export async function onRequestPost({ request, env }) {
   if (!env.KETANG_DB) return json({ error: "缺少 D1 绑定 KETANG_DB" }, 500);
   const payload = await readJson(request);
@@ -107,11 +126,11 @@ export async function onRequestPost({ request, env }) {
         await recordLoginFailure(env, ip, bindQuery(env), bindRun(env));
         return json({ error: "身份或密码错误" }, 401);
       }
-      await upgradePasswordHashIfLegacy(
+      await upgradePasswordHashBestEffort(
         matchedUser.id,
         payload.password || "",
         matchedUser.password,
-        bindRun(env),
+        env,
       );
       await clearLoginFailures(env, ip, bindRun(env));
       const freshRows = await queryD1(
@@ -144,11 +163,11 @@ export async function onRequestPost({ request, env }) {
         await recordLoginFailure(env, ip, bindQuery(env), bindRun(env));
         return json({ error: "账号或密码错误" }, 401);
       }
-      await upgradePasswordHashIfLegacy(
+      await upgradePasswordHashBestEffort(
         user.id,
         payload.password || "",
         user.password,
-        bindRun(env),
+        env,
       );
       await clearLoginFailures(env, ip, bindRun(env));
       const freshRows = await queryD1(
