@@ -176,19 +176,25 @@ for (let floor = 1; floor <= 2; floor++) {
   for (let room = 1; room <= 6; room++) {
     const id = floor * 100 + room;
     const name = `${floor}0${room}`;
-    const dorm = room <= 3 ? '男寮' : '女寮';
-    SEED_ROOMS.push({ sql: 'INSERT INTO rooms (id, name, location, floor, dorm_type, notes) VALUES (?, ?, ?, ?, ?, ?)', params: [id, name, `客堂${floor}楼`, floor, dorm, ''] });
+    const dorm = room <= 3 ? "男寮" : "女寮";
+    SEED_ROOMS.push({
+      sql: "INSERT INTO rooms (id, name, location, floor, dorm_type, notes) VALUES (?, ?, ?, ?, ?, ?)",
+      params: [id, name, `客堂${floor}楼`, floor, dorm, ""],
+    });
     for (let bed = 1; bed <= 2; bed++) {
-      SEED_ROOMS.push({ sql: 'INSERT INTO beds (room_id, bed_number, status) VALUES (?, ?, ?)', params: [id, `${bed}号床`, '可用'] });
+      SEED_ROOMS.push({
+        sql: "INSERT INTO beds (room_id, bed_number, status) VALUES (?, ?, ?)",
+        params: [id, `${bed}号床`, "可用"],
+      });
     }
   }
 }
 
 const DEFAULT_PASSWORD_HASHES = new Set([
-  'sha256$ketang_default_salt$8d62959035f9b60a02e709f9826f3f996d07a09a4f5091e2884642fa01adf8a3',
-  'sha256$ketang_default_salt$fc286955fb12bec3fb16b4f2619f9b675337b1240537bc21d830b5f495121565'
+  "sha256$ketang_default_salt$8d62959035f9b60a02e709f9826f3f996d07a09a4f5091e2884642fa01adf8a3",
+  "sha256$ketang_default_salt$fc286955fb12bec3fb16b4f2619f9b675337b1240537bc21d830b5f495121565",
 ]);
 
 export function isDefaultPasswordHash(hash) {
-  return DEFAULT_PASSWORD_HASHES.has(String(hash || ''));
+  return DEFAULT_PASSWORD_HASHES.has(String(hash || ""));
 }

@@ -1,7 +1,8 @@
-export const json = (body, status = 200) => new Response(JSON.stringify(body), {
-  status,
-  headers: { 'content-type': 'application/json; charset=utf-8' }
-});
+export const json = (body, status = 200) =>
+  new Response(JSON.stringify(body), {
+    status,
+    headers: { "content-type": "application/json; charset=utf-8" },
+  });
 
 export async function readJson(request) {
   try {
@@ -12,7 +13,9 @@ export async function readJson(request) {
 }
 
 export function clientIp(request) {
-  return request.headers.get('cf-connecting-ip')
-    || request.headers.get('x-forwarded-for')?.split(',')[0]?.trim()
-    || 'unknown';
+  return (
+    request.headers.get("cf-connecting-ip") ||
+    request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
+    "unknown"
+  );
 }
