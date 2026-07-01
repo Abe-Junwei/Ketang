@@ -28,3 +28,18 @@ export function apiErrorStatus(error, fallback = 500) {
   if (/过于频繁|尝试过多/.test(message)) return 429;
   return fallback;
 }
+
+const memoryRateBuckets = new Map();
+
+/** 无 D1 依赖的轻量限流 | In-memory IP rate limit (per Worker isolate) */
+export function checkMemoryRateLimit(ip, bucket, maxCount, windowMs) {
+  const key = `${bucket}:${ip}`;
+  const now = Date.now();
+  const entry = memoryRateBuckets.get(key);
+  if (!entry || now - entry.start > windowMs) {
+    memoryRateBuckets.set(key, { start: now, count: 1 });
+    return;
+  }
+  entry.count += 1;
+  if (entry.count > maxCount) throw new Error("请求过于频繁，请稍后再试");
+}

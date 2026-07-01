@@ -20,18 +20,23 @@ export const READ_MODEL_TABLES = [
 
 const TABLE_NAME_RE = /^[a-z_][a-z0-9_]*$/i;
 
-const META_TABLES = ["schema_version", "app_meta"];
+const READ_MODEL_SYNC_PERMISSIONS = [
+  "board.read",
+  "lodging.read",
+  "meals.read",
+  "housekeeping.read",
+];
 
-/** 各角色可读表 | Role-specific table allowlist */
+/** 各角色可读表 | Role-specific table allowlist (no app_meta for non-admin) */
 const ROLE_READ_TABLES = {
   admin: READ_MODEL_TABLES,
   zhike: READ_MODEL_TABLES.filter(
-    (name) => name !== "users" && name !== "audit_logs",
+    (name) =>
+      name !== "users" && name !== "audit_logs" && name !== "payments",
   ),
-  kitchen: [...META_TABLES, "rooms", "beds", "guests", "lodgers", "meals"],
-  housekeeping: [...META_TABLES, "rooms", "beds", "lodgers", "housekeeping"],
+  kitchen: ["rooms", "beds", "guests", "lodgers", "meals"],
+  housekeeping: ["rooms", "beds", "lodgers", "housekeeping"],
   viewer: [
-    ...META_TABLES,
     "rooms",
     "beds",
     "guests",
@@ -54,6 +59,11 @@ const USER_NEVER_FIELDS = ["password"];
 /** 按角色返回表清单 | Resolve table list for role */
 export function tablesForRole(role) {
   return (ROLE_READ_TABLES[role] || ROLE_READ_TABLES.viewer).slice();
+}
+
+export function canSyncReadModel(permissions) {
+  if (!Array.isArray(permissions)) return false;
+  return READ_MODEL_SYNC_PERMISSIONS.some((code) => permissions.includes(code));
 }
 
 function maskSensitiveValue(value) {
@@ -89,7 +99,7 @@ export async function buildReadModel(env, session, options) {
     await initRemoteDatabase(env);
   }
   const permissions = await getSessionPermissions(env, session);
-  if (!permissions.includes("board.read")) {
+  if (!canSyncReadModel(permissions)) {
     throw new Error("权限不足");
   }
   const tables = tablesForRole(session.role);

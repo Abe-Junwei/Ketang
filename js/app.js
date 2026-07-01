@@ -2,6 +2,9 @@ document.addEventListener("DOMContentLoaded", async () => {
   initShellIcons();
   try {
     await initSqlite();
+    if (typeof initRolePermissionDefaults === "function") {
+      await initRolePermissionDefaults();
+    }
     await loadDB();
     if (!isRemoteDB()) {
       initSchema();

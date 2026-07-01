@@ -10,6 +10,10 @@ const BLOCKED_PREFIXES = [
 ];
 
 const BLOCKED_FILES = new Set([
+  "/.gitignore",
+  "/.prettierignore",
+  "/_headers",
+  "/_routes.json",
   "/AGENTS.md",
   "/AI_QUICKSTART.md",
   "/DESIGN.md",

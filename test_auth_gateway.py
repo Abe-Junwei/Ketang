@@ -47,6 +47,47 @@ def test_users_action_skips_init():
     if 'initRemoteDatabase' in users_action.group(1):
         print('FAIL users action must not call initRemoteDatabase')
         sys.exit(1)
+    if 'checkMemoryRateLimit' not in users_action.group(1):
+        print('FAIL users action must use in-memory rate limit')
+        sys.exit(1)
+
+
+def test_login_action_has_timing():
+    db_api = read('functions/api/db.js')
+    login_action = re.search(r'if \(payload\.action === "login"\) \{([\s\S]*?)\n    \}', db_api)
+    if not login_action:
+        print('FAIL api/db.js missing login action')
+        sys.exit(1)
+    block = login_action.group(1)
+    if 'createRequestTimer' not in block or 'buildLoginSuccess' not in block:
+        print('FAIL login action must use staged timing and shared login success builder')
+        sys.exit(1)
+
+
+def test_role_permissions_defaults_sync():
+    import json
+    expected = json.loads((ROOT / 'role-permissions.defaults.json').read_text(encoding='utf-8'))
+    backend = read('functions/_shared/permissions.js')
+    frontend = read('js/permissions.js')
+    if 'role-permissions.defaults.json' not in backend:
+        print('FAIL backend permissions must import role-permissions.defaults.json')
+        sys.exit(1)
+    if 'role-permissions.defaults.json' not in frontend:
+        print('FAIL js/permissions.js must load role-permissions.defaults.json')
+        sys.exit(1)
+    if expected.get('kitchen') != ['meals.read', 'meals.write']:
+        print('FAIL kitchen defaults must not include board.read')
+        sys.exit(1)
+
+
+def test_permissions_cache_helpers():
+    perms = read('functions/_shared/permissions.js')
+    if 'customPermissionsCache' not in perms or 'invalidateRolePermissionsCache' not in perms:
+        print('FAIL permissions.js must cache custom role permissions')
+        sys.exit(1)
+    if 'session._permissions' not in perms:
+        print('FAIL getSessionPermissions must cache on session object')
+        sys.exit(1)
 
 
 def test_remote_init_marks_ready_after_existing_db():
@@ -85,6 +126,17 @@ def test_read_model_role_tables():
         if not kitchen_block or 'payments' in kitchen_block.group(1):
             print('FAIL kitchen read-model must not include payments')
             sys.exit(1)
+    if 'name !== "payments"' not in model or 'zhike:' not in model:
+        print('FAIL zhike read-model must exclude payments table')
+        sys.exit(1)
+    for role in ('kitchen', 'housekeeping', 'viewer'):
+        block = re.search(rf"{role}:\s*\[([\s\S]*?)\],", model)
+        if block and 'app_meta' in block.group(1):
+            print(f'FAIL {role} read-model must not include app_meta')
+            sys.exit(1)
+    if 'canSyncReadModel' not in model:
+        print('FAIL read-model.js missing canSyncReadModel helper')
+        sys.exit(1)
     if 'tablesForRole' not in model:
         print('FAIL read-model.js missing tablesForRole export')
         sys.exit(1)
@@ -193,6 +245,9 @@ TESTS = [
     test_zhike_users_select_blocked,
     test_session_skips_full_init,
     test_users_action_skips_init,
+    test_login_action_has_timing,
+    test_role_permissions_defaults_sync,
+    test_permissions_cache_helpers,
     test_remote_init_marks_ready_after_existing_db,
     test_permissions_layer_exists,
     test_read_model_role_tables,

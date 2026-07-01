@@ -1,11 +1,13 @@
 #!/usr/bin/env python3
 """静态检查线上 API 文件是否齐全 | Verify online API file structure."""
+import json
 from pathlib import Path
 import sys
 
 ROOT = Path(__file__).resolve().parent
 REQUIRED = [
     '_headers',
+    '_routes.json',
     'functions/_middleware.js',
     'functions/_shared/http.js',
     'functions/_shared/schema.js',
@@ -45,6 +47,7 @@ REQUIRED = [
     'functions/api/public/reservations.js',
     'js/api-client.js',
     'js/permissions.js',
+    'role-permissions.defaults.json',
     'wrangler.toml',
 ]
 
@@ -79,6 +82,9 @@ for path in [
     '/backup/*',
     '/data/*',
     '/functions/*',
+    '/_headers',
+    '/_routes.json',
+    '/.gitignore',
     '/package.json',
     '/wrangler.toml',
     '/test_cdp.py',
@@ -107,5 +113,16 @@ for header in [
     if header not in headers:
         print('FAIL _headers missing security header %s' % header)
         sys.exit(1)
+
+routes = json.loads((ROOT / '_routes.json').read_text(encoding='utf-8'))
+if routes.get('version') != 1:
+    print('FAIL _routes.json version must be 1')
+    sys.exit(1)
+if routes.get('include') != ['/*']:
+    print('FAIL _routes.json must include ["/*"] to route all requests through middleware')
+    sys.exit(1)
+if routes.get('exclude') != []:
+    print('FAIL _routes.json must not exclude any paths from middleware')
+    sys.exit(1)
 
 print('OK online API structure (%d files)' % len(REQUIRED))

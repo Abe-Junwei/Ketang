@@ -542,7 +542,7 @@ function applyPermissions() {
   };
 
   const menuMap = {
-    board: can("board.read"),
+    board: can("board.read") || can("meals.read"),
     lodging: can("lodging.read") || can("lodging.checkin"),
     stay: can("lodging.read"),
     forecast: can("board.read"),
@@ -574,7 +574,7 @@ function applyPermissions() {
 }
 
 function requireAdmin() {
-  if (!hasPermission("users.write") && !isAdmin()) {
+  if (!hasPermission("users.write")) {
     alert("需要管理员权限");
     return false;
   }

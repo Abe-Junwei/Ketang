@@ -1,89 +1,63 @@
 import { queryD1 } from "./d1.js";
+import defaultRolePermissions from "../../role-permissions.defaults.json";
 
-/** 权限码清单 | Permission codes (keep in sync with js/permissions.js) */
-export const ALL_PERMISSIONS = [
-  "board.read",
-  "lodging.read",
-  "lodging.checkin",
-  "lodging.checkout",
-  "lodging.edit",
-  "lodging.change_bed",
-  "reservation.read",
-  "reservation.write",
-  "meals.read",
-  "meals.write",
-  "housekeeping.read",
-  "housekeeping.write",
-  "reports.read",
-  "reports.export",
-  "users.read",
-  "users.write",
-  "backup.read",
-  "backup.write",
-  "settings.read",
-  "settings.write",
-];
+/** 权限码清单 | Permission codes (keep in sync with role-permissions.defaults.json) */
+export const ALL_PERMISSIONS = defaultRolePermissions.admin.slice();
 
 const ROLE_PERMISSION_META_KEY = "role_permissions_v1";
+const CUSTOM_PERMISSIONS_TTL_MS = 60 * 1000;
+
+let customPermissionsCache = { loadedAt: 0, map: null };
 
 /** 内置默认角色权限 | Default role permission templates */
 export function getDefaultRolePermissions() {
-  const all = ALL_PERMISSIONS.slice();
-  return {
-    admin: all,
-    zhike: [
-      "board.read",
-      "lodging.read",
-      "lodging.checkin",
-      "lodging.checkout",
-      "lodging.edit",
-      "lodging.change_bed",
-      "reservation.read",
-      "reservation.write",
-      "meals.read",
-      "meals.write",
-      "housekeeping.read",
-      "reports.read",
-    ],
-    kitchen: ["board.read", "meals.read", "meals.write"],
-    housekeeping: [
-      "board.read",
-      "lodging.read",
-      "housekeeping.read",
-      "housekeeping.write",
-    ],
-    viewer: [
-      "board.read",
-      "lodging.read",
-      "reservation.read",
-      "meals.read",
-      "reports.read",
-    ],
-  };
+  return JSON.parse(JSON.stringify(defaultRolePermissions));
+}
+
+export function invalidateRolePermissionsCache() {
+  customPermissionsCache = { loadedAt: 0, map: null };
 }
 
 export async function loadRolePermissions(env) {
+  const now = Date.now();
+  if (
+    customPermissionsCache.map &&
+    now - customPermissionsCache.loadedAt < CUSTOM_PERMISSIONS_TTL_MS
+  ) {
+    return customPermissionsCache.map;
+  }
   const rows = await queryD1(
     env,
     "SELECT value FROM app_meta WHERE key = ? LIMIT 1",
     [ROLE_PERMISSION_META_KEY],
   );
-  if (!rows[0]?.value) return null;
-  try {
-    const parsed = JSON.parse(rows[0].value);
-    return parsed && typeof parsed === "object" ? parsed : null;
-  } catch (e) {
-    return null;
+  let parsed = null;
+  if (rows[0]?.value) {
+    try {
+      const value = JSON.parse(rows[0].value);
+      parsed = value && typeof value === "object" ? value : null;
+    } catch (e) {
+      parsed = null;
+    }
   }
+  customPermissionsCache = { loadedAt: now, map: parsed };
+  return parsed;
 }
 
 export async function getSessionPermissions(env, session) {
+  if (session?._permissions) return session._permissions;
   const role = session?.role;
   if (!role) return [];
   const defaults = getDefaultRolePermissions();
   const custom = await loadRolePermissions(env);
-  if (custom && Array.isArray(custom[role])) return custom[role].slice();
-  return (defaults[role] || []).slice();
+  const permissions =
+    custom && Array.isArray(custom[role])
+      ? custom[role].slice()
+      : (defaults[role] || []).slice();
+  if (session && typeof session === "object") {
+    session._permissions = permissions;
+  }
+  return permissions;
 }
 
 export async function requirePermission(env, session, code) {

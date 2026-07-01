@@ -1,4 +1,4 @@
-import { json, readJson, clientIp } from "../_shared/http.js";
+import { json, readJson, clientIp, checkMemoryRateLimit } from "../_shared/http.js";
 import {
   verifyPassword,
   signSession,
@@ -60,6 +60,47 @@ async function upgradePasswordHashBestEffort(
   }
 }
 
+async function buildLoginSuccess(env, request, freshUser, timer) {
+  const token = timer
+    ? await timer.stage("token_ms", () => signSession(env, freshUser))
+    : await signSession(env, freshUser);
+  const session = {
+    role: freshUser.role,
+    id: freshUser.id,
+    sub: freshUser.id,
+  };
+  const permissions = await getSessionPermissions(env, session);
+  const body = {
+    token,
+    user: sessionUserPayload(freshUser),
+    permissions,
+    must_change_password: mustChangePassword(freshUser),
+  };
+  return timer ? timer.finish(body, request) : json(body);
+}
+
+async function authenticateUsername(env, ip, username, password) {
+  await checkLoginRateLimit(env, ip, bindQuery(env), bindRun(env));
+  const rows = await queryD1(
+    env,
+    "SELECT * FROM users WHERE username = ? AND (is_active IS NULL OR is_active = 1) LIMIT 1",
+    [username],
+  );
+  const user = rows[0];
+  if (!user || !(await verifyPassword(password || "", user.password))) {
+    await recordLoginFailure(env, ip, bindQuery(env), bindRun(env));
+    return null;
+  }
+  await upgradePasswordHashBestEffort(user.id, password || "", user.password, env);
+  await clearLoginFailures(env, ip, bindRun(env));
+  const freshRows = await queryD1(
+    env,
+    "SELECT * FROM users WHERE id = ? LIMIT 1",
+    [user.id],
+  );
+  return freshRows[0] || user;
+}
+
 export async function onRequestPost({ request, env }) {
   if (!env.KETANG_DB) return json({ error: "缺少 D1 绑定 KETANG_DB" }, 500);
   const payload = await readJson(request);
@@ -85,6 +126,7 @@ export async function onRequestPost({ request, env }) {
     }
 
     if (payload.action === "users") {
+      checkMemoryRateLimit(ip, "users_list", 30, 60 * 1000);
       const rows = PUBLIC_LOGIN_ROLES.map(([role, label]) => ({
         username: role,
         display_name: label,
@@ -140,68 +182,19 @@ export async function onRequestPost({ request, env }) {
         [matchedUser.id],
       );
       const freshUser = freshRows[0] || matchedUser;
-      const token = await timer.stage("token_ms", () =>
-        signSession(env, freshUser),
-      );
-      const session = {
-        role: freshUser.role,
-        id: freshUser.id,
-        sub: freshUser.id,
-      };
-      const permissions = await getSessionPermissions(env, session);
-      return timer.finish(
-        {
-          token,
-          user: sessionUserPayload(freshUser),
-          permissions,
-          must_change_password: mustChangePassword(freshUser),
-        },
-        request,
-      );
+      return buildLoginSuccess(env, request, freshUser, timer);
     }
 
     if (payload.action === "login") {
-      await initRemoteDatabase(env);
-      await checkLoginRateLimit(env, ip, bindQuery(env), bindRun(env));
-      const rows = await queryD1(
-        env,
-        "SELECT * FROM users WHERE username = ? AND (is_active IS NULL OR is_active = 1) LIMIT 1",
-        [payload.username],
+      const timer = createRequestTimer();
+      await timer.stage("init_ms", () => initRemoteDatabase(env));
+      const freshUser = await timer.stage("login_ms", () =>
+        authenticateUsername(env, ip, payload.username, payload.password),
       );
-      const user = rows[0];
-      if (
-        !user ||
-        !(await verifyPassword(payload.password || "", user.password))
-      ) {
-        await recordLoginFailure(env, ip, bindQuery(env), bindRun(env));
-        return json({ error: "账号或密码错误" }, 401);
+      if (!freshUser) {
+        return timer.finish({ error: "账号或密码错误" }, request, 401);
       }
-      await upgradePasswordHashBestEffort(
-        user.id,
-        payload.password || "",
-        user.password,
-        env,
-      );
-      await clearLoginFailures(env, ip, bindRun(env));
-      const freshRows = await queryD1(
-        env,
-        "SELECT * FROM users WHERE id = ? LIMIT 1",
-        [user.id],
-      );
-      const freshUser = freshRows[0] || user;
-      const token = await signSession(env, freshUser);
-      const session = {
-        role: freshUser.role,
-        id: freshUser.id,
-        sub: freshUser.id,
-      };
-      const permissions = await getSessionPermissions(env, session);
-      return json({
-        token,
-        user: sessionUserPayload(freshUser),
-        permissions,
-        must_change_password: mustChangePassword(freshUser),
-      });
+      return buildLoginSuccess(env, request, freshUser, timer);
     }
 
     const session = await requireSession(request, env, bindQuery(env));
@@ -214,6 +207,12 @@ export async function onRequestPost({ request, env }) {
         payload.new_password,
       );
       const token = await signSession(env, result.user);
+      const refreshed = {
+        role: result.user.role,
+        id: result.user.id,
+        sub: result.user.id,
+      };
+      const permissions = await getSessionPermissions(env, refreshed);
       return json({
         ok: true,
         token,
@@ -224,6 +223,7 @@ export async function onRequestPost({ request, env }) {
           role: result.user.role,
           auth_version: result.user.auth_version || 1,
         },
+        permissions,
         must_change_password: false,
       });
     }
@@ -272,11 +272,13 @@ export async function onRequestPost({ request, env }) {
     console.error("Ketang API error:", error);
     const status = /登录已过期|原密码错误/.test(error.message)
       ? 401
-      : /过于频繁|尝试过多/.test(error.message)
-        ? 429
-        : /密码|账号|用户|管理员|缺少/.test(error.message)
-          ? 400
-          : 500;
+      : /权限不足/.test(error.message)
+        ? 403
+        : /过于频繁|尝试过多/.test(error.message)
+          ? 429
+          : /密码|账号|用户|管理员|缺少/.test(error.message)
+            ? 400
+            : 500;
     return json({ error: safeErrorMessage(error) }, status);
   }
 }

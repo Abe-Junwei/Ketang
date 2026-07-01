@@ -1,4 +1,4 @@
-/* 角色权限（与 functions/_shared/permissions.js 保持同步）| Role permissions */
+/* 角色权限（defaults 来自 role-permissions.defaults.json）| Role permissions */
 
 const ALL_PERMISSIONS = [
   "board.read",
@@ -23,38 +23,58 @@ const ALL_PERMISSIONS = [
   "settings.write",
 ];
 
+let defaultRolePermissions = {
+  admin: ALL_PERMISSIONS.slice(),
+  zhike: [
+    "board.read",
+    "lodging.read",
+    "lodging.checkin",
+    "lodging.checkout",
+    "lodging.edit",
+    "lodging.change_bed",
+    "reservation.read",
+    "reservation.write",
+    "meals.read",
+    "meals.write",
+    "housekeeping.read",
+    "reports.read",
+  ],
+  kitchen: ["meals.read", "meals.write"],
+  housekeeping: [
+    "board.read",
+    "lodging.read",
+    "housekeeping.read",
+    "housekeeping.write",
+  ],
+  viewer: [
+    "board.read",
+    "lodging.read",
+    "reservation.read",
+    "meals.read",
+    "reports.read",
+  ],
+};
+
+let rolePermissionsDefaultsReady = null;
+
+async function initRolePermissionDefaults() {
+  if (rolePermissionsDefaultsReady) return rolePermissionsDefaultsReady;
+  rolePermissionsDefaultsReady = (async function () {
+    try {
+      const res = await fetch("./role-permissions.defaults.json?v=1");
+      if (res.ok) {
+        const data = await res.json();
+        if (data && typeof data === "object") defaultRolePermissions = data;
+      }
+    } catch (e) {
+      /* 离线/ file:// 时使用内置副本 | use inline fallback */
+    }
+  })();
+  return rolePermissionsDefaultsReady;
+}
+
 function getDefaultRolePermissions() {
-  return {
-    admin: ALL_PERMISSIONS.slice(),
-    zhike: [
-      "board.read",
-      "lodging.read",
-      "lodging.checkin",
-      "lodging.checkout",
-      "lodging.edit",
-      "lodging.change_bed",
-      "reservation.read",
-      "reservation.write",
-      "meals.read",
-      "meals.write",
-      "housekeeping.read",
-      "reports.read",
-    ],
-    kitchen: ["board.read", "meals.read", "meals.write"],
-    housekeeping: [
-      "board.read",
-      "lodging.read",
-      "housekeeping.read",
-      "housekeeping.write",
-    ],
-    viewer: [
-      "board.read",
-      "lodging.read",
-      "reservation.read",
-      "meals.read",
-      "reports.read",
-    ],
-  };
+  return defaultRolePermissions;
 }
 
 function loadLocalRolePermissions() {
@@ -110,4 +130,13 @@ function hasAnyPermission(codes) {
   return codes.some(function (code) {
     return hasPermission(code);
   });
+}
+
+function canSyncReadModel() {
+  return hasAnyPermission([
+    "board.read",
+    "lodging.read",
+    "meals.read",
+    "housekeeping.read",
+  ]);
 }

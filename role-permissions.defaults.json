@@ -1,0 +1,52 @@
+{
+  "admin": [
+    "board.read",
+    "lodging.read",
+    "lodging.checkin",
+    "lodging.checkout",
+    "lodging.edit",
+    "lodging.change_bed",
+    "reservation.read",
+    "reservation.write",
+    "meals.read",
+    "meals.write",
+    "housekeeping.read",
+    "housekeeping.write",
+    "reports.read",
+    "reports.export",
+    "users.read",
+    "users.write",
+    "backup.read",
+    "backup.write",
+    "settings.read",
+    "settings.write"
+  ],
+  "zhike": [
+    "board.read",
+    "lodging.read",
+    "lodging.checkin",
+    "lodging.checkout",
+    "lodging.edit",
+    "lodging.change_bed",
+    "reservation.read",
+    "reservation.write",
+    "meals.read",
+    "meals.write",
+    "housekeeping.read",
+    "reports.read"
+  ],
+  "kitchen": ["meals.read", "meals.write"],
+  "housekeeping": [
+    "board.read",
+    "lodging.read",
+    "housekeeping.read",
+    "housekeeping.write"
+  ],
+  "viewer": [
+    "board.read",
+    "lodging.read",
+    "reservation.read",
+    "meals.read",
+    "reports.read"
+  ]
+}
