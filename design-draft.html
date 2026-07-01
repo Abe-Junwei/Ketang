@@ -1,1145 +1,2051 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="zh-CN">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>客堂房态分布 · 设计稿</title>
-  <link rel="stylesheet" href="styles.css">
-  <style>
-    :root {
-      --draft-gap: var(--space-4);
-      --card-min: 220px;
-    }
-    body {
-      background: var(--color-background);
-      color: var(--color-foreground);
-      font-family: var(--font-sans);
-      margin: 0;
-      padding: var(--space-6);
-    }
-    .draft-header {
-      margin-bottom: var(--space-6);
-    }
-    .draft-header h1 {
-      font-size: 1.5rem;
-      margin-bottom: var(--space-2);
-    }
-    .draft-stats {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-      gap: var(--space-4);
-      margin-bottom: var(--space-6);
-    }
-    .stat-pill {
-      background: var(--color-card);
-      border: 1px solid var(--color-border);
-      border-radius: var(--radius-lg);
-      padding: var(--space-4);
-      text-align: center;
-    }
-    .stat-pill .num {
-      font-size: 1.75rem;
-      font-weight: 700;
-      color: var(--color-primary);
-    }
-    .stat-pill .label {
-      font-size: var(--font-size-sm);
-      color: var(--color-muted);
-    }
-    .section {
-      margin-bottom: var(--space-6);
-    }
-    .section-title {
-      display: flex;
-      align-items: center;
-      gap: var(--space-3);
-      font-size: 1.125rem;
-      font-weight: 600;
-      margin-bottom: var(--space-4);
-      padding-bottom: var(--space-2);
-      border-bottom: 2px solid var(--color-border-strong);
-    }
-    .section-count {
-      font-size: var(--font-size-sm);
-      color: var(--color-muted);
-      font-weight: 400;
-    }
-    .rooms-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(var(--card-min), 1fr));
-      gap: var(--draft-gap);
-    }
-    .room-card {
-      background: var(--color-card);
-      border: 1px solid var(--color-border);
-      border-radius: var(--radius-lg);
-      padding: var(--space-4);
-      box-shadow: var(--shadow-sm);
-      transition: box-shadow .15s;
-    }
-    .room-card:hover {
-      box-shadow: var(--shadow-md);
-    }
-    .room-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: flex-start;
-      margin-bottom: var(--space-3);
-    }
-    .room-name {
-      font-weight: 600;
-      font-size: var(--font-size-base);
-    }
-    .room-tag {
-      font-size: var(--font-size-xs);
-      padding: 2px 8px;
-      border-radius: var(--radius-full);
-      white-space: nowrap;
-    }
-    .room-meta {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: var(--space-2);
-      font-size: var(--font-size-sm);
-      color: var(--color-muted);
-    }
-    .occupancy-bar {
-      height: 6px;
-      background: var(--color-border);
-      border-radius: var(--radius-full);
-      overflow: hidden;
-      margin-bottom: var(--space-3);
-    }
-    .occupancy-bar > div {
-      height: 100%;
-      border-radius: var(--radius-full);
-    }
-    .mini-beds {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 3px;
-      margin-bottom: var(--space-3);
-    }
-    .mini-bed {
-      width: 8px;
-      height: 8px;
-      border-radius: 2px;
-    }
-    .occupants {
-      font-size: var(--font-size-xs);
-      color: var(--color-muted);
-      line-height: 1.5;
-      max-height: 3.6em;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-    .legend {
-      display: flex;
-      flex-wrap: wrap;
-      gap: var(--space-4);
-      margin-bottom: var(--space-6);
-      font-size: var(--font-size-sm);
-    }
-    .legend-item {
-      display: inline-flex;
-      align-items: center;
-      gap: var(--space-2);
-    }
-    .dot {
-      width: 10px;
-      height: 10px;
-      border-radius: 50%;
-    }
-  </style>
-</head>
-<body>
-  <div class="draft-header">
-    <h1>🏯 客堂房态分布 · 设计稿</h1>
-    <p>基于真实房间/床位数据重新排版：按楼层/区域分组，突出入住率与性别类型。</p>
-  </div>
-
-  <div class="draft-stats">
-    <div class="stat-pill"><div class="num">64</div><div class="label">房间总数</div></div>
-    <div class="stat-pill"><div class="num">522</div><div class="label">床位总数</div></div>
-    <div class="stat-pill"><div class="num">311</div><div class="label">已入住</div></div>
-    <div class="stat-pill"><div class="num">211</div><div class="label">空床位</div></div>
-    <div class="stat-pill"><div class="num">59.6%</div><div class="label">入住率</div></div>
-  </div>
-
-  <div class="legend">
-    <div class="legend-item"><span class="dot" style="background:#4a7c59"></span>空房/有空床</div>
-    <div class="legend-item"><span class="dot" style="background:#c9a227"></span>部分入住</div>
-    <div class="legend-item"><span class="dot" style="background:#a94442"></span>满房</div>
-    <div class="legend-item"><span class="dot" style="background:#e3f2fd;border:1px solid #1565c0"></span>男寮</div>
-    <div class="legend-item"><span class="dot" style="background:#fce4ec;border:1px solid #c2185b"></span>女寮</div>
-  </div>
-
-  <section class="section">
-    <div class="section-title">
-      <span>三楼女子寮</span>
-      <span class="section-count">8 间房 · 入住 63/72</span>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>客堂房态分布 · 设计稿</title>
+    <link rel="stylesheet" href="styles.css" />
+    <style>
+      :root {
+        --draft-gap: var(--space-4);
+        --card-min: 220px;
+      }
+      body {
+        background: var(--color-background);
+        color: var(--color-foreground);
+        font-family: var(--font-sans);
+        margin: 0;
+        padding: var(--space-6);
+      }
+      .draft-header {
+        margin-bottom: var(--space-6);
+      }
+      .draft-header h1 {
+        font-size: 1.5rem;
+        margin-bottom: var(--space-2);
+      }
+      .draft-stats {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+        gap: var(--space-4);
+        margin-bottom: var(--space-6);
+      }
+      .stat-pill {
+        background: var(--color-card);
+        border: 1px solid var(--color-border);
+        border-radius: var(--radius-lg);
+        padding: var(--space-4);
+        text-align: center;
+      }
+      .stat-pill .num {
+        font-size: 1.75rem;
+        font-weight: 700;
+        color: var(--color-primary);
+      }
+      .stat-pill .label {
+        font-size: var(--font-size-sm);
+        color: var(--color-muted);
+      }
+      .section {
+        margin-bottom: var(--space-6);
+      }
+      .section-title {
+        display: flex;
+        align-items: center;
+        gap: var(--space-3);
+        font-size: 1.125rem;
+        font-weight: 600;
+        margin-bottom: var(--space-4);
+        padding-bottom: var(--space-2);
+        border-bottom: 2px solid var(--color-border-strong);
+      }
+      .section-count {
+        font-size: var(--font-size-sm);
+        color: var(--color-muted);
+        font-weight: 400;
+      }
+      .rooms-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(var(--card-min), 1fr));
+        gap: var(--draft-gap);
+      }
+      .room-card {
+        background: var(--color-card);
+        border: 1px solid var(--color-border);
+        border-radius: var(--radius-lg);
+        padding: var(--space-4);
+        box-shadow: var(--shadow-sm);
+        transition: box-shadow 0.15s;
+      }
+      .room-card:hover {
+        box-shadow: var(--shadow-md);
+      }
+      .room-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        margin-bottom: var(--space-3);
+      }
+      .room-name {
+        font-weight: 600;
+        font-size: var(--font-size-base);
+      }
+      .room-tag {
+        font-size: var(--font-size-xs);
+        padding: 2px 8px;
+        border-radius: var(--radius-full);
+        white-space: nowrap;
+      }
+      .room-meta {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: var(--space-2);
+        font-size: var(--font-size-sm);
+        color: var(--color-muted);
+      }
+      .occupancy-bar {
+        height: 6px;
+        background: var(--color-border);
+        border-radius: var(--radius-full);
+        overflow: hidden;
+        margin-bottom: var(--space-3);
+      }
+      .occupancy-bar > div {
+        height: 100%;
+        border-radius: var(--radius-full);
+      }
+      .mini-beds {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 3px;
+        margin-bottom: var(--space-3);
+      }
+      .mini-bed {
+        width: 8px;
+        height: 8px;
+        border-radius: 2px;
+      }
+      .occupants {
+        font-size: var(--font-size-xs);
+        color: var(--color-muted);
+        line-height: 1.5;
+        max-height: 3.6em;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .legend {
+        display: flex;
+        flex-wrap: wrap;
+        gap: var(--space-4);
+        margin-bottom: var(--space-6);
+        font-size: var(--font-size-sm);
+      }
+      .legend-item {
+        display: inline-flex;
+        align-items: center;
+        gap: var(--space-2);
+      }
+      .dot {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="draft-header">
+      <h1>🏯 客堂房态分布 · 设计稿</h1>
+      <p>
+        基于真实房间/床位数据重新排版：按楼层/区域分组，突出入住率与性别类型。
+      </p>
     </div>
-    <div class="rooms-grid">
 
-      <div class="room-card">
-        <div class="room-header">
-          <div class="room-name">三楼女子寮-301</div>
-          <span class="room-tag" style="background:#fce4ec;color:#c2185b">女寮</span>
-        </div>
-        <div class="room-meta">
-          <span>满房</span>
-          <span>1/1 床</span>
-        </div>
-        <div class="occupancy-bar"><div style="width:100.0%;background:#a94442"></div></div>
-        <div class="mini-beds"><span class="mini-bed" style="background:#a94442"></span></div>
-        <div class="occupants" title="师资部长">师资部长</div>
+    <div class="draft-stats">
+      <div class="stat-pill">
+        <div class="num">64</div>
+        <div class="label">房间总数</div>
       </div>
-
-      <div class="room-card">
-        <div class="room-header">
-          <div class="room-name">三楼女子寮-302</div>
-          <span class="room-tag" style="background:#fce4ec;color:#c2185b">女寮</span>
-        </div>
-        <div class="room-meta">
-          <span>满房</span>
-          <span>3/3 床</span>
-        </div>
-        <div class="occupancy-bar"><div style="width:100.0%;background:#a94442"></div></div>
-        <div class="mini-beds"><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span></div>
-        <div class="occupants" title="625觉观七-1、625觉观七-2、625觉观七-3">625觉观七-1、625觉观七-2、625觉观七-3</div>
+      <div class="stat-pill">
+        <div class="num">522</div>
+        <div class="label">床位总数</div>
       </div>
-
-      <div class="room-card">
-        <div class="room-header">
-          <div class="room-name">三楼女子寮-303</div>
-          <span class="room-tag" style="background:#fce4ec;color:#c2185b">女寮</span>
-        </div>
-        <div class="room-meta">
-          <span>部分入住</span>
-          <span>1/3 床</span>
-        </div>
-        <div class="occupancy-bar"><div style="width:33.33333333333333%;background:#c9a227"></div></div>
-        <div class="mini-beds"><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#4a7c59"></span><span class="mini-bed" style="background:#4a7c59"></span></div>
-        <div class="occupants" title="韩庆红老师">韩庆红老师</div>
+      <div class="stat-pill">
+        <div class="num">311</div>
+        <div class="label">已入住</div>
       </div>
-
-      <div class="room-card">
-        <div class="room-header">
-          <div class="room-name">三楼女子寮-305</div>
-          <span class="room-tag" style="background:#fce4ec;color:#c2185b">女寮</span>
-        </div>
-        <div class="room-meta">
-          <span>部分入住</span>
-          <span>1/3 床</span>
-        </div>
-        <div class="occupancy-bar"><div style="width:33.33333333333333%;background:#c9a227"></div></div>
-        <div class="mini-beds"><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#4a7c59"></span><span class="mini-bed" style="background:#4a7c59"></span></div>
-        <div class="occupants" title="吉修老师">吉修老师</div>
+      <div class="stat-pill">
+        <div class="num">211</div>
+        <div class="label">空床位</div>
       </div>
-
-      <div class="room-card">
-        <div class="room-header">
-          <div class="room-name">三楼女子寮-306</div>
-          <span class="room-tag" style="background:#fce4ec;color:#c2185b">女寮</span>
-        </div>
-        <div class="room-meta">
-          <span>部分入住</span>
-          <span>1/3 床</span>
-        </div>
-        <div class="occupancy-bar"><div style="width:33.33333333333333%;background:#c9a227"></div></div>
-        <div class="mini-beds"><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#4a7c59"></span><span class="mini-bed" style="background:#4a7c59"></span></div>
-        <div class="occupants" title="李睿老师">李睿老师</div>
+      <div class="stat-pill">
+        <div class="num">59.6%</div>
+        <div class="label">入住率</div>
       </div>
-
-      <div class="room-card">
-        <div class="room-header">
-          <div class="room-name">三楼女子寮-307</div>
-          <span class="room-tag" style="background:#fce4ec;color:#c2185b">女寮</span>
-        </div>
-        <div class="room-meta">
-          <span>部分入住</span>
-          <span>1/3 床</span>
-        </div>
-        <div class="occupancy-bar"><div style="width:33.33333333333333%;background:#c9a227"></div></div>
-        <div class="mini-beds"><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#4a7c59"></span><span class="mini-bed" style="background:#4a7c59"></span></div>
-        <div class="occupants" title="雪瑶老师">雪瑶老师</div>
-      </div>
-
-      <div class="room-card">
-        <div class="room-header">
-          <div class="room-name">三楼女子寮-308</div>
-          <span class="room-tag" style="background:#fce4ec;color:#c2185b">女寮</span>
-        </div>
-        <div class="room-meta">
-          <span>空房</span>
-          <span>0/1 床</span>
-        </div>
-        <div class="occupancy-bar"><div style="width:0.0%;background:#4a7c59"></div></div>
-        <div class="mini-beds"><span class="mini-bed" style="background:#4a7c59"></span></div>
-        <div class="occupants" title="">暂无入住人员</div>
-      </div>
-
-      <div class="room-card">
-        <div class="room-header">
-          <div class="room-name">三楼女子寮-女子大寮</div>
-          <span class="room-tag" style="background:#fce4ec;color:#c2185b">女寮</span>
-        </div>
-        <div class="room-meta">
-          <span>满房</span>
-          <span>55/55 床</span>
-        </div>
-        <div class="occupancy-bar"><div style="width:100.0%;background:#a94442"></div></div>
-        <div class="mini-beds"><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span style="font-size:10px;color:var(--color-muted)">+15</span></div>
-        <div class="occupants" title="625觉观七-1、625觉观七-2、625觉观七-3、625觉观七-4、625觉观七-5、625觉观七-6、625觉观七-7、625觉观七-8、625觉观七-9、625觉观七-10、625觉观七-11、625觉观七-12、625觉观七-13、625觉观七-14、625觉观七-15、625觉观七-16、625觉观七-17、625觉观七-18、625觉观七-19、625觉观七-20、625觉观七-21、625觉观七-22、625觉观七-23、625觉观七-24、625觉观七-25、625觉观七-26、625觉观七-27、625觉观七-28、625觉观七-29、625觉观七-30、625觉观七-31、625觉观七-32、625觉观七-33、625觉观七-34、625觉观七-35、625觉观七-36、625觉观七-37、625觉观七-38、625觉观七-39、625觉观七-40、625觉观七-41、625觉观七-42、625觉观七-43、625觉观七-44、625觉观七-45、625觉观七-46、625觉观七-47、625觉观七-48、625觉观七-49、625觉观七-50、625觉观七-51、625觉观七-52、625觉观七-53、625觉观七-54、625觉观七-55">625觉观七-1、625觉观七-2、625觉观七-3、625觉观七-4、625觉观七-5、625觉观七-6、625觉观七…</div>
-      </div>
-
     </div>
-  </section>
 
-  <section class="section">
-    <div class="section-title">
-      <span>三楼贵宾房</span>
-      <span class="section-count">5 间房 · 入住 1/11</span>
+    <div class="legend">
+      <div class="legend-item">
+        <span class="dot" style="background: #4a7c59"></span>空房/有空床
+      </div>
+      <div class="legend-item">
+        <span class="dot" style="background: #c9a227"></span>部分入住
+      </div>
+      <div class="legend-item">
+        <span class="dot" style="background: #a94442"></span>满房
+      </div>
+      <div class="legend-item">
+        <span
+          class="dot"
+          style="background: #e3f2fd; border: 1px solid #1565c0"
+        ></span
+        >男寮
+      </div>
+      <div class="legend-item">
+        <span
+          class="dot"
+          style="background: #fce4ec; border: 1px solid #c2185b"
+        ></span
+        >女寮
+      </div>
     </div>
-    <div class="rooms-grid">
 
-      <div class="room-card">
-        <div class="room-header">
-          <div class="room-name">三楼贵宾房-贵宾房300</div>
-          <span class="room-tag" style="background:#f3f3f0;color:#6b6b6b">不限</span>
-        </div>
-        <div class="room-meta">
-          <span>部分入住</span>
-          <span>0/0 床</span>
-        </div>
-        <div class="occupancy-bar"><div style="width:0%;background:#9ca3af"></div></div>
-        <div class="mini-beds"></div>
-        <div class="occupants" title="">暂无入住人员</div>
+    <section class="section">
+      <div class="section-title">
+        <span>三楼女子寮</span>
+        <span class="section-count">8 间房 · 入住 63/72</span>
       </div>
+      <div class="rooms-grid">
+        <div class="room-card">
+          <div class="room-header">
+            <div class="room-name">三楼女子寮-301</div>
+            <span class="room-tag" style="background: #fce4ec; color: #c2185b"
+              >女寮</span
+            >
+          </div>
+          <div class="room-meta">
+            <span>满房</span>
+            <span>1/1 床</span>
+          </div>
+          <div class="occupancy-bar">
+            <div style="width: 100%; background: #a94442"></div>
+          </div>
+          <div class="mini-beds">
+            <span class="mini-bed" style="background: #a94442"></span>
+          </div>
+          <div class="occupants" title="师资部长">师资部长</div>
+        </div>
 
-      <div class="room-card">
-        <div class="room-header">
-          <div class="room-name">三楼贵宾房-贵宾房301</div>
-          <span class="room-tag" style="background:#f3f3f0;color:#6b6b6b">不限</span>
+        <div class="room-card">
+          <div class="room-header">
+            <div class="room-name">三楼女子寮-302</div>
+            <span class="room-tag" style="background: #fce4ec; color: #c2185b"
+              >女寮</span
+            >
+          </div>
+          <div class="room-meta">
+            <span>满房</span>
+            <span>3/3 床</span>
+          </div>
+          <div class="occupancy-bar">
+            <div style="width: 100%; background: #a94442"></div>
+          </div>
+          <div class="mini-beds">
+            <span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span>
+          </div>
+          <div class="occupants" title="625觉观七-1、625觉观七-2、625觉观七-3">
+            625觉观七-1、625觉观七-2、625觉观七-3
+          </div>
         </div>
-        <div class="room-meta">
-          <span>空房</span>
-          <span>0/2 床</span>
+
+        <div class="room-card">
+          <div class="room-header">
+            <div class="room-name">三楼女子寮-303</div>
+            <span class="room-tag" style="background: #fce4ec; color: #c2185b"
+              >女寮</span
+            >
+          </div>
+          <div class="room-meta">
+            <span>部分入住</span>
+            <span>1/3 床</span>
+          </div>
+          <div class="occupancy-bar">
+            <div style="width: 33.33333333333333%; background: #c9a227"></div>
+          </div>
+          <div class="mini-beds">
+            <span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #4a7c59"></span
+            ><span class="mini-bed" style="background: #4a7c59"></span>
+          </div>
+          <div class="occupants" title="韩庆红老师">韩庆红老师</div>
         </div>
-        <div class="occupancy-bar"><div style="width:0.0%;background:#4a7c59"></div></div>
-        <div class="mini-beds"><span class="mini-bed" style="background:#4a7c59"></span><span class="mini-bed" style="background:#4a7c59"></span></div>
-        <div class="occupants" title="">暂无入住人员</div>
+
+        <div class="room-card">
+          <div class="room-header">
+            <div class="room-name">三楼女子寮-305</div>
+            <span class="room-tag" style="background: #fce4ec; color: #c2185b"
+              >女寮</span
+            >
+          </div>
+          <div class="room-meta">
+            <span>部分入住</span>
+            <span>1/3 床</span>
+          </div>
+          <div class="occupancy-bar">
+            <div style="width: 33.33333333333333%; background: #c9a227"></div>
+          </div>
+          <div class="mini-beds">
+            <span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #4a7c59"></span
+            ><span class="mini-bed" style="background: #4a7c59"></span>
+          </div>
+          <div class="occupants" title="吉修老师">吉修老师</div>
+        </div>
+
+        <div class="room-card">
+          <div class="room-header">
+            <div class="room-name">三楼女子寮-306</div>
+            <span class="room-tag" style="background: #fce4ec; color: #c2185b"
+              >女寮</span
+            >
+          </div>
+          <div class="room-meta">
+            <span>部分入住</span>
+            <span>1/3 床</span>
+          </div>
+          <div class="occupancy-bar">
+            <div style="width: 33.33333333333333%; background: #c9a227"></div>
+          </div>
+          <div class="mini-beds">
+            <span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #4a7c59"></span
+            ><span class="mini-bed" style="background: #4a7c59"></span>
+          </div>
+          <div class="occupants" title="李睿老师">李睿老师</div>
+        </div>
+
+        <div class="room-card">
+          <div class="room-header">
+            <div class="room-name">三楼女子寮-307</div>
+            <span class="room-tag" style="background: #fce4ec; color: #c2185b"
+              >女寮</span
+            >
+          </div>
+          <div class="room-meta">
+            <span>部分入住</span>
+            <span>1/3 床</span>
+          </div>
+          <div class="occupancy-bar">
+            <div style="width: 33.33333333333333%; background: #c9a227"></div>
+          </div>
+          <div class="mini-beds">
+            <span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #4a7c59"></span
+            ><span class="mini-bed" style="background: #4a7c59"></span>
+          </div>
+          <div class="occupants" title="雪瑶老师">雪瑶老师</div>
+        </div>
+
+        <div class="room-card">
+          <div class="room-header">
+            <div class="room-name">三楼女子寮-308</div>
+            <span class="room-tag" style="background: #fce4ec; color: #c2185b"
+              >女寮</span
+            >
+          </div>
+          <div class="room-meta">
+            <span>空房</span>
+            <span>0/1 床</span>
+          </div>
+          <div class="occupancy-bar">
+            <div style="width: 0%; background: #4a7c59"></div>
+          </div>
+          <div class="mini-beds">
+            <span class="mini-bed" style="background: #4a7c59"></span>
+          </div>
+          <div class="occupants" title="">暂无入住人员</div>
+        </div>
+
+        <div class="room-card">
+          <div class="room-header">
+            <div class="room-name">三楼女子寮-女子大寮</div>
+            <span class="room-tag" style="background: #fce4ec; color: #c2185b"
+              >女寮</span
+            >
+          </div>
+          <div class="room-meta">
+            <span>满房</span>
+            <span>55/55 床</span>
+          </div>
+          <div class="occupancy-bar">
+            <div style="width: 100%; background: #a94442"></div>
+          </div>
+          <div class="mini-beds">
+            <span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span style="font-size: 10px; color: var(--color-muted)">+15</span>
+          </div>
+          <div
+            class="occupants"
+            title="625觉观七-1、625觉观七-2、625觉观七-3、625觉观七-4、625觉观七-5、625觉观七-6、625觉观七-7、625觉观七-8、625觉观七-9、625觉观七-10、625觉观七-11、625觉观七-12、625觉观七-13、625觉观七-14、625觉观七-15、625觉观七-16、625觉观七-17、625觉观七-18、625觉观七-19、625觉观七-20、625觉观七-21、625觉观七-22、625觉观七-23、625觉观七-24、625觉观七-25、625觉观七-26、625觉观七-27、625觉观七-28、625觉观七-29、625觉观七-30、625觉观七-31、625觉观七-32、625觉观七-33、625觉观七-34、625觉观七-35、625觉观七-36、625觉观七-37、625觉观七-38、625觉观七-39、625觉观七-40、625觉观七-41、625觉观七-42、625觉观七-43、625觉观七-44、625觉观七-45、625觉观七-46、625觉观七-47、625觉观七-48、625觉观七-49、625觉观七-50、625觉观七-51、625觉观七-52、625觉观七-53、625觉观七-54、625觉观七-55"
+          >
+            625觉观七-1、625觉观七-2、625觉观七-3、625觉观七-4、625觉观七-5、625觉观七-6、625觉观七…
+          </div>
+        </div>
       </div>
+    </section>
 
-      <div class="room-card">
-        <div class="room-header">
-          <div class="room-name">三楼贵宾房-贵宾房302</div>
-          <span class="room-tag" style="background:#f3f3f0;color:#6b6b6b">不限</span>
-        </div>
-        <div class="room-meta">
-          <span>部分入住</span>
-          <span>1/3 床</span>
-        </div>
-        <div class="occupancy-bar"><div style="width:33.33333333333333%;background:#c9a227"></div></div>
-        <div class="mini-beds"><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#4a7c59"></span><span class="mini-bed" style="background:#4a7c59"></span></div>
-        <div class="occupants" title="心净老师">心净老师</div>
+    <section class="section">
+      <div class="section-title">
+        <span>三楼贵宾房</span>
+        <span class="section-count">5 间房 · 入住 1/11</span>
       </div>
+      <div class="rooms-grid">
+        <div class="room-card">
+          <div class="room-header">
+            <div class="room-name">三楼贵宾房-贵宾房300</div>
+            <span class="room-tag" style="background: #f3f3f0; color: #6b6b6b"
+              >不限</span
+            >
+          </div>
+          <div class="room-meta">
+            <span>部分入住</span>
+            <span>0/0 床</span>
+          </div>
+          <div class="occupancy-bar">
+            <div style="width: 0%; background: #9ca3af"></div>
+          </div>
+          <div class="mini-beds"></div>
+          <div class="occupants" title="">暂无入住人员</div>
+        </div>
 
-      <div class="room-card">
-        <div class="room-header">
-          <div class="room-name">三楼贵宾房-贵宾房303</div>
-          <span class="room-tag" style="background:#f3f3f0;color:#6b6b6b">不限</span>
+        <div class="room-card">
+          <div class="room-header">
+            <div class="room-name">三楼贵宾房-贵宾房301</div>
+            <span class="room-tag" style="background: #f3f3f0; color: #6b6b6b"
+              >不限</span
+            >
+          </div>
+          <div class="room-meta">
+            <span>空房</span>
+            <span>0/2 床</span>
+          </div>
+          <div class="occupancy-bar">
+            <div style="width: 0%; background: #4a7c59"></div>
+          </div>
+          <div class="mini-beds">
+            <span class="mini-bed" style="background: #4a7c59"></span
+            ><span class="mini-bed" style="background: #4a7c59"></span>
+          </div>
+          <div class="occupants" title="">暂无入住人员</div>
         </div>
-        <div class="room-meta">
-          <span>空房</span>
-          <span>0/3 床</span>
+
+        <div class="room-card">
+          <div class="room-header">
+            <div class="room-name">三楼贵宾房-贵宾房302</div>
+            <span class="room-tag" style="background: #f3f3f0; color: #6b6b6b"
+              >不限</span
+            >
+          </div>
+          <div class="room-meta">
+            <span>部分入住</span>
+            <span>1/3 床</span>
+          </div>
+          <div class="occupancy-bar">
+            <div style="width: 33.33333333333333%; background: #c9a227"></div>
+          </div>
+          <div class="mini-beds">
+            <span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #4a7c59"></span
+            ><span class="mini-bed" style="background: #4a7c59"></span>
+          </div>
+          <div class="occupants" title="心净老师">心净老师</div>
         </div>
-        <div class="occupancy-bar"><div style="width:0.0%;background:#4a7c59"></div></div>
-        <div class="mini-beds"><span class="mini-bed" style="background:#4a7c59"></span><span class="mini-bed" style="background:#4a7c59"></span><span class="mini-bed" style="background:#4a7c59"></span></div>
-        <div class="occupants" title="">暂无入住人员</div>
+
+        <div class="room-card">
+          <div class="room-header">
+            <div class="room-name">三楼贵宾房-贵宾房303</div>
+            <span class="room-tag" style="background: #f3f3f0; color: #6b6b6b"
+              >不限</span
+            >
+          </div>
+          <div class="room-meta">
+            <span>空房</span>
+            <span>0/3 床</span>
+          </div>
+          <div class="occupancy-bar">
+            <div style="width: 0%; background: #4a7c59"></div>
+          </div>
+          <div class="mini-beds">
+            <span class="mini-bed" style="background: #4a7c59"></span
+            ><span class="mini-bed" style="background: #4a7c59"></span
+            ><span class="mini-bed" style="background: #4a7c59"></span>
+          </div>
+          <div class="occupants" title="">暂无入住人员</div>
+        </div>
+
+        <div class="room-card">
+          <div class="room-header">
+            <div class="room-name">三楼贵宾房-贵宾房305</div>
+            <span class="room-tag" style="background: #f3f3f0; color: #6b6b6b"
+              >不限</span
+            >
+          </div>
+          <div class="room-meta">
+            <span>空房</span>
+            <span>0/3 床</span>
+          </div>
+          <div class="occupancy-bar">
+            <div style="width: 0%; background: #4a7c59"></div>
+          </div>
+          <div class="mini-beds">
+            <span class="mini-bed" style="background: #4a7c59"></span
+            ><span class="mini-bed" style="background: #4a7c59"></span
+            ><span class="mini-bed" style="background: #4a7c59"></span>
+          </div>
+          <div class="occupants" title="">暂无入住人员</div>
+        </div>
       </div>
+    </section>
 
-      <div class="room-card">
-        <div class="room-header">
-          <div class="room-name">三楼贵宾房-贵宾房305</div>
-          <span class="room-tag" style="background:#f3f3f0;color:#6b6b6b">不限</span>
-        </div>
-        <div class="room-meta">
-          <span>空房</span>
-          <span>0/3 床</span>
-        </div>
-        <div class="occupancy-bar"><div style="width:0.0%;background:#4a7c59"></div></div>
-        <div class="mini-beds"><span class="mini-bed" style="background:#4a7c59"></span><span class="mini-bed" style="background:#4a7c59"></span><span class="mini-bed" style="background:#4a7c59"></span></div>
-        <div class="occupants" title="">暂无入住人员</div>
+    <section class="section">
+      <div class="section-title">
+        <span>二楼</span>
+        <span class="section-count">23 间房 · 入住 88/101</span>
       </div>
-
-    </div>
-  </section>
-
-  <section class="section">
-    <div class="section-title">
-      <span>二楼</span>
-      <span class="section-count">23 间房 · 入住 88/101</span>
-    </div>
-    <div class="rooms-grid">
-
-      <div class="room-card">
-        <div class="room-header">
-          <div class="room-name">二楼-201</div>
-          <span class="room-tag" style="background:#e3f2fd;color:#1565c0">男寮</span>
+      <div class="rooms-grid">
+        <div class="room-card">
+          <div class="room-header">
+            <div class="room-name">二楼-201</div>
+            <span class="room-tag" style="background: #e3f2fd; color: #1565c0"
+              >男寮</span
+            >
+          </div>
+          <div class="room-meta">
+            <span>部分入住</span>
+            <span>0/0 床</span>
+          </div>
+          <div class="occupancy-bar">
+            <div style="width: 0%; background: #9ca3af"></div>
+          </div>
+          <div class="mini-beds"></div>
+          <div class="occupants" title="">暂无入住人员</div>
         </div>
-        <div class="room-meta">
-          <span>部分入住</span>
-          <span>0/0 床</span>
+
+        <div class="room-card">
+          <div class="room-header">
+            <div class="room-name">二楼-202</div>
+            <span class="room-tag" style="background: #f3f3f0; color: #6b6b6b"
+              >不限</span
+            >
+          </div>
+          <div class="room-meta">
+            <span>部分入住</span>
+            <span>0/0 床</span>
+          </div>
+          <div class="occupancy-bar">
+            <div style="width: 0%; background: #9ca3af"></div>
+          </div>
+          <div class="mini-beds"></div>
+          <div class="occupants" title="">暂无入住人员</div>
         </div>
-        <div class="occupancy-bar"><div style="width:0%;background:#9ca3af"></div></div>
-        <div class="mini-beds"></div>
-        <div class="occupants" title="">暂无入住人员</div>
+
+        <div class="room-card">
+          <div class="room-header">
+            <div class="room-name">二楼-203</div>
+            <span class="room-tag" style="background: #f3f3f0; color: #6b6b6b"
+              >不限</span
+            >
+          </div>
+          <div class="room-meta">
+            <span>空房</span>
+            <span>0/2 床</span>
+          </div>
+          <div class="occupancy-bar">
+            <div style="width: 0%; background: #4a7c59"></div>
+          </div>
+          <div class="mini-beds">
+            <span class="mini-bed" style="background: #4a7c59"></span
+            ><span class="mini-bed" style="background: #4a7c59"></span>
+          </div>
+          <div class="occupants" title="">暂无入住人员</div>
+        </div>
+
+        <div class="room-card">
+          <div class="room-header">
+            <div class="room-name">二楼-205</div>
+            <span class="room-tag" style="background: #e3f2fd; color: #1565c0"
+              >男寮</span
+            >
+          </div>
+          <div class="room-meta">
+            <span>部分入住</span>
+            <span>0/0 床</span>
+          </div>
+          <div class="occupancy-bar">
+            <div style="width: 0%; background: #9ca3af"></div>
+          </div>
+          <div class="mini-beds"></div>
+          <div class="occupants" title="">暂无入住人员</div>
+        </div>
+
+        <div class="room-card">
+          <div class="room-header">
+            <div class="room-name">二楼-206</div>
+            <span class="room-tag" style="background: #f3f3f0; color: #6b6b6b"
+              >不限</span
+            >
+          </div>
+          <div class="room-meta">
+            <span>空房</span>
+            <span>0/2 床</span>
+          </div>
+          <div class="occupancy-bar">
+            <div style="width: 0%; background: #4a7c59"></div>
+          </div>
+          <div class="mini-beds">
+            <span class="mini-bed" style="background: #4a7c59"></span
+            ><span class="mini-bed" style="background: #4a7c59"></span>
+          </div>
+          <div class="occupants" title="">暂无入住人员</div>
+        </div>
+
+        <div class="room-card">
+          <div class="room-header">
+            <div class="room-name">二楼-207</div>
+            <span class="room-tag" style="background: #e3f2fd; color: #1565c0"
+              >男寮</span
+            >
+          </div>
+          <div class="room-meta">
+            <span>满房</span>
+            <span>1/1 床</span>
+          </div>
+          <div class="occupancy-bar">
+            <div style="width: 100%; background: #a94442"></div>
+          </div>
+          <div class="mini-beds">
+            <span class="mini-bed" style="background: #a94442"></span>
+          </div>
+          <div class="occupants" title="继护法师寮房">继护法师寮房</div>
+        </div>
+
+        <div class="room-card">
+          <div class="room-header">
+            <div class="room-name">二楼-208</div>
+            <span class="room-tag" style="background: #e3f2fd; color: #1565c0"
+              >男寮</span
+            >
+          </div>
+          <div class="room-meta">
+            <span>满房</span>
+            <span>2/2 床</span>
+          </div>
+          <div class="occupancy-bar">
+            <div style="width: 100%; background: #a94442"></div>
+          </div>
+          <div class="mini-beds">
+            <span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span>
+          </div>
+          <div class="occupants" title="法硠法师、法有法师寮房">
+            法硠法师、法有法师寮房
+          </div>
+        </div>
+
+        <div class="room-card">
+          <div class="room-header">
+            <div class="room-name">二楼-209</div>
+            <span class="room-tag" style="background: #f3f3f0; color: #6b6b6b"
+              >不限</span
+            >
+          </div>
+          <div class="room-meta">
+            <span>满房</span>
+            <span>5/5 床</span>
+          </div>
+          <div class="occupancy-bar">
+            <div style="width: 100%; background: #a94442"></div>
+          </div>
+          <div class="mini-beds">
+            <span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span>
+          </div>
+          <div
+            class="occupants"
+            title="客人/师资-1、客人/师资-2、客人/师资-3、客人/师资-4、客人/师资-5"
+          >
+            客人/师资-1、客人/师资-2、客人/师资-3、客人/师资-4、客人/师资-5
+          </div>
+        </div>
+
+        <div class="room-card">
+          <div class="room-header">
+            <div class="room-name">二楼-210</div>
+            <span class="room-tag" style="background: #f3f3f0; color: #6b6b6b"
+              >不限</span
+            >
+          </div>
+          <div class="room-meta">
+            <span>满房</span>
+            <span>4/4 床</span>
+          </div>
+          <div class="occupancy-bar">
+            <div style="width: 100%; background: #a94442"></div>
+          </div>
+          <div class="mini-beds">
+            <span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span>
+          </div>
+          <div
+            class="occupants"
+            title="客人/师资-1、客人/师资-2、客人/师资-3、客人/师资-4"
+          >
+            客人/师资-1、客人/师资-2、客人/师资-3、客人/师资-4
+          </div>
+        </div>
+
+        <div class="room-card">
+          <div class="room-header">
+            <div class="room-name">二楼-211</div>
+            <span class="room-tag" style="background: #f3f3f0; color: #6b6b6b"
+              >不限</span
+            >
+          </div>
+          <div class="room-meta">
+            <span>满房</span>
+            <span>4/4 床</span>
+          </div>
+          <div class="occupancy-bar">
+            <div style="width: 100%; background: #a94442"></div>
+          </div>
+          <div class="mini-beds">
+            <span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span>
+          </div>
+          <div
+            class="occupants"
+            title="客人/师资-1、客人/师资-2、客人/师资-3、客人/师资-4"
+          >
+            客人/师资-1、客人/师资-2、客人/师资-3、客人/师资-4
+          </div>
+        </div>
+
+        <div class="room-card">
+          <div class="room-header">
+            <div class="room-name">二楼-212</div>
+            <span class="room-tag" style="background: #f3f3f0; color: #6b6b6b"
+              >不限</span
+            >
+          </div>
+          <div class="room-meta">
+            <span>空房</span>
+            <span>0/3 床</span>
+          </div>
+          <div class="occupancy-bar">
+            <div style="width: 0%; background: #4a7c59"></div>
+          </div>
+          <div class="mini-beds">
+            <span class="mini-bed" style="background: #4a7c59"></span
+            ><span class="mini-bed" style="background: #4a7c59"></span
+            ><span class="mini-bed" style="background: #4a7c59"></span>
+          </div>
+          <div class="occupants" title="">暂无入住人员</div>
+        </div>
+
+        <div class="room-card">
+          <div class="room-header">
+            <div class="room-name">二楼-213</div>
+            <span class="room-tag" style="background: #e3f2fd; color: #1565c0"
+              >男寮</span
+            >
+          </div>
+          <div class="room-meta">
+            <span>部分入住</span>
+            <span>5/7 床</span>
+          </div>
+          <div class="occupancy-bar">
+            <div style="width: 71.42857142857143%; background: #c9a227"></div>
+          </div>
+          <div class="mini-beds">
+            <span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #4a7c59"></span
+            ><span class="mini-bed" style="background: #4a7c59"></span>
+          </div>
+          <div class="occupants" title="沙弥-1、沙弥-2、沙弥-3、沙弥-4、沙弥-5">
+            沙弥-1、沙弥-2、沙弥-3、沙弥-4、沙弥-5
+          </div>
+        </div>
+
+        <div class="room-card">
+          <div class="room-header">
+            <div class="room-name">二楼-215</div>
+            <span class="room-tag" style="background: #e3f2fd; color: #1565c0"
+              >男寮</span
+            >
+          </div>
+          <div class="room-meta">
+            <span>满房</span>
+            <span>8/8 床</span>
+          </div>
+          <div class="occupancy-bar">
+            <div style="width: 100%; background: #a94442"></div>
+          </div>
+          <div class="mini-beds">
+            <span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span>
+          </div>
+          <div
+            class="occupants"
+            title="男学员-1、男学员-2、男学员-3、男学员-4、男学员-5、男学员-6、男学员-7、男学员-8"
+          >
+            男学员-1、男学员-2、男学员-3、男学员-4、男学员-5、男学员-6、男学员-7、男学员-8
+          </div>
+        </div>
+
+        <div class="room-card">
+          <div class="room-header">
+            <div class="room-name">二楼-216</div>
+            <span class="room-tag" style="background: #e3f2fd; color: #1565c0"
+              >男寮</span
+            >
+          </div>
+          <div class="room-meta">
+            <span>满房</span>
+            <span>7/7 床</span>
+          </div>
+          <div class="occupancy-bar">
+            <div style="width: 100%; background: #a94442"></div>
+          </div>
+          <div class="mini-beds">
+            <span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span>
+          </div>
+          <div
+            class="occupants"
+            title="男学员-1、男学员-2、男学员-3、男学员-4、男学员-5、男学员-6、男学员-7"
+          >
+            男学员-1、男学员-2、男学员-3、男学员-4、男学员-5、男学员-6、男学员-7
+          </div>
+        </div>
+
+        <div class="room-card">
+          <div class="room-header">
+            <div class="room-name">二楼-217</div>
+            <span class="room-tag" style="background: #e3f2fd; color: #1565c0"
+              >男寮</span
+            >
+          </div>
+          <div class="room-meta">
+            <span>部分入住</span>
+            <span>4/7 床</span>
+          </div>
+          <div class="occupancy-bar">
+            <div style="width: 57.14285714285714%; background: #c9a227"></div>
+          </div>
+          <div class="mini-beds">
+            <span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #4a7c59"></span
+            ><span class="mini-bed" style="background: #4a7c59"></span
+            ><span class="mini-bed" style="background: #4a7c59"></span>
+          </div>
+          <div class="occupants" title="沙弥-1、沙弥-2、沙弥-3、沙弥-4">
+            沙弥-1、沙弥-2、沙弥-3、沙弥-4
+          </div>
+        </div>
+
+        <div class="room-card">
+          <div class="room-header">
+            <div class="room-name">二楼-大禅堂东单1楼值守（男）</div>
+            <span class="room-tag" style="background: #e3f2fd; color: #1565c0"
+              >男寮</span
+            >
+          </div>
+          <div class="room-meta">
+            <span>满房</span>
+            <span>1/1 床</span>
+          </div>
+          <div class="occupancy-bar">
+            <div style="width: 100%; background: #a94442"></div>
+          </div>
+          <div class="mini-beds">
+            <span class="mini-bed" style="background: #a94442"></span>
+          </div>
+          <div class="occupants" title="刘平">刘平</div>
+        </div>
+
+        <div class="room-card">
+          <div class="room-header">
+            <div class="room-name">二楼-大禅堂东单1楼（男）</div>
+            <span class="room-tag" style="background: #e3f2fd; color: #1565c0"
+              >男寮</span
+            >
+          </div>
+          <div class="room-meta">
+            <span>满房</span>
+            <span>10/10 床</span>
+          </div>
+          <div class="occupancy-bar">
+            <div style="width: 100%; background: #a94442"></div>
+          </div>
+          <div class="mini-beds">
+            <span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span>
+          </div>
+          <div
+            class="occupants"
+            title="学员-1、学员-2、学员-3、学员-4、学员-5、学员-6、学员-7、学员-8、学员-9、学员-10"
+          >
+            学员-1、学员-2、学员-3、学员-4、学员-5、学员-6、学员-7、学员-8、学员-9、学员-10
+          </div>
+        </div>
+
+        <div class="room-card">
+          <div class="room-header">
+            <div class="room-name">二楼-大禅堂东单2楼值守（男）</div>
+            <span class="room-tag" style="background: #e3f2fd; color: #1565c0"
+              >男寮</span
+            >
+          </div>
+          <div class="room-meta">
+            <span>满房</span>
+            <span>2/2 床</span>
+          </div>
+          <div class="occupancy-bar">
+            <div style="width: 100%; background: #a94442"></div>
+          </div>
+          <div class="mini-beds">
+            <span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span>
+          </div>
+          <div class="occupants" title="学员-1、学员-2">学员-1、学员-2</div>
+        </div>
+
+        <div class="room-card">
+          <div class="room-header">
+            <div class="room-name">二楼-大禅堂东单2楼（男）</div>
+            <span class="room-tag" style="background: #e3f2fd; color: #1565c0"
+              >男寮</span
+            >
+          </div>
+          <div class="room-meta">
+            <span>满房</span>
+            <span>14/14 床</span>
+          </div>
+          <div class="occupancy-bar">
+            <div style="width: 100%; background: #a94442"></div>
+          </div>
+          <div class="mini-beds">
+            <span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span>
+          </div>
+          <div
+            class="occupants"
+            title="学员-1、学员-2、学员-3、学员-4、学员-5、学员-6、学员-7、学员-8、学员-9、学员-10、学员-11、学员-12、学员-13、学员-14"
+          >
+            学员-1、学员-2、学员-3、学员-4、学员-5、学员-6、学员-7、学员-8、学员-9、学员-10、学员-11、学员-…
+          </div>
+        </div>
+
+        <div class="room-card">
+          <div class="room-header">
+            <div class="room-name">二楼-大禅堂东单云水寮</div>
+            <span class="room-tag" style="background: #e3f2fd; color: #1565c0"
+              >男寮</span
+            >
+          </div>
+          <div class="room-meta">
+            <span>满房</span>
+            <span>9/9 床</span>
+          </div>
+          <div class="occupancy-bar">
+            <div style="width: 100%; background: #a94442"></div>
+          </div>
+          <div class="mini-beds">
+            <span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span>
+          </div>
+          <div
+            class="occupants"
+            title="学员-1、学员-2、学员-3、学员-4、学员-5、学员-6、学员-7、学员-8、学员-9"
+          >
+            学员-1、学员-2、学员-3、学员-4、学员-5、学员-6、学员-7、学员-8、学员-9
+          </div>
+        </div>
+
+        <div class="room-card">
+          <div class="room-header">
+            <div class="room-name">二楼-大禅堂西单1楼值守（男）</div>
+            <span class="room-tag" style="background: #e3f2fd; color: #1565c0"
+              >男寮</span
+            >
+          </div>
+          <div class="room-meta">
+            <span>满房</span>
+            <span>1/1 床</span>
+          </div>
+          <div class="occupancy-bar">
+            <div style="width: 100%; background: #a94442"></div>
+          </div>
+          <div class="mini-beds">
+            <span class="mini-bed" style="background: #a94442"></span>
+          </div>
+          <div class="occupants" title="梁文">梁文</div>
+        </div>
+
+        <div class="room-card">
+          <div class="room-header">
+            <div class="room-name">二楼-大禅堂西单2楼值守（男）</div>
+            <span class="room-tag" style="background: #e3f2fd; color: #1565c0"
+              >男寮</span
+            >
+          </div>
+          <div class="room-meta">
+            <span>部分入住</span>
+            <span>1/2 床</span>
+          </div>
+          <div class="occupancy-bar">
+            <div style="width: 50%; background: #c9a227"></div>
+          </div>
+          <div class="mini-beds">
+            <span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #4a7c59"></span>
+          </div>
+          <div class="occupants" title="法愿">法愿</div>
+        </div>
+
+        <div class="room-card">
+          <div class="room-header">
+            <div class="room-name">二楼-大禅堂西单2楼（男）</div>
+            <span class="room-tag" style="background: #e3f2fd; color: #1565c0"
+              >男寮</span
+            >
+          </div>
+          <div class="room-meta">
+            <span>满房</span>
+            <span>10/10 床</span>
+          </div>
+          <div class="occupancy-bar">
+            <div style="width: 100%; background: #a94442"></div>
+          </div>
+          <div class="mini-beds">
+            <span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span>
+          </div>
+          <div
+            class="occupants"
+            title="学员-1、学员-2、学员-3、学员-4、学员-5、学员-6、学员-7、学员-8、学员-9、学员-10"
+          >
+            学员-1、学员-2、学员-3、学员-4、学员-5、学员-6、学员-7、学员-8、学员-9、学员-10
+          </div>
+        </div>
       </div>
+    </section>
 
-      <div class="room-card">
-        <div class="room-header">
-          <div class="room-name">二楼-202</div>
-          <span class="room-tag" style="background:#f3f3f0;color:#6b6b6b">不限</span>
-        </div>
-        <div class="room-meta">
-          <span>部分入住</span>
-          <span>0/0 床</span>
-        </div>
-        <div class="occupancy-bar"><div style="width:0%;background:#9ca3af"></div></div>
-        <div class="mini-beds"></div>
-        <div class="occupants" title="">暂无入住人员</div>
+    <section class="section">
+      <div class="section-title">
+        <span>一楼</span>
+        <span class="section-count">17 间房 · 入住 44/86</span>
       </div>
+      <div class="rooms-grid">
+        <div class="room-card">
+          <div class="room-header">
+            <div class="room-name">一楼-101</div>
+            <span class="room-tag" style="background: #f3f3f0; color: #6b6b6b"
+              >不限</span
+            >
+          </div>
+          <div class="room-meta">
+            <span>部分入住</span>
+            <span>0/0 床</span>
+          </div>
+          <div class="occupancy-bar">
+            <div style="width: 0%; background: #9ca3af"></div>
+          </div>
+          <div class="mini-beds"></div>
+          <div class="occupants" title="">暂无入住人员</div>
+        </div>
 
-      <div class="room-card">
-        <div class="room-header">
-          <div class="room-name">二楼-203</div>
-          <span class="room-tag" style="background:#f3f3f0;color:#6b6b6b">不限</span>
+        <div class="room-card">
+          <div class="room-header">
+            <div class="room-name">一楼-102</div>
+            <span class="room-tag" style="background: #f3f3f0; color: #6b6b6b"
+              >不限</span
+            >
+          </div>
+          <div class="room-meta">
+            <span>部分入住</span>
+            <span>0/0 床</span>
+          </div>
+          <div class="occupancy-bar">
+            <div style="width: 0%; background: #9ca3af"></div>
+          </div>
+          <div class="mini-beds"></div>
+          <div class="occupants" title="">暂无入住人员</div>
         </div>
-        <div class="room-meta">
-          <span>空房</span>
-          <span>0/2 床</span>
+
+        <div class="room-card">
+          <div class="room-header">
+            <div class="room-name">一楼-103</div>
+            <span class="room-tag" style="background: #f3f3f0; color: #6b6b6b"
+              >不限</span
+            >
+          </div>
+          <div class="room-meta">
+            <span>部分入住</span>
+            <span>0/0 床</span>
+          </div>
+          <div class="occupancy-bar">
+            <div style="width: 0%; background: #9ca3af"></div>
+          </div>
+          <div class="mini-beds"></div>
+          <div class="occupants" title="">暂无入住人员</div>
         </div>
-        <div class="occupancy-bar"><div style="width:0.0%;background:#4a7c59"></div></div>
-        <div class="mini-beds"><span class="mini-bed" style="background:#4a7c59"></span><span class="mini-bed" style="background:#4a7c59"></span></div>
-        <div class="occupants" title="">暂无入住人员</div>
+
+        <div class="room-card">
+          <div class="room-header">
+            <div class="room-name">一楼-105</div>
+            <span class="room-tag" style="background: #f3f3f0; color: #6b6b6b"
+              >不限</span
+            >
+          </div>
+          <div class="room-meta">
+            <span>部分入住</span>
+            <span>0/0 床</span>
+          </div>
+          <div class="occupancy-bar">
+            <div style="width: 0%; background: #9ca3af"></div>
+          </div>
+          <div class="mini-beds"></div>
+          <div class="occupants" title="">暂无入住人员</div>
+        </div>
+
+        <div class="room-card">
+          <div class="room-header">
+            <div class="room-name">一楼-106</div>
+            <span class="room-tag" style="background: #f3f3f0; color: #6b6b6b"
+              >不限</span
+            >
+          </div>
+          <div class="room-meta">
+            <span>部分入住</span>
+            <span>2/6 床</span>
+          </div>
+          <div class="occupancy-bar">
+            <div style="width: 33.33333333333333%; background: #c9a227"></div>
+          </div>
+          <div class="mini-beds">
+            <span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #4a7c59"></span
+            ><span class="mini-bed" style="background: #4a7c59"></span
+            ><span class="mini-bed" style="background: #4a7c59"></span
+            ><span class="mini-bed" style="background: #4a7c59"></span>
+          </div>
+          <div class="occupants" title="姜老师、卢老师">姜老师、卢老师</div>
+        </div>
+
+        <div class="room-card">
+          <div class="room-header">
+            <div class="room-name">一楼-107</div>
+            <span class="room-tag" style="background: #e3f2fd; color: #1565c0"
+              >男寮</span
+            >
+          </div>
+          <div class="room-meta">
+            <span>满房</span>
+            <span>6/6 床</span>
+          </div>
+          <div class="occupancy-bar">
+            <div style="width: 100%; background: #a94442"></div>
+          </div>
+          <div class="mini-beds">
+            <span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span>
+          </div>
+          <div
+            class="occupants"
+            title="后勤男义工-1、后勤男义工-2、后勤男义工-3、后勤男义工-4、后勤男义工-5、后勤男义工-6"
+          >
+            后勤男义工-1、后勤男义工-2、后勤男义工-3、后勤男义工-4、后勤男义工-5、后勤男义工-6
+          </div>
+        </div>
+
+        <div class="room-card">
+          <div class="room-header">
+            <div class="room-name">一楼-108</div>
+            <span class="room-tag" style="background: #f3f3f0; color: #6b6b6b"
+              >不限</span
+            >
+          </div>
+          <div class="room-meta">
+            <span>部分入住</span>
+            <span>1/6 床</span>
+          </div>
+          <div class="occupancy-bar">
+            <div style="width: 16.666666666666664%; background: #c9a227"></div>
+          </div>
+          <div class="mini-beds">
+            <span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #4a7c59"></span
+            ><span class="mini-bed" style="background: #4a7c59"></span
+            ><span class="mini-bed" style="background: #4a7c59"></span
+            ><span class="mini-bed" style="background: #4a7c59"></span
+            ><span class="mini-bed" style="background: #4a7c59"></span>
+          </div>
+          <div class="occupants" title="原李勇老师房间">原李勇老师房间</div>
+        </div>
+
+        <div class="room-card">
+          <div class="room-header">
+            <div class="room-name">一楼-109</div>
+            <span class="room-tag" style="background: #f3f3f0; color: #6b6b6b"
+              >不限</span
+            >
+          </div>
+          <div class="room-meta">
+            <span>部分入住</span>
+            <span>1/6 床</span>
+          </div>
+          <div class="occupancy-bar">
+            <div style="width: 16.666666666666664%; background: #c9a227"></div>
+          </div>
+          <div class="mini-beds">
+            <span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #4a7c59"></span
+            ><span class="mini-bed" style="background: #4a7c59"></span
+            ><span class="mini-bed" style="background: #4a7c59"></span
+            ><span class="mini-bed" style="background: #4a7c59"></span
+            ><span class="mini-bed" style="background: #4a7c59"></span>
+          </div>
+          <div class="occupants" title="曾咏梅">曾咏梅</div>
+        </div>
+
+        <div class="room-card">
+          <div class="room-header">
+            <div class="room-name">一楼-110</div>
+            <span class="room-tag" style="background: #f3f3f0; color: #6b6b6b"
+              >不限</span
+            >
+          </div>
+          <div class="room-meta">
+            <span>部分入住</span>
+            <span>1/6 床</span>
+          </div>
+          <div class="occupancy-bar">
+            <div style="width: 16.666666666666664%; background: #c9a227"></div>
+          </div>
+          <div class="mini-beds">
+            <span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #4a7c59"></span
+            ><span class="mini-bed" style="background: #4a7c59"></span
+            ><span class="mini-bed" style="background: #4a7c59"></span
+            ><span class="mini-bed" style="background: #4a7c59"></span
+            ><span class="mini-bed" style="background: #4a7c59"></span>
+          </div>
+          <div class="occupants" title="客房">客房</div>
+        </div>
+
+        <div class="room-card">
+          <div class="room-header">
+            <div class="room-name">一楼-111</div>
+            <span class="room-tag" style="background: #f3f3f0; color: #6b6b6b"
+              >不限</span
+            >
+          </div>
+          <div class="room-meta">
+            <span>部分入住</span>
+            <span>2/6 床</span>
+          </div>
+          <div class="occupancy-bar">
+            <div style="width: 33.33333333333333%; background: #c9a227"></div>
+          </div>
+          <div class="mini-beds">
+            <span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #4a7c59"></span
+            ><span class="mini-bed" style="background: #4a7c59"></span
+            ><span class="mini-bed" style="background: #4a7c59"></span
+            ><span class="mini-bed" style="background: #4a7c59"></span>
+          </div>
+          <div class="occupants" title="白东霞、彭义芳">白东霞、彭义芳</div>
+        </div>
+
+        <div class="room-card">
+          <div class="room-header">
+            <div class="room-name">一楼-112</div>
+            <span class="room-tag" style="background: #f3f3f0; color: #6b6b6b"
+              >不限</span
+            >
+          </div>
+          <div class="room-meta">
+            <span>空房</span>
+            <span>0/3 床</span>
+          </div>
+          <div class="occupancy-bar">
+            <div style="width: 0%; background: #4a7c59"></div>
+          </div>
+          <div class="mini-beds">
+            <span class="mini-bed" style="background: #4a7c59"></span
+            ><span class="mini-bed" style="background: #4a7c59"></span
+            ><span class="mini-bed" style="background: #4a7c59"></span>
+          </div>
+          <div class="occupants" title="">暂无入住人员</div>
+        </div>
+
+        <div class="room-card">
+          <div class="room-header">
+            <div class="room-name">一楼-113</div>
+            <span class="room-tag" style="background: #f3f3f0; color: #6b6b6b"
+              >不限</span
+            >
+          </div>
+          <div class="room-meta">
+            <span>空房</span>
+            <span>0/15 床</span>
+          </div>
+          <div class="occupancy-bar">
+            <div style="width: 0%; background: #4a7c59"></div>
+          </div>
+          <div class="mini-beds">
+            <span class="mini-bed" style="background: #4a7c59"></span
+            ><span class="mini-bed" style="background: #4a7c59"></span
+            ><span class="mini-bed" style="background: #4a7c59"></span
+            ><span class="mini-bed" style="background: #4a7c59"></span
+            ><span class="mini-bed" style="background: #4a7c59"></span
+            ><span class="mini-bed" style="background: #4a7c59"></span
+            ><span class="mini-bed" style="background: #4a7c59"></span
+            ><span class="mini-bed" style="background: #4a7c59"></span
+            ><span class="mini-bed" style="background: #4a7c59"></span
+            ><span class="mini-bed" style="background: #4a7c59"></span
+            ><span class="mini-bed" style="background: #4a7c59"></span
+            ><span class="mini-bed" style="background: #4a7c59"></span
+            ><span class="mini-bed" style="background: #4a7c59"></span
+            ><span class="mini-bed" style="background: #4a7c59"></span
+            ><span class="mini-bed" style="background: #4a7c59"></span>
+          </div>
+          <div class="occupants" title="">暂无入住人员</div>
+        </div>
+
+        <div class="room-card">
+          <div class="room-header">
+            <div class="room-name">一楼-115</div>
+            <span class="room-tag" style="background: #fce4ec; color: #c2185b"
+              >女寮</span
+            >
+          </div>
+          <div class="room-meta">
+            <span>满房</span>
+            <span>12/12 床</span>
+          </div>
+          <div class="occupancy-bar">
+            <div style="width: 100%; background: #a94442"></div>
+          </div>
+          <div class="mini-beds">
+            <span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span>
+          </div>
+          <div
+            class="occupants"
+            title="女义工-1、女义工-2、女义工-3、女义工-4、女义工-5、女义工-6、女义工-7、女义工-8、女义工-9、女义工-10、女义工-11、女义工-12"
+          >
+            女义工-1、女义工-2、女义工-3、女义工-4、女义工-5、女义工-6、女义工-7、女义工-8、女义工-9、女义工-10…
+          </div>
+        </div>
+
+        <div class="room-card">
+          <div class="room-header">
+            <div class="room-name">一楼-116</div>
+            <span class="room-tag" style="background: #f3f3f0; color: #6b6b6b"
+              >不限</span
+            >
+          </div>
+          <div class="room-meta">
+            <span>满房</span>
+            <span>18/18 床</span>
+          </div>
+          <div class="occupancy-bar">
+            <div style="width: 100%; background: #a94442"></div>
+          </div>
+          <div class="mini-beds">
+            <span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span>
+          </div>
+          <div
+            class="occupants"
+            title="学员-1、学员-2、学员-3、学员-4、学员-5、学员-6、学员-7、学员-8、学员-9、学员-10、学员-11、学员-12、学员-13、学员-14、学员-15、学员-16、学员-17、学员-18"
+          >
+            学员-1、学员-2、学员-3、学员-4、学员-5、学员-6、学员-7、学员-8、学员-9、学员-10、学员-11、学员-…
+          </div>
+        </div>
+
+        <div class="room-card">
+          <div class="room-header">
+            <div class="room-name">一楼-117</div>
+            <span class="room-tag" style="background: #f3f3f0; color: #6b6b6b"
+              >不限</span
+            >
+          </div>
+          <div class="room-meta">
+            <span>部分入住</span>
+            <span>0/0 床</span>
+          </div>
+          <div class="occupancy-bar">
+            <div style="width: 0%; background: #9ca3af"></div>
+          </div>
+          <div class="mini-beds"></div>
+          <div class="occupants" title="">暂无入住人员</div>
+        </div>
+
+        <div class="room-card">
+          <div class="room-header">
+            <div class="room-name">一楼-118</div>
+            <span class="room-tag" style="background: #f3f3f0; color: #6b6b6b"
+              >不限</span
+            >
+          </div>
+          <div class="room-meta">
+            <span>空房</span>
+            <span>0/1 床</span>
+          </div>
+          <div class="occupancy-bar">
+            <div style="width: 0%; background: #4a7c59"></div>
+          </div>
+          <div class="mini-beds">
+            <span class="mini-bed" style="background: #4a7c59"></span>
+          </div>
+          <div class="occupants" title="">暂无入住人员</div>
+        </div>
+
+        <div class="room-card">
+          <div class="room-header">
+            <div class="room-name">一楼-茶水间</div>
+            <span class="room-tag" style="background: #f3f3f0; color: #6b6b6b"
+              >不限</span
+            >
+          </div>
+          <div class="room-meta">
+            <span>满房</span>
+            <span>1/1 床</span>
+          </div>
+          <div class="occupancy-bar">
+            <div style="width: 100%; background: #a94442"></div>
+          </div>
+          <div class="mini-beds">
+            <span class="mini-bed" style="background: #a94442"></span>
+          </div>
+          <div class="occupants" title="朱安陵">朱安陵</div>
+        </div>
       </div>
+    </section>
 
-      <div class="room-card">
-        <div class="room-header">
-          <div class="room-name">二楼-205</div>
-          <span class="room-tag" style="background:#e3f2fd;color:#1565c0">男寮</span>
-        </div>
-        <div class="room-meta">
-          <span>部分入住</span>
-          <span>0/0 床</span>
-        </div>
-        <div class="occupancy-bar"><div style="width:0%;background:#9ca3af"></div></div>
-        <div class="mini-beds"></div>
-        <div class="occupants" title="">暂无入住人员</div>
+    <section class="section">
+      <div class="section-title">
+        <span>备用床</span>
+        <span class="section-count">2 间房 · 入住 0/120</span>
       </div>
+      <div class="rooms-grid">
+        <div class="room-card">
+          <div class="room-header">
+            <div class="room-name">备用床-垫子</div>
+            <span class="room-tag" style="background: #f3f3f0; color: #6b6b6b"
+              >不限</span
+            >
+          </div>
+          <div class="room-meta">
+            <span>空房</span>
+            <span>0/70 床</span>
+          </div>
+          <div class="occupancy-bar">
+            <div style="width: 0%; background: #4a7c59"></div>
+          </div>
+          <div class="mini-beds">
+            <span class="mini-bed" style="background: #4a7c59"></span
+            ><span class="mini-bed" style="background: #4a7c59"></span
+            ><span class="mini-bed" style="background: #4a7c59"></span
+            ><span class="mini-bed" style="background: #4a7c59"></span
+            ><span class="mini-bed" style="background: #4a7c59"></span
+            ><span class="mini-bed" style="background: #4a7c59"></span
+            ><span class="mini-bed" style="background: #4a7c59"></span
+            ><span class="mini-bed" style="background: #4a7c59"></span
+            ><span class="mini-bed" style="background: #4a7c59"></span
+            ><span class="mini-bed" style="background: #4a7c59"></span
+            ><span class="mini-bed" style="background: #4a7c59"></span
+            ><span class="mini-bed" style="background: #4a7c59"></span
+            ><span class="mini-bed" style="background: #4a7c59"></span
+            ><span class="mini-bed" style="background: #4a7c59"></span
+            ><span class="mini-bed" style="background: #4a7c59"></span
+            ><span class="mini-bed" style="background: #4a7c59"></span
+            ><span class="mini-bed" style="background: #4a7c59"></span
+            ><span class="mini-bed" style="background: #4a7c59"></span
+            ><span class="mini-bed" style="background: #4a7c59"></span
+            ><span class="mini-bed" style="background: #4a7c59"></span
+            ><span class="mini-bed" style="background: #4a7c59"></span
+            ><span class="mini-bed" style="background: #4a7c59"></span
+            ><span class="mini-bed" style="background: #4a7c59"></span
+            ><span class="mini-bed" style="background: #4a7c59"></span
+            ><span class="mini-bed" style="background: #4a7c59"></span
+            ><span class="mini-bed" style="background: #4a7c59"></span
+            ><span class="mini-bed" style="background: #4a7c59"></span
+            ><span class="mini-bed" style="background: #4a7c59"></span
+            ><span class="mini-bed" style="background: #4a7c59"></span
+            ><span class="mini-bed" style="background: #4a7c59"></span
+            ><span class="mini-bed" style="background: #4a7c59"></span
+            ><span class="mini-bed" style="background: #4a7c59"></span
+            ><span class="mini-bed" style="background: #4a7c59"></span
+            ><span class="mini-bed" style="background: #4a7c59"></span
+            ><span class="mini-bed" style="background: #4a7c59"></span
+            ><span class="mini-bed" style="background: #4a7c59"></span
+            ><span class="mini-bed" style="background: #4a7c59"></span
+            ><span class="mini-bed" style="background: #4a7c59"></span
+            ><span class="mini-bed" style="background: #4a7c59"></span
+            ><span class="mini-bed" style="background: #4a7c59"></span
+            ><span style="font-size: 10px; color: var(--color-muted)">+30</span>
+          </div>
+          <div class="occupants" title="">暂无入住人员</div>
+        </div>
 
-      <div class="room-card">
-        <div class="room-header">
-          <div class="room-name">二楼-206</div>
-          <span class="room-tag" style="background:#f3f3f0;color:#6b6b6b">不限</span>
+        <div class="room-card">
+          <div class="room-header">
+            <div class="room-name">备用床-折叠床</div>
+            <span class="room-tag" style="background: #f3f3f0; color: #6b6b6b"
+              >不限</span
+            >
+          </div>
+          <div class="room-meta">
+            <span>空房</span>
+            <span>0/50 床</span>
+          </div>
+          <div class="occupancy-bar">
+            <div style="width: 0%; background: #4a7c59"></div>
+          </div>
+          <div class="mini-beds">
+            <span class="mini-bed" style="background: #4a7c59"></span
+            ><span class="mini-bed" style="background: #4a7c59"></span
+            ><span class="mini-bed" style="background: #4a7c59"></span
+            ><span class="mini-bed" style="background: #4a7c59"></span
+            ><span class="mini-bed" style="background: #4a7c59"></span
+            ><span class="mini-bed" style="background: #4a7c59"></span
+            ><span class="mini-bed" style="background: #4a7c59"></span
+            ><span class="mini-bed" style="background: #4a7c59"></span
+            ><span class="mini-bed" style="background: #4a7c59"></span
+            ><span class="mini-bed" style="background: #4a7c59"></span
+            ><span class="mini-bed" style="background: #4a7c59"></span
+            ><span class="mini-bed" style="background: #4a7c59"></span
+            ><span class="mini-bed" style="background: #4a7c59"></span
+            ><span class="mini-bed" style="background: #4a7c59"></span
+            ><span class="mini-bed" style="background: #4a7c59"></span
+            ><span class="mini-bed" style="background: #4a7c59"></span
+            ><span class="mini-bed" style="background: #4a7c59"></span
+            ><span class="mini-bed" style="background: #4a7c59"></span
+            ><span class="mini-bed" style="background: #4a7c59"></span
+            ><span class="mini-bed" style="background: #4a7c59"></span
+            ><span class="mini-bed" style="background: #4a7c59"></span
+            ><span class="mini-bed" style="background: #4a7c59"></span
+            ><span class="mini-bed" style="background: #4a7c59"></span
+            ><span class="mini-bed" style="background: #4a7c59"></span
+            ><span class="mini-bed" style="background: #4a7c59"></span
+            ><span class="mini-bed" style="background: #4a7c59"></span
+            ><span class="mini-bed" style="background: #4a7c59"></span
+            ><span class="mini-bed" style="background: #4a7c59"></span
+            ><span class="mini-bed" style="background: #4a7c59"></span
+            ><span class="mini-bed" style="background: #4a7c59"></span
+            ><span class="mini-bed" style="background: #4a7c59"></span
+            ><span class="mini-bed" style="background: #4a7c59"></span
+            ><span class="mini-bed" style="background: #4a7c59"></span
+            ><span class="mini-bed" style="background: #4a7c59"></span
+            ><span class="mini-bed" style="background: #4a7c59"></span
+            ><span class="mini-bed" style="background: #4a7c59"></span
+            ><span class="mini-bed" style="background: #4a7c59"></span
+            ><span class="mini-bed" style="background: #4a7c59"></span
+            ><span class="mini-bed" style="background: #4a7c59"></span
+            ><span class="mini-bed" style="background: #4a7c59"></span
+            ><span style="font-size: 10px; color: var(--color-muted)">+10</span>
+          </div>
+          <div class="occupants" title="">暂无入住人员</div>
         </div>
-        <div class="room-meta">
-          <span>空房</span>
-          <span>0/2 床</span>
-        </div>
-        <div class="occupancy-bar"><div style="width:0.0%;background:#4a7c59"></div></div>
-        <div class="mini-beds"><span class="mini-bed" style="background:#4a7c59"></span><span class="mini-bed" style="background:#4a7c59"></span></div>
-        <div class="occupants" title="">暂无入住人员</div>
       </div>
+    </section>
 
-      <div class="room-card">
-        <div class="room-header">
-          <div class="room-name">二楼-207</div>
-          <span class="room-tag" style="background:#e3f2fd;color:#1565c0">男寮</span>
-        </div>
-        <div class="room-meta">
-          <span>满房</span>
-          <span>1/1 床</span>
-        </div>
-        <div class="occupancy-bar"><div style="width:100.0%;background:#a94442"></div></div>
-        <div class="mini-beds"><span class="mini-bed" style="background:#a94442"></span></div>
-        <div class="occupants" title="继护法师寮房">继护法师寮房</div>
+    <section class="section">
+      <div class="section-title">
+        <span>负一楼</span>
+        <span class="section-count">5 间房 · 入住 24/41</span>
       </div>
+      <div class="rooms-grid">
+        <div class="room-card">
+          <div class="room-header">
+            <div class="room-name">负一楼-B01（靠电梯）</div>
+            <span class="room-tag" style="background: #e3f2fd; color: #1565c0"
+              >男寮</span
+            >
+          </div>
+          <div class="room-meta">
+            <span>满房</span>
+            <span>10/10 床</span>
+          </div>
+          <div class="occupancy-bar">
+            <div style="width: 100%; background: #a94442"></div>
+          </div>
+          <div class="mini-beds">
+            <span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span>
+          </div>
+          <div
+            class="occupants"
+            title="男学员-1、男学员-2、男学员-3、男学员-4、男学员-5、男学员-6、男学员-7、男学员-8、男学员-9、男学员-10"
+          >
+            男学员-1、男学员-2、男学员-3、男学员-4、男学员-5、男学员-6、男学员-7、男学员-8、男学员-9、男学员-10
+          </div>
+        </div>
 
-      <div class="room-card">
-        <div class="room-header">
-          <div class="room-name">二楼-208</div>
-          <span class="room-tag" style="background:#e3f2fd;color:#1565c0">男寮</span>
+        <div class="room-card">
+          <div class="room-header">
+            <div class="room-name">负一楼-B02（靠门口）</div>
+            <span class="room-tag" style="background: #e3f2fd; color: #1565c0"
+              >男寮</span
+            >
+          </div>
+          <div class="room-meta">
+            <span>满房</span>
+            <span>7/7 床</span>
+          </div>
+          <div class="occupancy-bar">
+            <div style="width: 100%; background: #a94442"></div>
+          </div>
+          <div class="mini-beds">
+            <span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span>
+          </div>
+          <div
+            class="occupants"
+            title="男义工-1、男义工-2、男义工-3、男义工-4、男义工-5、男义工-6、男义工-7"
+          >
+            男义工-1、男义工-2、男义工-3、男义工-4、男义工-5、男义工-6、男义工-7
+          </div>
         </div>
-        <div class="room-meta">
-          <span>满房</span>
-          <span>2/2 床</span>
+
+        <div class="room-card">
+          <div class="room-header">
+            <div class="room-name">负一楼-B03</div>
+            <span class="room-tag" style="background: #fce4ec; color: #c2185b"
+              >女寮</span
+            >
+          </div>
+          <div class="room-meta">
+            <span>满房</span>
+            <span>6/6 床</span>
+          </div>
+          <div class="occupancy-bar">
+            <div style="width: 100%; background: #a94442"></div>
+          </div>
+          <div class="mini-beds">
+            <span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span>
+          </div>
+          <div
+            class="occupants"
+            title="女义工-1、女义工-2、女义工-3、女义工-4、女义工-5、女义工-6"
+          >
+            女义工-1、女义工-2、女义工-3、女义工-4、女义工-5、女义工-6
+          </div>
         </div>
-        <div class="occupancy-bar"><div style="width:100.0%;background:#a94442"></div></div>
-        <div class="mini-beds"><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span></div>
-        <div class="occupants" title="法硠法师、法有法师寮房">法硠法师、法有法师寮房</div>
+
+        <div class="room-card">
+          <div class="room-header">
+            <div class="room-name">负一楼-B05阳光房</div>
+            <span class="room-tag" style="background: #f3f3f0; color: #6b6b6b"
+              >不限</span
+            >
+          </div>
+          <div class="room-meta">
+            <span>空房</span>
+            <span>0/11 床</span>
+          </div>
+          <div class="occupancy-bar">
+            <div style="width: 0%; background: #4a7c59"></div>
+          </div>
+          <div class="mini-beds">
+            <span class="mini-bed" style="background: #4a7c59"></span
+            ><span class="mini-bed" style="background: #4a7c59"></span
+            ><span class="mini-bed" style="background: #4a7c59"></span
+            ><span class="mini-bed" style="background: #4a7c59"></span
+            ><span class="mini-bed" style="background: #4a7c59"></span
+            ><span class="mini-bed" style="background: #4a7c59"></span
+            ><span class="mini-bed" style="background: #4a7c59"></span
+            ><span class="mini-bed" style="background: #4a7c59"></span
+            ><span class="mini-bed" style="background: #4a7c59"></span
+            ><span class="mini-bed" style="background: #4a7c59"></span
+            ><span class="mini-bed" style="background: #4a7c59"></span>
+          </div>
+          <div class="occupants" title="">暂无入住人员</div>
+        </div>
+
+        <div class="room-card">
+          <div class="room-header">
+            <div class="room-name">负一楼-斋夹</div>
+            <span class="room-tag" style="background: #fce4ec; color: #c2185b"
+              >女寮</span
+            >
+          </div>
+          <div class="room-meta">
+            <span>部分入住</span>
+            <span>1/7 床</span>
+          </div>
+          <div class="occupancy-bar">
+            <div style="width: 14.285714285714285%; background: #c9a227"></div>
+          </div>
+          <div class="mini-beds">
+            <span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #4a7c59"></span
+            ><span class="mini-bed" style="background: #4a7c59"></span
+            ><span class="mini-bed" style="background: #4a7c59"></span
+            ><span class="mini-bed" style="background: #4a7c59"></span
+            ><span class="mini-bed" style="background: #4a7c59"></span
+            ><span class="mini-bed" style="background: #4a7c59"></span>
+          </div>
+          <div class="occupants" title="女行者">女行者</div>
+        </div>
       </div>
+    </section>
 
-      <div class="room-card">
-        <div class="room-header">
-          <div class="room-name">二楼-209</div>
-          <span class="room-tag" style="background:#f3f3f0;color:#6b6b6b">不限</span>
-        </div>
-        <div class="room-meta">
-          <span>满房</span>
-          <span>5/5 床</span>
-        </div>
-        <div class="occupancy-bar"><div style="width:100.0%;background:#a94442"></div></div>
-        <div class="mini-beds"><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span></div>
-        <div class="occupants" title="客人/师资-1、客人/师资-2、客人/师资-3、客人/师资-4、客人/师资-5">客人/师资-1、客人/师资-2、客人/师资-3、客人/师资-4、客人/师资-5</div>
+    <section class="section">
+      <div class="section-title">
+        <span>负二楼</span>
+        <span class="section-count">4 间房 · 入住 91/91</span>
       </div>
+      <div class="rooms-grid">
+        <div class="room-card">
+          <div class="room-header">
+            <div class="room-name">负二楼-潜德堂东单</div>
+            <span class="room-tag" style="background: #e3f2fd; color: #1565c0"
+              >男寮</span
+            >
+          </div>
+          <div class="room-meta">
+            <span>满房</span>
+            <span>25/25 床</span>
+          </div>
+          <div class="occupancy-bar">
+            <div style="width: 100%; background: #a94442"></div>
+          </div>
+          <div class="mini-beds">
+            <span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span>
+          </div>
+          <div
+            class="occupants"
+            title="男学员-1、男学员-2、男学员-3、男学员-4、男学员-5、男学员-6、男学员-7、男学员-8、男学员-9、男学员-10、男学员-11、男学员-12、男学员-13、男学员-14、男学员-15、男学员-16、男学员-17、男学员-18、男学员-19、男学员-20、男学员-21、男学员-22、男学员-23、男学员-24、男学员-25"
+          >
+            男学员-1、男学员-2、男学员-3、男学员-4、男学员-5、男学员-6、男学员-7、男学员-8、男学员-9、男学员-10…
+          </div>
+        </div>
 
-      <div class="room-card">
-        <div class="room-header">
-          <div class="room-name">二楼-210</div>
-          <span class="room-tag" style="background:#f3f3f0;color:#6b6b6b">不限</span>
+        <div class="room-card">
+          <div class="room-header">
+            <div class="room-name">负二楼-潜德堂楼梯间（2）</div>
+            <span class="room-tag" style="background: #f3f3f0; color: #6b6b6b"
+              >不限</span
+            >
+          </div>
+          <div class="room-meta">
+            <span>满房</span>
+            <span>3/3 床</span>
+          </div>
+          <div class="occupancy-bar">
+            <div style="width: 100%; background: #a94442"></div>
+          </div>
+          <div class="mini-beds">
+            <span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span>
+          </div>
+          <div class="occupants" title="管理员-1、管理员-2、管理员-3">
+            管理员-1、管理员-2、管理员-3
+          </div>
         </div>
-        <div class="room-meta">
-          <span>满房</span>
-          <span>4/4 床</span>
+
+        <div class="room-card">
+          <div class="room-header">
+            <div class="room-name">负二楼-潜德堂西单1楼</div>
+            <span class="room-tag" style="background: #f3f3f0; color: #6b6b6b"
+              >不限</span
+            >
+          </div>
+          <div class="room-meta">
+            <span>满房</span>
+            <span>26/26 床</span>
+          </div>
+          <div class="occupancy-bar">
+            <div style="width: 100%; background: #a94442"></div>
+          </div>
+          <div class="mini-beds">
+            <span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span>
+          </div>
+          <div
+            class="occupants"
+            title="女学员-1、女学员-2、女学员-3、女学员-4、女学员-5、女学员-6、女学员-7、女学员-8、女学员-9、女学员-10、女学员-11、女学员-12、女学员-13、女学员-14、女学员-15、女学员-16、女学员-17、女学员-18、女学员-19、女学员-20、女学员-21、女学员-22、女学员-23、女学员-24、女学员-25、女学员-26"
+          >
+            女学员-1、女学员-2、女学员-3、女学员-4、女学员-5、女学员-6、女学员-7、女学员-8、女学员-9、女学员-10…
+          </div>
         </div>
-        <div class="occupancy-bar"><div style="width:100.0%;background:#a94442"></div></div>
-        <div class="mini-beds"><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span></div>
-        <div class="occupants" title="客人/师资-1、客人/师资-2、客人/师资-3、客人/师资-4">客人/师资-1、客人/师资-2、客人/师资-3、客人/师资-4</div>
+
+        <div class="room-card">
+          <div class="room-header">
+            <div class="room-name">负二楼-潜德堂西单2楼</div>
+            <span class="room-tag" style="background: #f3f3f0; color: #6b6b6b"
+              >不限</span
+            >
+          </div>
+          <div class="room-meta">
+            <span>满房</span>
+            <span>37/37 床</span>
+          </div>
+          <div class="occupancy-bar">
+            <div style="width: 100%; background: #a94442"></div>
+          </div>
+          <div class="mini-beds">
+            <span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span
+            ><span class="mini-bed" style="background: #a94442"></span>
+          </div>
+          <div
+            class="occupants"
+            title="女学员-1、女学员-2、女学员-3、女学员-4、女学员-5、女学员-6、女学员-7、女学员-8、女学员-9、女学员-10、女学员-11、女学员-12、女学员-13、女学员-14、女学员-15、女学员-16、女学员-17、女学员-18、女学员-19、女学员-20、女学员-21、女学员-22、女学员-23、女学员-24、女学员-25、女学员-26、女学员-27、女学员-28、女学员-29、女学员-30、女学员-31、女学员-32、女学员-33、女学员-34、女学员-35、女学员-36、女学员-37"
+          >
+            女学员-1、女学员-2、女学员-3、女学员-4、女学员-5、女学员-6、女学员-7、女学员-8、女学员-9、女学员-10…
+          </div>
+        </div>
       </div>
-
-      <div class="room-card">
-        <div class="room-header">
-          <div class="room-name">二楼-211</div>
-          <span class="room-tag" style="background:#f3f3f0;color:#6b6b6b">不限</span>
-        </div>
-        <div class="room-meta">
-          <span>满房</span>
-          <span>4/4 床</span>
-        </div>
-        <div class="occupancy-bar"><div style="width:100.0%;background:#a94442"></div></div>
-        <div class="mini-beds"><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span></div>
-        <div class="occupants" title="客人/师资-1、客人/师资-2、客人/师资-3、客人/师资-4">客人/师资-1、客人/师资-2、客人/师资-3、客人/师资-4</div>
-      </div>
-
-      <div class="room-card">
-        <div class="room-header">
-          <div class="room-name">二楼-212</div>
-          <span class="room-tag" style="background:#f3f3f0;color:#6b6b6b">不限</span>
-        </div>
-        <div class="room-meta">
-          <span>空房</span>
-          <span>0/3 床</span>
-        </div>
-        <div class="occupancy-bar"><div style="width:0.0%;background:#4a7c59"></div></div>
-        <div class="mini-beds"><span class="mini-bed" style="background:#4a7c59"></span><span class="mini-bed" style="background:#4a7c59"></span><span class="mini-bed" style="background:#4a7c59"></span></div>
-        <div class="occupants" title="">暂无入住人员</div>
-      </div>
-
-      <div class="room-card">
-        <div class="room-header">
-          <div class="room-name">二楼-213</div>
-          <span class="room-tag" style="background:#e3f2fd;color:#1565c0">男寮</span>
-        </div>
-        <div class="room-meta">
-          <span>部分入住</span>
-          <span>5/7 床</span>
-        </div>
-        <div class="occupancy-bar"><div style="width:71.42857142857143%;background:#c9a227"></div></div>
-        <div class="mini-beds"><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#4a7c59"></span><span class="mini-bed" style="background:#4a7c59"></span></div>
-        <div class="occupants" title="沙弥-1、沙弥-2、沙弥-3、沙弥-4、沙弥-5">沙弥-1、沙弥-2、沙弥-3、沙弥-4、沙弥-5</div>
-      </div>
-
-      <div class="room-card">
-        <div class="room-header">
-          <div class="room-name">二楼-215</div>
-          <span class="room-tag" style="background:#e3f2fd;color:#1565c0">男寮</span>
-        </div>
-        <div class="room-meta">
-          <span>满房</span>
-          <span>8/8 床</span>
-        </div>
-        <div class="occupancy-bar"><div style="width:100.0%;background:#a94442"></div></div>
-        <div class="mini-beds"><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span></div>
-        <div class="occupants" title="男学员-1、男学员-2、男学员-3、男学员-4、男学员-5、男学员-6、男学员-7、男学员-8">男学员-1、男学员-2、男学员-3、男学员-4、男学员-5、男学员-6、男学员-7、男学员-8</div>
-      </div>
-
-      <div class="room-card">
-        <div class="room-header">
-          <div class="room-name">二楼-216</div>
-          <span class="room-tag" style="background:#e3f2fd;color:#1565c0">男寮</span>
-        </div>
-        <div class="room-meta">
-          <span>满房</span>
-          <span>7/7 床</span>
-        </div>
-        <div class="occupancy-bar"><div style="width:100.0%;background:#a94442"></div></div>
-        <div class="mini-beds"><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span></div>
-        <div class="occupants" title="男学员-1、男学员-2、男学员-3、男学员-4、男学员-5、男学员-6、男学员-7">男学员-1、男学员-2、男学员-3、男学员-4、男学员-5、男学员-6、男学员-7</div>
-      </div>
-
-      <div class="room-card">
-        <div class="room-header">
-          <div class="room-name">二楼-217</div>
-          <span class="room-tag" style="background:#e3f2fd;color:#1565c0">男寮</span>
-        </div>
-        <div class="room-meta">
-          <span>部分入住</span>
-          <span>4/7 床</span>
-        </div>
-        <div class="occupancy-bar"><div style="width:57.14285714285714%;background:#c9a227"></div></div>
-        <div class="mini-beds"><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#4a7c59"></span><span class="mini-bed" style="background:#4a7c59"></span><span class="mini-bed" style="background:#4a7c59"></span></div>
-        <div class="occupants" title="沙弥-1、沙弥-2、沙弥-3、沙弥-4">沙弥-1、沙弥-2、沙弥-3、沙弥-4</div>
-      </div>
-
-      <div class="room-card">
-        <div class="room-header">
-          <div class="room-name">二楼-大禅堂东单1楼值守（男）</div>
-          <span class="room-tag" style="background:#e3f2fd;color:#1565c0">男寮</span>
-        </div>
-        <div class="room-meta">
-          <span>满房</span>
-          <span>1/1 床</span>
-        </div>
-        <div class="occupancy-bar"><div style="width:100.0%;background:#a94442"></div></div>
-        <div class="mini-beds"><span class="mini-bed" style="background:#a94442"></span></div>
-        <div class="occupants" title="刘平">刘平</div>
-      </div>
-
-      <div class="room-card">
-        <div class="room-header">
-          <div class="room-name">二楼-大禅堂东单1楼（男）</div>
-          <span class="room-tag" style="background:#e3f2fd;color:#1565c0">男寮</span>
-        </div>
-        <div class="room-meta">
-          <span>满房</span>
-          <span>10/10 床</span>
-        </div>
-        <div class="occupancy-bar"><div style="width:100.0%;background:#a94442"></div></div>
-        <div class="mini-beds"><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span></div>
-        <div class="occupants" title="学员-1、学员-2、学员-3、学员-4、学员-5、学员-6、学员-7、学员-8、学员-9、学员-10">学员-1、学员-2、学员-3、学员-4、学员-5、学员-6、学员-7、学员-8、学员-9、学员-10</div>
-      </div>
-
-      <div class="room-card">
-        <div class="room-header">
-          <div class="room-name">二楼-大禅堂东单2楼值守（男）</div>
-          <span class="room-tag" style="background:#e3f2fd;color:#1565c0">男寮</span>
-        </div>
-        <div class="room-meta">
-          <span>满房</span>
-          <span>2/2 床</span>
-        </div>
-        <div class="occupancy-bar"><div style="width:100.0%;background:#a94442"></div></div>
-        <div class="mini-beds"><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span></div>
-        <div class="occupants" title="学员-1、学员-2">学员-1、学员-2</div>
-      </div>
-
-      <div class="room-card">
-        <div class="room-header">
-          <div class="room-name">二楼-大禅堂东单2楼（男）</div>
-          <span class="room-tag" style="background:#e3f2fd;color:#1565c0">男寮</span>
-        </div>
-        <div class="room-meta">
-          <span>满房</span>
-          <span>14/14 床</span>
-        </div>
-        <div class="occupancy-bar"><div style="width:100.0%;background:#a94442"></div></div>
-        <div class="mini-beds"><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span></div>
-        <div class="occupants" title="学员-1、学员-2、学员-3、学员-4、学员-5、学员-6、学员-7、学员-8、学员-9、学员-10、学员-11、学员-12、学员-13、学员-14">学员-1、学员-2、学员-3、学员-4、学员-5、学员-6、学员-7、学员-8、学员-9、学员-10、学员-11、学员-…</div>
-      </div>
-
-      <div class="room-card">
-        <div class="room-header">
-          <div class="room-name">二楼-大禅堂东单云水寮</div>
-          <span class="room-tag" style="background:#e3f2fd;color:#1565c0">男寮</span>
-        </div>
-        <div class="room-meta">
-          <span>满房</span>
-          <span>9/9 床</span>
-        </div>
-        <div class="occupancy-bar"><div style="width:100.0%;background:#a94442"></div></div>
-        <div class="mini-beds"><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span></div>
-        <div class="occupants" title="学员-1、学员-2、学员-3、学员-4、学员-5、学员-6、学员-7、学员-8、学员-9">学员-1、学员-2、学员-3、学员-4、学员-5、学员-6、学员-7、学员-8、学员-9</div>
-      </div>
-
-      <div class="room-card">
-        <div class="room-header">
-          <div class="room-name">二楼-大禅堂西单1楼值守（男）</div>
-          <span class="room-tag" style="background:#e3f2fd;color:#1565c0">男寮</span>
-        </div>
-        <div class="room-meta">
-          <span>满房</span>
-          <span>1/1 床</span>
-        </div>
-        <div class="occupancy-bar"><div style="width:100.0%;background:#a94442"></div></div>
-        <div class="mini-beds"><span class="mini-bed" style="background:#a94442"></span></div>
-        <div class="occupants" title="梁文">梁文</div>
-      </div>
-
-      <div class="room-card">
-        <div class="room-header">
-          <div class="room-name">二楼-大禅堂西单2楼值守（男）</div>
-          <span class="room-tag" style="background:#e3f2fd;color:#1565c0">男寮</span>
-        </div>
-        <div class="room-meta">
-          <span>部分入住</span>
-          <span>1/2 床</span>
-        </div>
-        <div class="occupancy-bar"><div style="width:50.0%;background:#c9a227"></div></div>
-        <div class="mini-beds"><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#4a7c59"></span></div>
-        <div class="occupants" title="法愿">法愿</div>
-      </div>
-
-      <div class="room-card">
-        <div class="room-header">
-          <div class="room-name">二楼-大禅堂西单2楼（男）</div>
-          <span class="room-tag" style="background:#e3f2fd;color:#1565c0">男寮</span>
-        </div>
-        <div class="room-meta">
-          <span>满房</span>
-          <span>10/10 床</span>
-        </div>
-        <div class="occupancy-bar"><div style="width:100.0%;background:#a94442"></div></div>
-        <div class="mini-beds"><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span></div>
-        <div class="occupants" title="学员-1、学员-2、学员-3、学员-4、学员-5、学员-6、学员-7、学员-8、学员-9、学员-10">学员-1、学员-2、学员-3、学员-4、学员-5、学员-6、学员-7、学员-8、学员-9、学员-10</div>
-      </div>
-
-    </div>
-  </section>
-
-  <section class="section">
-    <div class="section-title">
-      <span>一楼</span>
-      <span class="section-count">17 间房 · 入住 44/86</span>
-    </div>
-    <div class="rooms-grid">
-
-      <div class="room-card">
-        <div class="room-header">
-          <div class="room-name">一楼-101</div>
-          <span class="room-tag" style="background:#f3f3f0;color:#6b6b6b">不限</span>
-        </div>
-        <div class="room-meta">
-          <span>部分入住</span>
-          <span>0/0 床</span>
-        </div>
-        <div class="occupancy-bar"><div style="width:0%;background:#9ca3af"></div></div>
-        <div class="mini-beds"></div>
-        <div class="occupants" title="">暂无入住人员</div>
-      </div>
-
-      <div class="room-card">
-        <div class="room-header">
-          <div class="room-name">一楼-102</div>
-          <span class="room-tag" style="background:#f3f3f0;color:#6b6b6b">不限</span>
-        </div>
-        <div class="room-meta">
-          <span>部分入住</span>
-          <span>0/0 床</span>
-        </div>
-        <div class="occupancy-bar"><div style="width:0%;background:#9ca3af"></div></div>
-        <div class="mini-beds"></div>
-        <div class="occupants" title="">暂无入住人员</div>
-      </div>
-
-      <div class="room-card">
-        <div class="room-header">
-          <div class="room-name">一楼-103</div>
-          <span class="room-tag" style="background:#f3f3f0;color:#6b6b6b">不限</span>
-        </div>
-        <div class="room-meta">
-          <span>部分入住</span>
-          <span>0/0 床</span>
-        </div>
-        <div class="occupancy-bar"><div style="width:0%;background:#9ca3af"></div></div>
-        <div class="mini-beds"></div>
-        <div class="occupants" title="">暂无入住人员</div>
-      </div>
-
-      <div class="room-card">
-        <div class="room-header">
-          <div class="room-name">一楼-105</div>
-          <span class="room-tag" style="background:#f3f3f0;color:#6b6b6b">不限</span>
-        </div>
-        <div class="room-meta">
-          <span>部分入住</span>
-          <span>0/0 床</span>
-        </div>
-        <div class="occupancy-bar"><div style="width:0%;background:#9ca3af"></div></div>
-        <div class="mini-beds"></div>
-        <div class="occupants" title="">暂无入住人员</div>
-      </div>
-
-      <div class="room-card">
-        <div class="room-header">
-          <div class="room-name">一楼-106</div>
-          <span class="room-tag" style="background:#f3f3f0;color:#6b6b6b">不限</span>
-        </div>
-        <div class="room-meta">
-          <span>部分入住</span>
-          <span>2/6 床</span>
-        </div>
-        <div class="occupancy-bar"><div style="width:33.33333333333333%;background:#c9a227"></div></div>
-        <div class="mini-beds"><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#4a7c59"></span><span class="mini-bed" style="background:#4a7c59"></span><span class="mini-bed" style="background:#4a7c59"></span><span class="mini-bed" style="background:#4a7c59"></span></div>
-        <div class="occupants" title="姜老师、卢老师">姜老师、卢老师</div>
-      </div>
-
-      <div class="room-card">
-        <div class="room-header">
-          <div class="room-name">一楼-107</div>
-          <span class="room-tag" style="background:#e3f2fd;color:#1565c0">男寮</span>
-        </div>
-        <div class="room-meta">
-          <span>满房</span>
-          <span>6/6 床</span>
-        </div>
-        <div class="occupancy-bar"><div style="width:100.0%;background:#a94442"></div></div>
-        <div class="mini-beds"><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span></div>
-        <div class="occupants" title="后勤男义工-1、后勤男义工-2、后勤男义工-3、后勤男义工-4、后勤男义工-5、后勤男义工-6">后勤男义工-1、后勤男义工-2、后勤男义工-3、后勤男义工-4、后勤男义工-5、后勤男义工-6</div>
-      </div>
-
-      <div class="room-card">
-        <div class="room-header">
-          <div class="room-name">一楼-108</div>
-          <span class="room-tag" style="background:#f3f3f0;color:#6b6b6b">不限</span>
-        </div>
-        <div class="room-meta">
-          <span>部分入住</span>
-          <span>1/6 床</span>
-        </div>
-        <div class="occupancy-bar"><div style="width:16.666666666666664%;background:#c9a227"></div></div>
-        <div class="mini-beds"><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#4a7c59"></span><span class="mini-bed" style="background:#4a7c59"></span><span class="mini-bed" style="background:#4a7c59"></span><span class="mini-bed" style="background:#4a7c59"></span><span class="mini-bed" style="background:#4a7c59"></span></div>
-        <div class="occupants" title="原李勇老师房间">原李勇老师房间</div>
-      </div>
-
-      <div class="room-card">
-        <div class="room-header">
-          <div class="room-name">一楼-109</div>
-          <span class="room-tag" style="background:#f3f3f0;color:#6b6b6b">不限</span>
-        </div>
-        <div class="room-meta">
-          <span>部分入住</span>
-          <span>1/6 床</span>
-        </div>
-        <div class="occupancy-bar"><div style="width:16.666666666666664%;background:#c9a227"></div></div>
-        <div class="mini-beds"><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#4a7c59"></span><span class="mini-bed" style="background:#4a7c59"></span><span class="mini-bed" style="background:#4a7c59"></span><span class="mini-bed" style="background:#4a7c59"></span><span class="mini-bed" style="background:#4a7c59"></span></div>
-        <div class="occupants" title="曾咏梅">曾咏梅</div>
-      </div>
-
-      <div class="room-card">
-        <div class="room-header">
-          <div class="room-name">一楼-110</div>
-          <span class="room-tag" style="background:#f3f3f0;color:#6b6b6b">不限</span>
-        </div>
-        <div class="room-meta">
-          <span>部分入住</span>
-          <span>1/6 床</span>
-        </div>
-        <div class="occupancy-bar"><div style="width:16.666666666666664%;background:#c9a227"></div></div>
-        <div class="mini-beds"><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#4a7c59"></span><span class="mini-bed" style="background:#4a7c59"></span><span class="mini-bed" style="background:#4a7c59"></span><span class="mini-bed" style="background:#4a7c59"></span><span class="mini-bed" style="background:#4a7c59"></span></div>
-        <div class="occupants" title="客房">客房</div>
-      </div>
-
-      <div class="room-card">
-        <div class="room-header">
-          <div class="room-name">一楼-111</div>
-          <span class="room-tag" style="background:#f3f3f0;color:#6b6b6b">不限</span>
-        </div>
-        <div class="room-meta">
-          <span>部分入住</span>
-          <span>2/6 床</span>
-        </div>
-        <div class="occupancy-bar"><div style="width:33.33333333333333%;background:#c9a227"></div></div>
-        <div class="mini-beds"><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#4a7c59"></span><span class="mini-bed" style="background:#4a7c59"></span><span class="mini-bed" style="background:#4a7c59"></span><span class="mini-bed" style="background:#4a7c59"></span></div>
-        <div class="occupants" title="白东霞、彭义芳">白东霞、彭义芳</div>
-      </div>
-
-      <div class="room-card">
-        <div class="room-header">
-          <div class="room-name">一楼-112</div>
-          <span class="room-tag" style="background:#f3f3f0;color:#6b6b6b">不限</span>
-        </div>
-        <div class="room-meta">
-          <span>空房</span>
-          <span>0/3 床</span>
-        </div>
-        <div class="occupancy-bar"><div style="width:0.0%;background:#4a7c59"></div></div>
-        <div class="mini-beds"><span class="mini-bed" style="background:#4a7c59"></span><span class="mini-bed" style="background:#4a7c59"></span><span class="mini-bed" style="background:#4a7c59"></span></div>
-        <div class="occupants" title="">暂无入住人员</div>
-      </div>
-
-      <div class="room-card">
-        <div class="room-header">
-          <div class="room-name">一楼-113</div>
-          <span class="room-tag" style="background:#f3f3f0;color:#6b6b6b">不限</span>
-        </div>
-        <div class="room-meta">
-          <span>空房</span>
-          <span>0/15 床</span>
-        </div>
-        <div class="occupancy-bar"><div style="width:0.0%;background:#4a7c59"></div></div>
-        <div class="mini-beds"><span class="mini-bed" style="background:#4a7c59"></span><span class="mini-bed" style="background:#4a7c59"></span><span class="mini-bed" style="background:#4a7c59"></span><span class="mini-bed" style="background:#4a7c59"></span><span class="mini-bed" style="background:#4a7c59"></span><span class="mini-bed" style="background:#4a7c59"></span><span class="mini-bed" style="background:#4a7c59"></span><span class="mini-bed" style="background:#4a7c59"></span><span class="mini-bed" style="background:#4a7c59"></span><span class="mini-bed" style="background:#4a7c59"></span><span class="mini-bed" style="background:#4a7c59"></span><span class="mini-bed" style="background:#4a7c59"></span><span class="mini-bed" style="background:#4a7c59"></span><span class="mini-bed" style="background:#4a7c59"></span><span class="mini-bed" style="background:#4a7c59"></span></div>
-        <div class="occupants" title="">暂无入住人员</div>
-      </div>
-
-      <div class="room-card">
-        <div class="room-header">
-          <div class="room-name">一楼-115</div>
-          <span class="room-tag" style="background:#fce4ec;color:#c2185b">女寮</span>
-        </div>
-        <div class="room-meta">
-          <span>满房</span>
-          <span>12/12 床</span>
-        </div>
-        <div class="occupancy-bar"><div style="width:100.0%;background:#a94442"></div></div>
-        <div class="mini-beds"><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span></div>
-        <div class="occupants" title="女义工-1、女义工-2、女义工-3、女义工-4、女义工-5、女义工-6、女义工-7、女义工-8、女义工-9、女义工-10、女义工-11、女义工-12">女义工-1、女义工-2、女义工-3、女义工-4、女义工-5、女义工-6、女义工-7、女义工-8、女义工-9、女义工-10…</div>
-      </div>
-
-      <div class="room-card">
-        <div class="room-header">
-          <div class="room-name">一楼-116</div>
-          <span class="room-tag" style="background:#f3f3f0;color:#6b6b6b">不限</span>
-        </div>
-        <div class="room-meta">
-          <span>满房</span>
-          <span>18/18 床</span>
-        </div>
-        <div class="occupancy-bar"><div style="width:100.0%;background:#a94442"></div></div>
-        <div class="mini-beds"><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span></div>
-        <div class="occupants" title="学员-1、学员-2、学员-3、学员-4、学员-5、学员-6、学员-7、学员-8、学员-9、学员-10、学员-11、学员-12、学员-13、学员-14、学员-15、学员-16、学员-17、学员-18">学员-1、学员-2、学员-3、学员-4、学员-5、学员-6、学员-7、学员-8、学员-9、学员-10、学员-11、学员-…</div>
-      </div>
-
-      <div class="room-card">
-        <div class="room-header">
-          <div class="room-name">一楼-117</div>
-          <span class="room-tag" style="background:#f3f3f0;color:#6b6b6b">不限</span>
-        </div>
-        <div class="room-meta">
-          <span>部分入住</span>
-          <span>0/0 床</span>
-        </div>
-        <div class="occupancy-bar"><div style="width:0%;background:#9ca3af"></div></div>
-        <div class="mini-beds"></div>
-        <div class="occupants" title="">暂无入住人员</div>
-      </div>
-
-      <div class="room-card">
-        <div class="room-header">
-          <div class="room-name">一楼-118</div>
-          <span class="room-tag" style="background:#f3f3f0;color:#6b6b6b">不限</span>
-        </div>
-        <div class="room-meta">
-          <span>空房</span>
-          <span>0/1 床</span>
-        </div>
-        <div class="occupancy-bar"><div style="width:0.0%;background:#4a7c59"></div></div>
-        <div class="mini-beds"><span class="mini-bed" style="background:#4a7c59"></span></div>
-        <div class="occupants" title="">暂无入住人员</div>
-      </div>
-
-      <div class="room-card">
-        <div class="room-header">
-          <div class="room-name">一楼-茶水间</div>
-          <span class="room-tag" style="background:#f3f3f0;color:#6b6b6b">不限</span>
-        </div>
-        <div class="room-meta">
-          <span>满房</span>
-          <span>1/1 床</span>
-        </div>
-        <div class="occupancy-bar"><div style="width:100.0%;background:#a94442"></div></div>
-        <div class="mini-beds"><span class="mini-bed" style="background:#a94442"></span></div>
-        <div class="occupants" title="朱安陵">朱安陵</div>
-      </div>
-
-    </div>
-  </section>
-
-  <section class="section">
-    <div class="section-title">
-      <span>备用床</span>
-      <span class="section-count">2 间房 · 入住 0/120</span>
-    </div>
-    <div class="rooms-grid">
-
-      <div class="room-card">
-        <div class="room-header">
-          <div class="room-name">备用床-垫子</div>
-          <span class="room-tag" style="background:#f3f3f0;color:#6b6b6b">不限</span>
-        </div>
-        <div class="room-meta">
-          <span>空房</span>
-          <span>0/70 床</span>
-        </div>
-        <div class="occupancy-bar"><div style="width:0.0%;background:#4a7c59"></div></div>
-        <div class="mini-beds"><span class="mini-bed" style="background:#4a7c59"></span><span class="mini-bed" style="background:#4a7c59"></span><span class="mini-bed" style="background:#4a7c59"></span><span class="mini-bed" style="background:#4a7c59"></span><span class="mini-bed" style="background:#4a7c59"></span><span class="mini-bed" style="background:#4a7c59"></span><span class="mini-bed" style="background:#4a7c59"></span><span class="mini-bed" style="background:#4a7c59"></span><span class="mini-bed" style="background:#4a7c59"></span><span class="mini-bed" style="background:#4a7c59"></span><span class="mini-bed" style="background:#4a7c59"></span><span class="mini-bed" style="background:#4a7c59"></span><span class="mini-bed" style="background:#4a7c59"></span><span class="mini-bed" style="background:#4a7c59"></span><span class="mini-bed" style="background:#4a7c59"></span><span class="mini-bed" style="background:#4a7c59"></span><span class="mini-bed" style="background:#4a7c59"></span><span class="mini-bed" style="background:#4a7c59"></span><span class="mini-bed" style="background:#4a7c59"></span><span class="mini-bed" style="background:#4a7c59"></span><span class="mini-bed" style="background:#4a7c59"></span><span class="mini-bed" style="background:#4a7c59"></span><span class="mini-bed" style="background:#4a7c59"></span><span class="mini-bed" style="background:#4a7c59"></span><span class="mini-bed" style="background:#4a7c59"></span><span class="mini-bed" style="background:#4a7c59"></span><span class="mini-bed" style="background:#4a7c59"></span><span class="mini-bed" style="background:#4a7c59"></span><span class="mini-bed" style="background:#4a7c59"></span><span class="mini-bed" style="background:#4a7c59"></span><span class="mini-bed" style="background:#4a7c59"></span><span class="mini-bed" style="background:#4a7c59"></span><span class="mini-bed" style="background:#4a7c59"></span><span class="mini-bed" style="background:#4a7c59"></span><span class="mini-bed" style="background:#4a7c59"></span><span class="mini-bed" style="background:#4a7c59"></span><span class="mini-bed" style="background:#4a7c59"></span><span class="mini-bed" style="background:#4a7c59"></span><span class="mini-bed" style="background:#4a7c59"></span><span class="mini-bed" style="background:#4a7c59"></span><span style="font-size:10px;color:var(--color-muted)">+30</span></div>
-        <div class="occupants" title="">暂无入住人员</div>
-      </div>
-
-      <div class="room-card">
-        <div class="room-header">
-          <div class="room-name">备用床-折叠床</div>
-          <span class="room-tag" style="background:#f3f3f0;color:#6b6b6b">不限</span>
-        </div>
-        <div class="room-meta">
-          <span>空房</span>
-          <span>0/50 床</span>
-        </div>
-        <div class="occupancy-bar"><div style="width:0.0%;background:#4a7c59"></div></div>
-        <div class="mini-beds"><span class="mini-bed" style="background:#4a7c59"></span><span class="mini-bed" style="background:#4a7c59"></span><span class="mini-bed" style="background:#4a7c59"></span><span class="mini-bed" style="background:#4a7c59"></span><span class="mini-bed" style="background:#4a7c59"></span><span class="mini-bed" style="background:#4a7c59"></span><span class="mini-bed" style="background:#4a7c59"></span><span class="mini-bed" style="background:#4a7c59"></span><span class="mini-bed" style="background:#4a7c59"></span><span class="mini-bed" style="background:#4a7c59"></span><span class="mini-bed" style="background:#4a7c59"></span><span class="mini-bed" style="background:#4a7c59"></span><span class="mini-bed" style="background:#4a7c59"></span><span class="mini-bed" style="background:#4a7c59"></span><span class="mini-bed" style="background:#4a7c59"></span><span class="mini-bed" style="background:#4a7c59"></span><span class="mini-bed" style="background:#4a7c59"></span><span class="mini-bed" style="background:#4a7c59"></span><span class="mini-bed" style="background:#4a7c59"></span><span class="mini-bed" style="background:#4a7c59"></span><span class="mini-bed" style="background:#4a7c59"></span><span class="mini-bed" style="background:#4a7c59"></span><span class="mini-bed" style="background:#4a7c59"></span><span class="mini-bed" style="background:#4a7c59"></span><span class="mini-bed" style="background:#4a7c59"></span><span class="mini-bed" style="background:#4a7c59"></span><span class="mini-bed" style="background:#4a7c59"></span><span class="mini-bed" style="background:#4a7c59"></span><span class="mini-bed" style="background:#4a7c59"></span><span class="mini-bed" style="background:#4a7c59"></span><span class="mini-bed" style="background:#4a7c59"></span><span class="mini-bed" style="background:#4a7c59"></span><span class="mini-bed" style="background:#4a7c59"></span><span class="mini-bed" style="background:#4a7c59"></span><span class="mini-bed" style="background:#4a7c59"></span><span class="mini-bed" style="background:#4a7c59"></span><span class="mini-bed" style="background:#4a7c59"></span><span class="mini-bed" style="background:#4a7c59"></span><span class="mini-bed" style="background:#4a7c59"></span><span class="mini-bed" style="background:#4a7c59"></span><span style="font-size:10px;color:var(--color-muted)">+10</span></div>
-        <div class="occupants" title="">暂无入住人员</div>
-      </div>
-
-    </div>
-  </section>
-
-  <section class="section">
-    <div class="section-title">
-      <span>负一楼</span>
-      <span class="section-count">5 间房 · 入住 24/41</span>
-    </div>
-    <div class="rooms-grid">
-
-      <div class="room-card">
-        <div class="room-header">
-          <div class="room-name">负一楼-B01（靠电梯）</div>
-          <span class="room-tag" style="background:#e3f2fd;color:#1565c0">男寮</span>
-        </div>
-        <div class="room-meta">
-          <span>满房</span>
-          <span>10/10 床</span>
-        </div>
-        <div class="occupancy-bar"><div style="width:100.0%;background:#a94442"></div></div>
-        <div class="mini-beds"><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span></div>
-        <div class="occupants" title="男学员-1、男学员-2、男学员-3、男学员-4、男学员-5、男学员-6、男学员-7、男学员-8、男学员-9、男学员-10">男学员-1、男学员-2、男学员-3、男学员-4、男学员-5、男学员-6、男学员-7、男学员-8、男学员-9、男学员-10</div>
-      </div>
-
-      <div class="room-card">
-        <div class="room-header">
-          <div class="room-name">负一楼-B02（靠门口）</div>
-          <span class="room-tag" style="background:#e3f2fd;color:#1565c0">男寮</span>
-        </div>
-        <div class="room-meta">
-          <span>满房</span>
-          <span>7/7 床</span>
-        </div>
-        <div class="occupancy-bar"><div style="width:100.0%;background:#a94442"></div></div>
-        <div class="mini-beds"><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span></div>
-        <div class="occupants" title="男义工-1、男义工-2、男义工-3、男义工-4、男义工-5、男义工-6、男义工-7">男义工-1、男义工-2、男义工-3、男义工-4、男义工-5、男义工-6、男义工-7</div>
-      </div>
-
-      <div class="room-card">
-        <div class="room-header">
-          <div class="room-name">负一楼-B03</div>
-          <span class="room-tag" style="background:#fce4ec;color:#c2185b">女寮</span>
-        </div>
-        <div class="room-meta">
-          <span>满房</span>
-          <span>6/6 床</span>
-        </div>
-        <div class="occupancy-bar"><div style="width:100.0%;background:#a94442"></div></div>
-        <div class="mini-beds"><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span></div>
-        <div class="occupants" title="女义工-1、女义工-2、女义工-3、女义工-4、女义工-5、女义工-6">女义工-1、女义工-2、女义工-3、女义工-4、女义工-5、女义工-6</div>
-      </div>
-
-      <div class="room-card">
-        <div class="room-header">
-          <div class="room-name">负一楼-B05阳光房</div>
-          <span class="room-tag" style="background:#f3f3f0;color:#6b6b6b">不限</span>
-        </div>
-        <div class="room-meta">
-          <span>空房</span>
-          <span>0/11 床</span>
-        </div>
-        <div class="occupancy-bar"><div style="width:0.0%;background:#4a7c59"></div></div>
-        <div class="mini-beds"><span class="mini-bed" style="background:#4a7c59"></span><span class="mini-bed" style="background:#4a7c59"></span><span class="mini-bed" style="background:#4a7c59"></span><span class="mini-bed" style="background:#4a7c59"></span><span class="mini-bed" style="background:#4a7c59"></span><span class="mini-bed" style="background:#4a7c59"></span><span class="mini-bed" style="background:#4a7c59"></span><span class="mini-bed" style="background:#4a7c59"></span><span class="mini-bed" style="background:#4a7c59"></span><span class="mini-bed" style="background:#4a7c59"></span><span class="mini-bed" style="background:#4a7c59"></span></div>
-        <div class="occupants" title="">暂无入住人员</div>
-      </div>
-
-      <div class="room-card">
-        <div class="room-header">
-          <div class="room-name">负一楼-斋夹</div>
-          <span class="room-tag" style="background:#fce4ec;color:#c2185b">女寮</span>
-        </div>
-        <div class="room-meta">
-          <span>部分入住</span>
-          <span>1/7 床</span>
-        </div>
-        <div class="occupancy-bar"><div style="width:14.285714285714285%;background:#c9a227"></div></div>
-        <div class="mini-beds"><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#4a7c59"></span><span class="mini-bed" style="background:#4a7c59"></span><span class="mini-bed" style="background:#4a7c59"></span><span class="mini-bed" style="background:#4a7c59"></span><span class="mini-bed" style="background:#4a7c59"></span><span class="mini-bed" style="background:#4a7c59"></span></div>
-        <div class="occupants" title="女行者">女行者</div>
-      </div>
-
-    </div>
-  </section>
-
-  <section class="section">
-    <div class="section-title">
-      <span>负二楼</span>
-      <span class="section-count">4 间房 · 入住 91/91</span>
-    </div>
-    <div class="rooms-grid">
-
-      <div class="room-card">
-        <div class="room-header">
-          <div class="room-name">负二楼-潜德堂东单</div>
-          <span class="room-tag" style="background:#e3f2fd;color:#1565c0">男寮</span>
-        </div>
-        <div class="room-meta">
-          <span>满房</span>
-          <span>25/25 床</span>
-        </div>
-        <div class="occupancy-bar"><div style="width:100.0%;background:#a94442"></div></div>
-        <div class="mini-beds"><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span></div>
-        <div class="occupants" title="男学员-1、男学员-2、男学员-3、男学员-4、男学员-5、男学员-6、男学员-7、男学员-8、男学员-9、男学员-10、男学员-11、男学员-12、男学员-13、男学员-14、男学员-15、男学员-16、男学员-17、男学员-18、男学员-19、男学员-20、男学员-21、男学员-22、男学员-23、男学员-24、男学员-25">男学员-1、男学员-2、男学员-3、男学员-4、男学员-5、男学员-6、男学员-7、男学员-8、男学员-9、男学员-10…</div>
-      </div>
-
-      <div class="room-card">
-        <div class="room-header">
-          <div class="room-name">负二楼-潜德堂楼梯间（2）</div>
-          <span class="room-tag" style="background:#f3f3f0;color:#6b6b6b">不限</span>
-        </div>
-        <div class="room-meta">
-          <span>满房</span>
-          <span>3/3 床</span>
-        </div>
-        <div class="occupancy-bar"><div style="width:100.0%;background:#a94442"></div></div>
-        <div class="mini-beds"><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span></div>
-        <div class="occupants" title="管理员-1、管理员-2、管理员-3">管理员-1、管理员-2、管理员-3</div>
-      </div>
-
-      <div class="room-card">
-        <div class="room-header">
-          <div class="room-name">负二楼-潜德堂西单1楼</div>
-          <span class="room-tag" style="background:#f3f3f0;color:#6b6b6b">不限</span>
-        </div>
-        <div class="room-meta">
-          <span>满房</span>
-          <span>26/26 床</span>
-        </div>
-        <div class="occupancy-bar"><div style="width:100.0%;background:#a94442"></div></div>
-        <div class="mini-beds"><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span></div>
-        <div class="occupants" title="女学员-1、女学员-2、女学员-3、女学员-4、女学员-5、女学员-6、女学员-7、女学员-8、女学员-9、女学员-10、女学员-11、女学员-12、女学员-13、女学员-14、女学员-15、女学员-16、女学员-17、女学员-18、女学员-19、女学员-20、女学员-21、女学员-22、女学员-23、女学员-24、女学员-25、女学员-26">女学员-1、女学员-2、女学员-3、女学员-4、女学员-5、女学员-6、女学员-7、女学员-8、女学员-9、女学员-10…</div>
-      </div>
-
-      <div class="room-card">
-        <div class="room-header">
-          <div class="room-name">负二楼-潜德堂西单2楼</div>
-          <span class="room-tag" style="background:#f3f3f0;color:#6b6b6b">不限</span>
-        </div>
-        <div class="room-meta">
-          <span>满房</span>
-          <span>37/37 床</span>
-        </div>
-        <div class="occupancy-bar"><div style="width:100.0%;background:#a94442"></div></div>
-        <div class="mini-beds"><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span><span class="mini-bed" style="background:#a94442"></span></div>
-        <div class="occupants" title="女学员-1、女学员-2、女学员-3、女学员-4、女学员-5、女学员-6、女学员-7、女学员-8、女学员-9、女学员-10、女学员-11、女学员-12、女学员-13、女学员-14、女学员-15、女学员-16、女学员-17、女学员-18、女学员-19、女学员-20、女学员-21、女学员-22、女学员-23、女学员-24、女学员-25、女学员-26、女学员-27、女学员-28、女学员-29、女学员-30、女学员-31、女学员-32、女学员-33、女学员-34、女学员-35、女学员-36、女学员-37">女学员-1、女学员-2、女学员-3、女学员-4、女学员-5、女学员-6、女学员-7、女学员-8、女学员-9、女学员-10…</div>
-      </div>
-
-    </div>
-  </section>
-
-</body>
+    </section>
+  </body>
 </html>

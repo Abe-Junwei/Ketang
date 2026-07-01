@@ -57,22 +57,23 @@
 
 ## 三、技术栈
 
-| 层级 | 选型 | 说明 |
-|------|------|------|
-| 前端 | 原生 HTML + CSS + JS | 无构建步骤，直接打开即用 |
-| 开发检查 | npm devDependencies + ESLint | 仅开发/CI 使用，不进入发布产物，用户无需安装 Node |
-| 正式部署 | Cloudflare Pages | 线上 HTTPS 访问，寺院内部多人协同 |
-| 正式后端 | Cloudflare Functions | 业务 API + 会话认证 |
-| 正式数据库 | Cloudflare D1 | 多人共享的权威数据源 |
-| 本地数据库 | SQLite（sql.js） | 浏览器内运行，导出即文件 |
-| 本地持久化 | IndexedDB | 保存 SQLite 二进制，关闭浏览器不丢失 |
-| 备份 | JSON/文件导出/导入 | 在线版导出 JSON，本地版导出 `.db` |
+| 层级       | 选型                         | 说明                                              |
+| ---------- | ---------------------------- | ------------------------------------------------- |
+| 前端       | 原生 HTML + CSS + JS         | 无构建步骤，直接打开即用                          |
+| 开发检查   | npm devDependencies + ESLint | 仅开发/CI 使用，不进入发布产物，用户无需安装 Node |
+| 正式部署   | Cloudflare Pages             | 线上 HTTPS 访问，寺院内部多人协同                 |
+| 正式后端   | Cloudflare Functions         | 业务 API + 会话认证                               |
+| 正式数据库 | Cloudflare D1                | 多人共享的权威数据源                              |
+| 本地数据库 | SQLite（sql.js）             | 浏览器内运行，导出即文件                          |
+| 本地持久化 | IndexedDB                    | 保存 SQLite 二进制，关闭浏览器不丢失              |
+| 备份       | JSON/文件导出/导入           | 在线版导出 JSON，本地版导出 `.db`                 |
 
 ## 四、核心数据模型
 
 参考寺院垂直产品（慧云台等）与通用 PMS，抽象为以下主表：
 
 ### rooms（客房）
+
 - `id`：房间编号
 - `name`：房间名，如 101、202
 - `location`：位置，如 东楼、西院
@@ -81,6 +82,7 @@
 - `notes`：备注
 
 ### beds（床位）
+
 - `id`：床位编号
 - `room_id`：所属房间
 - `bed_number`：床位号，如 1号床、2号床
@@ -88,6 +90,7 @@
 - `notes`：备注
 
 ### guests（住客主档案）
+
 - `name`、`dharma_name`：登记姓名（界面统一为「姓名 / 法名」单字段；新登记写入 `name`，旧数据两列仍可读）
 - `gender`、`phone`、`id_card`：基础信息
 - `emergency_contact`、`emergency_phone`：紧急联系人
@@ -96,6 +99,7 @@
 - `notes`：备注
 
 ### lodgers（挂单/住客）
+
 - `guest_id`：关联住客主档案
 - `event_id`：关联营期（禅营/法会/修道班）
 - `name`、`dharma_name`、`gender`、`phone`、`id_card`：登记时快照（界面单字段「姓名 / 法名」；与 `guests` 主档案可能不同，用于保留历史记录）
@@ -108,6 +112,7 @@
 - `notes`：备注
 
 ### meals（用斋记录）
+
 - `id`：记录编号
 - `lodger_id`：关联住客
 - `date`：日期
@@ -115,6 +120,7 @@
 - `notes`：备注
 
 ### payments（收款/退款）
+
 - `lodger_id`：关联挂单
 - `type`：押金 / 房费 / 退款
 - `amount`：金额
@@ -123,6 +129,7 @@
 - `paid_at`：收款时间
 
 ### events（营期/法会）
+
 - `name`：营期名称
 - `event_type`：禅营 / 法会 / 修道班等
 - `gender_type`：男 / 女 / 混合
@@ -132,12 +139,14 @@
 - `notes`：备注
 
 ### users（系统账号）
+
 - `username`：登录账号
 - `display_name`：显示名
 - `role`：admin（管理员）/ zhike（知客师）
 - `password`：SHA-256 加盐哈希存储
 
 ### reservations（预约）
+
 - `guest_id`：关联住客主档案
 - `event_id`：关联营期
 - `name`、`dharma_name`、`gender`、`phone`、`id_card`：预约人信息（登记时快照）
@@ -148,6 +157,7 @@
 - `status`：预约 / 已确认 / 已入住 / 已取消 / No-show
 
 ### housekeeping（房务清洁流转）
+
 - `bed_id`：关联床位
 - `status`：脏房 / 净房 / 查房 / 可用 / 维修
 - `operator`：操作人
@@ -155,6 +165,7 @@
 - `notes`：备注
 
 ### audit_logs（操作日志）
+
 - `action`：操作类型
 - `target_type`、`target_id`：操作对象
 - `detail`：详情（JSON）
@@ -163,6 +174,7 @@
 ## 五、功能清单
 
 ### 已有（MVP + Phase 1/2/3 已实现）
+
 - [x] 图形化房态看板（KPI / 运营提醒 / 在住挂单）
 - [x] 本地多账号登录与权限（管理员 / 知客师）
 - [x] 用户管理（仅管理员）
@@ -198,18 +210,21 @@
 - [x] **信息管理**：房间 / 床位 / 住客档案 / 挂单记录 增删改查
 
 ### 可后续扩展
+
 - [ ] 多设备同房态（同一 WiFi 下电脑临时当主机）
 - [ ] PWA「添加到主屏幕」
 
 ## 六、使用方式
 
 ### Windows（单台旧电脑）
+
 1. 把整个文件夹复制到电脑桌面或 U 盘（不能只复制单个文件）。
 2. 双击 `启动客堂系统.bat`。
 3. 脚本会自动用 Chrome/Edge 以 `file://` 方式打开，并已附加 `--allow-file-access-from-files`，确保本地 `sql-wasm.wasm` 可被加载。
 4. 在浏览器中操作。左侧「信息管理」可对房间、床位、住客档案、挂单记录做增删改查。
 
 ### macOS（开发/测试）
+
 - **不弹 Terminal**：双击 `客堂住宿系统.app`（内部调用 `.command` 脚本）。
 - **可接受弹 Terminal**：双击 `启动客堂系统.command`。
 - **命令行**：`python3 -m http.server 8080`，然后浏览器访问 `http://127.0.0.1:8080`。
@@ -218,10 +233,12 @@
 > `sql.js` 可能无法加载本地 `sql-wasm.wasm`，导致页面白屏。请始终使用提供的启动脚本。
 
 ### 开发调试
+
 - 推荐：`python3 -m http.server 8080` 后访问 `http://127.0.0.1:8080`。
 - 也可以直接双击启动脚本；本地 `file://` 模式已验证可正常初始化。
 
 ### 自动化验证
+
 项目根目录提供两个 Python 脚本，用于在修改后快速回归：
 
 ```bash
@@ -262,12 +279,12 @@ python3 test_headless.py
 
 ## 八、设计取舍
 
-| 成熟产品做法 | 本方案做法 | 原因 |
-|--------------|------------|------|
-| 服务器 + MySQL | 浏览器 + sql.js + IndexedDB | 无服务器、零安装 |
-| 桌面安装包（Electron/Tauri） | 纯网页 + 启动脚本 | 免 Apple/Windows 签名认证 |
-| 公有云 SaaS | 本地数据 | 挂单隐私、无外网依赖 |
-| 全寺 ERP（20+ 模块） | 只做客堂住宿刀尖功能 | 小庙落地、学习成本低 |
+| 成熟产品做法                 | 本方案做法                  | 原因                      |
+| ---------------------------- | --------------------------- | ------------------------- |
+| 服务器 + MySQL               | 浏览器 + sql.js + IndexedDB | 无服务器、零安装          |
+| 桌面安装包（Electron/Tauri） | 纯网页 + 启动脚本           | 免 Apple/Windows 签名认证 |
+| 公有云 SaaS                  | 本地数据                    | 挂单隐私、无外网依赖      |
+| 全寺 ERP（20+ 模块）         | 只做客堂住宿刀尖功能        | 小庙落地、学习成本低      |
 
 ## 九、参考产品
 

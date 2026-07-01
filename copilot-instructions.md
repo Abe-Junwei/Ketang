@@ -25,7 +25,7 @@ applies_to: ["cursor", "github-copilot", "kimi-cli"]
 
 ## 一、核心原则
 
-### 1.  simplicity first
+### 1. simplicity first
 
 - 只解决用户提出的问题。
 - 不为单一用例制造抽象。
@@ -61,11 +61,13 @@ applies_to: ["cursor", "github-copilot", "kimi-cli"]
 ### 4.1 Explore（仅读不改）
 
 只读：
+
 - `index.html`、`styles.css`
 - `js/` 下与本次改动相关的模块（通常先看 `app.js`、`db.js`，再定位具体功能文件）
 - `README.md`、`使用说明.txt`、`AGENTS.md`
 
 产出 ≤ 15 行「已读事实」：
+
 1. 当前受影响的函数/视图。
 2. 最相似的现有模式。
 3. 与本次改动冲突的硬约束。
@@ -74,6 +76,7 @@ applies_to: ["cursor", "github-copilot", "kimi-cli"]
 ### 4.2 Research（新功能 / 新交互 / 新存储时）
 
 调研维度：
+
 1. 同类产品 / 标杆实现（寺院信息化如慧云台 / 通用 PMS）。
 2. 业内 best practice / 事实标准。
 3. 公认不可行 / 反模式。
@@ -83,6 +86,7 @@ applies_to: ["cursor", "github-copilot", "kimi-cli"]
 ### 4.3 Plan（落位 + 验证方式，等用户确认）
 
 Plan 必含：
+
 1. 成熟方案结论（复用/适配/自研 + 理由）。
 2. 新增逻辑落位：哪个函数 / 哪个视图。
 3. 验证方式：Chrome Headless 命令 + 手动业务路径。
