@@ -89,17 +89,6 @@ CREATE TABLE IF NOT EXISTS meals (
   notes TEXT,
   UNIQUE(lodger_id, date)
 );
-CREATE TABLE IF NOT EXISTS payments (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  lodger_id INTEGER REFERENCES lodgers(id) ON DELETE CASCADE,
-  reservation_id INTEGER REFERENCES reservations(id) ON DELETE CASCADE,
-  type TEXT NOT NULL CHECK(type IN ('押金','房费','退款','其他')),
-  amount REAL NOT NULL,
-  method TEXT,
-  remark TEXT,
-  paid_at TEXT DEFAULT CURRENT_TIMESTAMP,
-  created_at TEXT DEFAULT CURRENT_TIMESTAMP
-);
 CREATE TABLE IF NOT EXISTS reservations (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   guest_id INTEGER REFERENCES guests(id) ON DELETE SET NULL,
@@ -120,6 +109,17 @@ CREATE TABLE IF NOT EXISTS reservations (
   meal_lunch INTEGER DEFAULT 1 CHECK(meal_lunch IN (0,1)),
   meal_dinner INTEGER DEFAULT 1 CHECK(meal_dinner IN (0,1)),
   notes TEXT,
+  created_at TEXT DEFAULT CURRENT_TIMESTAMP
+);
+CREATE TABLE IF NOT EXISTS payments (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  lodger_id INTEGER REFERENCES lodgers(id) ON DELETE CASCADE,
+  reservation_id INTEGER REFERENCES reservations(id) ON DELETE CASCADE,
+  type TEXT NOT NULL CHECK(type IN ('押金','房费','退款','其他')),
+  amount REAL NOT NULL,
+  method TEXT,
+  remark TEXT,
+  paid_at TEXT DEFAULT CURRENT_TIMESTAMP,
   created_at TEXT DEFAULT CURRENT_TIMESTAMP
 );
 CREATE TABLE IF NOT EXISTS housekeeping (

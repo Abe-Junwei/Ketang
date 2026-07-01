@@ -20,14 +20,14 @@ export async function onRequestPost({ request, env }) {
   try {
     if (payload.action === 'init') {
       const empty = await isDatabaseEmpty(env);
-      if (!empty) {
+      if (!empty && payload.force === true) {
         const secret = request.headers.get('x-ketang-bootstrap') || '';
         if (!env.KETANG_BOOTSTRAP_SECRET || secret !== env.KETANG_BOOTSTRAP_SECRET) {
-          return json({ error: '数据库已初始化，禁止重复 init' }, 403);
+          return json({ error: '数据库已初始化，禁止强制 reseed' }, 403);
         }
       }
       const seeded = await initRemoteDatabase(env);
-      return json({ ok: true, seeded });
+      return json({ ok: true, seeded, already_initialized: !empty && !seeded });
     }
 
     if (payload.action === 'users') {

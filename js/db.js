@@ -103,7 +103,12 @@ function openIDB() {
 
 async function loadDB() {
   if (isRemoteDB()) {
-    remoteDBRequest({ action: 'init' });
+    try {
+      remoteDBRequest({ action: 'init' });
+    } catch (e) {
+      // 兼容旧版后端：已初始化时 init 可能返回 403 | tolerate legacy init 403
+      if (!/已初始化|403/.test(String(e.message))) throw e;
+    }
     db = { remote: true, exec: remoteExec, run: remoteRun };
     return;
   }

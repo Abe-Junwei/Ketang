@@ -3,21 +3,23 @@ document.addEventListener('DOMContentLoaded', async () => {
   try {
     await initSqlite();
     await loadDB();
-    initSchema();
-    migrateV1toV2();
-    migrateV2toV3();
-    migrateV3toV4();
-    migrateV4toV5();
-    migrateV5toV6();
-    migrateV6toV7();
-    migrateV7toV8();
-    migrateV8toV9();
-    migrateV9toV10();
-    migrateV10toV11();
-    migrateV11toV12();
-    migrateV12toV13();
-    createIndexes();
-    await seedRooms();
+    if (!isRemoteDB()) {
+      initSchema();
+      migrateV1toV2();
+      migrateV2toV3();
+      migrateV3toV4();
+      migrateV4toV5();
+      migrateV5toV6();
+      migrateV6toV7();
+      migrateV7toV8();
+      migrateV8toV9();
+      migrateV9toV10();
+      migrateV10toV11();
+      migrateV11toV12();
+      migrateV12toV13();
+      createIndexes();
+      await seedRooms();
+    }
     initAuth();
     applyDeploymentModeUI();
     applyPermissions();

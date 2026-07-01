@@ -52,7 +52,7 @@
 - 管理员可在「系统设置」导出/导入 JSON 备份（含 `users` 表，`/api/v1/admin/data-backup`）。
 - 房态看板在云端模式每 8 秒轮询 `board-version` 自动刷新。
 - 公开预约：`POST /api/public/reservations`（IP 限流；可用 `KETANG_PUBLIC_RESERVATIONS=false` 关闭）。
-- `init` 在非空库时需 `x-ketang-bootstrap` 头匹配 `KETANG_BOOTSTRAP_SECRET`。
+- `init` 在非空库时默认幂等；仅 `force: true` 且带 `x-ketang-bootstrap` 才允许强制 reseed。
 - 登录与公开预约均有限流；默认密码登录后会强制改密（本地与云端）。
 - 云端模式暂不支持 CSV 批量导入入住。
 
