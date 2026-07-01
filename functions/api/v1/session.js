@@ -10,8 +10,7 @@ export async function onRequestGet({ request, env }) {
   if (!env.KETANG_DB) return json({ error: "缺少 D1 绑定 KETANG_DB" }, 500);
   try {
     await initRemoteDatabase(env);
-    const bindQuery = (sql, p) => queryD1(env, sql, p);
-    const result = await getSessionUser(env, request, bindQuery);
+    const result = await getSessionUser(env, request, queryD1);
     if (!result) return json({ error: "登录已过期，请重新登录" }, 401);
     return json(result);
   } catch (error) {

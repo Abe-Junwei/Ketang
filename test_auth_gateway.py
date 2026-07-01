@@ -60,6 +60,17 @@ def test_frontend_unauthorized_handler():
         sys.exit(1)
 
 
+def test_session_query_binding():
+    session_api = read('functions/api/v1/session.js')
+    users_shared = read('functions/_shared/users.js')
+    if 'getSessionUser(env, request, queryD1)' not in session_api:
+        print('FAIL session.js must pass raw queryD1 to getSessionUser')
+        sys.exit(1)
+    if 'verifySession(request, env, (sql, params)' not in users_shared:
+        print('FAIL getSessionUser must bind env before verifySession')
+        sys.exit(1)
+
+
 def test_user_role_migration_guard():
     d1 = read('functions/_shared/d1.js')
     if "ddl.includes(\"'admin','zhike'\") && !ddl.includes(\"'kitchen'\")" not in d1:
@@ -104,6 +115,7 @@ TESTS = [
     test_session_init_migration,
     test_admin_update_returns_token,
     test_frontend_unauthorized_handler,
+    test_session_query_binding,
     test_user_role_migration_guard,
     test_role_login_gateway,
     test_anonymous_users_action_does_not_enumerate_accounts,

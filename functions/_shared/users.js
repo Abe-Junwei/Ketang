@@ -69,7 +69,9 @@ async function bumpAuthVersion(env, userId) {
 }
 
 export async function getSessionUser(env, request, queryD1) {
-  const session = await verifySession(request, env, queryD1);
+  const session = await verifySession(request, env, (sql, params) =>
+    queryD1(env, sql, params),
+  );
   if (!session) return null;
   const rows = await queryD1(
     env,
