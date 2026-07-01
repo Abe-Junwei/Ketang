@@ -18,6 +18,10 @@ function applySessionRefresh(result) {
     setRemoteSessionToken(result.token);
   if (result.user) {
     currentUser = result.user;
+    if (result.permissions) setSessionPermissions(result.permissions);
+    else if (currentUser.role) {
+      setSessionPermissions(getSessionPermissionsForRole(currentUser.role));
+    }
     localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(currentUser));
     updateAuthUI();
     applyPermissions();
@@ -85,6 +89,10 @@ function initAuth() {
         ) {
           currentUser = null;
           localStorage.removeItem(AUTH_STORAGE_KEY);
+        } else if (currentUser.permissions) {
+          setSessionPermissions(currentUser.permissions);
+        } else if (currentUser.role) {
+          setSessionPermissions(getSessionPermissionsForRole(currentUser.role));
         }
       }
     } catch (e) {
@@ -151,6 +159,10 @@ async function restoreRemoteSession() {
   try {
     const data = await apiSessionMe();
     currentUser = data.user;
+    if (data.permissions) setSessionPermissions(data.permissions);
+    else if (currentUser.role) {
+      setSessionPermissions(getSessionPermissionsForRole(currentUser.role));
+    }
     localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(currentUser));
     updateAuthUI();
     applyPermissions();
@@ -189,6 +201,10 @@ async function login(username, password) {
       throw err;
     }
     currentUser = result.user;
+    if (result.permissions) setSessionPermissions(result.permissions);
+    else if (result.user.role) {
+      setSessionPermissions(getSessionPermissionsForRole(result.user.role));
+    }
     localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(currentUser));
     logAudit("用户登录", "user", result.user.id, {
       username: result.user.username,
@@ -219,6 +235,7 @@ async function login(username, password) {
     role: fresh.role,
     auth_version: fresh.auth_version || 1,
   };
+  setSessionPermissions(getSessionPermissionsForRole(currentUser.role));
   localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(currentUser));
   logAudit("用户登录", "user", user.id, {
     username: user.username,
@@ -248,6 +265,8 @@ async function loginByRole(role, password) {
     }
     setRemoteSessionToken(result.token);
     currentUser = result.user;
+    if (result.permissions) setSessionPermissions(result.permissions);
+    else setSessionPermissions(getSessionPermissionsForRole(result.user.role));
     localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(currentUser));
     logAudit("用户登录", "user", result.user.id, {
       username: result.user.username,
@@ -279,6 +298,7 @@ async function loginByRole(role, password) {
       role: fresh.role,
       auth_version: fresh.auth_version || 1,
     };
+    setSessionPermissions(getSessionPermissionsForRole(currentUser.role));
     localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(currentUser));
     logAudit("用户登录", "user", user.id, {
       username: user.username,
@@ -516,19 +536,20 @@ async function submitForceChangePassword() {
 }
 
 function applyPermissions() {
-  const isAdminUser = isAdmin();
+  const can = function (code) {
+    return hasPermission(code);
+  };
 
-  // 侧边栏菜单权限
   const menuMap = {
-    board: true,
-    lodging: true,
-    stay: true,
-    forecast: true,
-    housekeeping: true,
-    reports: true,
-    history: true,
-    info: isAdminUser,
-    backup: isAdminUser,
+    board: can("board.read"),
+    lodging: can("lodging.read") || can("lodging.checkin"),
+    stay: can("lodging.read"),
+    forecast: can("board.read"),
+    housekeeping: can("housekeeping.read"),
+    reports: can("reports.read"),
+    history: can("lodging.read"),
+    info: can("settings.read"),
+    backup: can("backup.read"),
   };
 
   Object.keys(menuMap).forEach((view) => {
@@ -545,14 +566,14 @@ function applyPermissions() {
 
   // 如果当前在明确标记为隐藏的页面，跳转回房态看板
   const activeView = document.querySelector(".view.active");
-  if (activeView && !isAdminUser) {
+  if (activeView) {
     const viewId = activeView.id.replace("view-", "");
     if (menuMap[viewId] === false) showView("board");
   }
 }
 
 function requireAdmin() {
-  if (!isAdmin()) {
+  if (!hasPermission("users.write") && !isAdmin()) {
     alert("需要管理员权限");
     return false;
   }

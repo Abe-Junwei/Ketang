@@ -1,6 +1,7 @@
 import { json, readJson } from "../../_shared/http.js";
 import { requireSession } from "../../_shared/auth.js";
 import { queryD1, safeErrorMessage } from "../../_shared/d1.js";
+import { requirePermission } from "../../_shared/permissions.js";
 import { apiCheckout } from "../../_shared/lodgers.js";
 
 export async function onRequestPost({ request, env }) {
@@ -9,11 +10,16 @@ export async function onRequestPost({ request, env }) {
     const session = await requireSession(request, env, (sql, p) =>
       queryD1(env, sql, p),
     );
+    await requirePermission(env, session, "lodging.checkout");
     const body = await readJson(request);
     if (!body) return json({ error: "请求格式错误" }, 400);
     return json(await apiCheckout(env, session, body));
   } catch (error) {
-    const status = /登录已过期/.test(error.message) ? 401 : 500;
+    const status = /登录已过期/.test(error.message)
+      ? 401
+      : /权限不足/.test(error.message)
+        ? 403
+        : 500;
     return json({ error: safeErrorMessage(error) }, status);
   }
 }

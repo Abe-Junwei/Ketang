@@ -18,7 +18,8 @@ import {
   safeErrorMessage,
 } from "../_shared/d1.js";
 import { changeUserPassword } from "../_shared/users.js";
-import { checkRateLimit } from "../_shared/rate-limit.js";
+import { getSessionPermissions } from "../_shared/permissions.js";
+import { createRequestTimer } from "../_shared/timing.js";
 
 const bindQuery = (env) => (sql, params) => queryD1(env, sql, params);
 const bindRun = (env) => (sql, params) => runD1(env, sql, params);
@@ -84,16 +85,6 @@ export async function onRequestPost({ request, env }) {
     }
 
     if (payload.action === "users") {
-      await initRemoteDatabase(env);
-      await checkRateLimit(
-        env,
-        ip,
-        "users_list",
-        30,
-        bindQuery(env),
-        bindRun(env),
-        60,
-      );
       const rows = PUBLIC_LOGIN_ROLES.map(([role, label]) => ({
         username: role,
         display_name: label,
@@ -103,28 +94,38 @@ export async function onRequestPost({ request, env }) {
     }
 
     if (payload.action === "login_role") {
-      await initRemoteDatabase(env);
-      await checkLoginRateLimit(env, ip, bindQuery(env), bindRun(env));
+      const timer = createRequestTimer();
+      await timer.stage("init_ms", () => initRemoteDatabase(env));
+      await timer.stage("rate_limit_ms", () =>
+        checkLoginRateLimit(env, ip, bindQuery(env), bindRun(env)),
+      );
       const role = String(payload.role || "");
       if (!PUBLIC_LOGIN_ROLES.some(([value]) => value === role)) {
         await recordLoginFailure(env, ip, bindQuery(env), bindRun(env));
-        return json({ error: "身份或密码错误" }, 401);
+        return timer.finish({ error: "身份或密码错误" }, request, 401);
       }
-      const rows = await queryD1(
-        env,
-        "SELECT * FROM users WHERE role = ? AND (is_active IS NULL OR is_active = 1) ORDER BY CASE WHEN username = ? THEN 0 ELSE 1 END, username",
-        [role, role],
+      const rows = await timer.stage("d1_query_ms", () =>
+        queryD1(
+          env,
+          "SELECT * FROM users WHERE role = ? AND (is_active IS NULL OR is_active = 1) ORDER BY CASE WHEN username = ? THEN 0 ELSE 1 END, username",
+          [role, role],
+        ),
       );
       let matchedUser = null;
+      let passwordMs = 0;
       for (const user of rows) {
-        if (await verifyPassword(payload.password || "", user.password)) {
+        const verifyStart = Date.now();
+        const ok = await verifyPassword(payload.password || "", user.password);
+        passwordMs += Date.now() - verifyStart;
+        if (ok) {
           matchedUser = user;
           break;
         }
       }
+      timer.mark("password_ms", passwordMs);
       if (!matchedUser) {
         await recordLoginFailure(env, ip, bindQuery(env), bindRun(env));
-        return json({ error: "身份或密码错误" }, 401);
+        return timer.finish({ error: "身份或密码错误" }, request, 401);
       }
       await upgradePasswordHashBestEffort(
         matchedUser.id,
@@ -139,12 +140,24 @@ export async function onRequestPost({ request, env }) {
         [matchedUser.id],
       );
       const freshUser = freshRows[0] || matchedUser;
-      const token = await signSession(env, freshUser);
-      return json({
-        token,
-        user: sessionUserPayload(freshUser),
-        must_change_password: mustChangePassword(freshUser),
-      });
+      const token = await timer.stage("token_ms", () =>
+        signSession(env, freshUser),
+      );
+      const session = {
+        role: freshUser.role,
+        id: freshUser.id,
+        sub: freshUser.id,
+      };
+      const permissions = await getSessionPermissions(env, session);
+      return timer.finish(
+        {
+          token,
+          user: sessionUserPayload(freshUser),
+          permissions,
+          must_change_password: mustChangePassword(freshUser),
+        },
+        request,
+      );
     }
 
     if (payload.action === "login") {
@@ -177,9 +190,16 @@ export async function onRequestPost({ request, env }) {
       );
       const freshUser = freshRows[0] || user;
       const token = await signSession(env, freshUser);
+      const session = {
+        role: freshUser.role,
+        id: freshUser.id,
+        sub: freshUser.id,
+      };
+      const permissions = await getSessionPermissions(env, session);
       return json({
         token,
         user: sessionUserPayload(freshUser),
+        permissions,
         must_change_password: mustChangePassword(freshUser),
       });
     }

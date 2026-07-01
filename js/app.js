@@ -185,7 +185,10 @@ function requireAuth() {
 function showView(name) {
   if (!requireAuth()) return;
   // 权限检查：info 和 backup 仅管理员可访问
-  if ((name === "info" || name === "backup") && !isAdmin()) {
+  if (
+    (name === "info" && !hasPermission("settings.read")) ||
+    (name === "backup" && !hasPermission("backup.read"))
+  ) {
     alert("需要管理员权限");
     return;
   }
@@ -457,7 +460,23 @@ async function renderAll(options) {
     getRemoteSessionToken() &&
     !(options && options.skipSync)
   ) {
-    await syncRemoteReadModel({ force: true });
+    const forceSync = !!(options && options.forceSync);
+    if (forceSync || !remoteReadModelReady) {
+      await syncRemoteReadModel({ force: true });
+    } else {
+      try {
+        const result = await apiBoardVersion();
+        if (
+          lastBoardVersion == null ||
+          result.version !== lastBoardVersion
+        ) {
+          await syncRemoteReadModel({ force: true });
+        }
+        lastBoardVersion = result.version;
+      } catch (e) {
+        await syncRemoteReadModel({ force: true });
+      }
+    }
   }
   renderRooms();
   renderBoard();

@@ -18,6 +18,8 @@ REQUIRED = [
     'functions/_shared/users.js',
     'functions/_shared/admin-records.js',
     'functions/_shared/read-model.js',
+    'functions/_shared/permissions.js',
+    'functions/_shared/timing.js',
     'functions/_shared/password.js',
     'functions/api/db.js',
     'functions/api/v1/check-in.js',
@@ -40,6 +42,7 @@ REQUIRED = [
     'functions/api/v1/admin/records.js',
     'functions/api/public/reservations.js',
     'js/api-client.js',
+    'js/permissions.js',
     'wrangler.toml',
 ]
 
@@ -53,6 +56,9 @@ if missing:
 index = (ROOT / 'index.html').read_text(encoding='utf-8')
 if 'api-client.js' not in index:
     print('FAIL index.html missing api-client.js script')
+    sys.exit(1)
+if 'permissions.js' not in index:
+    print('FAIL index.html missing permissions.js script')
     sys.exit(1)
 
 schema = (ROOT / 'functions/_shared/schema.js').read_text(encoding='utf-8')

@@ -194,7 +194,10 @@ async function initRemoteDatabaseOnce(env) {
   await ensureUserRoleColumns(env);
   await ensureDefaultUsers(env);
   const count = await queryD1(env, "SELECT COUNT(*) AS c FROM rooms", []);
-  if ((count[0]?.c || 0) > 0) return false;
+  if ((count[0]?.c || 0) > 0) {
+    remoteInitReady = true;
+    return false;
+  }
   for (const item of SEED_ROOMS) await runD1(env, item.sql, item.params);
   const beds = await queryD1(
     env,

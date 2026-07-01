@@ -6,6 +6,7 @@ import {
   hashPasswordPlain,
 } from "./auth.js";
 import { insertAudit, queryD1, runD1 } from "./d1.js";
+import { getSessionPermissions } from "./permissions.js";
 
 const WEAK_PASSWORDS = new Set([
   "admin",
@@ -80,6 +81,12 @@ export async function getSessionUser(env, request, queryD1) {
   );
   const user = rows[0];
   if (!user) return null;
+  const sessionShape = {
+    role: user.role,
+    id: user.id,
+    sub: user.id,
+  };
+  const permissions = await getSessionPermissions(env, sessionShape);
   return {
     user: {
       id: user.id,
@@ -88,6 +95,7 @@ export async function getSessionUser(env, request, queryD1) {
       role: user.role,
       auth_version: session.auth_version || user.auth_version || 1,
     },
+    permissions,
     must_change_password: mustChangePassword(user),
   };
 }

@@ -1,4 +1,5 @@
-import { initRemoteDatabase, queryD1, getBoardVersion } from "./d1.js";
+import { queryD1, getBoardVersion, initRemoteDatabase } from "./d1.js";
+import { getSessionPermissions } from "./permissions.js";
 
 /** 云端读模型表清单 | Tables included in client read-model snapshot */
 export const READ_MODEL_TABLES = [
@@ -26,8 +27,10 @@ function tablesForRole(role) {
   return READ_MODEL_TABLES.filter((name) => !ZHIKE_OMIT.has(name));
 }
 
-export async function buildReadModel(env, session) {
-  await initRemoteDatabase(env);
+export async function buildReadModel(env, session, options) {
+  if (!options?.skipInit) {
+    await initRemoteDatabase(env);
+  }
   const tables = tablesForRole(session.role);
   const data = {};
   for (const table of tables) {
@@ -39,6 +42,7 @@ export async function buildReadModel(env, session) {
     version,
     synced_at: new Date().toISOString(),
     role: session.role,
+    permissions: await getSessionPermissions(env, session),
     tables: data,
   };
 }

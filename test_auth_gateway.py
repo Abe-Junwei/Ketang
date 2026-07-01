@@ -28,10 +28,42 @@ def test_zhike_users_select_blocked():
         sys.exit(1)
 
 
-def test_session_init_migration():
+def test_session_skips_full_init():
     session = read('functions/api/v1/session.js')
-    if 'initRemoteDatabase' not in session:
-        print('FAIL session.js missing initRemoteDatabase')
+    if 'initRemoteDatabase' in session:
+        print('FAIL session.js must not call initRemoteDatabase')
+        sys.exit(1)
+    if 'createRequestTimer' not in session:
+        print('FAIL session.js missing stage timing helper')
+        sys.exit(1)
+
+
+def test_users_action_skips_init():
+    db_api = read('functions/api/db.js')
+    users_action = re.search(r'if \(payload\.action === "users"\) \{([\s\S]*?)\n    \}', db_api)
+    if not users_action:
+        print('FAIL api/db.js missing users action')
+        sys.exit(1)
+    if 'initRemoteDatabase' in users_action.group(1):
+        print('FAIL users action must not call initRemoteDatabase')
+        sys.exit(1)
+
+
+def test_remote_init_marks_ready_after_existing_db():
+    d1 = read('functions/_shared/d1.js')
+    if 'remoteInitReady = true' not in d1:
+        print('FAIL initRemoteDatabase must mark remoteInitReady when DB already initialized')
+        sys.exit(1)
+
+
+def test_permissions_layer_exists():
+    perms = read('functions/_shared/permissions.js')
+    if 'requirePermission' not in perms or 'getSessionPermissions' not in perms:
+        print('FAIL permissions.js missing core helpers')
+        sys.exit(1)
+    check_in = read('functions/api/v1/check-in.js')
+    if 'requirePermission' not in check_in or 'lodging.checkin' not in check_in:
+        print('FAIL check-in.js missing lodging.checkin permission guard')
         sys.exit(1)
 
 
@@ -63,8 +95,8 @@ def test_frontend_unauthorized_handler():
 def test_session_query_binding():
     session_api = read('functions/api/v1/session.js')
     users_shared = read('functions/_shared/users.js')
-    if 'getSessionUser(env, request, queryD1)' not in session_api:
-        print('FAIL session.js must pass raw queryD1 to getSessionUser')
+    if 'getSessionUser(env, request,' not in session_api:
+        print('FAIL session.js must pass bound query function to getSessionUser')
         sys.exit(1)
     if 'verifySession(request, env, (sql, params)' not in users_shared:
         print('FAIL getSessionUser must bind env before verifySession')
@@ -136,7 +168,10 @@ def test_anonymous_users_action_does_not_enumerate_accounts():
 TESTS = [
     test_upgrade_password_run_signature,
     test_zhike_users_select_blocked,
-    test_session_init_migration,
+    test_session_skips_full_init,
+    test_users_action_skips_init,
+    test_remote_init_marks_ready_after_existing_db,
+    test_permissions_layer_exists,
     test_admin_update_returns_token,
     test_frontend_unauthorized_handler,
     test_session_query_binding,
