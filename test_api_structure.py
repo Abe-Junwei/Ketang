@@ -53,4 +53,9 @@ if 'api-client.js' not in index:
     print('FAIL index.html missing api-client.js script')
     sys.exit(1)
 
+schema = (ROOT / 'functions/_shared/schema.js').read_text(encoding='utf-8')
+if 'PRAGMA foreign_keys' in schema:
+    print('FAIL remote D1 schema must not include PRAGMA foreign_keys')
+    sys.exit(1)
+
 print('OK online API structure (%d files)' % len(REQUIRED))

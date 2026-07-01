@@ -1,5 +1,4 @@
 export const SCHEMA_SQL = `
-PRAGMA foreign_keys = ON;
 CREATE TABLE IF NOT EXISTS rooms (
   id INTEGER PRIMARY KEY,
   name TEXT NOT NULL,
