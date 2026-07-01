@@ -23,12 +23,12 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.12'
+          python-version: "3.12"
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '22'
+          node-version: "22"
 
       - name: Install JavaScript dev tools
         run: npm ci
@@ -46,6 +46,9 @@ jobs:
 
       - name: Run JavaScript lint
         run: npm run lint:ci
+
+      - name: Check formatting
+        run: npm run format:check
 
       - name: Check Python test syntax
         run: python -m py_compile test_api_structure.py test_auth_gateway.py test_headless.py test_cdp.py test_cdp_migration.py test_file_protocol.py
