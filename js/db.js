@@ -1828,8 +1828,8 @@ async function importDB(input) {
         const data = JSON.parse(e.target.result);
         if (!data.tables) throw new Error("不是有效的客堂 JSON 备份");
         await apiImportJsonBackup(data.tables);
-        showToast("云端数据恢复成功");
         await renderAll();
+        showToast("云端数据恢复成功");
       } catch (err) {
         alert("恢复失败：" + err.message);
       } finally {
