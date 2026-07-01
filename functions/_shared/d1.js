@@ -37,6 +37,8 @@ export async function initRemoteDatabase(env) {
 }
 
 export async function isDatabaseEmpty(env) {
+  const tables = await queryD1(env, "SELECT 1 AS ok FROM sqlite_master WHERE type='table' AND name='rooms' LIMIT 1", []);
+  if (!tables.length) return true;
   const count = await queryD1(env, 'SELECT COUNT(*) AS c FROM rooms', []);
   return (count[0]?.c || 0) === 0;
 }

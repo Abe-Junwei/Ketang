@@ -6,7 +6,7 @@ import {
 import {
   queryD1, runD1, initRemoteDatabase, isDatabaseEmpty, assertAllowedSql, safeErrorMessage
 } from '../_shared/d1.js';
-import { checkRateLimit, recordRateLimitHit } from '../_shared/rate-limit.js';
+import { checkRateLimit } from '../_shared/rate-limit.js';
 
 const bindQuery = (env) => (sql, params) => queryD1(env, sql, params);
 const bindRun = (env) => (sql, params) => runD1(env, sql, params);
@@ -19,20 +19,22 @@ export async function onRequestPost({ request, env }) {
 
   try {
     if (payload.action === 'init') {
-      const empty = await isDatabaseEmpty(env);
-      if (!empty && payload.force === true) {
-        const secret = request.headers.get('x-ketang-bootstrap') || '';
-        if (!env.KETANG_BOOTSTRAP_SECRET || secret !== env.KETANG_BOOTSTRAP_SECRET) {
-          return json({ error: '数据库已初始化，禁止强制 reseed' }, 403);
+      if (payload.force === true) {
+        const empty = await isDatabaseEmpty(env);
+        if (!empty) {
+          const secret = request.headers.get('x-ketang-bootstrap') || '';
+          if (!env.KETANG_BOOTSTRAP_SECRET || secret !== env.KETANG_BOOTSTRAP_SECRET) {
+            return json({ error: '数据库已初始化，禁止强制 reseed' }, 403);
+          }
         }
       }
       const seeded = await initRemoteDatabase(env);
-      return json({ ok: true, seeded, already_initialized: !empty && !seeded });
+      return json({ ok: true, seeded, already_initialized: !seeded });
     }
 
     if (payload.action === 'users') {
-      await checkRateLimit(env, ip, 'users_list', 30, bindQuery(env), bindRun(env), 60);
       await initRemoteDatabase(env);
+      await checkRateLimit(env, ip, 'users_list', 30, bindQuery(env), bindRun(env), 60);
       const rows = await queryD1(env, 'SELECT username, display_name, role FROM users WHERE is_active IS NULL OR is_active = 1 ORDER BY role, username', []);
       return json({ rows });
     }
