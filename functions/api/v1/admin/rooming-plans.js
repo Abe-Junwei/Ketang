@@ -8,7 +8,14 @@ import {
 import { handleRoomingPlanAction } from "../../../_shared/rooming-plans.js";
 import { handleRoomingPublishAction } from "../../../_shared/rooming-publish.js";
 
-const PUBLISH_ACTIONS = new Set(["publish", "republish", "queue", "update_queue"]);
+const PUBLISH_ACTIONS = new Set([
+  "publish",
+  "republish",
+  "queue",
+  "update_queue",
+  "log_adjustment",
+  "retrospective",
+]);
 
 /** POST /api/v1/admin/rooming-plans — 预分房草稿与发布 | Rooming plan draft & publish */
 export async function onRequestPost({ request, env }) {

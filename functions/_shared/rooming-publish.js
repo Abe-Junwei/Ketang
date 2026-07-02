@@ -9,6 +9,7 @@ import { requirePermission } from "./permissions.js";
 import { checkRoomingPlanConflicts } from "./rooming-plans.js";
 
 export const QUEUE_STATUSES = new Set(["待办理", "已办理", "已跳过"]);
+export const ADJUSTMENT_KINDS = new Set(["换床", "跳过预分", "手动备注", "其他"]);
 
 function text(value) {
   const v = String(value || "").trim();
@@ -247,6 +248,109 @@ export async function updateRoomingQueueItem(env, session, body) {
   return rows[0];
 }
 
+export async function logRoomingAdjustment(env, session, body) {
+  await requirePermission(env, session, "lodging.checkin");
+  const eventId = requireId(body.event_id, "营期");
+  const kind = assertInSet(
+    body.adjustment_kind || "其他",
+    ADJUSTMENT_KINDS,
+    "无效的调整类型",
+  );
+  const planId = parseInt(body.plan_id, 10) || null;
+  const queueId = parseInt(body.queue_id, 10) || null;
+  const lodgerId = parseInt(body.lodger_id, 10) || null;
+  const fromBedId = parseInt(body.from_bed_id, 10) || null;
+  const toBedId = parseInt(body.to_bed_id, 10) || null;
+  const operator =
+    text(body.operator) ||
+    text(session?.display_name) ||
+    text(session?.username) ||
+    null;
+  await runD1(
+    env,
+    `INSERT INTO rooming_adjustments
+      (event_id, plan_id, queue_id, lodger_id, adjustment_kind, member_name,
+       from_bed_id, to_bed_id, reason, operator)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [
+      eventId,
+      planId,
+      queueId,
+      lodgerId,
+      kind,
+      text(body.member_name),
+      fromBedId,
+      toBedId,
+      text(body.reason),
+      operator,
+    ],
+  );
+  await bumpBoardVersion(env);
+  await insertAudit(
+    env,
+    "记录排房调整",
+    "rooming_adjustments",
+    eventId,
+    { adjustment_kind: kind, member_name: text(body.member_name) },
+    session,
+  );
+  return { ok: true };
+}
+
+export async function getRoomingRetrospective(env, session, eventId) {
+  await requirePermission(env, session, "lodging.read");
+  const eventRows = await queryD1(env, "SELECT * FROM events WHERE id = ?", [
+    eventId,
+  ]);
+  if (!eventRows.length) throw new Error("营期不存在");
+  const plan = (
+    await queryD1(
+      env,
+      "SELECT * FROM rooming_plans WHERE event_id = ? LIMIT 1",
+      [eventId],
+    )
+  )[0];
+  const queue = await getRoomingCheckinQueue(env, eventId);
+  const adjustments = await queryD1(
+    env,
+    `SELECT a.*,
+            fb.bed_number AS from_bed_number,
+            fr.name AS from_room_name,
+            fr.location AS from_room_location,
+            tb.bed_number AS to_bed_number,
+            tr.name AS to_room_name,
+            tr.location AS to_room_location
+     FROM rooming_adjustments a
+     LEFT JOIN beds fb ON fb.id = a.from_bed_id
+     LEFT JOIN rooms fr ON fr.id = fb.room_id
+     LEFT JOIN beds tb ON tb.id = a.to_bed_id
+     LEFT JOIN rooms tr ON tr.id = tb.room_id
+     WHERE a.event_id = ?
+     ORDER BY a.created_at DESC, a.id DESC`,
+    [eventId],
+  );
+  const summary = {
+    total: queue.length,
+    pending: queue.filter(function (row) {
+      return row.queue_status === "待办理";
+    }).length,
+    done: queue.filter(function (row) {
+      return row.queue_status === "已办理";
+    }).length,
+    skipped: queue.filter(function (row) {
+      return row.queue_status === "已跳过";
+    }).length,
+    adjustments: adjustments.length,
+  };
+  return {
+    event: eventRows[0],
+    plan: plan || null,
+    queue: queue,
+    adjustments: adjustments,
+    summary: summary,
+  };
+}
+
 export async function handleRoomingPublishAction(env, session, body) {
   const action = text(body.action);
   if (!action) throw new Error("缺少 action");
@@ -278,6 +382,15 @@ export async function handleRoomingPublishAction(env, session, body) {
 
   if (action === "update_queue") {
     return updateRoomingQueueItem(env, session, body);
+  }
+
+  if (action === "log_adjustment") {
+    return logRoomingAdjustment(env, session, body);
+  }
+
+  if (action === "retrospective") {
+    if (!eventId) throw new Error("缺少营期");
+    return getRoomingRetrospective(env, session, eventId);
   }
 
   throw new Error("未知 action: " + action);

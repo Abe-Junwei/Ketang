@@ -616,7 +616,19 @@ async function renderRoomingPlan(eventId, options) {
         ')">签到表 CSV</button>' +
         ' <button class="btn btn-default" onclick="exportRoomingRoomTableCSV(' +
         eventId +
-        ')">房间表 CSV</button>'
+        ')">房间表 CSV</button>' +
+        ' <button class="btn btn-default" onclick="printRoomingRoomTable(' +
+        eventId +
+        ')">打印房间表</button>' +
+        ' <button class="btn btn-default" onclick="printRoomingDoorLabels(' +
+        eventId +
+        ')">打印门贴</button>' +
+        ' <button class="btn btn-default" onclick="printRoomingBedLabels(' +
+        eventId +
+        ')">打印床位名牌</button>' +
+        ' <button class="btn btn-default" onclick="renderRoomingRetrospective(' +
+        eventId +
+        ')">活动复盘</button>'
       : "");
 
   var statusSelect = "";

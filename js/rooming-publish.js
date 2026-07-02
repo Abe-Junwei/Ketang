@@ -300,7 +300,19 @@ async function renderRoomingCheckinQueue(eventId) {
     ')">导出签到表 CSV</button>' +
     ' <button class="btn btn-default" onclick="exportRoomingRoomTableCSV(' +
     eventId +
-    ')">导出房间表 CSV</button>';
+    ')">导出房间表 CSV</button>' +
+    ' <button class="btn btn-default" onclick="printRoomingRoomTable(' +
+    eventId +
+    ')">打印房间表</button>' +
+    ' <button class="btn btn-default" onclick="printRoomingDoorLabels(' +
+    eventId +
+    ')">打印门贴</button>' +
+    ' <button class="btn btn-default" onclick="printRoomingBedLabels(' +
+    eventId +
+    ')">打印床位名牌</button>' +
+    ' <button class="btn btn-default" onclick="renderRoomingRetrospective(' +
+    eventId +
+    ')">活动复盘</button>';
 
   var bodyHtml =
     '<div class="rooming-queue-shell">' +
@@ -435,8 +447,13 @@ async function handleRoomingQueueSkip(queueId, eventId) {
     return;
   }
   if (!confirm("标记为「已跳过」？表示本条暂不按预分床办理。")) return;
+  var item = await findRoomingQueueItem(queueId, eventId);
+  if (!item || item.queue_status !== "待办理") return;
   try {
     await markRoomingQueueItemStatus(queueId, "已跳过");
+    if (typeof logRoomingQueueSkipAdjustment === "function") {
+      await logRoomingQueueSkipAdjustment(item, eventId);
+    }
     showToast("已跳过");
     await renderRoomingCheckinQueue(eventId);
   } catch (err) {
@@ -521,4 +538,227 @@ async function exportRoomingRoomTableCSV(eventId) {
   });
   var blob = new Blob([lines.join("\n")], { type: "text/csv;charset=utf-8" });
   downloadBlob(blob, "rooming_rooms_" + evt.id + ".csv");
+}
+
+function roomingQueueRoomSortKey(row) {
+  return (
+    (row.room_location || "") +
+    (row.room_name || "") +
+    String(row.bed_number || "")
+  );
+}
+
+function sortRoomingQueueByRoom(queue) {
+  return queue.slice().sort(function (a, b) {
+    return roomingQueueRoomSortKey(a).localeCompare(
+      roomingQueueRoomSortKey(b),
+      "zh",
+    );
+  });
+}
+
+function groupRoomingQueueByRoom(queue) {
+  var groups = [];
+  var map = {};
+  sortRoomingQueueByRoom(queue).forEach(function (row) {
+    if (!row.suggested_bed_id) return;
+    var key =
+      (row.room_location || "") +
+      "|" +
+      (row.room_name || "") +
+      "|" +
+      (row.dorm_type || "");
+    if (!map[key]) {
+      map[key] = {
+        room_name: row.room_name || "",
+        room_location: row.room_location || "",
+        dorm_type: row.dorm_type || "",
+        beds: [],
+      };
+      groups.push(map[key]);
+    }
+    map[key].beds.push(row);
+  });
+  return groups;
+}
+
+async function loadRoomingPrintQueue(eventId) {
+  var evt = query("SELECT * FROM events WHERE id = ?", [eventId])[0];
+  if (!evt) {
+    alert("营期不存在");
+    return null;
+  }
+  var bundle = await fetchRoomingQueueBundle(eventId);
+  var queue = (bundle.queue || []).filter(function (row) {
+    return row.suggested_bed_id;
+  });
+  if (!queue.length) {
+    alert("暂无已指定床位的清单条目，请先发布预分房");
+    return null;
+  }
+  return { evt: evt, queue: queue, groups: groupRoomingQueueByRoom(queue) };
+}
+
+function openRoomingPrintPreview(title, bodyHtml) {
+  var modal = document.getElementById("modal");
+  document.getElementById("modal-title").textContent = title;
+  document.getElementById("modal-body").innerHTML =
+    '<div class="rooming-print-doc">' +
+    bodyHtml +
+    '</div><div class="rooming-print-actions">' +
+    '<button type="button" class="btn btn-primary" onclick="window.print()">打印</button> ' +
+    '<button type="button" class="btn btn-default" onclick="closeModal()">关闭</button>' +
+    "</div>";
+  modal.classList.add("active");
+}
+
+function buildRoomingPrintMeta(evt) {
+  var dates = [];
+  if (evt.start_date) dates.push(evt.start_date);
+  if (evt.end_date && evt.end_date !== evt.start_date) {
+    dates.push(evt.end_date);
+  }
+  return (
+    '<div class="rooming-print-meta">' +
+    "<h2>" +
+    infoEscape(evt.name) +
+    "</h2>" +
+    (dates.length
+      ? '<p class="rooming-print-dates">' + infoEscape(dates.join(" ~ ")) + "</p>"
+      : "") +
+    '<p class="rooming-print-ts">打印时间：' +
+    infoEscape(roomingQueueProcessedAt()) +
+    "</p></div>"
+  );
+}
+
+function buildRoomingRoomTablePrintHtml(evt, groups) {
+  var html = buildRoomingPrintMeta(evt);
+  html += '<table class="rooming-print-table"><thead><tr>' +
+    "<th>位置</th><th>房间</th><th>寮房</th><th>床位</th><th>姓名</th><th>性别</th><th>身份</th><th>状态</th>" +
+    "</tr></thead><tbody>";
+  groups.forEach(function (group) {
+    group.beds.forEach(function (row) {
+      html +=
+        "<tr><td>" +
+        infoEscape(group.room_location) +
+        "</td><td>" +
+        infoEscape(group.room_name) +
+        "</td><td>" +
+        infoEscape(group.dorm_type) +
+        "</td><td>" +
+        infoEscape(row.bed_number || "") +
+        "</td><td>" +
+        infoEscape(row.member_name) +
+        "</td><td>" +
+        infoEscape(row.member_gender || "") +
+        "</td><td>" +
+        infoEscape(row.participant_identity || "") +
+        "</td><td>" +
+        infoEscape(row.queue_status) +
+        "</td></tr>";
+    });
+  });
+  html += "</tbody></table>";
+  return html;
+}
+
+function buildRoomingDoorLabelsPrintHtml(evt, groups) {
+  var html = buildRoomingPrintMeta(evt);
+  html += '<div class="rooming-door-grid">';
+  groups.forEach(function (group) {
+    html +=
+      '<section class="rooming-door-card">' +
+      '<div class="rooming-door-head">' +
+      "<h3>" +
+      infoEscape(group.room_name) +
+      "</h3>" +
+      (group.room_location
+        ? '<p class="rooming-door-loc">' + infoEscape(group.room_location) + "</p>"
+        : "") +
+      (group.dorm_type
+        ? '<p class="rooming-door-type">' + infoEscape(group.dorm_type) + "</p>"
+        : "") +
+      "</div><ul class=\"rooming-door-beds\">";
+    group.beds.forEach(function (row) {
+      html +=
+        '<li><span class="rooming-door-bed">' +
+        infoEscape(row.bed_number || "床位") +
+        "</span> " +
+        infoEscape(row.member_name) +
+        (row.member_gender ? "（" + infoEscape(row.member_gender) + "）" : "") +
+        "</li>";
+    });
+    html += "</ul></section>";
+  });
+  html += "</div>";
+  return html;
+}
+
+function buildRoomingBedLabelsPrintHtml(evt, queue) {
+  var html = buildRoomingPrintMeta(evt);
+  html += '<div class="rooming-bed-label-grid">';
+  sortRoomingQueueByRoom(queue).forEach(function (row) {
+    var roomLabel = row.room_location
+      ? row.room_location + " " + (row.room_name || "")
+      : row.room_name || "";
+    html +=
+      '<div class="rooming-bed-label">' +
+      '<div class="rooming-bed-label-name">' +
+      infoEscape(row.member_name) +
+      "</div>" +
+      '<div class="rooming-bed-label-room">' +
+      infoEscape(roomLabel) +
+      "</div>" +
+      '<div class="rooming-bed-label-bed">' +
+      infoEscape(row.bed_number || "") +
+      "</div>" +
+      (row.participant_identity
+        ? '<div class="rooming-bed-label-role">' +
+          infoEscape(row.participant_identity) +
+          "</div>"
+        : "") +
+      "</div>";
+  });
+  html += "</div>";
+  return html;
+}
+
+async function printRoomingRoomTable(eventId) {
+  if (typeof hasPermission === "function" && !hasPermission("lodging.read")) {
+    alert("权限不足");
+    return;
+  }
+  var data = await loadRoomingPrintQueue(eventId);
+  if (!data) return;
+  openRoomingPrintPreview(
+    "打印房间表 · " + data.evt.name,
+    buildRoomingRoomTablePrintHtml(data.evt, data.groups),
+  );
+}
+
+async function printRoomingDoorLabels(eventId) {
+  if (typeof hasPermission === "function" && !hasPermission("lodging.read")) {
+    alert("权限不足");
+    return;
+  }
+  var data = await loadRoomingPrintQueue(eventId);
+  if (!data) return;
+  openRoomingPrintPreview(
+    "打印门贴 · " + data.evt.name,
+    buildRoomingDoorLabelsPrintHtml(data.evt, data.groups),
+  );
+}
+
+async function printRoomingBedLabels(eventId) {
+  if (typeof hasPermission === "function" && !hasPermission("lodging.read")) {
+    alert("权限不足");
+    return;
+  }
+  var data = await loadRoomingPrintQueue(eventId);
+  if (!data) return;
+  openRoomingPrintPreview(
+    "打印床位名牌 · " + data.evt.name,
+    buildRoomingBedLabelsPrintHtml(data.evt, data.queue),
+  );
 }

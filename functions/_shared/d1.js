@@ -350,9 +350,32 @@ async function ensureRoomingPublishSchema(env) {
   await runD1(env, ROOMING_PUBLISH_SCHEMA_SQL, []);
 }
 
+const ROOMING_ADJUSTMENT_SCHEMA_SQL = `
+CREATE TABLE IF NOT EXISTS rooming_adjustments (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  event_id INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+  plan_id INTEGER REFERENCES rooming_plans(id) ON DELETE SET NULL,
+  queue_id INTEGER REFERENCES rooming_checkin_queue(id) ON DELETE SET NULL,
+  lodger_id INTEGER REFERENCES lodgers(id) ON DELETE SET NULL,
+  adjustment_kind TEXT NOT NULL CHECK(adjustment_kind IN ('换床','跳过预分','手动备注','其他')),
+  member_name TEXT,
+  from_bed_id INTEGER REFERENCES beds(id),
+  to_bed_id INTEGER REFERENCES beds(id),
+  reason TEXT,
+  operator TEXT,
+  created_at TEXT DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_rooming_adjustments_event ON rooming_adjustments(event_id);
+`;
+
+async function ensureRoomingAdjustmentSchema(env) {
+  await runD1(env, ROOMING_ADJUSTMENT_SCHEMA_SQL, []);
+}
+
 async function ensureRoomingPlanTables(env) {
   await runD1(env, ROOMING_PLAN_TABLES_SQL, []);
   await ensureRoomingPublishSchema(env);
+  await ensureRoomingAdjustmentSchema(env);
 }
 
 async function ensureEventColumns(env) {

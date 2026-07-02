@@ -35,6 +35,7 @@ const REMOTE_SNAPSHOT_INSERT_ORDER = [
   "rooming_plans",
   "rooming_assignments",
   "rooming_checkin_queue",
+  "rooming_adjustments",
   "lodgers",
   "reservations",
   "meals",
@@ -192,6 +193,7 @@ function initLocalSchemaAndMigrations() {
   migrateV16toV17();
   migrateV17toV18();
   migrateV18toV19();
+  migrateV19toV20();
   createIndexes();
 }
 
@@ -2046,6 +2048,47 @@ function migrateV18toV19() {
   }
 }
 
+function ensureLocalRoomingAdjustmentSchema() {
+  db.run(`
+    CREATE TABLE IF NOT EXISTS rooming_adjustments (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      event_id INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+      plan_id INTEGER REFERENCES rooming_plans(id) ON DELETE SET NULL,
+      queue_id INTEGER REFERENCES rooming_checkin_queue(id) ON DELETE SET NULL,
+      lodger_id INTEGER REFERENCES lodgers(id) ON DELETE SET NULL,
+      adjustment_kind TEXT NOT NULL CHECK(adjustment_kind IN ('换床','跳过预分','手动备注','其他')),
+      member_name TEXT,
+      from_bed_id INTEGER REFERENCES beds(id),
+      to_bed_id INTEGER REFERENCES beds(id),
+      reason TEXT,
+      operator TEXT,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    );
+  `);
+}
+
+function migrateV19toV20() {
+  const version =
+    db.exec("SELECT MIN(version) as v FROM schema_version")[0]?.values[0][0] ||
+    0;
+  db.run("BEGIN TRANSACTION;");
+  try {
+    ensureLocalRoomingAdjustmentSchema();
+    if (version < 20) {
+      db.run("DELETE FROM schema_version WHERE version < 20");
+      db.run("INSERT OR REPLACE INTO schema_version (version) VALUES (20)");
+    }
+    db.run("COMMIT;");
+  } catch (e) {
+    try {
+      db.run("ROLLBACK;");
+    } catch (rollbackErr) {
+      /* ignore */
+    }
+    throw new Error("migrateV19toV20 failed: " + e.message);
+  }
+}
+
 function createIndexes() {
   db.run(`
     CREATE INDEX IF NOT EXISTS idx_events_name ON events(name);
@@ -2056,6 +2099,7 @@ function createIndexes() {
     CREATE INDEX IF NOT EXISTS idx_rooming_assignments_plan ON rooming_assignments(plan_id);
     CREATE INDEX IF NOT EXISTS idx_rooming_checkin_queue_event ON rooming_checkin_queue(event_id);
     CREATE INDEX IF NOT EXISTS idx_rooming_checkin_queue_plan ON rooming_checkin_queue(plan_id);
+    CREATE INDEX IF NOT EXISTS idx_rooming_adjustments_event ON rooming_adjustments(event_id);
     CREATE INDEX IF NOT EXISTS idx_lodgers_bed_id ON lodgers(bed_id);
     CREATE INDEX IF NOT EXISTS idx_lodgers_status ON lodgers(status);
     CREATE INDEX IF NOT EXISTS idx_lodgers_dates ON lodgers(check_in_date, expected_check_out, actual_check_out);
@@ -2262,6 +2306,7 @@ async function importDB(input) {
       migrateV16toV17();
       migrateV17toV18();
       migrateV18toV19();
+      migrateV19toV20();
       createIndexes();
       await seedRooms();
       await saveDB();

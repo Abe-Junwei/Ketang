@@ -1656,6 +1656,9 @@ main,
   flex-direction: column;
   padding: 0;
   overflow: hidden;
+  background: transparent;
+  border: none;
+  box-shadow: none;
 }
 
 .lodgers-page-head {
@@ -1664,20 +1667,14 @@ main,
   align-items: flex-end;
   justify-content: space-between;
   gap: var(--space-4);
-  padding: var(--space-5) var(--space-6);
-  border-bottom: 1px solid
-    color-mix(in srgb, var(--color-border) 50%, transparent);
-  background: var(--color-surface);
+  padding: 0 0 var(--space-4);
+  margin-bottom: var(--space-4);
+  border-bottom: 1px solid var(--color-border);
+  background: transparent;
 }
 
 .lodgers-page-title {
-  margin: 0 0 var(--space-1);
-  font-size: var(--font-size-lg);
-  font-weight: var(--font-weight-semibold);
-  color: var(--color-foreground);
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
+  display: none;
 }
 
 .lodgers-page-desc {
@@ -1724,7 +1721,9 @@ main,
   height: 1040px;
   max-height: calc(100vh - 120px);
   overflow: auto;
-  background: var(--color-card);
+  background: transparent;
+  border: 1px solid color-mix(in srgb, var(--color-border) 75%, transparent);
+  border-radius: var(--radius-sm);
 }
 
 .lodgers-table-scroll .lodger-table {
@@ -1821,18 +1820,14 @@ main,
        Information Management | 信息管理页
        ============================================================ */
 .info-view .info-page {
-  padding: var(--space-5) var(--space-6);
-  background: var(--color-card);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-lg);
+  padding: 0;
+  background: transparent;
+  border: none;
+  border-radius: 0;
 }
 
 .info-page-title {
-  margin: 0 0 var(--space-4);
-  font-size: var(--font-size-xl);
-  font-weight: var(--font-weight-medium);
-  color: var(--color-foreground);
-  letter-spacing: 0.05em;
+  display: none;
 }
 
 .info-tabs {
@@ -1874,10 +1869,11 @@ main,
   align-items: center;
   gap: var(--space-3);
   margin-bottom: var(--space-4);
-  padding: var(--space-3) var(--space-4);
-  background: color-mix(in srgb, var(--color-surface) 30%, var(--color-card));
-  border: 1px solid color-mix(in srgb, var(--color-border) 65%, transparent);
-  border-radius: var(--radius-md);
+  padding: 0 0 var(--space-4);
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid var(--color-border);
+  border-radius: 0;
 }
 
 .info-toolbar-filters {
@@ -1952,14 +1948,17 @@ main,
 }
 
 .info-table-card {
-  background: var(--color-card);
-  border: 1px solid color-mix(in srgb, var(--color-border) 70%, transparent);
-  border-radius: var(--radius-md);
-  overflow: hidden;
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  overflow: visible;
 }
 
 .info-table-card .table-wrap {
   margin: 0;
+  border: 1px solid color-mix(in srgb, var(--color-border) 75%, transparent);
+  border-radius: var(--radius-sm);
+  background: var(--color-card);
 }
 
 .info-table-card table {
@@ -4745,8 +4744,13 @@ form .field {
   .modal-backdrop,
   .modal,
   .voucher,
-  .voucher * {
+  .voucher *,
+  .rooming-print-doc,
+  .rooming-print-doc * {
     visibility: visible;
+  }
+  .rooming-print-actions {
+    display: none !important;
   }
   .modal-backdrop {
     background: #fff;
@@ -4770,6 +4774,18 @@ form .field {
   .voucher {
     border: 2px solid #000;
     margin: 20mm auto;
+  }
+  .rooming-print-doc {
+    color: #000;
+    width: 100%;
+    max-width: 190mm;
+    margin: 10mm auto;
+    font-size: 12pt;
+  }
+  .rooming-door-card,
+  .rooming-bed-label {
+    break-inside: avoid;
+    page-break-inside: avoid;
   }
 }
 
@@ -5446,6 +5462,123 @@ form .field {
 
 .rooming-queue-actions .btn {
   margin-right: var(--space-1);
+}
+
+.rooming-print-actions {
+  text-align: center;
+  margin-top: var(--space-4);
+}
+
+.rooming-print-meta {
+  text-align: center;
+  margin-bottom: var(--space-4);
+}
+
+.rooming-print-meta h2 {
+  margin: 0 0 var(--space-2);
+  font-size: var(--font-size-xl);
+}
+
+.rooming-print-dates,
+.rooming-print-ts {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+
+.rooming-print-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--font-size-sm);
+}
+
+.rooming-print-table th,
+.rooming-print-table td {
+  border: 1px solid var(--color-border);
+  padding: var(--space-2);
+  text-align: left;
+}
+
+.rooming-print-table th {
+  background: color-mix(in srgb, var(--color-border) 25%, transparent);
+}
+
+.rooming-door-grid {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.rooming-door-card {
+  border: 2px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  padding: var(--space-4);
+}
+
+.rooming-door-head h3 {
+  margin: 0 0 var(--space-1);
+  font-size: var(--font-size-lg);
+}
+
+.rooming-door-loc,
+.rooming-door-type {
+  margin: 0;
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+}
+
+.rooming-door-beds {
+  margin: var(--space-3) 0 0;
+  padding-left: var(--space-4);
+}
+
+.rooming-door-bed {
+  font-weight: 600;
+}
+
+.rooming-bed-label-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-3);
+}
+
+.rooming-bed-label {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-xs);
+  padding: var(--space-3);
+  min-height: 72px;
+  text-align: center;
+}
+
+.rooming-bed-label-name {
+  font-size: var(--font-size-md);
+  font-weight: 600;
+}
+
+.rooming-bed-label-room,
+.rooming-bed-label-bed,
+.rooming-bed-label-role {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+}
+
+.rooming-retro-shell {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.rooming-retro-adjust-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--font-size-sm);
+}
+
+.rooming-retro-adjust-table th,
+.rooming-retro-adjust-table td {
+  border: 1px solid var(--color-border);
+  padding: var(--space-2);
+  text-align: left;
 }
 
 /* Phase 9.2 看板容量预测 | Board capacity forecast */

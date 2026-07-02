@@ -64,7 +64,7 @@ applies_to: ["cursor", "github-copilot", "kimi-cli"]
 - **保持多文件原生结构**：入口 `index.html` 只负责视图容器与按序加载脚本；样式在 `styles.css`，业务逻辑在 `js/` 各模块。
 - **不引入运行时构建链**：发布产物不得依赖 Webpack/Vite/npm/Node；允许开发者使用 npm devDependencies 做 ESLint、Prettier、测试和 CI 检查，只要不改变用户运行方式。
 - **不引入外部框架**：保持原生 HTML/CSS/JS，只有 `sql.js` 一个运行时依赖。
-- **数据模型变更必须 migration**：通过 `schema_version` 表逐步升级（当前 v19）；`importDB()` 与正常启动须跑同一套迁移链，保证旧 `.db` 可恢复。
+- **数据模型变更必须 migration**：通过 `schema_version` 表逐步升级（当前 v20）；`importDB()` 与正常启动须跑同一套迁移链，保证旧 `.db` 可恢复。
 
 ### 代码风格
 

@@ -283,7 +283,14 @@ async function submitChangeBed(lodgerId, gender) {
   }
   try {
     if (useRemoteWriteApi()) {
+      const old = query(
+        "SELECT bed_id, guest_id, name, event_id FROM lodgers WHERE id=?",
+        [lodgerId],
+      )[0];
       await apiChangeBed({ lodger_id: lodgerId, bed_id: parseInt(bedId, 10) });
+      if (old && typeof maybeLogRoomingChangeBed === "function") {
+        maybeLogRoomingChangeBed(lodgerId, old.bed_id, bedId);
+      }
     } else {
       await withTransaction(async () => {
         // 查出旧床位 ID 以便释放 | Get old bed ID for release

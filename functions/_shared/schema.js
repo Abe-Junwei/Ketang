@@ -205,6 +205,20 @@ CREATE TABLE IF NOT EXISTS rooming_checkin_queue (
   sort_order INTEGER DEFAULT 0,
   created_at TEXT DEFAULT CURRENT_TIMESTAMP
 );
+CREATE TABLE IF NOT EXISTS rooming_adjustments (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  event_id INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+  plan_id INTEGER REFERENCES rooming_plans(id) ON DELETE SET NULL,
+  queue_id INTEGER REFERENCES rooming_checkin_queue(id) ON DELETE SET NULL,
+  lodger_id INTEGER REFERENCES lodgers(id) ON DELETE SET NULL,
+  adjustment_kind TEXT NOT NULL CHECK(adjustment_kind IN ('换床','跳过预分','手动备注','其他')),
+  member_name TEXT,
+  from_bed_id INTEGER REFERENCES beds(id),
+  to_bed_id INTEGER REFERENCES beds(id),
+  reason TEXT,
+  operator TEXT,
+  created_at TEXT DEFAULT CURRENT_TIMESTAMP
+);
 CREATE TABLE IF NOT EXISTS housekeeping (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   bed_id INTEGER NOT NULL REFERENCES beds(id) ON DELETE CASCADE,
@@ -222,7 +236,7 @@ CREATE TABLE IF NOT EXISTS audit_logs (
   created_at TEXT DEFAULT CURRENT_TIMESTAMP
 );
 CREATE TABLE IF NOT EXISTS schema_version (version INTEGER PRIMARY KEY);
-INSERT INTO schema_version (version) SELECT 19 WHERE NOT EXISTS (SELECT 1 FROM schema_version);
+INSERT INTO schema_version (version) SELECT 20 WHERE NOT EXISTS (SELECT 1 FROM schema_version);
 CREATE TABLE IF NOT EXISTS app_meta (
   key TEXT PRIMARY KEY,
   value TEXT NOT NULL
@@ -241,6 +255,7 @@ CREATE INDEX IF NOT EXISTS idx_rooming_plans_event ON rooming_plans(event_id);
 CREATE INDEX IF NOT EXISTS idx_rooming_assignments_plan ON rooming_assignments(plan_id);
 CREATE INDEX IF NOT EXISTS idx_rooming_checkin_queue_event ON rooming_checkin_queue(event_id);
 CREATE INDEX IF NOT EXISTS idx_rooming_checkin_queue_plan ON rooming_checkin_queue(plan_id);
+CREATE INDEX IF NOT EXISTS idx_rooming_adjustments_event ON rooming_adjustments(event_id);
 CREATE INDEX IF NOT EXISTS idx_lodgers_bed_id ON lodgers(bed_id);
 CREATE INDEX IF NOT EXISTS idx_lodgers_status ON lodgers(status);
 CREATE INDEX IF NOT EXISTS idx_lodgers_dates ON lodgers(check_in_date, expected_check_out, actual_check_out);
