@@ -3,6 +3,7 @@ const DB_NAME = "ketang";
 const STORE_NAME = "db";
 const KEY = "main";
 const REMOTE_SESSION_KEY = "ketang_remote_session_token";
+const ACCESS_TOKEN_KEY = "ketang_access_token";
 const REMOTE_DB_ENABLED = (() => {
   if (typeof window === "undefined" || !window.location) return false;
   if (window.KETANG_FORCE_LOCAL_DB === true) return false;
@@ -46,12 +47,28 @@ function isRemoteDB() {
 }
 
 function getRemoteSessionToken() {
+  try {
+    var access = sessionStorage.getItem(ACCESS_TOKEN_KEY);
+    if (access) return access;
+  } catch (e) {
+    /* sessionStorage unavailable */
+  }
   return localStorage.getItem(REMOTE_SESSION_KEY) || "";
 }
 
 function setRemoteSessionToken(token) {
-  if (token) localStorage.setItem(REMOTE_SESSION_KEY, token);
+  try {
+    if (token) sessionStorage.setItem(ACCESS_TOKEN_KEY, token);
+    else sessionStorage.removeItem(ACCESS_TOKEN_KEY);
+  } catch (e) {
+    /* ignore */
+  }
+  if (token) localStorage.removeItem(REMOTE_SESSION_KEY);
   else localStorage.removeItem(REMOTE_SESSION_KEY);
+}
+
+function clearRemoteAccessToken() {
+  setRemoteSessionToken("");
 }
 
 function setRemoteSyncStatus(status, message) {
@@ -115,12 +132,14 @@ async function remoteLoginAsync(username, password) {
     username,
     password,
   });
-  setRemoteSessionToken(result.token);
-  return { user: result.user };
+  if (!result.access_token && !result.token)
+    throw new Error("登录成功但未收到会话令牌");
+  setRemoteSessionToken(result.access_token || result.token);
+  return result;
 }
 
 function remoteLogout() {
-  setRemoteSessionToken("");
+  clearRemoteAccessToken();
 }
 
 async function initSqlite() {

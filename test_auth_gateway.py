@@ -202,6 +202,57 @@ def test_frontend_unauthorized_handler():
         sys.exit(1)
 
 
+def test_remote_session_persistence():
+    auth_shared = read('functions/_shared/auth.js')
+    users_shared = read('functions/_shared/users.js')
+    auth = read('js/auth.js')
+    api = read('js/api-client.js')
+    db = read('js/db.js')
+    cookies = read('functions/_shared/cookies.js')
+    refresh_sessions = read('functions/_shared/refresh-sessions.js')
+    auth_response = read('functions/_shared/auth-response.js')
+    if 'ACCESS_TTL_SEC = 60 * 30' not in auth_shared:
+        print('FAIL auth.js shared access TTL should be 30 minutes')
+        sys.exit(1)
+    if 'SESSION_TTL_SEC = ACCESS_TTL_SEC' not in auth_shared:
+        print('FAIL auth.js shared SESSION_TTL_SEC must alias ACCESS_TTL_SEC')
+        sys.exit(1)
+    if 'normalizeAuthVersion' not in auth_shared:
+        print('FAIL auth.js shared missing normalizeAuthVersion')
+        sys.exit(1)
+    if 'const access_token = await signAccessToken(env, {' not in users_shared:
+        print('FAIL getSessionUser must refresh access token')
+        sys.exit(1)
+    if 'ketang_refresh' not in cookies or 'HttpOnly' not in cookies:
+        print('FAIL cookies.js missing HttpOnly ketang_refresh cookie helpers')
+        sys.exit(1)
+    if 'refresh_sessions' not in refresh_sessions or 'consumeRefreshToken' not in refresh_sessions:
+        print('FAIL refresh-sessions.js missing refresh_sessions table helpers')
+        sys.exit(1)
+    if 'buildDualAuthSuccess' not in auth_response or 'buildRefreshSuccess' not in auth_response:
+        print('FAIL auth-response.js missing dual-token response builders')
+        sys.exit(1)
+    for auth_route in ['login.js', 'refresh.js', 'logout.js']:
+        if not (ROOT / f'functions/api/v1/auth/{auth_route}').exists():
+            print(f'FAIL missing functions/api/v1/auth/{auth_route}')
+            sys.exit(1)
+    if 'restoreCachedUserFromStorage' not in auth:
+        print('FAIL auth.js missing restoreCachedUserFromStorage for remote boot')
+        sys.exit(1)
+    if 'apiSessionMeForRestore' not in api or 'apiAuthRefreshForRestore' not in api:
+        print('FAIL api-client.js missing session restore helpers')
+        sys.exit(1)
+    if 'tryRefreshAccessToken' not in api or 'credentials: "same-origin"' not in api:
+        print('FAIL api-client.js missing refresh retry with credentials')
+        sys.exit(1)
+    if 'ACCESS_TOKEN_KEY' not in db or 'sessionStorage' not in db:
+        print('FAIL db.js must store access token in sessionStorage')
+        sys.exit(1)
+    if 'if (!result.access_token && !result.token)' not in db:
+        print('FAIL db.js remoteLoginAsync must require access token')
+        sys.exit(1)
+
+
 def test_session_query_binding():
     session_api = read('functions/api/v1/session.js')
     users_shared = read('functions/_shared/users.js')
@@ -232,8 +283,8 @@ def test_role_login_gateway():
     if 'payload.action === "login_role"' not in db_api:
         print('FAIL api/db.js missing login_role action')
         sys.exit(1)
-    if 'action: "login_role"' not in auth or 'loginByRole' not in auth:
-        print('FAIL auth.js missing role-based login call')
+    if 'apiAuthLogin' not in auth or 'loginByRole' not in auth:
+        print('FAIL auth.js remote loginByRole must call apiAuthLogin')
         sys.exit(1)
     if 'upgradePasswordHashBestEffort' not in db_api:
         print('FAIL api/db.js login must not fail when legacy hash upgrade fails')
@@ -567,6 +618,7 @@ TESTS = [
     test_admin_update_returns_token,
     test_frontend_unauthorized_handler,
     test_session_query_binding,
+    test_remote_session_persistence,
     test_user_role_migration_guard,
     test_role_login_gateway,
     test_login_ui_has_no_fake_identity_loading,

@@ -12,8 +12,9 @@ let loginSubmitting = false;
 
 function applySessionRefresh(result) {
   if (!result) return;
-  if (result.token && typeof setRemoteSessionToken === "function")
-    setRemoteSessionToken(result.token);
+  var access = result.access_token || result.token;
+  if (access && typeof setRemoteSessionToken === "function")
+    setRemoteSessionToken(access);
   if (result.user) {
     currentUser = result.user;
     if (result.permissions) setSessionPermissions(result.permissions);
@@ -69,32 +70,50 @@ async function lookupAdminUser(id) {
   return user;
 }
 
+function restoreCachedUserFromStorage(isRemote) {
+  const saved = localStorage.getItem(AUTH_STORAGE_KEY);
+  if (!saved) return;
+  try {
+    currentUser = JSON.parse(saved);
+    if (currentUser?.permissions) {
+      setSessionPermissions(currentUser.permissions);
+    } else if (currentUser?.role) {
+      setSessionPermissions(
+        getSessionPermissionsForRole(currentUser.role, currentUser),
+      );
+    }
+  } catch (e) {
+    currentUser = null;
+    localStorage.removeItem(AUTH_STORAGE_KEY);
+  }
+}
+
 function initAuth() {
   const isRemote = typeof isRemoteDB === "function" && isRemoteDB();
-  const saved = localStorage.getItem(AUTH_STORAGE_KEY);
-  if (saved && !isRemote) {
+  restoreCachedUserFromStorage(isRemote);
+  if (!isRemote && currentUser && typeof query === "function") {
     try {
-      currentUser = JSON.parse(saved);
-      if (currentUser && typeof query === "function") {
-        const row = query(
-          "SELECT auth_version, is_active FROM users WHERE id = ? LIMIT 1",
-          [currentUser.id],
-        )[0];
-        if (
-          !row ||
-          row.is_active === 0 ||
-          (row.auth_version || 1) !== (currentUser.auth_version || 1)
-        ) {
-          currentUser = null;
-          localStorage.removeItem(AUTH_STORAGE_KEY);
-        } else if (currentUser.permissions) {
-          setSessionPermissions(currentUser.permissions);
-        } else if (currentUser.role) {
-          setSessionPermissions(getSessionPermissionsForRole(currentUser.role, currentUser));
-        }
+      const row = query(
+        "SELECT auth_version, is_active FROM users WHERE id = ? LIMIT 1",
+        [currentUser.id],
+      )[0];
+      if (
+        !row ||
+        row.is_active === 0 ||
+        Number(row.auth_version || 1) !== Number(currentUser.auth_version || 1)
+      ) {
+        currentUser = null;
+        localStorage.removeItem(AUTH_STORAGE_KEY);
+      } else if (currentUser.permissions) {
+        setSessionPermissions(currentUser.permissions);
+      } else if (currentUser.role) {
+        setSessionPermissions(
+          getSessionPermissionsForRole(currentUser.role, currentUser),
+        );
       }
     } catch (e) {
       currentUser = null;
+      localStorage.removeItem(AUTH_STORAGE_KEY);
     }
   }
   updateAuthUI();
@@ -140,7 +159,8 @@ function clearAuthSession() {
   closeProfileMenu();
   currentUser = null;
   localStorage.removeItem(AUTH_STORAGE_KEY);
-  if (typeof setRemoteSessionToken === "function") setRemoteSessionToken("");
+  if (typeof clearRemoteAccessToken === "function") clearRemoteAccessToken();
+  else if (typeof setRemoteSessionToken === "function") setRemoteSessionToken("");
   if (typeof resetRemoteReadModelState === "function")
     resetRemoteReadModelState();
   syncAuthBodyClass();
@@ -150,24 +170,47 @@ async function restoreRemoteSession() {
   if (typeof isRemoteDB !== "function" || !isRemoteDB()) {
     return !!currentUser;
   }
-  const token = getRemoteSessionToken();
-  if (!token) {
-    clearAuthSession();
-    return false;
-  }
-  try {
-    const data = await apiSessionMe();
-    currentUser = data.user;
-    if (data.permissions) setSessionPermissions(data.permissions);
-    else if (currentUser.role) {
-      setSessionPermissions(getSessionPermissionsForRole(currentUser.role, currentUser));
+
+  if (getRemoteSessionToken()) {
+    try {
+      const data = await apiSessionMeForRestore();
+      applySessionRefresh(data);
+      hideLoginOverlay();
+      return true;
+    } catch (e) {
+      const msg = String(e.message || "");
+      const authExpired = /登录已过期|401|Unauthorized/i.test(msg);
+      if (!authExpired && currentUser) {
+        updateAuthUI();
+        applyPermissions();
+        if (typeof showToast === "function") {
+          showToast("会话校验暂时失败，已使用本地缓存登录态：" + msg);
+        }
+        return true;
+      }
     }
-    localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(currentUser));
-    updateAuthUI();
-    applyPermissions();
+  }
+
+  try {
+    const data = await apiAuthRefreshForRestore();
+    applySessionRefresh(data);
     hideLoginOverlay();
     return true;
   } catch (e) {
+    const msg = String(e.message || "");
+    const authExpired = /登录已过期|401|Unauthorized/i.test(msg);
+    if (authExpired) {
+      clearAuthSession();
+      return false;
+    }
+    if (currentUser) {
+      updateAuthUI();
+      applyPermissions();
+      if (typeof showToast === "function") {
+        showToast("会话校验暂时失败，已使用本地缓存登录态：" + msg);
+      }
+      return true;
+    }
     clearAuthSession();
     return false;
   }
@@ -198,12 +241,7 @@ async function login(username, password) {
       console.warn("云端登录失败 | Remote login failed:", err);
       throw err;
     }
-    currentUser = result.user;
-    if (result.permissions) setSessionPermissions(result.permissions);
-    else if (result.user.role) {
-      setSessionPermissions(getSessionPermissionsForRole(result.user.role, result.user));
-    }
-    localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(currentUser));
+    applySessionRefresh(result);
     logAudit("用户登录", "user", result.user.id, {
       username: result.user.username,
       role: result.user.role,
@@ -250,20 +288,14 @@ async function loginByRole(role, password) {
   if (typeof isRemoteDB === "function" && isRemoteDB()) {
     let result;
     try {
-      result = await remoteDBRequestAsync({
-        action: "login_role",
-        role: role,
-        password: password,
-      });
+      result = await apiAuthLogin({ role: role, password: password });
     } catch (err) {
       console.warn("云端身份登录失败 | Remote role login failed:", err);
       throw err;
     }
-    setRemoteSessionToken(result.token);
-    currentUser = result.user;
-    if (result.permissions) setSessionPermissions(result.permissions);
-    else setSessionPermissions(getSessionPermissionsForRole(result.user.role, result.user));
-    localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(currentUser));
+    if (!result.access_token && !result.token)
+      throw new Error("登录成功但未收到会话令牌，请刷新后重试");
+    applySessionRefresh(result);
     logAudit("用户登录", "user", result.user.id, {
       username: result.user.username,
       role: result.user.role,
@@ -315,6 +347,9 @@ function logout() {
     logAudit("用户登出", "user", currentUser.id, {
       username: currentUser.username,
     });
+  }
+  if (typeof isRemoteDB === "function" && isRemoteDB() && typeof apiAuthLogout === "function") {
+    apiAuthLogout();
   }
   clearAuthSession();
   if (typeof remoteLogout === "function") remoteLogout();

@@ -4,6 +4,17 @@ export const json = (body, status = 200) =>
     headers: { "content-type": "application/json; charset=utf-8" },
   });
 
+/** JSON + Set-Cookie（双 token 登录/续期）| JSON with Set-Cookie headers */
+export function jsonWithCookies(body, status, cookieHeaders) {
+  const headers = new globalThis.Headers({
+    "content-type": "application/json; charset=utf-8",
+  });
+  (cookieHeaders || []).forEach(function (cookie) {
+    headers.append("Set-Cookie", cookie);
+  });
+  return new Response(JSON.stringify(body), { status, headers });
+}
+
 export async function readJson(request) {
   try {
     return await request.json();

@@ -4,6 +4,7 @@ import {
   LODGER_BED_UNIQUE_INDEX_SQL,
   DEFAULT_USER_INSERTS,
 } from "./schema.js";
+import { ensureRefreshSessionsTable } from "./refresh-sessions.js";
 
 export const normalizeParams = (params) =>
   Array.isArray(params)
@@ -191,6 +192,7 @@ export async function ensureDatabaseForAuth(env) {
     if ((count[0]?.c || 0) > 0) {
       await ensureUserAuthColumns(env);
       await ensureUserRoleColumns(env);
+      await ensureRefreshSessionsTable(env);
       remoteInitReady = true;
       return false;
     }
@@ -209,6 +211,7 @@ async function initRemoteDatabaseOnce(env) {
     if ((count[0]?.c || 0) > 0) {
       await ensureUserAuthColumns(env);
       await ensureUserRoleColumns(env);
+      await ensureRefreshSessionsTable(env);
       remoteInitReady = true;
       return false;
     }
@@ -226,6 +229,7 @@ async function initRemoteDatabaseOnce(env) {
   }
   await ensureUserAuthColumns(env);
   await ensureUserRoleColumns(env);
+  await ensureRefreshSessionsTable(env);
   await ensureDefaultUsers(env);
   const count = await queryD1(env, "SELECT COUNT(*) AS c FROM rooms", []);
   if ((count[0]?.c || 0) > 0) {

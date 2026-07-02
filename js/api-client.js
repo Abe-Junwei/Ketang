@@ -1,5 +1,7 @@
 /* 云端业务 API 客户端 | Remote business API client */
 
+var _refreshInFlight = null;
+
 function apiAuthHeaders() {
   const headers = { "Content-Type": "application/json" };
   const token =
@@ -14,19 +16,73 @@ function handleApiUnauthorized() {
   if (typeof showLoginOverlay === "function") showLoginOverlay();
 }
 
-async function apiFetch(path, options) {
-  const response = await fetch(path, {
-    method: options?.method || "GET",
-    headers: apiAuthHeaders(),
-    body: options?.body != null ? JSON.stringify(options.body) : undefined,
-  });
+async function parseJsonResponse(response) {
   let data = {};
   try {
     data = await response.json();
   } catch (e) {
     data = {};
   }
-  if (response.status === 401) handleApiUnauthorized();
+  return data;
+}
+
+async function tryRefreshAccessToken() {
+  if (typeof isRemoteDB !== "function" || !isRemoteDB()) return false;
+  if (_refreshInFlight) return _refreshInFlight;
+  _refreshInFlight = (async function () {
+    try {
+      const response = await fetch("/api/v1/auth/refresh", {
+        method: "POST",
+        credentials: "include",
+      });
+      const data = await parseJsonResponse(response);
+      if (!response.ok) return false;
+      const access = data.access_token || data.token;
+      if (!access) return false;
+      if (typeof setRemoteSessionToken === "function")
+        setRemoteSessionToken(access);
+      if (typeof applySessionRefresh === "function") applySessionRefresh(data);
+      return true;
+    } catch (e) {
+      return false;
+    } finally {
+      _refreshInFlight = null;
+    }
+  })();
+  return _refreshInFlight;
+}
+
+async function apiFetch(path, options) {
+  options = options || {};
+  const response = await fetch(path, {
+    method: options.method || "GET",
+    headers: apiAuthHeaders(),
+    credentials: options.credentials || "same-origin",
+    body: options.body != null ? JSON.stringify(options.body) : undefined,
+  });
+  let data = await parseJsonResponse(response);
+  if (
+    response.status === 401 &&
+    !options.preserveSessionOn401 &&
+    !options.skipRefreshRetry &&
+    typeof isRemoteDB === "function" &&
+    isRemoteDB()
+  ) {
+    const refreshed = await tryRefreshAccessToken();
+    if (refreshed) {
+      return apiFetch(path, {
+        method: options.method,
+        body: options.body,
+        credentials: options.credentials,
+        preserveSessionOn401: options.preserveSessionOn401,
+        skipRefreshRetry: true,
+      });
+    }
+  }
+  if (response.status === 401) {
+    if (!options.preserveSessionOn401) handleApiUnauthorized();
+    throw new Error(data.error || "登录已过期，请重新登录");
+  }
   if (!response.ok) throw new Error(data.error || "请求失败");
   return data;
 }
@@ -36,10 +92,25 @@ async function apiReadModel(ifNoneMatch) {
   if (ifNoneMatch != null && ifNoneMatch !== "") {
     headers["If-None-Match"] = String(ifNoneMatch);
   }
-  const response = await fetch("/api/v1/read-model", {
+  let response = await fetch("/api/v1/read-model", {
     method: "GET",
     headers: headers,
+    credentials: "same-origin",
   });
+  if (response.status === 401) {
+    const refreshed = await tryRefreshAccessToken();
+    if (refreshed) {
+      const headers2 = apiAuthHeaders();
+      if (ifNoneMatch != null && ifNoneMatch !== "") {
+        headers2["If-None-Match"] = String(ifNoneMatch);
+      }
+      response = await fetch("/api/v1/read-model", {
+        method: "GET",
+        headers: headers2,
+        credentials: "same-origin",
+      });
+    }
+  }
   if (response.status === 401) {
     handleApiUnauthorized();
     throw new Error("登录已过期，请重新登录");
@@ -51,12 +122,7 @@ async function apiReadModel(ifNoneMatch) {
       version: etag != null ? parseInt(etag, 10) : ifNoneMatch,
     };
   }
-  let data = {};
-  try {
-    data = await response.json();
-  } catch (e) {
-    data = {};
-  }
+  const data = await parseJsonResponse(response);
   if (!response.ok) throw new Error(data.error || "请求失败");
   return data;
 }
@@ -71,6 +137,39 @@ async function remoteBatchQuery(queries) {
     queries: queries,
   });
   return result.results || [];
+}
+
+async function apiAuthLogin(body) {
+  const response = await fetch("/api/v1/auth/login", {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  const data = await parseJsonResponse(response);
+  if (!response.ok) throw new Error(data.error || "登录失败");
+  return data;
+}
+
+async function apiAuthRefreshForRestore() {
+  const response = await fetch("/api/v1/auth/refresh", {
+    method: "POST",
+    credentials: "include",
+  });
+  const data = await parseJsonResponse(response);
+  if (!response.ok) throw new Error(data.error || "登录已过期，请重新登录");
+  return data;
+}
+
+async function apiAuthLogout() {
+  try {
+    await fetch("/api/v1/auth/logout", {
+      method: "POST",
+      credentials: "include",
+    });
+  } catch (e) {
+    /* ignore network errors on logout */
+  }
 }
 
 async function apiCheckIn(payload) {
@@ -139,6 +238,11 @@ async function apiBoardVersion() {
 
 async function apiSessionMe() {
   return apiFetch("/api/v1/session");
+}
+
+/** 启动恢复会话：401 时不立即清空 token，由 restoreRemoteSession 决定 | Boot-time session restore */
+async function apiSessionMeForRestore() {
+  return apiFetch("/api/v1/session", { preserveSessionOn401: true });
 }
 
 async function apiAdminListUsers() {

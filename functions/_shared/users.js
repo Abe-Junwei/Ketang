@@ -1,4 +1,5 @@
-import { verifySession, verifyPassword, hashPasswordPlain } from "./auth.js";
+import { verifySession, verifyPassword, hashPasswordPlain, signAccessToken } from "./auth.js";
+import { revokeAllRefreshSessionsForUser } from "./refresh-sessions.js";
 import { insertAudit, queryD1, runD1 } from "./d1.js";
 import { getSessionPermissions, requirePermission } from "./permissions.js";
 
@@ -55,6 +56,7 @@ async function bumpAuthVersion(env, userId) {
     "UPDATE users SET auth_version = COALESCE(auth_version, 1) + 1 WHERE id = ?",
     [userId],
   );
+  await revokeAllRefreshSessionsForUser(env, userId);
   const rows = await queryD1(
     env,
     "SELECT auth_version FROM users WHERE id = ? LIMIT 1",
@@ -67,11 +69,13 @@ export async function getSessionUser(env, request, queryFn) {
   const session = await verifySession(request, env, queryFn);
   if (!session) return null;
   const rows = await queryFn(
-    "SELECT id, username, display_name, role, is_advanced FROM users WHERE id = ? AND (is_active IS NULL OR is_active = 1) LIMIT 1",
+    "SELECT id, username, display_name, role, is_advanced, auth_version FROM users WHERE id = ? AND (is_active IS NULL OR is_active = 1) LIMIT 1",
     [session.id || session.sub],
   );
   const user = rows[0];
   if (!user) return null;
+  const authVersion =
+    user.auth_version != null ? Number(user.auth_version) || 1 : 1;
   const sessionShape = {
     role: user.role,
     id: user.id,
@@ -79,14 +83,20 @@ export async function getSessionUser(env, request, queryFn) {
     is_advanced: !!user.is_advanced,
   };
   const permissions = await getSessionPermissions(env, sessionShape);
+  const access_token = await signAccessToken(env, {
+    ...user,
+    auth_version: authVersion,
+  });
   return {
+    access_token,
+    token: access_token,
     user: {
       id: user.id,
       username: user.username,
       display_name: user.display_name,
       role: user.role,
       is_advanced: !!user.is_advanced,
-      auth_version: session.auth_version || user.auth_version || 1,
+      auth_version: authVersion,
     },
     permissions,
   };
@@ -218,6 +228,7 @@ export async function deactivateUser(env, session, body) {
     "UPDATE users SET is_active = 0, auth_version = COALESCE(auth_version, 1) + 1 WHERE id = ?",
     [id],
   );
+  await revokeAllRefreshSessionsForUser(env, id);
   await insertAudit(
     env,
     "停用用户",

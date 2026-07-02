@@ -6,7 +6,7 @@ import {
 } from "../_shared/http.js";
 import {
   verifyPassword,
-  signSession,
+  signAccessToken,
   requireSession,
   checkLoginRateLimit,
   recordLoginFailure,
@@ -25,6 +25,7 @@ import {
 import { changeUserPassword } from "../_shared/users.js";
 import { getSessionPermissions } from "../_shared/permissions.js";
 import { createRequestTimer } from "../_shared/timing.js";
+import { buildDualAuthSuccess } from "../_shared/auth-response.js";
 
 const bindQuery = (env) => (sql, params) => queryD1(env, sql, params);
 const bindRun = (env) => (sql, params) => runD1(env, sql, params);
@@ -67,22 +68,12 @@ async function upgradePasswordHashBestEffort(
 }
 
 async function buildLoginSuccess(env, request, freshUser, timer) {
-  const token = timer
-    ? await timer.stage("token_ms", () => signSession(env, freshUser))
-    : await signSession(env, freshUser);
-  const session = {
-    role: freshUser.role,
-    id: freshUser.id,
-    sub: freshUser.id,
-    is_advanced: !!freshUser.is_advanced,
+  const meta = {
+    ip: clientIp(request),
+    userAgent: request.headers.get("user-agent") || "",
   };
-  const permissions = await getSessionPermissions(env, session);
-  const body = {
-    token,
-    user: sessionUserPayload(freshUser),
-    permissions,
-  };
-  return timer ? timer.finish(body, request) : json(body);
+  if (timer) await timer.stage("token_ms", async () => null);
+  return buildDualAuthSuccess(env, request, freshUser, meta);
 }
 
 async function authenticateUsername(env, ip, username, password) {
@@ -217,7 +208,7 @@ export async function onRequestPost({ request, env }) {
         payload.old_password,
         payload.new_password,
       );
-      const token = await signSession(env, result.user);
+      const token = await signAccessToken(env, result.user);
       const refreshed = {
         role: result.user.role,
         id: result.user.id,
@@ -227,6 +218,7 @@ export async function onRequestPost({ request, env }) {
       const permissions = await getSessionPermissions(env, refreshed);
       return json({
         ok: true,
+        access_token: token,
         token,
         user: {
           id: result.user.id,

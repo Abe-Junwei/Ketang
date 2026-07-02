@@ -45,20 +45,42 @@ export function assertSessionSecret(env) {
   }
 }
 
-export async function signSession(env, user) {
+/** Access token 30 分钟 | Short-lived access JWT */
+export const ACCESS_TTL_SEC = 60 * 30;
+
+/** 兼容旧代码：长会话改为 access；refresh 走 Cookie | Legacy export name */
+export const SESSION_TTL_SEC = ACCESS_TTL_SEC;
+
+function normalizeAuthVersion(value) {
+  const n = Number(value);
+  return Number.isFinite(n) && n > 0 ? n : 1;
+}
+
+function normalizeUserId(value) {
+  const n = parseInt(value, 10);
+  return Number.isFinite(n) ? n : value;
+}
+
+export async function signAccessToken(env, user) {
   assertSessionSecret(env);
   const now = Math.floor(Date.now() / 1000);
-  const authVersion = user.auth_version != null ? user.auth_version : 1;
+  const authVersion = normalizeAuthVersion(user.auth_version);
   const payload = base64UrlEncode({
-    sub: user.id,
+    sub: normalizeUserId(user.id),
     username: user.username,
     role: user.role,
     av: authVersion,
+    typ: "access",
     iat: now,
-    exp: now + 60 * 60 * 12,
+    exp: now + ACCESS_TTL_SEC,
   });
   const signature = await hmac(env.KETANG_SESSION_SECRET, payload);
   return `${payload}.${signature}`;
+}
+
+/** @deprecated use signAccessToken | 旧名保留兼容 */
+export async function signSession(env, user) {
+  return signAccessToken(env, user);
 }
 
 export async function verifySession(request, env, queryD1) {
@@ -75,15 +97,17 @@ export async function verifySession(request, env, queryD1) {
   } catch (e) {
     return null;
   }
+  if (session.typ === "refresh") return null;
   if (!session.exp || session.exp < Math.floor(Date.now() / 1000)) return null;
+  const userId = normalizeUserId(session.sub);
   const users = await queryD1(
     "SELECT id, username, display_name, role, auth_version FROM users WHERE id = ? AND (is_active IS NULL OR is_active = 1) LIMIT 1",
-    [session.sub],
+    [userId],
   );
   const user = users[0];
   if (!user) return null;
-  const dbAuthVersion = user.auth_version != null ? user.auth_version : 1;
-  const tokenAuthVersion = session.av != null ? session.av : 1;
+  const dbAuthVersion = normalizeAuthVersion(user.auth_version);
+  const tokenAuthVersion = normalizeAuthVersion(session.av);
   if (dbAuthVersion !== tokenAuthVersion) return null;
   return {
     ...session,
