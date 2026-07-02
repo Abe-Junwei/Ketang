@@ -1,5 +1,8 @@
 document.addEventListener("DOMContentLoaded", async () => {
+  registerAppServiceWorker();
   initShellIcons();
+  initMobileShell();
+  if (typeof initStayFormWizards === "function") initStayFormWizards();
   if (typeof bootAuthUI === "function") bootAuthUI();
   if (typeof applyDeploymentModeUI === "function") applyDeploymentModeUI();
 
@@ -109,6 +112,22 @@ const TOPBAR_TITLES = {
   backup: "系统设置",
 };
 
+/** 注册 PWA Service Worker（仅 HTTPS / localhost）| Register offline shell SW */
+function registerAppServiceWorker() {
+  if (!("serviceWorker" in navigator)) return;
+  var host = location.hostname;
+  var secure =
+    location.protocol === "https:" ||
+    host === "localhost" ||
+    host === "127.0.0.1";
+  if (!secure) return;
+  window.addEventListener("load", function () {
+    navigator.serviceWorker.register("./sw.js").catch(function (err) {
+      console.warn("Service Worker 注册失败", err);
+    });
+  });
+}
+
 function initShellIcons() {
   const map = {
     ".sidebar-logo": "temple",
@@ -139,13 +158,92 @@ function initShellIcons() {
   });
 }
 
+var MOBILE_NAV_ICONS = {
+  board: "dashboard",
+  lodgers: "people",
+  stay: "checkin",
+  reports: "payments",
+  more: "more",
+};
+
+function initMobileShell() {
+  document.querySelectorAll(".mobile-nav-btn").forEach(function (btn) {
+    var iconEl = btn.querySelector(".mobile-nav-icon");
+    if (!iconEl) return;
+    var view = btn.getAttribute("data-view");
+    var action = btn.getAttribute("data-action");
+    var iconName = action === "more" ? MOBILE_NAV_ICONS.more : MOBILE_NAV_ICONS[view];
+    if (iconName) iconEl.innerHTML = icon(iconName, "icon-sm");
+  });
+  var searchIcon = document.querySelector(".mobile-search-icon");
+  if (searchIcon) searchIcon.innerHTML = icon("search", "icon-sm");
+  initMobileMoreSheetSwipe();
+}
+
+function initMobileMoreSheetSwipe() {
+  var sheet = document.getElementById("mobile-more-sheet");
+  if (!sheet) return;
+  var startY = 0;
+  var lastDy = 0;
+  var dragging = false;
+
+  sheet.addEventListener(
+    "touchstart",
+    function (e) {
+      if (sheet.hidden) return;
+      startY = e.touches[0].clientY;
+      lastDy = 0;
+      dragging = true;
+    },
+    { passive: true },
+  );
+
+  sheet.addEventListener(
+    "touchmove",
+    function (e) {
+      if (!dragging) return;
+      lastDy = Math.max(0, e.touches[0].clientY - startY);
+      sheet.style.transform = "translateY(" + lastDy + "px)";
+    },
+    { passive: true },
+  );
+
+  function endDrag() {
+    if (!dragging) return;
+    dragging = false;
+    sheet.style.transform = "";
+    if (lastDy > 80) closeMobileMoreMenu();
+    lastDy = 0;
+  }
+
+  sheet.addEventListener("touchend", endDrag, { passive: true });
+  sheet.addEventListener("touchcancel", endDrag, { passive: true });
+}
+
 function updateTopbarTitle(name) {
-  let el = document.getElementById("topbar-title");
-  if (el) el.textContent = TOPBAR_TITLES[name] || "客堂住宿系统";
-  let search = document.getElementById("board-search");
-  if (search)
-    search.parentElement.style.display =
-      name === "board" || name === "lodging" ? "" : "none";
+  var title = TOPBAR_TITLES[name] || "客堂住宿系统";
+  var el = document.getElementById("topbar-title");
+  if (el) el.textContent = title;
+  var mobileTitle = document.getElementById("mobile-title-text");
+  if (mobileTitle) mobileTitle.textContent = title;
+  var showSearch = name === "board" || name === "lodging";
+  var searchWrap = document.getElementById("board-search")?.parentElement;
+  if (searchWrap) searchWrap.style.display = showSearch ? "" : "none";
+  var mobileSearchBar = document.getElementById("mobile-search-bar");
+  if (mobileSearchBar) mobileSearchBar.hidden = !showSearch;
+  syncBoardSearchInputs(document.getElementById("board-search")?.value || "");
+}
+
+function syncBoardSearchInputs(value) {
+  var desktop = document.getElementById("board-search");
+  var mobile = document.getElementById("board-search-mobile");
+  if (desktop && desktop.value !== value) desktop.value = value;
+  if (mobile && mobile.value !== value) mobile.value = value;
+}
+
+function handleMobileBoardSearch(q) {
+  syncBoardSearchInputs(q);
+  handleBoardSearch(q);
 }
 
 function refreshBoardSearch() {
@@ -214,6 +312,7 @@ function closeMobileMoreMenu() {
   if (sheet) {
     sheet.hidden = true;
     sheet.setAttribute("aria-hidden", "true");
+    sheet.style.transform = "";
   }
   if (backdrop) backdrop.hidden = true;
   if (btn) btn.setAttribute("aria-expanded", "false");
@@ -332,7 +431,13 @@ function showView(name) {
   if (name === "board") renderBoard();
   if (name === "lodging") renderLodging();
   if (name === "lodgers") renderLodgersPage();
-  if (name === "stay") setStayMode(_pendingStayMode);
+  if (name === "stay") {
+    setStayMode(_pendingStayMode);
+    if (typeof syncStayFormWizard === "function") {
+      syncStayFormWizard("checkin-form");
+      syncStayFormWizard("resv-form");
+    }
+  }
   if (name === "history") renderHistory();
   if (name === "forecast") {
     initForecastDates();
@@ -353,6 +458,7 @@ function renderBoard() {
   renderOpsNotice();
   checkBackupReminder();
   renderStats();
+  if (typeof renderMobileBoardHero === "function") renderMobileBoardHero();
   renderBoardCharts();
   renderTodayMealsPanel();
   renderBedOptions();
@@ -713,6 +819,7 @@ function applyDeploymentModeUI() {
 }
 
 function handleBoardSearch(q) {
+  syncBoardSearchInputs(q);
   q = (q || "").trim().toLowerCase();
   document.querySelectorAll("#room-grid .room-card").forEach(function (card) {
     if (!q) {
@@ -729,6 +836,7 @@ function handleBoardSearch(q) {
 function handleLodgerSearch(q) {
   q = (q || "").trim().toLowerCase();
   var rows = document.querySelectorAll("#lodger-table tr");
+  var cards = document.querySelectorAll("#lodger-card-list .lodger-card");
   var visible = 0;
   rows.forEach(function (row) {
     if (row.querySelector(".empty-tip")) return;
@@ -746,6 +854,24 @@ function handleLodgerSearch(q) {
     row.classList.toggle("search-hidden", !match);
     if (match) visible++;
   });
+  cards.forEach(function (card) {
+    if (!q) {
+      card.classList.remove("search-hidden");
+      return;
+    }
+    var text = (
+      card.getAttribute("data-search") ||
+      card.textContent ||
+      ""
+    ).toLowerCase();
+    card.classList.toggle("search-hidden", text.indexOf(q) === -1);
+  });
+  if (cards.length && q) {
+    visible = 0;
+    cards.forEach(function (card) {
+      if (!card.classList.contains("search-hidden")) visible++;
+    });
+  }
   var hint = document.getElementById("lodgers-search-hint");
   if (!hint) return;
   if (!q) {
@@ -1185,8 +1311,10 @@ function formatCheckoutCell(l) {
 
 function renderLodgers() {
   const tbody = document.getElementById("lodger-table");
+  const cardList = document.getElementById("lodger-card-list");
   if (!tbody) return;
   tbody.innerHTML = "";
+  if (cardList) cardList.innerHTML = "";
   const lodgers = query(`
     SELECT l.*, r.name as room_name, r.location, b.bed_number
     FROM lodgers l
@@ -1211,11 +1339,9 @@ function renderLodgers() {
       l.check_in_date,
       l.expected_check_out,
     ];
+    const searchAttr = searchParts.filter(Boolean).join(" ").toLowerCase();
     const tr = document.createElement("tr");
-    tr.setAttribute(
-      "data-search",
-      searchParts.filter(Boolean).join(" ").toLowerCase(),
-    );
+    tr.setAttribute("data-search", searchAttr);
     tr.innerHTML = `
       <td class="lodger-name">${escapeHtml(personDisplayName(l))}</td>
       <td>${escapeHtml(l.gender) || "-"}</td>
@@ -1226,10 +1352,59 @@ function renderLodgers() {
       <td class="col-actions">${renderBedActionMenu(l.id)}</td>
     `;
     tbody.appendChild(tr);
+
+    if (cardList) {
+      const checkoutText = formatCheckoutHint(l.expected_check_out);
+      const checkoutCls =
+        checkoutText === "已超期"
+          ? " lodger-card-checkout-overdue"
+          : checkoutText === "今日退"
+            ? " lodger-card-checkout-today"
+            : "";
+      const card = document.createElement("article");
+      card.className = "lodger-card";
+      card.setAttribute("data-search", searchAttr);
+      card.setAttribute("data-lodger-id", String(l.id));
+      card.innerHTML =
+        '<div class="lodger-card-head">' +
+        '<div class="lodger-card-title">' +
+        '<strong class="lodger-card-name">' +
+        escapeHtml(personDisplayName(l)) +
+        "</strong>" +
+        '<span class="lodger-card-gender">' +
+        escapeHtml(l.gender || "-") +
+        "</span>" +
+        "</div>" +
+        '<span class="lodger-card-room">' +
+        roomLabel +
+        "</span>" +
+        "</div>" +
+        '<div class="lodger-card-meta">' +
+        "<span>入住 " +
+        escapeHtml(l.check_in_date || "-") +
+        "</span>" +
+        '<span class="lodger-card-checkout' +
+        checkoutCls +
+        '">预离 ' +
+        escapeHtml(l.expected_check_out || "-") +
+        (checkoutText ? " · " + escapeHtml(checkoutText) : "") +
+        "</span>" +
+        "</div>" +
+        '<button type="button" class="lodger-card-meals" onclick="event.stopPropagation(); openMealModal(' +
+        l.id +
+        ')">用斋 ' +
+        lodgerMealsToday(l.id) +
+        "</button>" +
+        renderLodgerCardActions(l.id);
+      cardList.appendChild(card);
+    }
   });
   if (lodgers.length === 0) {
     tbody.innerHTML =
       '<tr><td colspan="7" class="empty-tip">暂无在住挂单</td></tr>';
+    if (cardList) {
+      cardList.innerHTML = '<p class="empty-tip">暂无在住挂单</p>';
+    }
   }
   updateLodgersPageMeta();
 }

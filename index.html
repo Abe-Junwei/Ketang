@@ -2,11 +2,17 @@
 <html lang="zh-CN">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta name="theme-color" content="#5c4a32" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="客堂" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="mobile-web-app-capable" content="yes" />
     <link rel="manifest" href="manifest.webmanifest" />
+    <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
+    <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png" />
     <link rel="stylesheet" href="fonts/fonts.css?v=1" />
-    <link rel="stylesheet" href="styles.css?v=56" />
+    <link rel="stylesheet" href="styles.css?v=58" />
     <title>客堂住宿系统</title>
   </head>
   <body>
@@ -180,6 +186,36 @@
     </aside>
 
     <div class="app-shell">
+      <div class="mobile-header" id="mobile-header">
+        <header class="mobile-title-bar" aria-label="当前页面">
+          <h1 class="mobile-title-text" id="mobile-title-text">客堂大盘</h1>
+          <button
+            type="button"
+            class="mobile-title-profile"
+            id="mobile-title-profile"
+            onclick="toggleProfileMenu(event)"
+            aria-label="账户菜单"
+            aria-haspopup="true"
+          >
+            <span class="topbar-avatar" id="mobile-title-avatar" aria-hidden="true"
+              >—</span
+            >
+          </button>
+        </header>
+        <div class="mobile-search-bar" id="mobile-search-bar" hidden>
+          <span class="mobile-search-icon" aria-hidden="true"></span>
+          <input
+            type="search"
+            id="board-search-mobile"
+            class="mobile-search-input"
+            placeholder="搜索居士姓名 / 房号..."
+            autocomplete="off"
+            enterkeyhint="search"
+            oninput="handleMobileBoardSearch(this.value)"
+          />
+        </div>
+      </div>
+
       <header class="topbar">
         <div class="topbar-left">
           <h2 class="topbar-title" id="topbar-title">客堂大盘</h2>
@@ -224,6 +260,8 @@
               id="topbar-profile-btn"
               onclick="toggleProfileMenu(event)"
               title="当前用户"
+              aria-haspopup="true"
+              aria-expanded="false"
             >
               <span class="topbar-avatar" aria-hidden="true">—</span>
               <span class="topbar-profile-name" id="topbar-profile-name"
@@ -231,23 +269,24 @@
               >
               <span class="topbar-profile-chevron" aria-hidden="true"></span>
             </button>
-            <div class="topbar-profile-menu" id="topbar-profile-menu" hidden>
-              <div class="topbar-profile-menu-head">
-                <span class="topbar-profile-menu-role" id="topbar-profile-role"
-                  >—</span
-                >
-              </div>
-              <button
-                type="button"
-                class="topbar-profile-menu-item"
-                onclick="logout()"
-              >
-                退出登录
-              </button>
-            </div>
           </div>
         </div>
       </header>
+
+      <div class="topbar-profile-menu" id="topbar-profile-menu" hidden>
+        <div class="topbar-profile-menu-head">
+          <span class="topbar-profile-menu-role" id="topbar-profile-role"
+            >—</span
+          >
+        </div>
+        <button
+          type="button"
+          class="topbar-profile-menu-item"
+          onclick="logout()"
+        >
+          退出登录
+        </button>
+      </div>
 
       <div
         class="remote-sync-banner remote-sync-banner-loading"
@@ -270,6 +309,8 @@
       <main class="content">
         <!-- 房态看板 -->
         <div id="view-board" class="view active board-view">
+          <div id="mobile-board-hero" class="mobile-board-hero" hidden></div>
+
           <div id="kpi-strip" class="kpi-strip">
             <div class="kpi-item">
               <span class="kpi-label">总床位</span
@@ -482,7 +523,7 @@
                 />
               </div>
             </header>
-            <div class="lodgers-table-scroll" id="lodgers-table-scroll">
+            <div class="lodgers-table-scroll lodgers-desktop-table" id="lodgers-table-scroll">
               <table class="lodger-table">
                 <thead>
                   <tr>
@@ -498,6 +539,11 @@
                 <tbody id="lodger-table"></tbody>
               </table>
             </div>
+            <div
+              id="lodger-card-list"
+              class="lodger-card-list"
+              aria-live="polite"
+            ></div>
             <p class="lodgers-search-hint" id="lodgers-search-hint" hidden></p>
           </div>
         </div>
@@ -594,7 +640,42 @@
           <div id="stay-panel-checkin">
             <div class="card">
               <h2 class="section-title">现场入住</h2>
-              <form id="checkin-form" novalidate>
+              <form id="checkin-form" class="stay-form-wizard" novalidate>
+                <div
+                  class="form-wizard-steps"
+                  role="tablist"
+                  aria-label="入住步骤"
+                >
+                  <button
+                    type="button"
+                    class="form-wizard-step active"
+                    data-wizard-step="1"
+                    aria-selected="true"
+                    onclick="document.getElementById('checkin-form').setAttribute('data-wizard-step','1'); syncStayFormWizard('checkin-form');"
+                  >
+                    1 身份
+                  </button>
+                  <button
+                    type="button"
+                    class="form-wizard-step"
+                    data-wizard-step="2"
+                    aria-selected="false"
+                    onclick="document.getElementById('checkin-form').setAttribute('data-wizard-step','2'); syncStayFormWizard('checkin-form');"
+                  >
+                    2 床位
+                  </button>
+                  <button
+                    type="button"
+                    class="form-wizard-step"
+                    data-wizard-step="3"
+                    aria-selected="false"
+                    onclick="document.getElementById('checkin-form').setAttribute('data-wizard-step','3'); syncStayFormWizard('checkin-form');"
+                  >
+                    3 收款
+                  </button>
+                </div>
+
+                <section class="form-wizard-panel is-active" data-wizard-panel="1">
                 <div class="form-grid">
                   <div class="field">
                     <label>姓名 / 法名 *</label>
@@ -639,6 +720,30 @@
                     <div class="field-error" id="ci-idcard-error"></div>
                   </div>
                   <div class="field">
+                    <label>紧急联系人</label>
+                    <input
+                      type="text"
+                      id="ci-emergency-name"
+                      placeholder="姓名"
+                    />
+                  </div>
+                  <div class="field">
+                    <label>紧急联系电话</label>
+                    <input
+                      type="tel"
+                      id="ci-emergency-phone"
+                      placeholder="电话"
+                      oninput="filterPhoneLoose(this)"
+                      onblur="validateField(this)"
+                    />
+                    <div class="field-error" id="ci-emergency-phone-error"></div>
+                  </div>
+                </div>
+                </section>
+
+                <section class="form-wizard-panel" data-wizard-panel="2" hidden>
+                <div class="form-grid">
+                  <div class="field field-span-all">
                     <label>分配床位 *</label>
                     <div class="bed-picker" id="ci-bed-picker">
                       <div
@@ -692,28 +797,11 @@
                       placeholder="如：一班、师父组"
                     />
                   </div>
-                  <div class="field">
-                    <label>紧急联系人</label>
-                    <input
-                      type="text"
-                      id="ci-emergency-name"
-                      placeholder="姓名"
-                    />
-                  </div>
-                  <div class="field">
-                    <label>紧急联系电话</label>
-                    <input
-                      type="tel"
-                      id="ci-emergency-phone"
-                      placeholder="电话"
-                      oninput="filterPhoneLoose(this)"
-                      onblur="validateField(this)"
-                    />
-                  </div>
                 </div>
-                <div class="section-title" style="margin-top: var(--space-4)">
-                  收款信息
-                </div>
+                </section>
+
+                <section class="form-wizard-panel" data-wizard-panel="3" hidden>
+                <div class="section-title">收款信息</div>
                 <div class="form-grid">
                   <div class="field">
                     <label>押金</label>
@@ -770,10 +858,40 @@
                   ></textarea>
                 </div>
                 <input type="hidden" id="ci-resv-id" />
-                <button type="submit" class="btn btn-primary">办理入住</button>
-                <button type="button" class="btn" onclick="resetCheckin()">
-                  清空
-                </button>
+                <div class="form-wizard-inline-actions">
+                  <button type="submit" class="btn btn-primary">办理入住</button>
+                  <button type="button" class="btn" onclick="resetCheckin()">
+                    清空
+                  </button>
+                </div>
+                </section>
+                <div class="form-wizard-sticky">
+                  <button
+                    type="button"
+                    class="btn btn-default"
+                    data-wizard-action="prev"
+                    onclick="goWizardStep('checkin-form', -1)"
+                    hidden
+                  >
+                    上一步
+                  </button>
+                  <button
+                    type="button"
+                    class="btn btn-primary"
+                    data-wizard-action="next"
+                    onclick="goWizardStep('checkin-form', 1)"
+                  >
+                    下一步
+                  </button>
+                  <button
+                    type="submit"
+                    class="btn btn-primary"
+                    data-wizard-action="submit"
+                    hidden
+                  >
+                    办理入住
+                  </button>
+                </div>
               </form>
             </div>
 
@@ -816,7 +934,33 @@
           <div id="stay-panel-reservation" hidden>
             <div class="card">
               <h2 class="section-title">添加预约</h2>
-              <form id="resv-form" novalidate>
+              <form id="resv-form" class="stay-form-wizard" novalidate>
+                <div
+                  class="form-wizard-steps"
+                  role="tablist"
+                  aria-label="预约步骤"
+                >
+                  <button
+                    type="button"
+                    class="form-wizard-step active"
+                    data-wizard-step="1"
+                    aria-selected="true"
+                    onclick="document.getElementById('resv-form').setAttribute('data-wizard-step','1'); syncStayFormWizard('resv-form');"
+                  >
+                    1 身份
+                  </button>
+                  <button
+                    type="button"
+                    class="form-wizard-step"
+                    data-wizard-step="2"
+                    aria-selected="false"
+                    onclick="document.getElementById('resv-form').setAttribute('data-wizard-step','2'); syncStayFormWizard('resv-form');"
+                  >
+                    2 预约
+                  </button>
+                </div>
+
+                <section class="form-wizard-panel is-active" data-wizard-panel="1">
                 <div class="form-grid">
                   <div class="field">
                     <label>姓名 / 法名 *</label
@@ -878,6 +1022,11 @@
                     />
                     <div class="field-error" id="resv-emergency-phone-error"></div>
                   </div>
+                </div>
+                </section>
+
+                <section class="form-wizard-panel" data-wizard-panel="2" hidden>
+                <div class="form-grid">
                   <div class="field">
                     <label>身份</label>
                     <select id="resv-role" class="lodger-role-select"></select>
@@ -936,16 +1085,47 @@
                   ></textarea>
                 </div>
                 <input type="hidden" id="resv-id" />
-                <button
-                  type="submit"
-                  class="btn btn-primary"
-                  id="resv-submit-btn"
-                >
-                  添加预约
-                </button>
-                <button type="button" class="btn" onclick="resetResvForm()">
-                  清空
-                </button>
+                <div class="form-wizard-inline-actions">
+                  <button
+                    type="submit"
+                    class="btn btn-primary"
+                    id="resv-submit-btn"
+                  >
+                    添加预约
+                  </button>
+                  <button type="button" class="btn" onclick="resetResvForm()">
+                    清空
+                  </button>
+                </div>
+                </section>
+                <div class="form-wizard-sticky">
+                  <button
+                    type="button"
+                    class="btn btn-default"
+                    data-wizard-action="prev"
+                    onclick="goWizardStep('resv-form', -1)"
+                    hidden
+                  >
+                    上一步
+                  </button>
+                  <button
+                    type="button"
+                    class="btn btn-primary"
+                    data-wizard-action="next"
+                    onclick="goWizardStep('resv-form', 1)"
+                  >
+                    下一步
+                  </button>
+                  <button
+                    type="submit"
+                    class="btn btn-primary"
+                    data-wizard-action="submit"
+                    id="resv-submit-btn-mobile"
+                    hidden
+                  >
+                    添加预约
+                  </button>
+                </div>
               </form>
             </div>
             <div class="card">
@@ -1095,7 +1275,7 @@
             <p>
               退房后床位自动标记为「脏房」，清洁后点击「已净房」方可再次分配。
             </p>
-            <div id="hk-grid" class="room-grid"></div>
+            <div id="hk-grid" class="hk-list"></div>
           </div>
         </div>
 
@@ -1360,7 +1540,8 @@
         data-view="board"
         onclick="showView('board')"
       >
-        房态
+        <span class="mobile-nav-icon" aria-hidden="true"></span>
+        <span class="mobile-nav-label">房态</span>
       </button>
       <button
         type="button"
@@ -1368,7 +1549,8 @@
         data-view="lodgers"
         onclick="showView('lodgers')"
       >
-        在住
+        <span class="mobile-nav-icon" aria-hidden="true"></span>
+        <span class="mobile-nav-label">在住</span>
       </button>
       <button
         type="button"
@@ -1376,7 +1558,8 @@
         data-view="stay"
         onclick="showView('stay')"
       >
-        办理
+        <span class="mobile-nav-icon" aria-hidden="true"></span>
+        <span class="mobile-nav-label">办理</span>
       </button>
       <button
         type="button"
@@ -1384,7 +1567,8 @@
         data-view="reports"
         onclick="showView('reports')"
       >
-        报表
+        <span class="mobile-nav-icon" aria-hidden="true"></span>
+        <span class="mobile-nav-label">报表</span>
       </button>
       <button
         type="button"
@@ -1394,7 +1578,8 @@
         aria-expanded="false"
         aria-controls="mobile-more-sheet"
       >
-        更多
+        <span class="mobile-nav-icon" aria-hidden="true"></span>
+        <span class="mobile-nav-label">更多</span>
       </button>
     </nav>
 
@@ -1412,6 +1597,7 @@
       aria-hidden="true"
       hidden
     >
+      <div class="mobile-more-sheet-handle" aria-hidden="true"></div>
       <div class="mobile-more-sheet-head">
         <strong>更多功能</strong>
         <button
@@ -1480,9 +1666,10 @@
     <script src="./js/events.js?v=9"></script>
     <script src="./js/info.js?v=10"></script>
     <script src="./js/permissions.js?v=4"></script>
-    <script src="./js/auth.js?v=23"></script>
+    <script src="./js/auth.js?v=24"></script>
     <script src="./js/icons.js?v=7"></script>
     <script src="./js/picker.js?v=4"></script>
-    <script src="./js/app.js?v=50"></script>
+    <script src="./js/mobile-ui.js?v=1"></script>
+    <script src="./js/app.js?v=53"></script>
   </body>
 </html>

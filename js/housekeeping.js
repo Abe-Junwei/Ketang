@@ -23,13 +23,17 @@ function isBedAssignable(bedId) {
     )[0]?.c || 0;
   if (occ > 0) return false;
   const hk = getHouseStatus(bedId);
-  if (typeof housekeepingRequiresInspect === "function" && housekeepingRequiresInspect())
+  if (
+    typeof housekeepingRequiresInspect === "function" &&
+    housekeepingRequiresInspect()
+  )
     return hk === "可用";
   return hk === "净房" || hk === "可用";
 }
 
 function renderHousekeeping() {
   const grid = document.getElementById("hk-grid");
+  if (!grid) return;
   grid.innerHTML = "";
   const rooms = query("SELECT * FROM rooms ORDER BY id");
   rooms.forEach((r) => {
@@ -44,28 +48,67 @@ function renderHousekeeping() {
     `,
       [r.id],
     );
+    if (!beds.length) return;
+
+    const group = document.createElement("section");
+    group.className = "hk-room-group";
+    group.innerHTML =
+      '<header class="hk-room-head">' +
+      escapeHtml(r.name) +
+      '<span class="hk-room-count">' +
+      beds.length +
+      " 床</span></header>" +
+      '<div class="hk-room-beds"></div>';
+    const bedWrap = group.querySelector(".hk-room-beds");
+
     beds.forEach((b) => {
       const hk = getHouseStatus(b.id);
-      const div = document.createElement("div");
       const occupied = !!b.lodger_id;
-      div.className =
-        "room " + (hk === "脏房" ? "partial" : occupied ? "full" : "empty");
-      div.innerHTML = `
-        <div class="name">${escapeHtml(r.name)} / ${escapeHtml(b.bed_number)}</div>
-        <div class="info">房务状态：${escapeHtml(hk)}</div>
-        <div class="info">${b.lodger_id ? escapeHtml(personDisplayName(b)) + " 在住" : "无人"}</div>
-        <div style="margin-top: var(--space-2); display: flex; gap: var(--space-1); flex-wrap: wrap;">
-          ${hk === "脏房" ? `<button class="btn btn-success btn-sm" onclick="setHkAndRender(${b.id}, '净房')">已净房</button>` : ""}
-          ${hk === "净房" && housekeepingRequiresInspect() ? `<button class="btn btn-primary btn-sm" onclick="setHkAndRender(${b.id}, '查房')">查房</button>` : ""}
-          ${hk === "净房" && !housekeepingRequiresInspect() ? `<button class="btn btn-success btn-sm" onclick="setHkAndRender(${b.id}, '可用')">可入住</button>` : ""}
-          ${hk === "查房" ? `<button class="btn btn-success btn-sm" onclick="setHkAndRender(${b.id}, '可用')">可入住</button>` : ""}
-          ${!b.lodger_id && hk !== "维修" ? `<button class="btn btn-warning btn-sm" onclick="setHkAndRender(${b.id}, '维修')">报修</button>` : ""}
-          ${hk === "维修" ? `<button class="btn btn-default btn-sm" onclick="setHkAndRender(${b.id}, '净房')">维修完成</button>` : ""}
-        </div>
-      `;
-      grid.appendChild(div);
+      const card = document.createElement("article");
+      card.className =
+        "hk-bed-card hk-bed-" +
+        (hk === "脏房" ? "dirty" : occupied ? "occupied" : "ready");
+      card.innerHTML =
+        '<div class="hk-bed-card-head">' +
+        '<strong class="hk-bed-label">' +
+        escapeHtml(formatBedLabel(b.bed_number, 0)) +
+        "</strong>" +
+        '<span class="hk-bed-status">' +
+        escapeHtml(hk) +
+        "</span>" +
+        "</div>" +
+        '<div class="hk-bed-card-meta">' +
+        (b.lodger_id ? escapeHtml(personDisplayName(b)) + " 在住" : "无人") +
+        "</div>" +
+        '<div class="hk-bed-card-actions">' +
+        (hk === "脏房"
+          ? `<button type="button" class="btn btn-success btn-sm" onclick="setHkAndRender(${b.id}, '净房')">已净房</button>`
+          : "") +
+        (hk === "净房" && housekeepingRequiresInspect()
+          ? `<button type="button" class="btn btn-primary btn-sm" onclick="setHkAndRender(${b.id}, '查房')">查房</button>`
+          : "") +
+        (hk === "净房" && !housekeepingRequiresInspect()
+          ? `<button type="button" class="btn btn-success btn-sm" onclick="setHkAndRender(${b.id}, '可用')">可入住</button>`
+          : "") +
+        (hk === "查房"
+          ? `<button type="button" class="btn btn-success btn-sm" onclick="setHkAndRender(${b.id}, '可用')">可入住</button>`
+          : "") +
+        (!b.lodger_id && hk !== "维修"
+          ? `<button type="button" class="btn btn-warning btn-sm" onclick="setHkAndRender(${b.id}, '维修')">报修</button>`
+          : "") +
+        (hk === "维修"
+          ? `<button type="button" class="btn btn-default btn-sm" onclick="setHkAndRender(${b.id}, '净房')">维修完成</button>`
+          : "") +
+        "</div>";
+      bedWrap.appendChild(card);
     });
+
+    grid.appendChild(group);
   });
+
+  if (!grid.children.length) {
+    grid.innerHTML = '<p class="empty-tip">暂无客房数据</p>';
+  }
 }
 
 async function setHkAndRender(bedId, status) {
@@ -177,7 +220,9 @@ async function saveOperationalSettings() {
     }
     showToast("运营配置已保存");
     renderOperationalSettingsPanel();
-    if (document.getElementById("view-housekeeping")?.classList.contains("active"))
+    if (
+      document.getElementById("view-housekeeping")?.classList.contains("active")
+    )
       renderHousekeeping();
   } catch (e) {
     alert("保存失败：" + e.message);

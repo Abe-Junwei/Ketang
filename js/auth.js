@@ -179,8 +179,10 @@ function hideBootstrapping() {
 function closeProfileMenu() {
   const menu = document.getElementById("topbar-profile-menu");
   const btn = document.getElementById("topbar-profile-btn");
+  const mobileBtn = document.getElementById("mobile-title-profile");
   if (menu) menu.hidden = true;
   if (btn) btn.setAttribute("aria-expanded", "false");
+  if (mobileBtn) mobileBtn.setAttribute("aria-expanded", "false");
 }
 
 function toggleProfileMenu(event) {
@@ -188,12 +190,14 @@ function toggleProfileMenu(event) {
   if (!currentUser) return;
   const menu = document.getElementById("topbar-profile-menu");
   const btn = document.getElementById("topbar-profile-btn");
-  if (!menu || !btn) return;
+  const mobileBtn = document.getElementById("mobile-title-profile");
+  if (!menu) return;
   const willOpen = menu.hidden;
   closeProfileMenu();
   if (!willOpen) return;
   menu.hidden = false;
-  btn.setAttribute("aria-expanded", "true");
+  if (btn) btn.setAttribute("aria-expanded", "true");
+  if (mobileBtn) mobileBtn.setAttribute("aria-expanded", "true");
 }
 
 function teardownLoginSelectPicker(sel) {
@@ -431,12 +435,14 @@ function updateAuthUI() {
   const profileWrap = document.getElementById("topbar-profile-wrap");
   const profileName = document.getElementById("topbar-profile-name");
   const profileAvatar = document.querySelector(".topbar-avatar");
+  const mobileAvatar = document.getElementById("mobile-title-avatar");
   const profileRole = document.getElementById("topbar-profile-role");
   if (!currentUser) {
     closeProfileMenu();
     if (profileWrap) profileWrap.hidden = true;
     if (profileName) profileName.textContent = "";
     if (profileAvatar) profileAvatar.textContent = "—";
+    if (mobileAvatar) mobileAvatar.textContent = "—";
     if (profileRole) profileRole.textContent = "";
     return;
   }
@@ -447,6 +453,7 @@ function updateAuthUI() {
     (currentUser.role === "admin" ? "管理员" : "知客师");
   if (profileName) profileName.textContent = display;
   if (profileAvatar) profileAvatar.textContent = display.charAt(0);
+  if (mobileAvatar) mobileAvatar.textContent = display.charAt(0);
   if (profileRole) profileRole.textContent = roleLabel;
 }
 

@@ -194,6 +194,11 @@ function resetResvForm() {
   setMealNeedPicker("resv-meal-need", 1, 1, 1);
   const btn = document.getElementById("resv-submit-btn");
   if (btn) btn.textContent = "添加预约";
+  var form = document.getElementById("resv-form");
+  if (form) {
+    form.setAttribute("data-wizard-step", "1");
+    if (typeof syncStayFormWizard === "function") syncStayFormWizard("resv-form");
+  }
 }
 
 function editResv(id) {

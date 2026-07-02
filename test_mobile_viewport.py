@@ -4,12 +4,14 @@ import json
 import subprocess
 import sys
 import time
+from pathlib import Path
 
 import websocket
 
 from test_cdp import PORT, evaluate, start_server
 from test_file_protocol import chrome_binary
 
+ROOT = Path(__file__).resolve().parent
 CDP_PORT = 9226
 
 
@@ -84,6 +86,17 @@ def overflow_check_expr():
 
 
 def main():
+    manifest_path = ROOT / "manifest.webmanifest"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    icons = manifest.get("icons") or []
+    if len(icons) < 2:
+        print("FAIL: manifest.webmanifest must include at least two icons")
+        sys.exit(1)
+    for name in ("icons/icon-192.png", "icons/icon-512.png", "icons/apple-touch-icon.png"):
+        if not (ROOT / name).is_file():
+            print(f"FAIL: missing {name}")
+            sys.exit(1)
+
     server = start_server()
     chrome = chrome_binary()
     if not chrome:
@@ -165,6 +178,46 @@ def main():
                 print("FAIL: manifest.webmanifest not reachable")
                 sys.exit(1)
 
+            sw = subprocess.run(
+                [
+                    "curl",
+                    "-s",
+                    "-o",
+                    "/dev/null",
+                    "-w",
+                    "%{http_code}",
+                    f"http://127.0.0.1:{PORT}/sw.js",
+                ],
+                capture_output=True,
+                text=True,
+                timeout=10,
+            )
+            if sw.stdout.strip() != "200":
+                print("FAIL: sw.js not reachable")
+                sys.exit(1)
+
+            shell = evaluate(
+                ws,
+                """
+                (() => {
+                  const titleBar = document.getElementById('mobile-title-text');
+                  const header = document.getElementById('mobile-header');
+                  const navIcons = document.querySelectorAll('.mobile-nav-btn .mobile-nav-icon svg');
+                  const handle = document.querySelector('.mobile-more-sheet-handle');
+                  if (!titleBar || !header) return { ok: false, reason: 'missing mobile header' };
+                  if (getComputedStyle(header).display === 'none') return { ok: false, reason: 'mobile header hidden' };
+                  if (navIcons.length < 5) return { ok: false, reason: 'missing nav icons' };
+                  if (!handle) return { ok: false, reason: 'missing sheet handle' };
+                  const apple = document.querySelector('link[rel=\"apple-touch-icon\"]');
+                  if (!apple) return { ok: false, reason: 'missing apple-touch-icon link' };
+                  return { ok: true, navIcons: navIcons.length };
+                })()
+                """,
+            ).get("value") or {}
+            if not shell.get("ok"):
+                print(f"FAIL: mobile shell check: {shell.get('reason', shell)}")
+                sys.exit(1)
+
             login = evaluate(
                 ws,
                 "(async()=>{document.getElementById('login-username').value='admin';document.getElementById('login-password').value='admin';await submitLogin();return getCurrentUser()&&getCurrentUser().role;})()",
@@ -173,6 +226,36 @@ def main():
                 print("FAIL: mobile login failed, role=", login)
                 sys.exit(1)
             time.sleep(0.5)
+
+            m2 = evaluate(
+                ws,
+                """
+                (() => {
+                  showView('board');
+                  const hero = document.getElementById('mobile-board-hero');
+                  if (!hero || hero.hidden) return { ok: false, reason: 'missing mobile board hero' };
+                  showView('lodgers');
+                  const cards = document.querySelectorAll('#lodger-card-list .lodger-card');
+                  const emptyCards = document.querySelector('#lodger-card-list .empty-tip');
+                  if (!cards.length && !emptyCards) return { ok: false, reason: 'missing lodger card list' };
+                  showView('housekeeping');
+                  const hkGroups = document.querySelectorAll('.hk-room-group');
+                  const hkEmpty = document.querySelector('#hk-grid .empty-tip');
+                  if (!hkGroups.length && !hkEmpty) return { ok: false, reason: 'missing hk room groups' };
+                  showView('stay');
+                  const form = document.getElementById('checkin-form');
+                  if (!form || !form.classList.contains('is-wizard-mobile')) {
+                    return { ok: false, reason: 'checkin wizard not active on mobile' };
+                  }
+                  const sticky = form.querySelector('.form-wizard-sticky');
+                  if (!sticky) return { ok: false, reason: 'missing wizard sticky bar' };
+                  return { ok: true, cards: cards.length, hkGroups: hkGroups.length };
+                })()
+                """,
+            ).get("value") or {}
+            if not m2.get("ok"):
+                print(f"FAIL: mobile M2 layout: {m2.get('reason', m2)}")
+                sys.exit(1)
 
             views = [
                 "board",
@@ -282,7 +365,7 @@ def main():
                 sys.exit(1)
 
             print(
-                "OK: mobile nav + sidebar hidden + no overflow + more menu + checkin/checkout"
+                "OK: mobile shell + M2 cards/wizard + PWA assets + overflow + journey"
             )
         finally:
             ws.close()

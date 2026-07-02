@@ -736,6 +736,11 @@ function resetCheckin() {
   document.getElementById("ci-resv-id").value = "";
   populateEventSelect("ci-event", null);
   renderBedOptions();
+  var form = document.getElementById("checkin-form");
+  if (form) {
+    form.setAttribute("data-wizard-step", "1");
+    if (typeof syncStayFormWizard === "function") syncStayFormWizard("checkin-form");
+  }
 }
 
 function parseCSVLine(line) {
