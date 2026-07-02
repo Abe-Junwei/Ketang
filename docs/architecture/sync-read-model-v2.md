@@ -268,7 +268,8 @@ syncRemoteReadModel(options)
 ### 7.4 验收
 
 - [ ] 1000+ 挂单库：增量同步 P95 ≤2s
-- [ ] 连续 20 次写操作无全量 read-model（`test_write_after_network.py`）
+- [x] 单次写后无全量 read-model、仅拉 `settings_rooms`（`test_write_after_network.py`，生产 2026-07-02）
+- [ ] 连续 20 次写操作无全量 read-model（扩展 network E2E 循环）
 - [x] schema v21 `updated_at` + delta `patch_mode` + 客户端 UPSERT
 - [ ] 强制全量同步菜单仍可用（系统设置）
 

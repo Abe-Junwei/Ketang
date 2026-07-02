@@ -7,7 +7,7 @@
 | P0   | 写后默认 `renderAll` 全站重绘   | `VIEW_SYNC_SCOPES` + `refreshViewForScope`              |
 | P1   | `changed_modules` 细粒度        | 写响应 + `writeResultToModules`                         |
 | P2   | 模块内 DELETE+INSERT 主线程卡顿 | Phase 12.4：`updated_at` + delta `patch_mode` + UPSERT  |
-| P3   | 写后 Network E2E                | `test_write_after_network.py`（`KETANG_NETWORK_E2E=1`） |
+| P3   | 写后 Network E2E                | `test_write_after_network.py`（`KETANG_NETWORK_E2E=1`，生产 2026-07-02 ✅） |
 | P3   | 行级 delta 回归                 | `test_row_delta.py`                                     |
 
 ## 仍开放

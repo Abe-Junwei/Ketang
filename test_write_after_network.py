@@ -13,6 +13,30 @@ CDP_PORT = int(os.environ.get("KETANG_CDP_PORT", "9228"))
 PASSWORD = os.environ.get("KETANG_ADMIN_PASSWORD", "admin")
 
 
+def cdp_evaluate(ws, expression, timeout=60):
+    req_id = int(time.time() * 1000) % 1000000 + 100
+    ws.send(
+        json.dumps(
+            {
+                "id": req_id,
+                "method": "Runtime.evaluate",
+                "params": {
+                    "expression": expression,
+                    "awaitPromise": True,
+                    "returnByValue": True,
+                },
+            },
+        ),
+    )
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        ws.settimeout(max(0.1, deadline - time.time()))
+        msg = json.loads(ws.recv())
+        if msg.get("id") == req_id:
+            return msg.get("result", {}).get("result", {})
+    return {}
+
+
 def main() -> int:
     if os.environ.get("KETANG_NETWORK_E2E") != "1":
         print("SKIP network E2E (set KETANG_NETWORK_E2E=1 to enable)")
@@ -99,12 +123,24 @@ def main() -> int:
             return {}
 
         send("Network.enable")
-        send("Runtime.enable")
-        recv_id(1, 5)
-        recv_id(2, 5)
+        recv_id(send("Runtime.enable"), 10)
+
+        for _ in range(60):
+            if cdp_evaluate(ws, "window.ketangReady === true").get("value"):
+                break
+            time.sleep(0.5)
+        else:
+            print("FAIL app did not initialize")
+            return 1
 
         login_expr = f"""
         (async function () {{
+          if (typeof isRemoteDB === 'function' && isRemoteDB()) {{
+            document.getElementById('login-username').value = 'admin';
+            document.getElementById('login-password').value = '{PASSWORD}';
+            await submitLogin();
+            return !!(getCurrentUser && getCurrentUser());
+          }}
           document.getElementById('login-username').value = 'admin';
           document.getElementById('login-password').value = '{PASSWORD}';
           await submitLogin();
@@ -119,6 +155,17 @@ def main() -> int:
         if not login:
             print("FAIL login on production")
             return 1
+
+        # Pause background SSE/polling so we only measure write-after sync.
+        pause_expr = """
+        (function () {
+          if (typeof stopBoardPolling === 'function') stopBoardPolling();
+          if (typeof stopBoardStream === 'function') stopBoardStream(false);
+          return true;
+        })()
+        """
+        cdp_evaluate(ws, pause_expr, 10)
+        time.sleep(0.5)
 
         urls.clear()
         room_name = f"__e2e_room_{int(time.time())}"
@@ -153,6 +200,28 @@ def main() -> int:
             print("FAIL room create:", write_result)
             return 1
 
+        api_urls = [u for u in urls if "/api/" in u]
+        read_model = [u for u in api_urls if "/read-model" in u]
+        read_modules = [u for u in api_urls if "/read/" in u or "/sync/delta" in u]
+
+        print("Captured API URLs during write-after:")
+        for u in api_urls:
+            print(" ", u)
+
+        if read_model:
+            print("FAIL write-after triggered read-model:", read_model)
+            return 1
+        if len(read_modules) > 1:
+            print(f"FAIL too many module/delta requests during write-after: {len(read_modules)}")
+            return 1
+        if read_modules and not any("/read/settings_rooms" in u for u in read_modules):
+            print("FAIL expected settings_rooms read, got:", read_modules)
+            return 1
+
+        modules = write_result.get("changed_modules") or []
+        if modules and modules != ["settings_rooms"]:
+            print("WARN changed_modules:", modules)
+
         room_id = write_result.get("room_id")
         if room_id:
             cleanup_expr = f"""
@@ -175,25 +244,6 @@ def main() -> int:
                 },
             )
             recv_id(cid, 30)
-
-        api_urls = [u for u in urls if "/api/" in u]
-        read_model = [u for u in api_urls if "/read-model" in u]
-        read_modules = [u for u in api_urls if "/read/" in u or "/sync/delta" in u]
-
-        print("Captured API URLs during write-after:")
-        for u in api_urls:
-            print(" ", u)
-
-        if read_model:
-            print("FAIL write-after triggered read-model:", read_model)
-            return 1
-        if len(read_modules) > 2:
-            print(f"FAIL too many module/delta requests: {len(read_modules)}")
-            return 1
-
-        modules = write_result.get("changed_modules") or []
-        if modules and modules != ["settings_rooms"]:
-            print("WARN changed_modules:", modules)
 
         print(
             f"OK write-after network contract: read-model=0 module/delta={len(read_modules)}"
