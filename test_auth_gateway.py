@@ -342,11 +342,20 @@ def test_login_ui_has_no_fake_identity_loading():
     if 'login-submit-btn' not in index:
         print('FAIL login submit button missing stable id for pending state')
         sys.exit(1)
-    if 'login-restore-panel' not in index or '正在恢复登录' not in index:
-        print('FAIL login overlay missing remote session restore panel')
+    if 'login-overlay active' in index:
+        print('FAIL login overlay must not be active by default in index.html')
         sys.exit(1)
-    if 'showLoginRestoring' not in auth or 'shouldShowRemoteSessionRestore' not in auth:
-        print('FAIL auth.js missing remote session restore overlay helpers')
+    if 'auth-login-required' in index.split('<body', 1)[1].split('>', 1)[0]:
+        print('FAIL body must not default to auth-login-required in index.html')
+        sys.exit(1)
+    if 'app-boot-banner' not in index:
+        print('FAIL index.html missing app boot banner for session restore')
+        sys.exit(1)
+    if 'bootAuthUI' not in auth or 'showBootstrapping' not in auth:
+        print('FAIL auth.js missing boot-time session UI helpers')
+        sys.exit(1)
+    if 'bootAuthUI' not in read('js/app.js'):
+        print('FAIL app.js must call bootAuthUI before async init')
         sys.exit(1)
     if 'setLoginPending' not in auth or '登录中' not in auth or 'aria-busy' not in auth:
         print('FAIL auth.js missing login pending UI state')

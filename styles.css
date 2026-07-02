@@ -4577,6 +4577,10 @@ body.auth-login-required .app-shell {
   display: none !important;
 }
 
+body.auth-bootstrapping .login-overlay {
+  display: none !important;
+}
+
 .login-card {
   background: var(--color-card);
   border: 1px solid color-mix(in srgb, var(--color-border) 40%, transparent);

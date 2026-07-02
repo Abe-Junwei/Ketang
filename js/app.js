@@ -1,7 +1,17 @@
 document.addEventListener("DOMContentLoaded", async () => {
   initShellIcons();
-  if (typeof populateLoginUsers === "function") populateLoginUsers();
+  if (typeof bootAuthUI === "function") bootAuthUI();
   if (typeof applyDeploymentModeUI === "function") applyDeploymentModeUI();
+
+  const remoteSessionTask =
+    typeof isRemoteDB === "function" &&
+    isRemoteDB() &&
+    typeof restoreRemoteSession === "function" &&
+    !(typeof isRemoteRefreshBlocked === "function" &&
+      isRemoteRefreshBlocked())
+      ? restoreRemoteSession()
+      : null;
+
   try {
     await initSqlite();
     if (typeof initRolePermissionDefaults === "function") {
@@ -26,11 +36,9 @@ document.addEventListener("DOMContentLoaded", async () => {
       migrateV14toV15();
       createIndexes();
       await seedRooms();
+      if (typeof finishLocalAuth === "function") finishLocalAuth();
     }
-    initAuth();
-    if (typeof isRemoteDB === "function" && isRemoteDB()) {
-      await restoreRemoteSession();
-    }
+    if (remoteSessionTask) await remoteSessionTask;
     applyDeploymentModeUI();
     applyPermissions();
     if (isLoggedIn()) {

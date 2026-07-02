@@ -89,74 +89,91 @@ function restoreCachedUserFromStorage(isRemote) {
   }
 }
 
-function initAuth() {
+function bootAuthUI() {
   const isRemote = typeof isRemoteDB === "function" && isRemoteDB();
   if (isRemote && typeof purgeLegacyClientTokens === "function") {
     purgeLegacyClientTokens();
   }
   restoreCachedUserFromStorage(isRemote);
-  if (!isRemote && currentUser && typeof query === "function") {
-    try {
-      const row = query(
-        "SELECT auth_version, is_active FROM users WHERE id = ? LIMIT 1",
-        [currentUser.id],
-      )[0];
-      if (
-        !row ||
-        row.is_active === 0 ||
-        Number(row.auth_version || 1) !== Number(currentUser.auth_version || 1)
-      ) {
-        currentUser = null;
-        localStorage.removeItem(AUTH_STORAGE_KEY);
-      } else if (currentUser.permissions) {
-        setSessionPermissions(currentUser.permissions);
-      } else if (currentUser.role) {
-        setSessionPermissions(
-          getSessionPermissionsForRole(currentUser.role, currentUser),
-        );
-      }
-    } catch (e) {
+
+  if (isRemote) {
+    if (
+      typeof isRemoteRefreshBlocked === "function" &&
+      isRemoteRefreshBlocked()
+    ) {
+      showLoginOverlay();
+      return;
+    }
+    if (currentUser) {
+      updateAuthUI();
+      return;
+    }
+    showBootstrapping();
+    return;
+  }
+
+  if (currentUser) {
+    updateAuthUI();
+  } else {
+    showLoginOverlay();
+  }
+}
+
+function finishLocalAuth() {
+  if (typeof isRemoteDB === "function" && isRemoteDB()) return;
+  if (!currentUser || typeof query !== "function") return;
+  try {
+    const row = query(
+      "SELECT auth_version, is_active FROM users WHERE id = ? LIMIT 1",
+      [currentUser.id],
+    )[0];
+    if (
+      !row ||
+      row.is_active === 0 ||
+      Number(row.auth_version || 1) !== Number(currentUser.auth_version || 1)
+    ) {
       currentUser = null;
       localStorage.removeItem(AUTH_STORAGE_KEY);
+    } else if (currentUser.permissions) {
+      setSessionPermissions(currentUser.permissions);
+    } else if (currentUser.role) {
+      setSessionPermissions(
+        getSessionPermissionsForRole(currentUser.role, currentUser),
+      );
     }
+  } catch (e) {
+    currentUser = null;
+    localStorage.removeItem(AUTH_STORAGE_KEY);
   }
   updateAuthUI();
-  if (shouldShowRemoteSessionRestore()) showLoginRestoring();
+}
+
+/** @deprecated use bootAuthUI + finishLocalAuth | Legacy init entry */
+function initAuth() {
+  bootAuthUI();
+  finishLocalAuth();
 }
 
 function syncAuthBodyClass() {
   document.body.classList.toggle("auth-logged-in", !!currentUser);
-  document.body.classList.toggle("auth-login-required", !currentUser);
 }
 
-function shouldShowRemoteSessionRestore() {
-  if (typeof isRemoteDB !== "function" || !isRemoteDB()) return false;
-  if (
-    typeof isRemoteRefreshBlocked === "function" &&
-    isRemoteRefreshBlocked()
-  ) {
-    return false;
-  }
-  if (currentUser) return true;
-  return false;
+function setBootBannerVisible(visible) {
+  const el = document.getElementById("app-boot-banner");
+  if (el) el.hidden = !visible;
 }
 
-function setLoginOverlayPanel(mode) {
+function showBootstrapping() {
+  document.body.classList.remove("auth-login-required", "auth-logged-in");
+  document.body.classList.add("auth-bootstrapping");
   const overlay = document.getElementById("login-overlay");
-  const formPanel = document.getElementById("login-form-panel");
-  const restorePanel = document.getElementById("login-restore-panel");
-  if (!overlay || !formPanel || !restorePanel) return;
-  const restoring = mode === "restore";
-  formPanel.hidden = restoring;
-  restorePanel.hidden = !restoring;
-  overlay.classList.toggle("login-overlay--restore", restoring);
+  if (overlay) overlay.classList.remove("active");
+  setBootBannerVisible(true);
 }
 
-function showLoginRestoring() {
-  const overlay = document.getElementById("login-overlay");
-  if (overlay) overlay.classList.add("active");
-  setLoginOverlayPanel("restore");
-  syncAuthBodyClass();
+function hideBootstrapping() {
+  document.body.classList.remove("auth-bootstrapping");
+  setBootBannerVisible(false);
 }
 
 function closeProfileMenu() {
@@ -213,7 +230,7 @@ async function restoreRemoteSession() {
     return false;
   }
 
-  if (shouldShowRemoteSessionRestore()) showLoginRestoring();
+  if (!currentUser) showBootstrapping();
 
   try {
     const data = await apiSessionMeForRestore();
@@ -226,6 +243,7 @@ async function restoreRemoteSession() {
     if (!authExpired && currentUser) {
       updateAuthUI();
       applyPermissions();
+      hideBootstrapping();
       if (typeof showToast === "function") {
         showToast("会话校验暂时失败，已使用本地缓存登录态：" + msg);
       }
@@ -249,6 +267,7 @@ async function restoreRemoteSession() {
     if (currentUser) {
       updateAuthUI();
       applyPermissions();
+      hideBootstrapping();
       if (typeof showToast === "function") {
         showToast("会话校验暂时失败，已使用本地缓存登录态：" + msg);
       }
@@ -431,9 +450,23 @@ function updateAuthUI() {
   if (profileRole) profileRole.textContent = roleLabel;
 }
 
+function setLoginOverlayPanel(mode) {
+  const overlay = document.getElementById("login-overlay");
+  const formPanel = document.getElementById("login-form-panel");
+  const restorePanel = document.getElementById("login-restore-panel");
+  if (!overlay || !formPanel || !restorePanel) return;
+  const restoring = mode === "restore";
+  formPanel.hidden = restoring;
+  restorePanel.hidden = !restoring;
+  overlay.classList.toggle("login-overlay--restore", restoring);
+}
+
 function showLoginOverlay() {
   if (typeof closeAllSelectPickers === "function") closeAllSelectPickers();
   closeProfileMenu();
+  hideBootstrapping();
+  document.body.classList.remove("auth-logged-in", "auth-bootstrapping");
+  document.body.classList.add("auth-login-required");
   const overlay = document.getElementById("login-overlay");
   const errorEl = document.getElementById("login-error");
   const passwordEl = document.getElementById("login-password");
@@ -450,6 +483,8 @@ function hideLoginOverlay() {
   const overlay = document.getElementById("login-overlay");
   setLoginOverlayPanel("form");
   if (overlay) overlay.classList.remove("active");
+  document.body.classList.remove("auth-login-required");
+  hideBootstrapping();
   syncAuthBodyClass();
 }
 
