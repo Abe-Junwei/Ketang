@@ -12,7 +12,6 @@ export const READ_MODEL_TABLES = [
   "meals",
   "payments",
   "housekeeping",
-  "audit_logs",
   "schema_version",
   "app_meta",
 ];
@@ -105,10 +104,7 @@ export async function buildReadModel(env, session, options) {
   await Promise.all(
     tables.map(async function (table) {
       if (!TABLE_NAME_RE.test(table)) throw new Error("无效的表名");
-      const sql =
-        table === "audit_logs"
-          ? "SELECT * FROM audit_logs ORDER BY id DESC LIMIT 200"
-          : `SELECT * FROM ${table}`;
+      const sql = `SELECT * FROM ${table}`;
       const rows = await queryD1(env, sql, []);
       data[table] = rows.map((row) =>
         sanitizeRowForRole(table, row, session.role),

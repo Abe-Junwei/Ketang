@@ -38,6 +38,7 @@ REQUIRED = [
     'functions/api/v1/upsert-reservation.js',
     'functions/api/v1/reservation-status.js',
     'functions/api/v1/batch-event-members.js',
+    'functions/api/v1/batch-check-in.js',
     'functions/api/v1/board-version.js',
     'functions/api/v1/read-model.js',
     'functions/_shared/reservations.js',

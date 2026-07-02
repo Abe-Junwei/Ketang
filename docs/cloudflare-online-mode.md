@@ -6,7 +6,7 @@
 
 - 前端仍由 Cloudflare Pages 托管 `index.html`、`styles.css`、`js/`。
 - HTTPS 线上访问会自动进入远程数据库模式。
-- **读**：登录后 `GET /api/v1/read-model` 拉取按角色裁剪的快照，灌入浏览器内存 sql.js 供页面渲染。
+- **读**：登录后 `GET /api/v1/read-model` 拉取按角色裁剪的快照，灌入浏览器内存 sql.js 供页面渲染。响应带 `ETag`（board version）；客户端可发 `If-None-Match` 获 `304`，跳过重复灌库。
 - **写**：业务操作走 `/api/v1/*`，由 Worker 写入 D1。
 - **登录/改密/用户列表**：仍走 `POST /api/db` 与 `/api/v1/admin/users`。
 - 本地 `localhost`、`127.0.0.1`、`file://` 仍使用原 IndexedDB/sql.js 模式。
@@ -58,7 +58,7 @@
 - 公开预约：`POST /api/public/reservations`（IP 限流；可用 `KETANG_PUBLIC_RESERVATIONS=false` 关闭）。
 - `init` 在非空库时默认幂等；仅 `force: true` 且带 `x-ketang-bootstrap` 才允许强制 reseed。
 - 登录与公开预约均有限流。
-- 云端模式暂不支持 CSV 批量导入入住。
+- 云端模式支持 CSV 批量导入入住（`POST /api/v1/batch-check-in`，单次最多 100 条，需 `lodging.checkin` 权限）。
 
 ## API 路由
 
@@ -77,7 +77,8 @@
 | `POST /api/v1/upsert-reservation`    | 新增/编辑预约                         |
 | `POST /api/v1/reservation-status`    | 更新预约状态                          |
 | `POST /api/v1/batch-event-members`   | 营期批量取消/No-show                  |
-| `GET /api/v1/read-model`             | 登录后读模型快照（按角色裁表）        |
+| `POST /api/v1/batch-check-in`        | CSV 批量入住（最多 100 条）           |
+| `GET /api/v1/read-model`             | 登录后读模型快照（按角色裁表，ETag）  |
 | `GET /api/v1/board-version`          | 看板版本号                            |
 | `GET /api/v1/session`                | 校验当前登录会话                      |
 | `GET/POST /api/v1/admin/users`       | 用户列表 / 增改停用 / 重置密码 / 启用 |

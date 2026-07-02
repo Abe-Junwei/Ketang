@@ -261,6 +261,8 @@ python3 test_headless.py
 
 - 本地 `localhost` / `file://`：继续使用浏览器 IndexedDB/sql.js。
 - 线上 HTTPS 域名：自动访问 Cloudflare D1；入住/退房/换床/续住等关键操作走 `/api/v1/*` 业务接口。
+- 读模型：`GET /api/v1/read-model` 支持 `ETag` / `If-None-Match`（304 跳过重复灌库）；快照不含 `audit_logs`。
+- 住宿办理 CSV 批量导入在在线模式可用（`/api/v1/batch-check-in`，单次最多 100 条）。
 
 部署前需要在 Pages 项目中配置：
 

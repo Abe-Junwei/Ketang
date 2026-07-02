@@ -31,6 +31,36 @@ async function apiFetch(path, options) {
   return data;
 }
 
+async function apiReadModel(ifNoneMatch) {
+  const headers = apiAuthHeaders();
+  if (ifNoneMatch != null && ifNoneMatch !== "") {
+    headers["If-None-Match"] = String(ifNoneMatch);
+  }
+  const response = await fetch("/api/v1/read-model", {
+    method: "GET",
+    headers: headers,
+  });
+  if (response.status === 401) {
+    handleApiUnauthorized();
+    throw new Error("登录已过期，请重新登录");
+  }
+  if (response.status === 304) {
+    const etag = response.headers.get("ETag");
+    return {
+      notModified: true,
+      version: etag != null ? parseInt(etag, 10) : ifNoneMatch,
+    };
+  }
+  let data = {};
+  try {
+    data = await response.json();
+  } catch (e) {
+    data = {};
+  }
+  if (!response.ok) throw new Error(data.error || "请求失败");
+  return data;
+}
+
 async function remoteDBRequestAsync(payload) {
   return apiFetch("/api/db", { method: "POST", body: payload });
 }
@@ -165,10 +195,6 @@ async function apiChangePassword(oldPassword, newPassword) {
   });
 }
 
-async function apiReadModel() {
-  return apiFetch("/api/v1/read-model");
-}
-
 async function apiExportJsonBackup() {
   return apiFetch("/api/v1/admin/data-backup");
 }
@@ -177,6 +203,13 @@ async function apiImportJsonBackup(tables) {
   return apiFetch("/api/v1/admin/data-backup", {
     method: "POST",
     body: { confirm: true, tables: tables },
+  });
+}
+
+async function apiBatchCheckIn(payload) {
+  return apiFetch("/api/v1/batch-check-in", {
+    method: "POST",
+    body: payload,
   });
 }
 

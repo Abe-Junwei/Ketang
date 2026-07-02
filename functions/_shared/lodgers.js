@@ -816,3 +816,176 @@ export async function apiPublicReservation(env, body) {
   await bumpBoardVersion(env);
   return { reservation_id: meta.last_row_id };
 }
+
+async function findEventByName(env, name) {
+  const trimmed = String(name || "").trim();
+  if (!trimmed) return null;
+  const rows = await queryD1(
+    env,
+    "SELECT id, name FROM events WHERE name = ? LIMIT 1",
+    [trimmed],
+  );
+  return rows[0] || null;
+}
+
+async function findAssignableBed(env, gender, roomPreference) {
+  const pref = String(roomPreference || "").trim();
+  if (pref) {
+    const exact = await queryD1(
+      env,
+      `SELECT b.id, b.room_id, b.bed_number, b.status, r.name AS room_name, r.dorm_type
+       FROM beds b
+       JOIN rooms r ON r.id = b.room_id
+       LEFT JOIN lodgers l ON l.bed_id = b.id AND l.status = '在住'
+       WHERE b.status NOT IN ('维修','备用') AND l.id IS NULL
+         AND (r.name LIKE ? OR r.location LIKE ?)
+       ORDER BY b.id
+       LIMIT 40`,
+      ["%" + pref + "%", "%" + pref + "%"],
+    );
+    for (const bed of exact) {
+      if (!(await isBedAssignable(env, bed.id))) continue;
+      if (!dormMatchGender(bed.dorm_type, gender)) continue;
+      return bed;
+    }
+  }
+  const beds = await queryD1(
+    env,
+    `SELECT b.id, b.room_id, b.bed_number, b.status, r.name AS room_name, r.dorm_type
+     FROM beds b
+     JOIN rooms r ON r.id = b.room_id
+     LEFT JOIN lodgers l ON l.bed_id = b.id AND l.status = '在住'
+     WHERE b.status NOT IN ('维修','备用') AND l.id IS NULL
+     ORDER BY r.id, b.id`,
+    [],
+  );
+  for (const bed of beds) {
+    if (!(await isBedAssignable(env, bed.id))) continue;
+    if (!dormMatchGender(bed.dorm_type, gender)) continue;
+    return bed;
+  }
+  return null;
+}
+
+async function checkInBatchRow(env, session, row, mealDefaults) {
+  const person = parsePersonNameInput(row.name);
+  if (!person.name) throw new Error("姓名/性别缺失");
+  if (!row.gender) throw new Error("姓名/性别缺失");
+
+  const checkIn = row.check_in_date || mealDefaults.today;
+  const checkOut = row.expected_check_out || null;
+  if (checkOut && checkOut < checkIn)
+    throw new Error("预离日期早于入住日期");
+
+  const bed = await findAssignableBed(env, row.gender, row.room_preference);
+  if (!bed) throw new Error("无可用床位");
+
+  const evt = row.event_name
+    ? await findEventByName(env, row.event_name)
+    : null;
+  const phone = row.phone ? String(row.phone).replace(/\s/g, "") : null;
+  const guestId = await findOrCreateGuest(
+    env,
+    person.name,
+    row.gender,
+    phone,
+    row.id_card || null,
+  );
+  await incrementGuestVisit(env, guestId, checkIn);
+
+  const mealBf = mealDefaults.breakfast ? 1 : 0;
+  const mealLc = mealDefaults.lunch ? 1 : 0;
+  const mealDn = mealDefaults.dinner ? 1 : 0;
+
+  const statements = [
+    {
+      sql: `INSERT INTO lodgers (guest_id, event_id, name, dharma_name, gender, phone, id_card, check_in_date, expected_check_out, bed_id, role, class_name, status, source, notes, meal_default_breakfast, meal_default_lunch, meal_default_dinner)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '在住', '法会批量导入', ?, ?, ?, ?)`,
+      params: [
+        guestId,
+        evt ? evt.id : null,
+        person.name,
+        row.dharma_name || null,
+        row.gender,
+        phone,
+        row.id_card || null,
+        checkIn,
+        checkOut,
+        bed.id,
+        row.role || null,
+        row.class_name || null,
+        row.notes || null,
+        mealBf,
+        mealLc,
+        mealDn,
+      ],
+    },
+    {
+      sql: "UPDATE beds SET status='占用' WHERE id = ?",
+      params: [bed.id],
+    },
+    {
+      sql: "INSERT INTO housekeeping (bed_id, status, operator, notes) VALUES (?, ?, ?, ?)",
+      params: [bed.id, "占用", session.username, "法会批量导入"],
+    },
+  ];
+  await batchD1(env, statements);
+
+  const lodgerId = await resolveLodgerId(env, guestId, bed.id);
+  if (!lodgerId) throw new Error("写入失败，请重试");
+
+  const mealStmts = mealStatements(
+    lodgerId,
+    checkIn,
+    checkOut,
+    mealBf,
+    mealLc,
+    mealDn,
+  );
+  if (mealStmts.length) await batchD1(env, mealStmts);
+
+  await insertAudit(
+    env,
+    "批量导入入住",
+    "lodger",
+    lodgerId,
+    { guest_id: guestId, bed_id: bed.id, name: person.name },
+    session,
+  );
+  return { lodger_id: lodgerId, bed_id: bed.id };
+}
+
+/** CSV 批量入住 | Batch check-in from parsed CSV rows */
+export async function apiBatchCheckIn(env, session, body) {
+  const rows = Array.isArray(body.rows) ? body.rows : [];
+  if (!rows.length) throw new Error("导入数据为空");
+  if (rows.length > 100) throw new Error("单次最多导入 100 条");
+
+  const mealDefaults = {
+    breakfast: !!body.meal_breakfast,
+    lunch: !!body.meal_lunch,
+    dinner: !!body.meal_dinner,
+    today: new Date().toISOString().slice(0, 10),
+  };
+  if (!mealDefaults.breakfast && !mealDefaults.lunch && !mealDefaults.dinner) {
+    throw new Error("请至少选择一餐用斋");
+  }
+
+  let success = 0;
+  const failed = [];
+  for (let idx = 0; idx < rows.length; idx++) {
+    const row = rows[idx] || {};
+    try {
+      await checkInBatchRow(env, session, row, mealDefaults);
+      success++;
+    } catch (error) {
+      failed.push({
+        line: idx + 2,
+        name: row.name || "",
+        error: error.message || String(error),
+      });
+    }
+  }
+  if (success > 0) await bumpBoardVersion(env);
+  return { success: success, fail: failed.length, failed: failed };
+}

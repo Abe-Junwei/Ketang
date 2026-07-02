@@ -838,11 +838,6 @@ function findAssignableBed(gender, roomPreference) {
 }
 
 async function importBatchCSV(input) {
-  if (useRemoteWriteApi()) {
-    alert("云端模式暂不支持 CSV 批量导入，请逐条办理入住或使用本地模式。");
-    input.value = "";
-    return;
-  }
   const file = input.files[0];
   if (!file) return;
   const resultDiv = document.getElementById("batch-result");
@@ -865,6 +860,36 @@ async function importBatchCSV(input) {
       const breakfast = batchMeal.breakfast;
       const lunch = batchMeal.lunch;
       const dinner = batchMeal.dinner;
+
+      if (useRemoteWriteApi()) {
+        resultDiv.innerHTML = "<p>正在导入云端...</p>";
+        const result = await apiBatchCheckIn({
+          rows: rows,
+          meal_breakfast: breakfast,
+          meal_lunch: lunch,
+          meal_dinner: dinner,
+        });
+        const failedRows = (result.failed || []).map(function (item) {
+          return (
+            "第 " +
+            item.line +
+            " 行（" +
+            (item.name || "") +
+            "）：" +
+            item.error
+          );
+        });
+        const success = result.success || 0;
+        const fail = result.fail != null ? result.fail : failedRows.length;
+        resultDiv.innerHTML = `
+        <p>导入完成：成功 ${success} 条，失败 ${fail} 条。</p>
+        ${failedRows.length ? "<details><summary>失败明细</summary><pre>" + escapeHtml(failedRows.join("\n")) + "</pre></details>" : ""}
+      `;
+        showToast(`批量导入完成：成功 ${success} 条`);
+        refreshAfterWrite();
+        return;
+      }
+
       const today = todayStr();
       let success = 0,
         fail = 0,

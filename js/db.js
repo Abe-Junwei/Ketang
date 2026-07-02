@@ -35,7 +35,6 @@ const REMOTE_SNAPSHOT_INSERT_ORDER = [
   "meals",
   "payments",
   "housekeeping",
-  "audit_logs",
   "schema_version",
   "app_meta",
 ];
@@ -293,7 +292,17 @@ async function syncRemoteReadModel(options) {
   remoteSyncPromise = (async function () {
     setRemoteSyncStatus("loading");
     try {
-      const payload = await apiReadModel();
+      const etag = force ? null : lastBoardVersion;
+      const payload = await apiReadModel(etag);
+      if (payload && payload.notModified) {
+        remoteReadModelReady = true;
+        lastRemoteSyncAt = Date.now();
+        if (payload.version != null) {
+          lastBoardVersion = payload.version;
+        }
+        setRemoteSyncStatus("ready");
+        return;
+      }
       applyRemoteSnapshot(payload);
     } catch (err) {
       setRemoteSyncStatus("error", err.message || "数据同步失败");

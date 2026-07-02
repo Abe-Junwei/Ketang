@@ -287,13 +287,44 @@ def test_login_waits_for_read_model():
         sys.exit(1)
 
 
-def test_read_model_parallel_and_audit_limit():
+def test_read_model_parallel_and_no_audit_logs():
     model = read('functions/_shared/read-model.js')
     if 'await Promise.all' not in model:
         print('FAIL buildReadModel must query tables in parallel')
         sys.exit(1)
-    if 'audit_logs ORDER BY id DESC LIMIT 200' not in model:
-        print('FAIL buildReadModel must cap audit_logs rows')
+    tables_block = model.split('READ_MODEL_TABLES = [', 1)[1].split('];', 1)[0]
+    if 'audit_logs' in tables_block:
+        print('FAIL read-model must not sync audit_logs (not queried by frontend)')
+        sys.exit(1)
+
+
+def test_read_model_etag_and_client_304():
+    read_model_api = read('functions/api/v1/read-model.js')
+    if 'If-None-Match' not in read_model_api or 'status: 304' not in read_model_api:
+        print('FAIL read-model endpoint must support If-None-Match / 304')
+        sys.exit(1)
+    api_client = read('js/api-client.js')
+    db_js = read('js/db.js')
+    if 'If-None-Match' not in api_client or 'notModified' not in api_client:
+        print('FAIL api-client.js must handle read-model 304 responses')
+        sys.exit(1)
+    if 'payload.notModified' not in db_js:
+        print('FAIL db.js syncRemoteReadModel must skip snapshot apply on 304')
+        sys.exit(1)
+
+
+def test_batch_check_in_api():
+    batch_api = read('functions/api/v1/batch-check-in.js')
+    lodgers = read('functions/_shared/lodgers.js')
+    checkin = read('js/checkin.js')
+    if 'lodging.checkin' not in batch_api:
+        print('FAIL batch-check-in.js missing lodging.checkin permission guard')
+        sys.exit(1)
+    if 'export async function apiBatchCheckIn' not in lodgers:
+        print('FAIL lodgers.js missing apiBatchCheckIn export')
+        sys.exit(1)
+    if 'apiBatchCheckIn' not in checkin or '云端模式暂不支持 CSV 批量导入' in checkin:
+        print('FAIL checkin.js must call apiBatchCheckIn in remote mode')
         sys.exit(1)
 
 
@@ -401,7 +432,9 @@ TESTS = [
     test_remote_init_marks_ready_after_existing_db,
     test_permissions_layer_exists,
     test_read_model_role_tables,
-    test_read_model_parallel_and_audit_limit,
+    test_read_model_parallel_and_no_audit_logs,
+    test_read_model_etag_and_client_304,
+    test_batch_check_in_api,
     test_login_uses_lightweight_auth_init,
     test_remote_loaddb_skips_init,
     test_login_select_has_static_roles,

@@ -1,6 +1,7 @@
 import { requireSession } from "../../_shared/auth.js";
 import {
-  initRemoteDatabase,
+  ensureDatabaseForAuth,
+  getBoardVersion,
   queryD1,
   safeErrorMessage,
 } from "../../_shared/d1.js";
@@ -21,11 +22,26 @@ export async function onRequestGet({ request, env }) {
     const session = await timer.stage("auth_ms", () =>
       requireSession(request, env, (sql, p) => queryD1(env, sql, p)),
     );
-    await timer.stage("init_ms", () => initRemoteDatabase(env));
+    await timer.stage("init_ms", () => ensureDatabaseForAuth(env));
+    const version = await timer.stage("version_ms", () =>
+      getBoardVersion(env),
+    );
+    const ifNoneMatch = request.headers.get("If-None-Match");
+    if (
+      ifNoneMatch != null &&
+      String(parseInt(ifNoneMatch, 10)) === String(version)
+    ) {
+      return new Response(null, {
+        status: 304,
+        headers: { ETag: String(version) },
+      });
+    }
     const payload = await timer.stage("read_model_ms", () =>
       buildReadModel(env, session, { skipInit: true }),
     );
-    return timer.finish(payload, request);
+    const response = timer.finish(payload, request);
+    response.headers.set("ETag", String(payload.version));
+    return response;
   } catch (error) {
     const status = /登录已过期/.test(error.message)
       ? 401
