@@ -1,7 +1,7 @@
 /** 域 → 默认读模块 | Domain to default read modules (fallback when write omits changed_modules) */
 export const DOMAIN_DEFAULT_MODULES = {
   board: ["board"],
-  lodging: ["lodgers"],
+  lodging: ["lodgers_records"],
   events: ["events"],
   reservations: ["reservations"],
   meals: ["meals"],

@@ -46,9 +46,9 @@ CREATE TABLE IF NOT EXISTS sync_deletions (
 CREATE INDEX IF NOT EXISTS idx_sync_deletions_version ON sync_deletions(board_version);
 `;
 
-export function nowIso() {
-  return new Date().toISOString();
-}
+import { nowIso, normalizeSyncTimestamp } from "./sync-timestamp.js";
+
+export { nowIso, normalizeSyncTimestamp };
 
 export async function ensureSyncMetaSchema(env) {
   await runD1(env, SYNC_SCHEMA_SQL, []);

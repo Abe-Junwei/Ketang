@@ -4,7 +4,7 @@ import { LODGING_APP_META_KEYS } from "./operational-settings.js";
 import { sanitizeRowForRole } from "./read-model.js";
 import { getSessionPermissions } from "./permissions.js";
 import { moduleKeysForDomains } from "./sync-meta.js";
-import { nowIso } from "./sync-meta.js";
+import { nowIso } from "./sync-timestamp.js";
 
 const TABLE_NAME_RE = /^[a-z_][a-z0-9_]*$/i;
 
@@ -30,6 +30,14 @@ export const ROW_PATCH_MAX_ROWS_PER_TABLE = 200;
 
 function touchTriggerName(table) {
   return `touch_${table}_updated_at`;
+}
+
+function insertTriggerName(table) {
+  return `insert_${table}_updated_at`;
+}
+
+function isoToSqlTimestampExpr(column) {
+  return `substr(replace(replace(${column}, 'T', ' '), 'Z', ''), 1, 19)`;
 }
 
 export function rowSyncMigrationStatements() {
@@ -73,16 +81,40 @@ export function rowSyncMigrationStatements() {
   return statements;
 }
 
-export async function ensureRowSyncSchema(env) {
-  const ver = await queryD1(
-    env,
-    "SELECT MIN(version) AS v FROM schema_version",
-    [],
-  );
-  if ((ver[0]?.v || 0) >= 21) return false;
-  const cols = await queryD1(env, "PRAGMA table_info(lodgers)", []);
-  if (!cols.length) return false;
-  for (const item of rowSyncMigrationStatements()) {
+/** v22：INSERT 触达 + 时间戳格式统一 | INSERT triggers + timestamp normalize */
+export function rowSyncV22MigrationStatements() {
+  const statements = [];
+  SYNC_TOUCH_TABLES.forEach(function (table) {
+    statements.push({
+      sql: `UPDATE ${table} SET updated_at = ${isoToSqlTimestampExpr("updated_at")} WHERE updated_at LIKE '%T%'`,
+    });
+    statements.push({
+      sql: `CREATE TRIGGER IF NOT EXISTS ${insertTriggerName(table)} AFTER INSERT ON ${table} FOR EACH ROW WHEN NEW.updated_at IS NULL OR NEW.updated_at = '' BEGIN UPDATE ${table} SET updated_at = datetime('now') WHERE id = NEW.id; END`,
+    });
+  });
+  statements.push({
+    sql: `UPDATE sync_version_log SET bumped_at = ${isoToSqlTimestampExpr("bumped_at")} WHERE bumped_at LIKE '%T%'`,
+    ignore: /no such table/i,
+  });
+  statements.push({
+    sql: `UPDATE sync_domain_log SET bumped_at = ${isoToSqlTimestampExpr("bumped_at")} WHERE bumped_at LIKE '%T%'`,
+    ignore: /no such table/i,
+  });
+  statements.push({
+    sql: `UPDATE sync_deletions SET deleted_at = ${isoToSqlTimestampExpr("deleted_at")} WHERE deleted_at LIKE '%T%'`,
+    ignore: /no such table/i,
+  });
+  statements.push({
+    sql: "DELETE FROM schema_version WHERE version < 22",
+  });
+  statements.push({
+    sql: "INSERT OR REPLACE INTO schema_version (version) VALUES (22)",
+  });
+  return statements;
+}
+
+async function runMigrationStatements(env, statements) {
+  for (const item of statements) {
     try {
       await runD1(env, item.sql, []);
     } catch (error) {
@@ -92,6 +124,22 @@ export async function ensureRowSyncSchema(env) {
       throw error;
     }
   }
+}
+
+export async function ensureRowSyncSchema(env) {
+  const ver = await queryD1(
+    env,
+    "SELECT MIN(version) AS v FROM schema_version",
+    [],
+  );
+  const current = ver[0]?.v || 0;
+  if (current >= 22) return false;
+  const cols = await queryD1(env, "PRAGMA table_info(lodgers)", []);
+  if (!cols.length) return false;
+  if (current < 21) {
+    await runMigrationStatements(env, rowSyncMigrationStatements());
+  }
+  await runMigrationStatements(env, rowSyncV22MigrationStatements());
   return true;
 }
 
@@ -158,7 +206,6 @@ export async function tryBuildRowPatches(
       patches[table] = rows.map((row) =>
         sanitizeRowForRole("app_meta", row, session.role),
       );
-      totalRows += rows.length;
       continue;
     }
     if (SYNC_TOUCH_TABLES.indexOf(table) === -1) return null;

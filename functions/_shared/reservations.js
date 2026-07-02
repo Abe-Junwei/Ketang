@@ -3,6 +3,7 @@ import { finishWrite } from "./write-response.js";
 import { parsePersonNameInput } from "./person.js";
 import { assertGuestIdentityFields, normalizePhone } from "./validation.js";
 import { parseParticipantTagFields } from "./rooming-tags.js";
+import { nowIso } from "./sync-timestamp.js";
 
 function participantTagValues(body) {
   const tags = parseParticipantTagFields(body);
@@ -49,7 +50,7 @@ async function findOrCreateGuest(env, displayName, gender, phone, idCard) {
       gender || null,
       phone || null,
       idCard || null,
-      new Date().toISOString(),
+      nowIso(),
     ],
   );
   return meta.last_row_id;
@@ -80,7 +81,7 @@ export async function apiUpsertReservation(env, session, body) {
       [
         body.emergency_name || null,
         normalizePhone(body.emergency_phone),
-        new Date().toISOString(),
+        nowIso(),
         guestId,
       ],
     );

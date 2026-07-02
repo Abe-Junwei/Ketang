@@ -4,6 +4,7 @@ import { parsePersonNameInput, mergePersonNameFields } from "./person.js";
 import { assertGuestIdentityFields, normalizePhone } from "./validation.js";
 import { housekeepingRequiresInspect } from "./operational-settings.js";
 import { parseParticipantTagFields } from "./rooming-tags.js";
+import { nowIso } from "./sync-timestamp.js";
 
 const BOARD_SYNC_MODULES = ["board"];
 
@@ -97,7 +98,7 @@ async function findOrCreateGuest(env, displayName, gender, phone, idCard) {
     );
     guest = rows[0] || null;
   }
-  const now = new Date().toISOString();
+  const now = nowIso();
   if (guest) {
     const updates = [];
     const params = [];
@@ -136,7 +137,7 @@ async function incrementGuestVisit(env, guestId, visitDate) {
   await runD1(
     env,
     "UPDATE guests SET visit_count = visit_count + 1, last_visit_date = ?, updated_at = ? WHERE id = ?",
-    [today, new Date().toISOString(), guestId],
+    [today, nowIso(), guestId],
   );
 }
 
@@ -233,7 +234,7 @@ export async function apiCheckIn(env, session, body) {
       params: [
         body.emergency_name || null,
         body.emergency_phone || null,
-        new Date().toISOString(),
+        nowIso(),
         guestId,
       ],
     });
@@ -742,7 +743,7 @@ export async function apiEditLodger(env, session, body) {
         body.gender || null,
         identity.phone,
         identity.idCard,
-        new Date().toISOString(),
+        nowIso(),
         l.guest_id,
       ],
     );
@@ -753,7 +754,7 @@ export async function apiEditLodger(env, session, body) {
         [
           body.emergency_name || null,
           normalizePhone(body.emergency_phone),
-          new Date().toISOString(),
+          nowIso(),
           l.guest_id,
         ],
       );
@@ -863,7 +864,7 @@ export async function apiPublicReservation(env, body) {
       [
         body.emergency_name || null,
         normalizePhone(body.emergency_phone),
-        new Date().toISOString(),
+        nowIso(),
         guestId,
       ],
     );

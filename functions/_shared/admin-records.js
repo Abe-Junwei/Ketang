@@ -8,6 +8,7 @@ import { parsePersonNameInput } from "./person.js";
 import { housekeepingRequiresInspect } from "./operational-settings.js";
 import { requirePermission } from "./permissions.js";
 import { assertGuestIdentityFields } from "./validation.js";
+import { nowIso } from "./sync-timestamp.js";
 import {
   EVENT_ROOMING_COLUMN_SQL,
   EVENT_ROOMING_SET_SQL,
@@ -334,7 +335,7 @@ async function upsertGuest(env, session, body) {
   });
   const phone = identity.phone;
   const idCard = identity.idCard;
-  const now = new Date().toISOString();
+  const now = nowIso();
 
   if (phone) {
     const dupPhone = await queryD1(

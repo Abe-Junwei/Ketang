@@ -234,6 +234,7 @@ function initLocalSchemaAndMigrations() {
   migrateV18toV19();
   migrateV19toV20();
   migrateV20toV21();
+  migrateV21toV22();
   createIndexes();
 }
 
@@ -373,7 +374,10 @@ function applyModuleTablesInner(tables, options) {
 
 /** 增量同步灌库 | Apply delta sync payload into sql.js */
 function applyRemoteDelta(delta) {
-  if (!delta || typeof delta !== "object") return;
+  if (!delta || typeof delta !== "object") {
+    console.warn("applyRemoteDelta: invalid payload", delta);
+    return false;
+  }
   ensureRemoteLocalSchema();
   _remoteHydrating = true;
   try {
@@ -402,6 +406,7 @@ function applyRemoteDelta(delta) {
     remoteReadModelReady = true;
     lastRemoteSyncAt = Date.now();
     setRemoteSyncStatus("ready");
+    return true;
   } finally {
     _remoteHydrating = false;
   }
@@ -2275,6 +2280,34 @@ function migrateV20toV21() {
   }
 }
 
+function migrateV21toV22() {
+  const version =
+    db.exec("SELECT MIN(version) as v FROM schema_version")[0]?.values[0][0] ||
+    0;
+  if (version >= 22) return;
+  db.run("BEGIN TRANSACTION;");
+  try {
+    ROW_SYNC_TOUCH_TABLES.forEach(function (table) {
+      db.run(
+        `UPDATE ${table} SET updated_at = substr(replace(replace(updated_at, 'T', ' '), 'Z', ''), 1, 19) WHERE updated_at LIKE '%T%'`,
+      );
+      db.run(
+        `CREATE TRIGGER IF NOT EXISTS insert_${table}_updated_at AFTER INSERT ON ${table} FOR EACH ROW WHEN NEW.updated_at IS NULL OR NEW.updated_at = '' BEGIN UPDATE ${table} SET updated_at = datetime('now') WHERE id = NEW.id; END`,
+      );
+    });
+    db.run("DELETE FROM schema_version WHERE version < 22");
+    db.run("INSERT OR REPLACE INTO schema_version (version) VALUES (22)");
+    db.run("COMMIT;");
+  } catch (e) {
+    try {
+      db.run("ROLLBACK;");
+    } catch (rollbackErr) {
+      /* ignore */
+    }
+    throw new Error("migrateV21toV22 failed: " + e.message);
+  }
+}
+
 function createIndexes() {
   db.run(`
     CREATE INDEX IF NOT EXISTS idx_events_name ON events(name);
@@ -2494,6 +2527,7 @@ async function importDB(input) {
       migrateV18toV19();
       migrateV19toV20();
       migrateV20toV21();
+      migrateV21toV22();
       createIndexes();
       await seedRooms();
       await saveDB();

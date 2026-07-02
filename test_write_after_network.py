@@ -13,6 +13,7 @@ APP_URL = os.environ.get("KETANG_APP_URL", f"{BASE}/")
 CDP_PORT = int(os.environ.get("KETANG_CDP_PORT", "9228"))
 PASSWORD = os.environ.get("KETANG_ADMIN_PASSWORD", "admin")
 WRITE_LOOP = max(1, int(os.environ.get("KETANG_WRITE_LOOP", "1")))
+BG_SMOKE = os.environ.get("KETANG_NETWORK_E2E_BG") == "1"
 
 
 def cdp_evaluate(ws, expression, timeout=60):
@@ -62,6 +63,9 @@ def main() -> int:
     if os.environ.get("KETANG_NETWORK_E2E") != "1":
         print("SKIP network E2E (set KETANG_NETWORK_E2E=1 to enable)")
         return 0
+
+    loop_count = 3 if BG_SMOKE else WRITE_LOOP
+    pause_background = not BG_SMOKE
 
     from test_file_protocol import chrome_binary
 
@@ -182,20 +186,21 @@ def main() -> int:
             print("FAIL login on production")
             return 1
 
-        pause_expr = """
-        (function () {
-          if (typeof stopBoardPolling === 'function') stopBoardPolling();
-          if (typeof stopBoardStream === 'function') stopBoardStream(false);
-          return true;
-        })()
-        """
-        cdp_evaluate(ws, pause_expr, 10)
-        time.sleep(0.5)
+        if pause_background:
+            pause_expr = """
+            (function () {
+              if (typeof stopBoardPolling === 'function') stopBoardPolling();
+              if (typeof stopBoardStream === 'function') stopBoardStream(false);
+              return true;
+            })()
+            """
+            cdp_evaluate(ws, pause_expr, 10)
+            time.sleep(0.5)
 
         room_ids: list[int] = []
         read_model_hits = 0
 
-        for iteration in range(1, WRITE_LOOP + 1):
+        for iteration in range(1, loop_count + 1):
             urls.clear()
             room_name = f"__e2e_room_{int(time.time())}_{iteration}"
             write_expr = f"""
@@ -234,12 +239,15 @@ def main() -> int:
             read_modules = [u for u in api_urls if "/read/" in u or "/sync/delta" in u]
             read_model_hits += len(read_model)
 
-            if WRITE_LOOP == 1:
+            if WRITE_LOOP == 1 and not BG_SMOKE:
                 print("Captured API URLs during write-after:")
                 for u in api_urls:
                     print(" ", u)
 
-            if not assert_write_after_urls(urls, iteration):
+            if not BG_SMOKE and not assert_write_after_urls(urls, iteration):
+                return 1
+            if BG_SMOKE and read_model:
+                print(f"FAIL bg smoke iteration {iteration}: read-model:", read_model)
                 return 1
 
             modules = write_result.get("changed_modules") or []
@@ -272,9 +280,11 @@ def main() -> int:
             )
             recv_id(cid, 30)
 
+        label = "bg smoke" if BG_SMOKE else "write-after"
         print(
-            f"OK write-after network contract: loop={WRITE_LOOP} "
-            f"read-model={read_model_hits} module/delta<=1 per write"
+            f"OK {label} network contract: loop={loop_count} "
+            f"read-model={read_model_hits}"
+            + ("" if BG_SMOKE else " module/delta<=1 per write")
         )
         return 0
     finally:

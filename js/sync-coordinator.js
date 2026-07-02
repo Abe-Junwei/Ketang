@@ -397,6 +397,7 @@ async function syncAfterRemoteWrite(writeResult, options) {
       remoteReadModelReady = true;
       lastRemoteSyncAt = Date.now();
       setRemoteSyncStatus("ready");
+      refreshViewForScope(getActiveViewId(), options);
     } catch (e) {
       setRemoteSyncStatus("error", e.message || "数据同步失败");
       throw e;

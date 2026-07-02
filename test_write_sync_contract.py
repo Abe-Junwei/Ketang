@@ -21,13 +21,19 @@ def static_server_checks() -> bool:
     required = [
         ("write-response.js", "changed_modules", write_resp),
         ("sync-modules.js", "resolveChangedModules", sync_mod),
+        ("sync-modules.js", 'lodging: ["lodgers_records"]', sync_mod),
         ("sync-coordinator.js", "writeResultToModules", client),
         ("sync-coordinator.js", "syncRemoteByModules", client),
     ]
+    dedupe_needles = ['k !== "lodgers_records"', 'k !== "lodgers"', 'k !== "settings"']
     ok = True
     for label, needle, text in required:
         if needle not in text:
             print(f"FAIL {label} missing {needle}")
+            ok = False
+    for needle in dedupe_needles:
+        if needle not in sync_mod or needle not in client:
+            print(f"FAIL dedupe rule missing in server/client: {needle}")
             ok = False
     if ok:
         print("OK static write/sync module contract")

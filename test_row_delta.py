@@ -18,11 +18,18 @@ def static_checks() -> bool:
         ("row-sync.js", "tryBuildRowPatches", row_sync),
         ("row-sync.js", "ensureRowSyncSchema", row_sync),
         ("row-sync.js", "SYNC_TOUCH_TABLES", row_sync),
+        ("row-sync.js", "rowSyncV22MigrationStatements", row_sync),
+        ("row-sync.js", "insertTriggerName", row_sync),
         ("sync-delta.js", "patch_mode", sync_delta),
+        ("sync-timestamp.js", "normalizeSyncTimestamp", (ROOT / "functions/_shared/sync-timestamp.js").read_text(encoding="utf-8")),
         ("db.js", "migrateV20toV21", db_js),
+        ("db.js", "migrateV21toV22", db_js),
         ("db.js", "upsertOnly", db_js),
         ("db.js", "patch_mode", db_js),
-        ("schema.js", "SELECT 21", schema),
+        ("db.js", "invalid payload", db_js),
+        ("schema.js", "SELECT 22", schema),
+        ("sync-modules.js", 'lodging: ["lodgers_records"]', (ROOT / "functions/_shared/sync-modules.js").read_text(encoding="utf-8")),
+        ("sync-coordinator.js", "refreshViewForScope(getActiveViewId(), options)", (ROOT / "js/sync-coordinator.js").read_text(encoding="utf-8")),
     ]
     ok = True
     for label, needle, text in required:
@@ -116,19 +123,27 @@ def cdp_checks() -> bool:
             (function () {
               var cols = db.exec("PRAGMA table_info(lodgers)")[0].values.map(function (r) { return r[1]; });
               var ver = db.exec("SELECT MIN(version) as v FROM schema_version")[0].values[0][0];
+              run("INSERT INTO lodgers (name, status, check_in_date) VALUES (?, ?, ?)", ['__v22_probe', '在住', '2026-07-01']);
+              var id = db.exec("SELECT last_insert_rowid() as id")[0].values[0][0];
+              var row = db.exec("SELECT updated_at FROM lodgers WHERE id = " + id)[0].values[0][0];
+              run("DELETE FROM lodgers WHERE id = ?", [id]);
               return {
                 hasUpdatedAt: cols.indexOf('updated_at') !== -1,
-                schemaV21: ver >= 21,
+                schemaV22: ver >= 22,
                 upsertPath: typeof applyRemoteDelta === 'function',
+                insertTriggerSetsTs: !!(row && String(row).length >= 10),
               };
             })()
             """,
         ).get("value") or {}
         ws.close()
-        if not probe.get("hasUpdatedAt") or not probe.get("schemaV21"):
-            print("FAIL local v21 migration:", probe)
+        if not probe.get("hasUpdatedAt") or not probe.get("schemaV22"):
+            print("FAIL local v22 migration:", probe)
             return False
-        print("OK local v21 migration:", probe)
+        if not probe.get("insertTriggerSetsTs"):
+            print("FAIL INSERT trigger did not set updated_at:", probe)
+            return False
+        print("OK local v22 migration:", probe)
         return True
     finally:
         proc.kill()
