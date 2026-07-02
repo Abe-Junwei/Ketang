@@ -1,0 +1,70 @@
+#!/usr/bin/env python3
+"""P1 运维资产静态检查 | Verify patrol, baseline, and acceptance checklist."""
+import json
+import subprocess
+import sys
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent
+
+REQUIRED = [
+    "docs/ops/performance-baseline.json",
+    "docs/final-acceptance-checklist.md",
+    "scripts/post_deploy_check.py",
+    "scripts/run_p1_checklist.sh",
+    "test_prod_latency.py",
+]
+
+missing = [p for p in REQUIRED if not (ROOT / p).exists()]
+if missing:
+    print("FAIL missing P1 assets:")
+    for p in missing:
+        print(" -", p)
+    sys.exit(1)
+
+baseline = json.loads(
+    (ROOT / "docs/ops/performance-baseline.json").read_text(encoding="utf-8")
+)
+required_metrics = [
+    "login_role_ms",
+    "session_ms",
+    "read_model_ms",
+    "read_model_304_ms",
+    "board_version_ms",
+]
+for key in required_metrics:
+    if key not in baseline.get("thresholds_ms", {}):
+        print(f"FAIL baseline missing threshold {key}")
+        sys.exit(1)
+
+latency = (ROOT / "test_prod_latency.py").read_text(encoding="utf-8")
+if "read_model_304_ms" not in latency or "--check-baseline" not in latency:
+    print("FAIL test_prod_latency.py missing 304 probe or baseline check")
+    sys.exit(1)
+
+patrol = (ROOT / "scripts/post_deploy_check.py").read_text(encoding="utf-8")
+if "--allow-access-block" not in patrol:
+    print("FAIL post_deploy_check.py missing Access-aware mode")
+    sys.exit(1)
+
+checklist = (ROOT / "docs/final-acceptance-checklist.md").read_text(encoding="utf-8")
+for phrase in ("并发占床", "权限矩阵", "性能基线"):
+    if phrase not in checklist:
+        print(f"FAIL final acceptance checklist missing section: {phrase}")
+        sys.exit(1)
+
+proc = subprocess.run(
+    [
+        sys.executable,
+        str(ROOT / "test_prod_latency.py"),
+        "--help",
+    ],
+    cwd=str(ROOT),
+    capture_output=True,
+    text=True,
+)
+if proc.returncode != 0:
+    print("FAIL test_prod_latency.py --help")
+    sys.exit(1)
+
+print("OK P1 ops assets")

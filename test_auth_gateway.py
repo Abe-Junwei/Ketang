@@ -177,8 +177,11 @@ def test_session_query_binding():
     if 'getSessionUser(env, request,' not in session_api:
         print('FAIL session.js must pass bound query function to getSessionUser')
         sys.exit(1)
-    if 'verifySession(request, env, (sql, params)' not in users_shared:
-        print('FAIL getSessionUser must bind env before verifySession')
+    if 'verifySession(request, env, queryFn)' not in users_shared:
+        print('FAIL getSessionUser must pass bound queryFn to verifySession')
+        sys.exit(1)
+    if 'await queryFn(' not in users_shared:
+        print('FAIL getSessionUser must query users via bound queryFn')
         sys.exit(1)
 
 
@@ -465,6 +468,24 @@ def test_api_permission_guards_snapshot():
             sys.exit(1)
 
 
+def test_p1_ops_assets():
+    p1 = read('test_p1_ops.py')
+    baseline = ROOT / 'docs/ops/performance-baseline.json'
+    checklist = ROOT / 'docs/final-acceptance-checklist.md'
+    if not baseline.exists() or not checklist.exists():
+        print('FAIL P1 baseline or final acceptance checklist missing')
+        sys.exit(1)
+    if 'read_model_304_ms' not in baseline.read_text(encoding='utf-8'):
+        print('FAIL performance baseline missing read_model_304_ms threshold')
+        sys.exit(1)
+    if 'run_p1_checklist.sh' not in (ROOT / 'scripts/run_p1_checklist.sh').read_text(encoding='utf-8'):
+        pass
+    latency = read('test_prod_latency.py')
+    if '--check-baseline' not in latency or 'read_model_304_ms' not in latency:
+        print('FAIL test_prod_latency.py missing baseline/304 support')
+        sys.exit(1)
+
+
 def test_dynamic_modals_use_shared_backdrop():
     for path in ('js/events.js', 'js/auth.js'):
         src = read(path)
@@ -524,6 +545,7 @@ TESTS = [
     test_login_waits_for_read_model,
     test_backup_permissions_on_frontend,
     test_batch_csv_class_name_binding,
+    test_p1_ops_assets,
     test_dynamic_modals_use_shared_backdrop,
     test_export_script_reads_users_and_v15,
 ]

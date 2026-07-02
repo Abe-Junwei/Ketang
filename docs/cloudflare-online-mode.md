@@ -98,7 +98,14 @@
 bash scripts/build_pages_release.sh
 npx wrangler pages deploy .release --project-name ketang
 python3 scripts/post_deploy_check.py --base https://wulingkt.net
+python3 test_prod_latency.py --base <Pages预览域名> --samples 3 \
+  --check-baseline docs/ops/performance-baseline.json
+bash scripts/run_p1_checklist.sh https://wulingkt.net <Pages预览域名>
 ```
+
+主域名若启用 Cloudflare Access，自动化巡检加 `--allow-access-block`；测速请对 **Pages 预览域名** 执行（免 Access）。
+
+最终多人/并发验收清单见 [docs/final-acceptance-checklist.md](final-acceptance-checklist.md)。
 
 发布前迁移/恢复校验：
 

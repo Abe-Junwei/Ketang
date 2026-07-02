@@ -63,13 +63,10 @@ async function bumpAuthVersion(env, userId) {
   return rows[0]?.auth_version || 1;
 }
 
-export async function getSessionUser(env, request, queryD1) {
-  const session = await verifySession(request, env, (sql, params) =>
-    queryD1(env, sql, params),
-  );
+export async function getSessionUser(env, request, queryFn) {
+  const session = await verifySession(request, env, queryFn);
   if (!session) return null;
-  const rows = await queryD1(
-    env,
+  const rows = await queryFn(
     "SELECT id, username, display_name, role, is_advanced FROM users WHERE id = ? AND (is_active IS NULL OR is_active = 1) LIMIT 1",
     [session.id || session.sub],
   );
