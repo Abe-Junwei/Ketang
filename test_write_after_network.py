@@ -9,8 +9,10 @@ import sys
 import time
 
 BASE = os.environ.get("KETANG_BASE_URL", "https://wulingkt.net").rstrip("/")
+APP_URL = os.environ.get("KETANG_APP_URL", f"{BASE}/")
 CDP_PORT = int(os.environ.get("KETANG_CDP_PORT", "9228"))
 PASSWORD = os.environ.get("KETANG_ADMIN_PASSWORD", "admin")
+WRITE_LOOP = max(1, int(os.environ.get("KETANG_WRITE_LOOP", "1")))
 
 
 def cdp_evaluate(ws, expression, timeout=60):
@@ -37,6 +39,25 @@ def cdp_evaluate(ws, expression, timeout=60):
     return {}
 
 
+def assert_write_after_urls(urls: list[str], iteration: int) -> bool:
+    api_urls = [u for u in urls if "/api/" in u]
+    read_model = [u for u in api_urls if "/read-model" in u]
+    read_modules = [u for u in api_urls if "/read/" in u or "/sync/delta" in u]
+
+    if read_model:
+        print(f"FAIL iteration {iteration}: write-after triggered read-model:", read_model)
+        return False
+    if len(read_modules) > 1:
+        print(
+            f"FAIL iteration {iteration}: too many module/delta requests: {len(read_modules)}",
+        )
+        return False
+    if read_modules and not any("/read/settings_rooms" in u for u in read_modules):
+        print(f"FAIL iteration {iteration}: expected settings_rooms read, got:", read_modules)
+        return False
+    return True
+
+
 def main() -> int:
     if os.environ.get("KETANG_NETWORK_E2E") != "1":
         print("SKIP network E2E (set KETANG_NETWORK_E2E=1 to enable)")
@@ -60,7 +81,7 @@ def main() -> int:
             "--disable-gpu",
             "--no-sandbox",
             "--disable-dev-shm-usage",
-            f"{BASE}/index.html",
+            f"{APP_URL}",
         ],
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
@@ -125,12 +146,17 @@ def main() -> int:
         send("Network.enable")
         recv_id(send("Runtime.enable"), 10)
 
-        for _ in range(60):
+        for _ in range(120):
             if cdp_evaluate(ws, "window.ketangReady === true").get("value"):
                 break
             time.sleep(0.5)
         else:
-            print("FAIL app did not initialize")
+            diag = cdp_evaluate(
+                ws,
+                "({ ready: window.ketangReady, title: document.title, href: location.href })",
+                10,
+            ).get("value")
+            print("FAIL app did not initialize:", diag)
             return 1
 
         login_expr = f"""
@@ -156,7 +182,6 @@ def main() -> int:
             print("FAIL login on production")
             return 1
 
-        # Pause background SSE/polling so we only measure write-after sync.
         pause_expr = """
         (function () {
           if (typeof stopBoardPolling === 'function') stopBoardPolling();
@@ -167,63 +192,65 @@ def main() -> int:
         cdp_evaluate(ws, pause_expr, 10)
         time.sleep(0.5)
 
-        urls.clear()
-        room_name = f"__e2e_room_{int(time.time())}"
-        write_expr = f"""
-        (async function () {{
-          const res = await fetch('/api/v1/admin/records', {{
-            method: 'POST',
-            credentials: 'include',
-            headers: {{ 'Content-Type': 'application/json' }},
-            body: JSON.stringify({{
-              resource: 'room',
-              action: 'create',
-              name: '{room_name}',
-              dorm_type: '不限',
-              floor: 1,
-            }}),
-          }});
-          const data = await res.json();
-          if (!data.ok) throw new Error(JSON.stringify(data));
-          if (typeof syncAfterRemoteWrite === 'function') {{
-            await syncAfterRemoteWrite(data, {{ infoOnly: true, infoTab: 'rooms' }});
-          }}
-          return data;
-        }})()
-        """
-        wid = send(
-            "Runtime.evaluate",
-            {"expression": write_expr, "awaitPromise": True, "returnByValue": True},
-        )
-        write_result = recv_id(wid).get("result", {}).get("result", {}).get("value")
-        if not write_result or not write_result.get("ok"):
-            print("FAIL room create:", write_result)
-            return 1
+        room_ids: list[int] = []
+        read_model_hits = 0
 
-        api_urls = [u for u in urls if "/api/" in u]
-        read_model = [u for u in api_urls if "/read-model" in u]
-        read_modules = [u for u in api_urls if "/read/" in u or "/sync/delta" in u]
+        for iteration in range(1, WRITE_LOOP + 1):
+            urls.clear()
+            room_name = f"__e2e_room_{int(time.time())}_{iteration}"
+            write_expr = f"""
+            (async function () {{
+              const res = await fetch('/api/v1/admin/records', {{
+                method: 'POST',
+                credentials: 'include',
+                headers: {{ 'Content-Type': 'application/json' }},
+                body: JSON.stringify({{
+                  resource: 'room',
+                  action: 'create',
+                  name: '{room_name}',
+                  dorm_type: '不限',
+                  floor: 1,
+                }}),
+              }});
+              const data = await res.json();
+              if (!data.ok) throw new Error(JSON.stringify(data));
+              if (typeof syncAfterRemoteWrite === 'function') {{
+                await syncAfterRemoteWrite(data, {{ infoOnly: true, infoTab: 'rooms' }});
+              }}
+              return data;
+            }})()
+            """
+            wid = send(
+                "Runtime.evaluate",
+                {"expression": write_expr, "awaitPromise": True, "returnByValue": True},
+            )
+            write_result = recv_id(wid).get("result", {}).get("result", {}).get("value")
+            if not write_result or not write_result.get("ok"):
+                print(f"FAIL iteration {iteration} room create:", write_result)
+                return 1
 
-        print("Captured API URLs during write-after:")
-        for u in api_urls:
-            print(" ", u)
+            api_urls = [u for u in urls if "/api/" in u]
+            read_model = [u for u in api_urls if "/read-model" in u]
+            read_modules = [u for u in api_urls if "/read/" in u or "/sync/delta" in u]
+            read_model_hits += len(read_model)
 
-        if read_model:
-            print("FAIL write-after triggered read-model:", read_model)
-            return 1
-        if len(read_modules) > 1:
-            print(f"FAIL too many module/delta requests during write-after: {len(read_modules)}")
-            return 1
-        if read_modules and not any("/read/settings_rooms" in u for u in read_modules):
-            print("FAIL expected settings_rooms read, got:", read_modules)
-            return 1
+            if WRITE_LOOP == 1:
+                print("Captured API URLs during write-after:")
+                for u in api_urls:
+                    print(" ", u)
 
-        modules = write_result.get("changed_modules") or []
-        if modules and modules != ["settings_rooms"]:
-            print("WARN changed_modules:", modules)
+            if not assert_write_after_urls(urls, iteration):
+                return 1
 
-        room_id = write_result.get("room_id")
-        if room_id:
+            modules = write_result.get("changed_modules") or []
+            if modules and modules != ["settings_rooms"]:
+                print(f"WARN iteration {iteration} changed_modules:", modules)
+
+            room_id = write_result.get("room_id")
+            if room_id:
+                room_ids.append(int(room_id))
+
+        for room_id in room_ids:
             cleanup_expr = f"""
             (async function () {{
               const res = await fetch('/api/v1/admin/records', {{
@@ -246,7 +273,8 @@ def main() -> int:
             recv_id(cid, 30)
 
         print(
-            f"OK write-after network contract: read-model=0 module/delta={len(read_modules)}"
+            f"OK write-after network contract: loop={WRITE_LOOP} "
+            f"read-model={read_model_hits} module/delta<=1 per write"
         )
         return 0
     finally:

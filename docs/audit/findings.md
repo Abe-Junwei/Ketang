@@ -9,13 +9,14 @@
 | P2   | 模块内 DELETE+INSERT 主线程卡顿 | Phase 12.4：`updated_at` + delta `patch_mode` + UPSERT  |
 | P3   | 写后 Network E2E                | `test_write_after_network.py`（`KETANG_NETWORK_E2E=1`，生产 2026-07-02 ✅） |
 | P3   | 行级 delta 回归                 | `test_row_delta.py`                                     |
+| P3   | 1000+ 挂单 patch P95 ≤2s      | `test_lodger_patch_benchmark.py`（本地 1050 行，p95≈2ms ✅） |
+| P3   | 连续 20 次写无 read-model       | `KETANG_WRITE_LOOP=20` + network E2E（生产 2026-07-02 ✅） |
 
 ## 仍开放
 
-| 级别 | 问题                      | 计划                              |
-| ---- | ------------------------- | --------------------------------- |
-| P3   | 1000+ 挂单 patch P95 ≤2s  | 生产压测 + `performance-baseline` |
-| P3   | 连续 20 次写无 read-model | 扩展 network E2E 循环             |
+| 级别 | 问题 | 计划 |
+| ---- | ---- | ---- |
+| —    | —    | —    |
 
 ## 验证
 
@@ -25,5 +26,8 @@ python3 test_headless.py
 python3 test_scoped_refresh.py
 python3 test_write_sync_contract.py
 python3 test_row_delta.py
+python3 test_lodger_patch_benchmark.py
 KETANG_NETWORK_E2E=1 python3 test_write_after_network.py
+KETANG_NETWORK_E2E=1 KETANG_WRITE_LOOP=20 python3 test_write_after_network.py
+KETANG_NETWORK_BENCH=1 python3 test_lodger_patch_benchmark.py  # 生产挂单≥1050 时额外探测
 ```

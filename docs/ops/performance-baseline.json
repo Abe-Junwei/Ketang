@@ -1,7 +1,7 @@
 {
   "version": 1,
   "updated": "2026-07-02",
-  "notes": "P95 超过阈值则 test_prod_latency.py 失败。主域名若套 Cloudflare Access，请对 Pages 预览域名跑测速。",
+  "notes": "P95 超过阈值则 test_prod_latency.py 失败。主域名若套 Cloudflare Access，请对 Pages 预览域名跑测速。1000+ 挂单 patch 客户端灌库见 test_lodger_patch_benchmark.py（本地 1050 行基准）。",
   "thresholds_ms": {
     "index_ttfb_ms": 5000,
     "login_role_ms": 15000,

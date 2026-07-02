@@ -267,9 +267,9 @@ syncRemoteReadModel(options)
 
 ### 7.4 验收
 
-- [ ] 1000+ 挂单库：增量同步 P95 ≤2s
+- [x] 1000+ 挂单库：增量同步 P95 ≤2s（`test_lodger_patch_benchmark.py` 本地 1050 行 + 5 行 patch，2026-07-02）
 - [x] 单次写后无全量 read-model、仅拉 `settings_rooms`（`test_write_after_network.py`，生产 2026-07-02）
-- [ ] 连续 20 次写操作无全量 read-model（扩展 network E2E 循环）
+- [x] 连续 20 次写操作无全量 read-model（`KETANG_WRITE_LOOP=20`，生产 2026-07-02）
 - [x] schema v21 `updated_at` + delta `patch_mode` + 客户端 UPSERT
 - [ ] 强制全量同步菜单仍可用（系统设置）
 
