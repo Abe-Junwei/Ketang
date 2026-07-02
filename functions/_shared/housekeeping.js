@@ -1,4 +1,17 @@
 import { batchD1, bumpBoardVersion, insertAudit, queryD1 } from "./d1.js";
+import {
+  housekeepingRequiresInspect,
+  isHousekeepingTransitionAllowed,
+} from "./operational-settings.js";
+
+async function getHouseStatus(env, bedId) {
+  const rows = await queryD1(
+    env,
+    "SELECT status FROM housekeeping WHERE bed_id = ? ORDER BY changed_at DESC LIMIT 1",
+    [bedId],
+  );
+  return rows[0]?.status || "净房";
+}
 
 export async function apiSetHouseStatus(env, session, body) {
   const bedId = parseInt(body.bed_id, 10);
@@ -12,6 +25,17 @@ export async function apiSetHouseStatus(env, session, body) {
     );
     if ((occ[0]?.c || 0) > 0)
       throw new Error("该床位当前有在住住客，不能设为维修");
+  }
+  const current = await getHouseStatus(env, bedId);
+  const requireInspect = await housekeepingRequiresInspect(env);
+  if (
+    !isHousekeepingTransitionAllowed(current, status, requireInspect)
+  ) {
+    throw new Error(
+      requireInspect
+        ? `当前为「${current}」，需按脏房→净房→查房→可入住流转`
+        : `当前为「${current}」，不能直接设为「${status}」`,
+    );
   }
   const statements = [
     {

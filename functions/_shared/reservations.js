@@ -6,6 +6,10 @@ import {
   runD1,
 } from "./d1.js";
 import { parsePersonNameInput } from "./person.js";
+import {
+  assertGuestIdentityFields,
+  normalizePhone,
+} from "./validation.js";
 
 async function findOrCreateGuest(env, displayName, gender, phone, idCard) {
   const person = parsePersonNameInput(displayName);
@@ -61,15 +65,28 @@ export async function apiUpsertReservation(env, session, body) {
   const checkOut = body.expected_check_out || null;
   if (checkOut && checkOut < body.expected_check_in)
     throw new Error("预离日期不能早于入住日期");
+  const identity = assertGuestIdentityFields(body);
   const guestId =
     body.guest_id ||
     (await findOrCreateGuest(
       env,
       person.name,
       body.gender,
-      body.phone || null,
-      body.id_card || null,
+      identity.phone,
+      identity.idCard,
     ));
+  if (body.emergency_name || body.emergency_phone) {
+    await runD1(
+      env,
+      "UPDATE guests SET emergency_contact = COALESCE(?, emergency_contact), emergency_phone = COALESCE(?, emergency_phone), updated_at = ? WHERE id = ?",
+      [
+        body.emergency_name || null,
+        normalizePhone(body.emergency_phone),
+        new Date().toISOString(),
+        guestId,
+      ],
+    );
+  }
   const mealBf = body.meal_breakfast ? 1 : 0;
   const mealLc = body.meal_lunch ? 1 : 0;
   const mealDn = body.meal_dinner ? 1 : 0;
@@ -98,8 +115,8 @@ export async function apiUpsertReservation(env, session, body) {
         person.name,
         person.dharma_name,
         body.gender,
-        body.phone || null,
-        body.id_card || null,
+        identity.phone,
+        identity.idCard,
         body.role || null,
         body.class_name || null,
         body.expected_check_in,
@@ -136,8 +153,8 @@ export async function apiUpsertReservation(env, session, body) {
       person.name,
       person.dharma_name,
       body.gender,
-      body.phone || null,
-      body.id_card || null,
+      identity.phone,
+      identity.idCard,
       body.role || null,
       body.class_name || null,
       body.expected_check_in,

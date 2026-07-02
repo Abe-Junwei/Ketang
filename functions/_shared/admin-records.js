@@ -6,7 +6,9 @@ import {
   runD1,
 } from "./d1.js";
 import { parsePersonNameInput } from "./person.js";
+import { housekeepingRequiresInspect } from "./operational-settings.js";
 import { requirePermission } from "./permissions.js";
+import { assertGuestIdentityFields } from "./validation.js";
 
 const DORM_TYPES = new Set(["男寮", "女寮", "不限"]);
 const BED_STATUSES = new Set(["可用", "维修", "备用"]);
@@ -256,9 +258,14 @@ async function upsertGuest(env, session, body) {
   const person = parsePersonNameInput(body.name);
   if (!person.name) throw new Error("姓名 / 法名为必填");
   const gender = assertInSet(body.gender || "男", GENDERS, "请选择有效性别");
-  const phone = text(body.phone);
-  const idCard = text(body.id_card);
-  if (!idCard) throw new Error("身份证号为必填");
+  const identity = assertGuestIdentityFields({
+    id_card: body.id_card,
+    phone: body.phone,
+    emergency_name: body.emergency_contact,
+    emergency_phone: body.emergency_phone,
+  });
+  const phone = identity.phone;
+  const idCard = identity.idCard;
   const now = new Date().toISOString();
 
   if (phone) {
@@ -393,6 +400,7 @@ async function upsertEvent(env, session, body) {
   const expected = parseInt(body.expected_count, 10) || 0;
   const startDate = text(body.start_date);
   const endDate = text(body.end_date);
+  const includeSpareBeds = body.include_spare_beds ? 1 : 0;
   if (startDate && endDate && endDate < startDate)
     throw new Error("结束日期不能早于开始日期");
 
@@ -403,7 +411,7 @@ async function upsertEvent(env, session, body) {
     if (!old) throw new Error("营期不存在");
     const statements = [
       {
-        sql: "UPDATE events SET name=?, event_type=?, gender_type=?, expected_count=?, start_date=?, end_date=?, status=?, notes=? WHERE id=?",
+        sql: "UPDATE events SET name=?, event_type=?, gender_type=?, expected_count=?, start_date=?, end_date=?, status=?, notes=?, include_spare_beds=? WHERE id=?",
         params: [
           name,
           eventType,
@@ -413,6 +421,7 @@ async function upsertEvent(env, session, body) {
           endDate,
           status,
           text(body.notes),
+          includeSpareBeds,
           id,
         ],
       },
@@ -462,7 +471,7 @@ async function upsertEvent(env, session, body) {
 
   const meta = await runD1(
     env,
-    "INSERT INTO events (name, event_type, gender_type, expected_count, start_date, end_date, status, notes) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+    "INSERT INTO events (name, event_type, gender_type, expected_count, start_date, end_date, status, notes, include_spare_beds) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
     [
       name,
       eventType,
@@ -472,6 +481,7 @@ async function upsertEvent(env, session, body) {
       endDate,
       status,
       text(body.notes),
+      includeSpareBeds,
     ],
   );
   await insertAudit(
@@ -535,6 +545,30 @@ async function updateLodgerRecord(env, session, body) {
   const expectedOut = text(body.expected_check_out);
   if (!checkIn || !expectedOut) throw new Error("请选择入住日期和预离日期");
   if (expectedOut < checkIn) throw new Error("预离日期不能早于入住日期");
+  let emergencyName = body.emergency_name;
+  let emergencyPhone = body.emergency_phone;
+  if (lodger.guest_id) {
+    const guestRows = await queryD1(
+      env,
+      "SELECT emergency_contact, emergency_phone FROM guests WHERE id = ? LIMIT 1",
+      [lodger.guest_id],
+    );
+    const guest = guestRows[0];
+    if (guest) {
+      if (emergencyName == null || emergencyName === "") {
+        emergencyName = guest.emergency_contact;
+      }
+      if (emergencyPhone == null || emergencyPhone === "") {
+        emergencyPhone = guest.emergency_phone;
+      }
+    }
+  }
+  const identity = assertGuestIdentityFields({
+    id_card: body.id_card,
+    phone: body.phone,
+    emergency_name: emergencyName,
+    emergency_phone: emergencyPhone,
+  });
   const bedId = body.bed_id ? parseInt(body.bed_id, 10) : null;
 
   if (bedId) {
@@ -556,6 +590,21 @@ async function updateLodgerRecord(env, session, body) {
       throw new Error("该床位不可分配");
     if (!dormMatchesGender(bed.dorm_type, gender))
       throw new Error("该床位所在房间寮类型与性别不符");
+    if (status === "在住") {
+      const hkRows = await queryD1(
+        env,
+        "SELECT status FROM housekeeping WHERE bed_id = ? ORDER BY changed_at DESC LIMIT 1",
+        [bedId],
+      );
+      const hk = hkRows[0]?.status || "净房";
+      const requireInspect = await housekeepingRequiresInspect(env);
+      if (requireInspect && hk !== "可用") {
+        throw new Error("该床位尚未完成查房，不可分配");
+      }
+      if (!requireInspect && hk !== "净房" && hk !== "可用") {
+        throw new Error("该床位房务状态不可分配");
+      }
+    }
   }
 
   let actualOut = lodger.actual_check_out || null;
@@ -586,8 +635,8 @@ async function updateLodgerRecord(env, session, body) {
         person.name,
         person.dharma_name,
         gender,
-        body.phone || null,
-        body.id_card || null,
+        identity.phone,
+        identity.idCard,
         checkIn,
         expectedOut,
         actualOut,

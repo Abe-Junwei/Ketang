@@ -26,6 +26,7 @@ copy_file index.html index.html
 copy_file styles.css styles.css
 copy_file _headers _headers
 copy_file _routes.json _routes.json
+copy_file manifest.webmanifest manifest.webmanifest
 copy_file role-permissions.defaults.json role-permissions.defaults.json
 copy_tree js js
 copy_tree lib lib

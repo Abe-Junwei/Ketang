@@ -306,6 +306,17 @@ async function apiAdminSaveRolePermissions(roles) {
   });
 }
 
+async function apiAdminGetOperationalSettings() {
+  return apiFetch("/api/v1/admin/operational-settings");
+}
+
+async function apiAdminSaveOperationalSettings(settings) {
+  return apiFetch("/api/v1/admin/operational-settings", {
+    method: "POST",
+    body: settings,
+  });
+}
+
 async function apiAdminRecord(resource, action, payload) {
   return apiFetch("/api/v1/admin/records", {
     method: "POST",

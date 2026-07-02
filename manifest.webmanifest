@@ -1,0 +1,10 @@
+{
+  "name": "客堂住宿系统",
+  "short_name": "客堂",
+  "description": "寺院客堂住宿管理",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#f5f0e8",
+  "theme_color": "#5c4a32",
+  "lang": "zh-CN"
+}

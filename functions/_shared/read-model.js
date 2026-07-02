@@ -1,5 +1,6 @@
 import { queryD1, getBoardVersion, initRemoteDatabase } from "./d1.js";
 import { getSessionPermissions } from "./permissions.js";
+import { LODGING_APP_META_KEYS } from "./operational-settings.js";
 
 /** 云端读模型表清单 | Tables included in client read-model snapshot */
 export const READ_MODEL_TABLES = [
@@ -28,7 +29,15 @@ const READ_MODEL_SYNC_PERMISSIONS = [
 /** 权限码 → 可读表 | Permission-driven table allowlist */
 const PERMISSION_TABLE_INCLUDES = {
   "board.read": ["rooms", "beds"],
-  "lodging.read": ["rooms", "beds", "guests", "events", "lodgers", "payments"],
+  "lodging.read": [
+    "rooms",
+    "beds",
+    "guests",
+    "events",
+    "lodgers",
+    "payments",
+    "app_meta",
+  ],
   "reservation.read": ["reservations"],
   "meals.read": ["meals", "rooms", "beds", "guests", "lodgers"],
   "housekeeping.read": ["housekeeping", "rooms", "beds", "lodgers"],
@@ -115,6 +124,27 @@ export function sanitizeRowForRole(table, row, role) {
   return copy;
 }
 
+async function fetchReadModelTableRows(env, table, permissions) {
+  if (!TABLE_NAME_RE.test(table)) throw new Error("无效的表名");
+  if (table === "app_meta") {
+    if (permissions.includes("settings.read")) {
+      return queryD1(env, "SELECT * FROM app_meta", []);
+    }
+    if (permissions.includes("lodging.read")) {
+      const placeholders = LODGING_APP_META_KEYS.map(function () {
+        return "?";
+      }).join(",");
+      return queryD1(
+        env,
+        `SELECT * FROM app_meta WHERE key IN (${placeholders})`,
+        LODGING_APP_META_KEYS,
+      );
+    }
+    return [];
+  }
+  return queryD1(env, `SELECT * FROM ${table}`, []);
+}
+
 export async function buildReadModel(env, session, options) {
   if (!options?.skipInit) {
     await initRemoteDatabase(env);
@@ -127,9 +157,7 @@ export async function buildReadModel(env, session, options) {
   const data = {};
   await Promise.all(
     tables.map(async function (table) {
-      if (!TABLE_NAME_RE.test(table)) throw new Error("无效的表名");
-      const sql = `SELECT * FROM ${table}`;
-      const rows = await queryD1(env, sql, []);
+      const rows = await fetchReadModelTableRows(env, table, permissions);
       data[table] = rows.map((row) =>
         sanitizeRowForRole(table, row, session.role),
       );

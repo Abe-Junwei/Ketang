@@ -196,8 +196,97 @@ function requireAuth() {
   return true;
 }
 
+var MOBILE_PRIMARY_VIEWS = ["board", "lodgers", "stay", "reports"];
+var MOBILE_MORE_VIEWS = [
+  "lodging",
+  "housekeeping",
+  "forecast",
+  "history",
+  "reservations",
+  "info",
+  "backup",
+];
+
+function closeMobileMoreMenu() {
+  var sheet = document.getElementById("mobile-more-sheet");
+  var backdrop = document.getElementById("mobile-more-backdrop");
+  var btn = document.querySelector('.mobile-nav-btn[data-action="more"]');
+  if (sheet) {
+    sheet.hidden = true;
+    sheet.setAttribute("aria-hidden", "true");
+  }
+  if (backdrop) backdrop.hidden = true;
+  if (btn) btn.setAttribute("aria-expanded", "false");
+  document.body.classList.remove("mobile-more-open");
+}
+
+function openMobileMoreMenu() {
+  var sheet = document.getElementById("mobile-more-sheet");
+  var backdrop = document.getElementById("mobile-more-backdrop");
+  var btn = document.querySelector('.mobile-nav-btn[data-action="more"]');
+  if (sheet) {
+    sheet.hidden = false;
+    sheet.setAttribute("aria-hidden", "false");
+  }
+  if (backdrop) backdrop.hidden = false;
+  if (btn) btn.setAttribute("aria-expanded", "true");
+  document.body.classList.add("mobile-more-open");
+}
+
+function toggleMobileMoreMenu() {
+  var sheet = document.getElementById("mobile-more-sheet");
+  if (sheet && !sheet.hidden) closeMobileMoreMenu();
+  else openMobileMoreMenu();
+}
+
+function mobileNavGo(view) {
+  closeMobileMoreMenu();
+  showView(view);
+}
+
+function applyMobileMorePermissions() {
+  if (typeof hasPermission !== "function") return;
+  const menuMap = {
+    lodging: hasPermission("lodging.read") || hasPermission("lodging.checkin"),
+    housekeeping: hasPermission("housekeeping.read"),
+    forecast: hasPermission("board.read"),
+    history: hasPermission("lodging.read"),
+    reservations: hasPermission("lodging.read"),
+    info: hasPermission("settings.read"),
+    backup: hasPermission("backup.read"),
+  };
+  document.querySelectorAll(".mobile-more-item").forEach(function (btn) {
+    const view = btn.getAttribute("data-view");
+    btn.style.display = menuMap[view] ? "" : "none";
+  });
+}
+
+function syncMobileNavActive(viewName, stayMode) {
+  stayMode = stayMode || _pendingStayMode || "checkin";
+  var highlightView = viewName;
+  if (viewName === "stay" && stayMode === "reservation") {
+    highlightView = "reservations";
+  }
+
+  document.querySelectorAll(".mobile-more-item").forEach(function (btn) {
+    btn.classList.toggle(
+      "active",
+      btn.getAttribute("data-view") === highlightView,
+    );
+  });
+
+  var moreBtn = document.querySelector('.mobile-nav-btn[data-action="more"]');
+  if (moreBtn) {
+    moreBtn.classList.toggle(
+      "active",
+      MOBILE_MORE_VIEWS.indexOf(highlightView) !== -1,
+    );
+  }
+}
+
 function showView(name) {
   if (!requireAuth()) return;
+  closeMobileMoreMenu();
   // 权限检查：info 和 backup 仅管理员可访问
   if (
     (name === "info" && !hasPermission("settings.read")) ||
@@ -217,7 +306,7 @@ function showView(name) {
     .querySelectorAll(".view")
     .forEach((v) => v.classList.remove("active"));
   document
-    .querySelectorAll(".sidebar-nav-btn, .sidebar-footer-btn")
+    .querySelectorAll(".sidebar-nav-btn, .sidebar-footer-btn, .mobile-nav-btn")
     .forEach((b) => b.classList.remove("active"));
   document.getElementById("view-" + name).classList.add("active");
   const navView = name === "stay" ? "stay" : name;
@@ -227,8 +316,18 @@ function showView(name) {
   const footer = document.querySelector(
     '.sidebar-footer-btn[data-view="' + navView + '"]',
   );
+  const mobile = document.querySelector(
+    '.mobile-nav-btn[data-view="' + navView + '"]',
+  );
   if (primary) primary.classList.add("active");
   if (footer) footer.classList.add("active");
+  if (mobile) {
+    var mobileStayOk = !(
+      navView === "stay" && _pendingStayMode === "reservation"
+    );
+    if (mobileStayOk) mobile.classList.add("active");
+  }
+  syncMobileNavActive(name, _pendingStayMode);
   updateTopbarTitle(name);
   if (name === "board") renderBoard();
   if (name === "lodging") renderLodging();
@@ -243,6 +342,7 @@ function showView(name) {
   if (name === "reports") initReportDates();
   if (name === "info") renderInfo("rooms");
   if (name === "backup") {
+    renderOperationalSettingsPanel();
     renderRolePermissionsPanel();
     renderUserList();
   }

@@ -42,6 +42,7 @@ CREATE TABLE IF NOT EXISTS events (
   end_date TEXT,
   status TEXT DEFAULT '筹备中' CHECK(status IN ('筹备中','招生中','进行中','已结束','已取消')),
   notes TEXT,
+  include_spare_beds INTEGER DEFAULT 0 CHECK(include_spare_beds IN (0,1)),
   created_at TEXT DEFAULT CURRENT_TIMESTAMP
 );
 CREATE TABLE IF NOT EXISTS users (

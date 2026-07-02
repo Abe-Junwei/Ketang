@@ -235,7 +235,8 @@ function isSpareRoom(room) {
 }
 
 /** SQL 片段：排除备用床房间 | SQL fragment to exclude spare rooms */
-function spareRoomExcludeClause(alias) {
+function spareRoomExcludeClause(alias, includeSpare) {
+  if (includeSpare) return "1=1";
   alias = alias || "r";
   return (
     "(COALESCE(" +
@@ -246,6 +247,42 @@ function spareRoomExcludeClause(alias) {
     alias +
     ".name, '') NOT LIKE '备用%')"
   );
+}
+
+const APP_META_HK_REQUIRE_INSPECT = "housekeeping_require_inspect_v1";
+
+function getAppMetaValue(key) {
+  if (typeof query !== "function") return null;
+  const row = query("SELECT value FROM app_meta WHERE key = ? LIMIT 1", [
+    key,
+  ])[0];
+  return row ? row.value : null;
+}
+
+function setAppMetaValue(key, value) {
+  run("INSERT OR REPLACE INTO app_meta (key, value) VALUES (?, ?)", [
+    key,
+    String(value),
+  ]);
+}
+
+function housekeepingRequiresInspect() {
+  const raw = getAppMetaValue(APP_META_HK_REQUIRE_INSPECT);
+  return raw === "1" || raw === "true";
+}
+
+/** 房务状态流转是否允许 | Housekeeping status transition guard (mirrors server) */
+function isHousekeepingTransitionAllowed(fromStatus, toStatus, requireInspect) {
+  const from = fromStatus || "净房";
+  const to = toStatus;
+  if (!to || from === to) return false;
+  if (to === "占用" || to === "脏房" || to === "维修") return true;
+  if (from === "维修" && to === "净房") return true;
+  if (from === "脏房" && to === "净房") return true;
+  if (!requireInspect && from === "净房" && to === "可用") return true;
+  if (requireInspect && from === "净房" && to === "查房") return true;
+  if (from === "查房" && to === "可用") return true;
+  return false;
 }
 
 function sanitizeFilename(name) {

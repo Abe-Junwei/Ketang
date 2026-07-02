@@ -5,13 +5,27 @@
    ============================================================ */
 
 // 集中规则定义 | Centralized rule definitions
+function isPhoneLooseValid(v) {
+  if (!v) return true;
+  const raw = String(v).replace(/\s/g, "");
+  if (/^1[3-9]\d{9}$/.test(raw)) return true;
+  if (/^0\d{9,11}$/.test(raw)) return true;
+  if (/^0\d{2,3}-?\d{7,8}$/.test(raw)) return true;
+  if (/^\+\d{8,15}$/.test(raw)) return true;
+  return false;
+}
+
 const RULES = {
+  phoneLoose: {
+    test: isPhoneLooseValid,
+    msg: "请输入有效手机号、座机或国际号码（无手机号请填紧急联系人）",
+  },
   phone: {
-    test: (v) => !v || /^1[3-9]\d{9}$/.test(v),
-    msg: "请输入 11 位有效手机号（1 开头，第二位 3-9）",
+    test: isPhoneLooseValid,
+    msg: "请输入有效手机号、座机或国际号码",
   },
   idCard: {
-    test: (v) => !v || /^\d{17}[\dXx]$/.test(v),
+    test: (v) => !!v && /^\d{17}[\dXx]$/.test(String(v).trim()),
     msg: "请输入 18 位身份证号（末位可为 X）",
   },
   required: {
@@ -30,15 +44,134 @@ function registerValidation(fieldId, ruleName) {
 
 // 注册入住表单 | Register checkin form
 registerValidation("ci-name", "required");
-registerValidation("ci-phone", "phone");
+registerValidation("ci-phone", "phoneLoose");
+registerValidation("ci-idcard", "required");
 registerValidation("ci-idcard", "idCard");
+registerValidation("ci-emergency-phone", "phoneLoose");
 // 注册编辑表单（字段在弹窗中动态创建，规则预先注册）| Register edit form (fields created dynamically, rules pre-registered)
 registerValidation("edit-name", "required");
-registerValidation("edit-phone", "phone");
+registerValidation("edit-phone", "phoneLoose");
+registerValidation("edit-idcard", "required");
 registerValidation("edit-idcard", "idCard");
+registerValidation("edit-emergency-phone", "phoneLoose");
 // 注册预约表单 | Register reservation form
-registerValidation("resv-phone", "phone");
+registerValidation("resv-phone", "phoneLoose");
+registerValidation("resv-idcard", "required");
 registerValidation("resv-idcard", "idCard");
+registerValidation("resv-emergency-phone", "phoneLoose");
+
+function normalizePhoneInput(value) {
+  if (value == null || value === "") return null;
+  return String(value).replace(/\s/g, "");
+}
+
+/** 身份证 + 手机号/紧急联系人组合校验 | ID + phone/emergency composite validation */
+function validateGuestContact(opts) {
+  const idRaw = (opts.idCard || "").trim().toUpperCase();
+  if (!idRaw) {
+    return { ok: false, msg: "身份证为必填项", field: "idcard" };
+  }
+  if (!RULES.idCard.test(idRaw)) {
+    return { ok: false, msg: RULES.idCard.msg, field: "idcard" };
+  }
+
+  const phone = normalizePhoneInput(opts.phone);
+  if (phone) {
+    if (!RULES.phoneLoose.test(phone)) {
+      return { ok: false, msg: RULES.phoneLoose.msg, field: "phone" };
+    }
+    return { ok: true, idCard: idRaw, phone: phone };
+  }
+
+  const emergencyName = (opts.emergencyName || "").trim();
+  const emergencyPhone = normalizePhoneInput(opts.emergencyPhone);
+  if (!emergencyName || !emergencyPhone) {
+    return {
+      ok: false,
+      msg: "无手机号时请填写紧急联系人和联系电话",
+      field: "emergency",
+    };
+  }
+  if (!RULES.phoneLoose.test(emergencyPhone)) {
+    return {
+      ok: false,
+      msg: "紧急联系电话格式不正确",
+      field: "emergency_phone",
+    };
+  }
+  return {
+    ok: true,
+    idCard: idRaw,
+    phone: null,
+    emergencyName: emergencyName,
+    emergencyPhone: emergencyPhone,
+  };
+}
+
+function validateEditLodgerContact(lodgerId, phone, idCard, emergencyOverride) {
+  let emergencyName = "";
+  let emergencyPhone = "";
+  const row = query("SELECT guest_id FROM lodgers WHERE id=?", [lodgerId])[0];
+  if (row?.guest_id) {
+    const guest = query(
+      "SELECT emergency_contact, emergency_phone FROM guests WHERE id=?",
+      [row.guest_id],
+    )[0];
+    if (guest) {
+      emergencyName = guest.emergency_contact || "";
+      emergencyPhone = guest.emergency_phone || "";
+    }
+  }
+  if (emergencyOverride) {
+    if (emergencyOverride.emergencyName !== undefined) {
+      emergencyName = emergencyOverride.emergencyName;
+    }
+    if (emergencyOverride.emergencyPhone !== undefined) {
+      emergencyPhone = emergencyOverride.emergencyPhone;
+    }
+  }
+  return validateGuestContact({
+    phone: phone,
+    idCard: idCard,
+    emergencyName: emergencyName,
+    emergencyPhone: emergencyPhone,
+  });
+}
+
+/** 批量/CSV 行校验 | Batch row validation */
+function validateGuestContactRow(row) {
+  return validateGuestContact({
+    phone: row.phone,
+    idCard: row.id_card,
+    emergencyName: row.emergency_name || row.emergency_contact,
+    emergencyPhone: row.emergency_phone,
+  });
+}
+
+function alertGuestContactError(result) {
+  alert(result.msg);
+  if (result.field === "idcard") {
+    const el =
+      document.getElementById("ci-idcard") ||
+      document.getElementById("resv-idcard") ||
+      document.getElementById("edit-idcard");
+    if (el) el.focus();
+    return;
+  }
+  if (result.field === "phone") {
+    const el =
+      document.getElementById("ci-phone") ||
+      document.getElementById("resv-phone") ||
+      document.getElementById("edit-phone");
+    if (el) el.focus();
+    return;
+  }
+  const emergency =
+    document.getElementById("ci-emergency-name") ||
+    document.getElementById("resv-emergency-name") ||
+    document.getElementById("edit-emergency-name");
+  if (emergency) emergency.focus();
+}
 
 // 实时单字段校验 | Real-time single field validation
 function validateField(input) {
@@ -54,7 +187,9 @@ function validateField(input) {
   for (const name of ruleNames) {
     const rule = RULES[name];
     if (!rule) continue;
-    if (!rule.test(raw)) {
+    const testValue =
+      name === "idCard" ? String(input.value || "").trim().toUpperCase() : raw;
+    if (!rule.test(testValue)) {
       firstError = rule.msg;
       break;
     }
@@ -114,15 +249,16 @@ function checkDuplicate(phone, idCard, excludeId) {
   return rows.length > 0 ? rows[0] : null;
 }
 
-// 输入拦截：只允许数字 | Input filter: digits only
-function filterDigits(input) {
-  let cursor = input.selectionStart;
-  const oldLen = input.value.length;
-  // 去除非数字 | Strip non-digits
-  let raw = input.value.replace(/\D/g, "");
-  // 限 11 位 | Max 11 digits
+// 输入拦截：大陆手机号分段；座机/国际号保留原样 | Phone input filter
+function filterPhoneLoose(input) {
+  let raw = input.value.replace(/[^\d+\-]/g, "");
+  if (raw.startsWith("+") || raw.startsWith("0")) {
+    input.value = raw;
+    validateField(input);
+    return;
+  }
+  raw = raw.replace(/\D/g, "");
   if (raw.length > 11) raw = raw.slice(0, 11);
-  // 3-4-4 分段（支付宝/银行风格）| 3-4-4 segment (Alipay/bank style)
   let formatted = raw;
   if (raw.length > 3 && raw.length <= 7) {
     formatted = raw.slice(0, 3) + " " + raw.slice(3);
@@ -130,10 +266,12 @@ function filterDigits(input) {
     formatted = raw.slice(0, 3) + " " + raw.slice(3, 7) + " " + raw.slice(7);
   }
   input.value = formatted;
-  // 保持光标位置 | Preserve cursor position
-  const newLen = input.value.length;
-  if (cursor === oldLen) input.setSelectionRange(newLen, newLen);
   validateField(input);
+}
+
+// 兼容旧 onclick | Back-compat alias
+function filterDigits(input) {
+  filterPhoneLoose(input);
 }
 
 // 输入拦截：只允许数字和 X | Input filter: digits and X only

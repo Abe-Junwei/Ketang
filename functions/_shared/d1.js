@@ -193,11 +193,25 @@ export async function ensureDatabaseForAuth(env) {
       await ensureUserAuthColumns(env);
       await ensureUserRoleColumns(env);
       await ensureRefreshSessionsTable(env);
+      await ensureEventColumns(env);
       remoteInitReady = true;
       return false;
     }
   }
   return initRemoteDatabase(env);
+}
+
+async function ensureEventColumns(env) {
+  const cols = await queryD1(env, "PRAGMA table_info(events)", []);
+  if (!cols.length) return;
+  const names = new Set(cols.map((col) => col.name));
+  if (!names.has("include_spare_beds")) {
+    await runD1(
+      env,
+      "ALTER TABLE events ADD COLUMN include_spare_beds INTEGER DEFAULT 0 CHECK(include_spare_beds IN (0,1))",
+      [],
+    );
+  }
 }
 
 async function initRemoteDatabaseOnce(env) {
@@ -212,6 +226,7 @@ async function initRemoteDatabaseOnce(env) {
       await ensureUserAuthColumns(env);
       await ensureUserRoleColumns(env);
       await ensureRefreshSessionsTable(env);
+      await ensureEventColumns(env);
       remoteInitReady = true;
       return false;
     }
@@ -230,6 +245,7 @@ async function initRemoteDatabaseOnce(env) {
   await ensureUserAuthColumns(env);
   await ensureUserRoleColumns(env);
   await ensureRefreshSessionsTable(env);
+  await ensureEventColumns(env);
   await ensureDefaultUsers(env);
   const count = await queryD1(env, "SELECT COUNT(*) AS c FROM rooms", []);
   if ((count[0]?.c || 0) > 0) {

@@ -566,36 +566,38 @@ async function submitGuest(id) {
     infoShowFieldError("info-guest-name", "姓名 / 法名为必填");
     return scrollToFirstError(["info-guest-name"]);
   }
-  if (!idCard) {
-    infoShowFieldError("info-guest-idcard", "身份证号为必填");
+  const contact = validateGuestContact({
+    phone: phone,
+    idCard: idCard,
+    emergencyName: emergency,
+    emergencyPhone: emergencyPhone,
+  });
+  if (!contact.ok) {
+    if (contact.field === "idcard") {
+      infoShowFieldError("info-guest-idcard", contact.msg);
+    } else if (contact.field === "phone") {
+      infoShowFieldError("info-guest-phone", contact.msg);
+    } else if (contact.field === "emergency_phone") {
+      infoShowFieldError("info-guest-emergency-phone", contact.msg);
+    } else {
+      alert(contact.msg);
+    }
     return;
   }
-  if (phone && !RULES.phone.test(phone)) {
-    infoShowFieldError("info-guest-phone", RULES.phone.msg);
-    return;
-  }
-  if (idCard && !RULES.idCard.test(idCard)) {
-    infoShowFieldError("info-guest-idcard", RULES.idCard.msg);
-    return;
-  }
-  if (emergencyPhone && !RULES.phone.test(emergencyPhone)) {
-    infoShowFieldError("info-guest-emergency-phone", RULES.phone.msg);
-    return;
-  }
-  const dupPhone = phone
+  const dupPhone = contact.phone
     ? query(
         'SELECT id FROM guests WHERE phone = ? AND phone <> "" AND id IS NOT ?',
-        [phone, id || 0],
+        [contact.phone, id || 0],
       )[0]
     : null;
   if (dupPhone) {
     infoShowFieldError("info-guest-phone", "该手机号已存在");
     return;
   }
-  const dupIdCard = idCard
+  const dupIdCard = contact.idCard
     ? query(
         'SELECT id FROM guests WHERE id_card = ? AND id_card <> "" AND id IS NOT ?',
-        [idCard, id || 0],
+        [contact.idCard, id || 0],
       )[0]
     : null;
   if (dupIdCard) {
@@ -610,10 +612,10 @@ async function submitGuest(id) {
         guest_id: id,
         name: name,
         gender: gender,
-        phone: phone,
-        id_card: idCard,
-        emergency_contact: emergency,
-        emergency_phone: emergencyPhone,
+        phone: contact.phone,
+        id_card: contact.idCard,
+        emergency_contact: contact.emergencyName,
+        emergency_phone: contact.emergencyPhone,
         notes: notes,
       });
     } else {
@@ -627,10 +629,10 @@ async function submitGuest(id) {
               name,
               person.dharma_name,
               gender,
-              phone,
-              idCard,
-              emergency,
-              emergencyPhone,
+              contact.phone,
+              contact.idCard,
+              contact.emergencyName,
+              contact.emergencyPhone,
               notes,
               now,
               id,
@@ -640,9 +642,9 @@ async function submitGuest(id) {
           run(
             `UPDATE lodgers SET name=?, dharma_name=?, gender=?, phone=?, id_card=?
              WHERE guest_id=?`,
-            [name, person.dharma_name, gender, phone, idCard, id],
+            [name, person.dharma_name, gender, contact.phone, contact.idCard, id],
           );
-          logAudit("更新住客档案", "guest", id, { name, phone });
+          logAudit("更新住客档案", "guest", id, { name, phone: contact.phone });
         } else {
           const result = run(
             `INSERT INTO guests (name, dharma_name, gender, phone, id_card,
@@ -652,17 +654,17 @@ async function submitGuest(id) {
               name,
               person.dharma_name,
               gender,
-              phone,
-              idCard,
-              emergency,
-              emergencyPhone,
+              contact.phone,
+              contact.idCard,
+              contact.emergencyName,
+              contact.emergencyPhone,
               notes,
               now,
               now,
             ],
           );
           const newId = result.lastInsertId;
-          logAudit("新增住客档案", "guest", newId, { name, phone });
+          logAudit("新增住客档案", "guest", newId, { name, phone: contact.phone });
         }
       });
       await saveDB();
@@ -849,16 +851,15 @@ async function submitLodger(id) {
     infoShowFieldError("info-lodger-name", "姓名 / 法名为必填");
     return scrollToFirstError(["info-lodger-name"]);
   }
-  if (!idCard) {
-    infoShowFieldError("info-lodger-idcard", "身份证号为必填");
-    return;
-  }
-  if (phone && !RULES.phone.test(phone)) {
-    infoShowFieldError("info-lodger-phone", RULES.phone.msg);
-    return;
-  }
-  if (idCard && !RULES.idCard.test(idCard)) {
-    infoShowFieldError("info-lodger-idcard", RULES.idCard.msg);
+  const contact = validateEditLodgerContact(id, phone, idCard);
+  if (!contact.ok) {
+    if (contact.field === "idcard") {
+      infoShowFieldError("info-lodger-idcard", contact.msg);
+    } else if (contact.field === "phone") {
+      infoShowFieldError("info-lodger-phone", contact.msg);
+    } else {
+      alert(contact.msg);
+    }
     return;
   }
   if (!checkIn || !expectedOut) {
@@ -872,7 +873,7 @@ async function submitLodger(id) {
     return;
   }
 
-  const dup = checkDuplicate(phone, idCard, id);
+  const dup = checkDuplicate(contact.phone, contact.idCard, id);
   if (dup) {
     const infoDup =
       personDisplayName(dup) + (dup.phone ? " · " + dup.phone : "");
@@ -931,8 +932,8 @@ async function submitLodger(id) {
         lodger_id: id,
         name: name,
         gender: gender,
-        phone: phone,
-        id_card: idCard,
+        phone: contact.phone,
+        id_card: contact.idCard,
         check_in_date: checkIn,
         expected_check_out: expectedOut,
         status: status,
@@ -950,8 +951,8 @@ async function submitLodger(id) {
             name,
             person.dharma_name,
             gender,
-            phone,
-            idCard,
+            contact.phone,
+            contact.idCard,
             checkIn,
             expectedOut,
             actualOut,

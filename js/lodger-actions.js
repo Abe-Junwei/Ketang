@@ -322,6 +322,18 @@ async function submitChangeBed(lodgerId, gender) {
 
 function openEditLodgerModal(id) {
   const l = query("SELECT * FROM lodgers WHERE id=?", [id])[0];
+  let emergencyName = "";
+  let emergencyPhone = "";
+  if (l.guest_id) {
+    const guest = query(
+      "SELECT emergency_contact, emergency_phone FROM guests WHERE id=?",
+      [l.guest_id],
+    )[0];
+    if (guest) {
+      emergencyName = guest.emergency_contact || "";
+      emergencyPhone = guest.emergency_phone || "";
+    }
+  }
   const modal = document.getElementById("modal");
   document.getElementById("modal-title").textContent =
     "编辑挂单 - " + escapeHtml(personDisplayName(l));
@@ -341,9 +353,7 @@ function openEditLodgerModal(id) {
         </div>
         <div class="field"><label>手机号</label>
           <input type="tel" id="edit-phone" value="${escapeHtml(l.phone || "")}"
-            inputmode="numeric"
-            pattern="1[3-9]\\d{9}"
-            oninput="filterDigits(this)" onblur="validateField(this)">
+            oninput="filterPhoneLoose(this)" onblur="validateField(this)">
           <div class="field-error" id="edit-phone-error"></div>
         </div>
         <div class="field"><label>身份证</label>
@@ -352,6 +362,14 @@ function openEditLodgerModal(id) {
             pattern="\\d{17}[\\dXx]"
             oninput="filterIdCard(this)" onblur="validateField(this)">
           <div class="field-error" id="edit-idcard-error"></div>
+        </div>
+        <div class="field"><label>紧急联系人</label>
+          <input type="text" id="edit-emergency-name" value="${escapeHtml(emergencyName)}">
+        </div>
+        <div class="field"><label>紧急联系电话</label>
+          <input type="tel" id="edit-emergency-phone" value="${escapeHtml(emergencyPhone)}"
+            oninput="filterPhoneLoose(this)" onblur="validateField(this)">
+          <div class="field-error" id="edit-emergency-phone-error"></div>
         </div>
         <div class="field"><label>入住日期</label><input type="date" id="edit-in" value="${escapeHtml(l.check_in_date)}"></div>
         <div class="field"><label>预离日期</label><input type="date" id="edit-out" value="${escapeHtml(l.expected_check_out || "")}"></div>
@@ -369,15 +387,38 @@ function openEditLodgerModal(id) {
 }
 
 async function submitEditLodger(id) {
-  // 批量校验所有字段 | Batch validate all fields
-  if (!validateFields(["edit-name", "edit-phone", "edit-idcard"])) {
+  if (
+    !validateFields([
+      "edit-name",
+      "edit-phone",
+      "edit-idcard",
+      "edit-emergency-phone",
+    ])
+  ) {
     alert("请修正红色标记的字段后重新提交");
     return;
   }
   const name = document.getElementById("edit-name").value.trim();
   const person = parsePersonNameInput(name);
-  const phone = document.getElementById("edit-phone").value.trim() || null;
-  const idCard = document.getElementById("edit-idcard").value.trim() || null;
+  const phoneRaw = document.getElementById("edit-phone").value.trim();
+  const phone = phoneRaw ? phoneRaw.replace(/\s/g, "") : null;
+  const idCard = document.getElementById("edit-idcard").value.trim();
+  const emergencyName =
+    document.getElementById("edit-emergency-name").value.trim();
+  const emergencyPhoneRaw = document
+    .getElementById("edit-emergency-phone")
+    .value.trim();
+  const emergencyPhone = emergencyPhoneRaw
+    ? emergencyPhoneRaw.replace(/\s/g, "")
+    : "";
+  const contact = validateEditLodgerContact(id, phone, idCard, {
+    emergencyName: emergencyName,
+    emergencyPhone: emergencyPhone,
+  });
+  if (!contact.ok) {
+    alertGuestContactError(contact);
+    return;
+  }
 
   const gender = document.getElementById("edit-gender").value;
   const l = query("SELECT bed_id FROM lodgers WHERE id=?", [id])[0];
@@ -401,7 +442,7 @@ async function submitEditLodger(id) {
     return;
   }
 
-  const dup = checkDuplicate(phone, idCard, id);
+  const dup = checkDuplicate(contact.phone, contact.idCard, id);
   if (dup) {
     const info = personDisplayName(dup) + (dup.phone ? " · " + dup.phone : "");
     if (!confirm(`检测到该手机号/身份证已有在住记录：${info}\n是否继续保存？`))
@@ -414,8 +455,10 @@ async function submitEditLodger(id) {
         lodger_id: id,
         name: name,
         gender: gender || null,
-        phone: phone,
-        id_card: idCard,
+        phone: contact.phone,
+        id_card: contact.idCard,
+        emergency_name: contact.emergencyName || null,
+        emergency_phone: contact.emergencyPhone || null,
         check_in_date: checkIn,
         expected_check_out: checkOut,
         role: readLodgerRoleInput("edit-role"),
@@ -434,8 +477,8 @@ async function submitEditLodger(id) {
             person.name,
             person.dharma_name,
             gender || null,
-            phone,
-            idCard,
+            contact.phone,
+            contact.idCard,
             checkIn,
             checkOut,
             readLodgerRoleInput("edit-role"),
@@ -453,14 +496,16 @@ async function submitEditLodger(id) {
         if (lodger && lodger.guest_id) {
           run(
             `UPDATE guests SET
-          name=?, dharma_name=?, gender=?, phone=?, id_card=?, updated_at=?
+          name=?, dharma_name=?, gender=?, phone=?, id_card=?, emergency_contact=?, emergency_phone=?, updated_at=?
           WHERE id=?`,
             [
               person.name,
               person.dharma_name,
               gender || null,
-              phone,
-              idCard,
+              contact.phone,
+              contact.idCard,
+              contact.emergencyName || null,
+              contact.emergencyPhone || null,
               new Date().toISOString(),
               lodger.guest_id,
             ],

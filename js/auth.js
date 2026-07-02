@@ -590,6 +590,10 @@ function applyPermissions() {
     if (footerBtn) footerBtn.style.display = visible ? "" : "none";
   });
 
+  if (typeof applyMobileMorePermissions === "function") {
+    applyMobileMorePermissions();
+  }
+
   // 如果当前在明确标记为隐藏的页面，跳转回房态看板
   const activeView = document.querySelector(".view.active");
   if (activeView) {

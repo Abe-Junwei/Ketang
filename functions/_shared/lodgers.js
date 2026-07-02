@@ -6,6 +6,11 @@ import {
   runD1,
 } from "./d1.js";
 import { parsePersonNameInput, mergePersonNameFields } from "./person.js";
+import {
+  assertGuestIdentityFields,
+  normalizePhone,
+} from "./validation.js";
+import { housekeepingRequiresInspect } from "./operational-settings.js";
 
 function dormMatchGender(dormType, gender) {
   if (!dormType || dormType === "不限") return true;
@@ -58,6 +63,7 @@ async function isBedAssignable(env, bedId, excludeLodgerId) {
   );
   if ((occ[0]?.c || 0) > 0) return false;
   const hk = await getHouseStatus(env, bedId);
+  if (await housekeepingRequiresInspect(env)) return hk === "可用";
   return hk === "净房" || hk === "可用";
 }
 
@@ -190,13 +196,14 @@ export async function apiCheckIn(env, session, body) {
   const person = parsePersonNameInput(body.name);
   if (!person.name) throw new Error("请填写姓名");
 
-  const phone = body.phone ? String(body.phone).replace(/\s/g, "") : null;
+  const identity = assertGuestIdentityFields(body);
+  const phone = identity.phone;
   const guestId = await findOrCreateGuest(
     env,
     person.name,
     gender,
     phone,
-    body.id_card || null,
+    identity.idCard,
   );
   await incrementGuestVisit(env, guestId, checkIn);
 
@@ -241,7 +248,7 @@ export async function apiCheckIn(env, session, body) {
       person.dharma_name,
       gender,
       phone,
-      body.id_card || null,
+      identity.idCard,
       checkIn,
       checkOut,
       bedId,
@@ -670,6 +677,8 @@ export async function apiEditLodger(env, session, body) {
   if (checkOut && checkOut < checkIn)
     throw new Error("预离日期不能早于入住日期");
 
+  const identity = assertGuestIdentityFields(body);
+
   await runD1(
     env,
     `UPDATE lodgers SET name=?, dharma_name=?, gender=?, phone=?, id_card=?, check_in_date=?, expected_check_out=?, role=?, class_name=?, event_id=?, notes=? WHERE id=?`,
@@ -677,8 +686,8 @@ export async function apiEditLodger(env, session, body) {
       person.name,
       person.dharma_name,
       body.gender || null,
-      body.phone || null,
-      body.id_card || null,
+      identity.phone,
+      identity.idCard,
       checkIn,
       checkOut,
       body.role || null,
@@ -696,12 +705,24 @@ export async function apiEditLodger(env, session, body) {
         person.name,
         person.dharma_name,
         body.gender || null,
-        body.phone || null,
-        body.id_card || null,
+        identity.phone,
+        identity.idCard,
         new Date().toISOString(),
         l.guest_id,
       ],
     );
+    if (body.emergency_name || body.emergency_phone) {
+      await runD1(
+        env,
+        "UPDATE guests SET emergency_contact = COALESCE(?, emergency_contact), emergency_phone = COALESCE(?, emergency_phone), updated_at = ? WHERE id = ?",
+        [
+          body.emergency_name || null,
+          normalizePhone(body.emergency_phone),
+          new Date().toISOString(),
+          l.guest_id,
+        ],
+      );
+    }
   }
 
   const existingRows = await queryD1(
@@ -782,13 +803,26 @@ export async function apiPublicReservation(env, body) {
   if (!checkIn) throw new Error("请填写预计入住日期");
   if (checkOut && checkOut < checkIn)
     throw new Error("预离日期不能早于入住日期");
+  const identity = assertGuestIdentityFields(body);
   const guestId = await findOrCreateGuest(
     env,
     person.name,
     body.gender,
-    body.phone || null,
-    body.id_card || null,
+    identity.phone,
+    identity.idCard,
   );
+  if (body.emergency_name || body.emergency_phone) {
+    await runD1(
+      env,
+      "UPDATE guests SET emergency_contact = COALESCE(?, emergency_contact), emergency_phone = COALESCE(?, emergency_phone), updated_at = ? WHERE id = ?",
+      [
+        body.emergency_name || null,
+        normalizePhone(body.emergency_phone),
+        new Date().toISOString(),
+        guestId,
+      ],
+    );
+  }
   const meta = await runD1(
     env,
     `INSERT INTO reservations (guest_id, event_id, name, dharma_name, gender, phone, id_card, role, class_name, expected_check_in, expected_check_out, room_preference, source, status, meal_breakfast, meal_lunch, meal_dinner, notes)
@@ -799,8 +833,8 @@ export async function apiPublicReservation(env, body) {
       person.name,
       person.dharma_name,
       body.gender,
-      body.phone || null,
-      body.id_card || null,
+      identity.phone,
+      identity.idCard,
       body.role || null,
       body.class_name || null,
       checkIn,
@@ -879,16 +913,23 @@ async function checkInBatchRow(env, session, row, mealDefaults) {
   const bed = await findAssignableBed(env, row.gender, row.room_preference);
   if (!bed) throw new Error("无可用床位");
 
+  const identity = assertGuestIdentityFields({
+    id_card: row.id_card,
+    phone: row.phone,
+    emergency_name: row.emergency_name,
+    emergency_phone: row.emergency_phone,
+  });
+  const phone = identity.phone;
+
   const evt = row.event_name
     ? await findEventByName(env, row.event_name)
     : null;
-  const phone = row.phone ? String(row.phone).replace(/\s/g, "") : null;
   const guestId = await findOrCreateGuest(
     env,
     person.name,
     row.gender,
     phone,
-    row.id_card || null,
+    identity.idCard,
   );
   await incrementGuestVisit(env, guestId, checkIn);
 
@@ -907,7 +948,7 @@ async function checkInBatchRow(env, session, row, mealDefaults) {
         row.dharma_name || null,
         row.gender,
         phone,
-        row.id_card || null,
+        identity.idCard,
         checkIn,
         checkOut,
         bed.id,

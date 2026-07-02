@@ -52,6 +52,7 @@ REQUIRED = [
     'functions/api/v1/auth/logout.js',
     'functions/api/v1/admin/users.js',
     'functions/api/v1/admin/role-permissions.js',
+    'functions/api/v1/admin/operational-settings.js',
     'functions/api/v1/admin/records.js',
     'functions/api/public/reservations.js',
     'js/api-client.js',

@@ -12,16 +12,33 @@ document.getElementById("resv-form").addEventListener("submit", async (e) => {
     alert("预计离院日期不能早于预计入住日期");
     return;
   }
-  const phone = document.getElementById("resv-phone").value.trim() || null;
-  const idCard = document.getElementById("resv-idcard").value.trim() || null;
-  if (phone && !RULES.phone.test(phone)) {
-    alert(RULES.phone.msg);
-    document.getElementById("resv-phone").focus();
+  if (
+    !validateFields([
+      "resv-phone",
+      "resv-idcard",
+      "resv-emergency-phone",
+    ])
+  ) {
+    scrollToFirstError([
+      "resv-phone",
+      "resv-idcard",
+      "resv-emergency-phone",
+    ]);
     return;
   }
-  if (idCard && !RULES.idCard.test(idCard)) {
-    alert(RULES.idCard.msg);
-    document.getElementById("resv-idcard").focus();
+  const phoneRaw = document.getElementById("resv-phone").value.trim();
+  const phone = phoneRaw ? phoneRaw.replace(/\s/g, "") : null;
+  const idCard = document.getElementById("resv-idcard").value.trim();
+  const contact = validateGuestContact({
+    phone: phone,
+    idCard: idCard,
+    emergencyName: document.getElementById("resv-emergency-name").value.trim(),
+    emergencyPhone: document
+      .getElementById("resv-emergency-phone")
+      .value.trim(),
+  });
+  if (!contact.ok) {
+    alertGuestContactError(contact);
     return;
   }
   const person = parsePersonNameInput(name);
@@ -46,8 +63,10 @@ document.getElementById("resv-form").addEventListener("submit", async (e) => {
         reservation_id: resvId ? parseInt(resvId, 10) : null,
         name: name,
         gender: gender || null,
-        phone: phone,
-        id_card: idCard,
+        phone: contact.phone,
+        id_card: contact.idCard,
+        emergency_name: contact.emergencyName || null,
+        emergency_phone: contact.emergencyPhone || null,
         event_id: eventId,
         role: readLodgerRoleInput("resv-role"),
         class_name: document.getElementById("resv-class").value.trim() || null,
@@ -62,7 +81,23 @@ document.getElementById("resv-form").addEventListener("submit", async (e) => {
         meal_dinner: meal.dinner,
       });
     } else {
-      const guestId = findOrCreateGuest(person.name, gender, phone, idCard);
+      const guestId = findOrCreateGuest(
+        person.name,
+        gender,
+        contact.phone,
+        contact.idCard,
+      );
+      if (contact.emergencyName || contact.emergencyPhone) {
+        run(
+          "UPDATE guests SET emergency_contact = COALESCE(?, emergency_contact), emergency_phone = COALESCE(?, emergency_phone), updated_at = ? WHERE id = ?",
+          [
+            contact.emergencyName || null,
+            contact.emergencyPhone || null,
+            new Date().toISOString(),
+            guestId,
+          ],
+        );
+      }
       await withTransaction(async () => {
         if (resvId) {
           // 编辑模式 | Edit mode
@@ -87,8 +122,8 @@ document.getElementById("resv-form").addEventListener("submit", async (e) => {
               person.name,
               person.dharma_name,
               gender || null,
-              phone,
-              idCard,
+              contact.phone,
+              contact.idCard,
               readLodgerRoleInput("resv-role"),
               document.getElementById("resv-class").value.trim() || null,
               checkIn,
@@ -118,8 +153,8 @@ document.getElementById("resv-form").addEventListener("submit", async (e) => {
               person.name,
               person.dharma_name,
               gender || null,
-              phone,
-              idCard,
+              contact.phone,
+              contact.idCard,
               readLodgerRoleInput("resv-role"),
               document.getElementById("resv-class").value.trim() || null,
               checkIn,
@@ -189,6 +224,18 @@ function editResv(id) {
   document.getElementById("resv-class").value = r.class_name || "";
   document.getElementById("resv-source").value = r.source || "";
   document.getElementById("resv-notes").value = r.notes || "";
+  if (r.guest_id) {
+    const guest = query(
+      "SELECT emergency_contact, emergency_phone FROM guests WHERE id=?",
+      [r.guest_id],
+    )[0];
+    if (guest) {
+      document.getElementById("resv-emergency-name").value =
+        guest.emergency_contact || "";
+      document.getElementById("resv-emergency-phone").value =
+        guest.emergency_phone || "";
+    }
+  }
   const mf = reservationMealFlags(r);
   setMealNeedPicker("resv-meal-need", mf.breakfast, mf.lunch, mf.dinner);
   ["resv-gender", "resv-role", "resv-source", "resv-event"].forEach(
@@ -285,6 +332,18 @@ function checkInFromResv(id) {
   document.getElementById("ci-gender").value = r.gender || "";
   document.getElementById("ci-phone").value = r.phone || "";
   document.getElementById("ci-idcard").value = r.id_card || "";
+  if (r.guest_id) {
+    const guest = query(
+      "SELECT emergency_contact, emergency_phone FROM guests WHERE id=?",
+      [r.guest_id],
+    )[0];
+    if (guest) {
+      document.getElementById("ci-emergency-name").value =
+        guest.emergency_contact || "";
+      document.getElementById("ci-emergency-phone").value =
+        guest.emergency_phone || "";
+    }
+  }
   const ciRoleSel = document.getElementById("ci-role");
   if (ciRoleSel) {
     ciRoleSel.innerHTML = roleSelectOptionsHtml(r.role || "");

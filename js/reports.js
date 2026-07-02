@@ -206,6 +206,26 @@ function exportMealReportCSV() {
   downloadBlob(blob, `meal_report_${date}.csv`);
 }
 
+function renderPaymentMethodTable(rows) {
+  if (!rows.length) {
+    return '<p class="empty-tip">暂无收款记录</p>';
+  }
+  let html =
+    '<table class="data-table"><thead><tr><th>收款方式</th><th>笔数</th><th>金额</th></tr></thead><tbody>';
+  rows.forEach(function (row) {
+    html +=
+      "<tr><td>" +
+      escapeHtml(row.method) +
+      "</td><td>" +
+      (row.cnt || 0) +
+      "</td><td>" +
+      (row.total || 0).toFixed(2) +
+      "</td></tr>";
+  });
+  html += "</tbody></table>";
+  return html;
+}
+
 function renderDailyReport() {
   destroyReportCharts();
   const date = document.getElementById("r-daily-date").value;
@@ -244,6 +264,20 @@ function renderDailyReport() {
   );
   const payMap = {};
   payments.forEach((p) => (payMap[p.type] = p.total || 0));
+
+  const payMethods = query(
+    `
+    SELECT COALESCE(NULLIF(p.method, ''), '未填写') as method,
+           COALESCE(SUM(p.amount), 0) as total,
+           COUNT(*) as cnt
+    FROM payments p
+    LEFT JOIN lodgers l ON l.id = p.lodger_id
+    WHERE date(p.paid_at) = ? AND (p.lodger_id IS NULL OR l.status IN ('在住', '已退'))
+    GROUP BY COALESCE(NULLIF(p.method, ''), '未填写')
+    ORDER BY total DESC
+  `,
+    [date],
+  );
 
   const meals = getMealDayStats(date);
 
@@ -284,6 +318,8 @@ function renderDailyReport() {
     </div>
     <h3>今日入住明细</h3>
     ${renderReportTable(checkinList, ["姓名", "身份", "房间/床位", "手机号"])}
+    <h3 style="margin-top: var(--space-4);">收款方式统计</h3>
+    ${renderPaymentMethodTable(payMethods)}
     <h3 style="margin-top: var(--space-4);">今日退房明细</h3>
     ${renderReportTable(checkoutList, ["姓名", "身份", "房间/床位", "手机号"])}
   `;
@@ -470,6 +506,19 @@ function renderMonthlyReport() {
   );
   const payMap = {};
   payments.forEach((p) => (payMap[p.type] = p.total || 0));
+  const payMethods = query(
+    `
+    SELECT COALESCE(NULLIF(p.method, ''), '未填写') as method,
+           COALESCE(SUM(p.amount), 0) as total,
+           COUNT(*) as cnt
+    FROM payments p
+    LEFT JOIN lodgers l ON l.id = p.lodger_id
+    WHERE p.paid_at LIKE ? AND (p.lodger_id IS NULL OR l.status IN ('在住', '已退'))
+    GROUP BY COALESCE(NULLIF(p.method, ''), '未填写')
+    ORDER BY total DESC
+  `,
+    [month + "%"],
+  );
   const meals = getMealMonthStats(month);
 
   const byDay = query(
@@ -499,7 +548,9 @@ function renderMonthlyReport() {
       <div class="stat"><div class="num">${meals.dn || 0}</div><div class="label">药石</div></div>
     </div>
     ${chartSection}
-    <h3>每日入住人次</h3>
+    <h3>收款方式统计</h3>
+    ${renderPaymentMethodTable(payMethods)}
+    <h3 style="margin-top: var(--space-4);">每日入住人次</h3>
     ${byDay.length ? `<table><thead><tr><th>日期</th><th>入住人次</th></tr></thead><tbody>${byDay.map((r) => `<tr><td>${r.day}</td><td>${r.cnt}</td></tr>`).join("")}</tbody></table>` : '<p class="empty-tip">无</p>'}
   `;
 

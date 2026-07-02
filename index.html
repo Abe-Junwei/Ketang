@@ -3,8 +3,10 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#5c4a32" />
+    <link rel="manifest" href="manifest.webmanifest" />
     <link rel="stylesheet" href="fonts/fonts.css?v=1" />
-    <link rel="stylesheet" href="styles.css?v=54" />
+    <link rel="stylesheet" href="styles.css?v=56" />
     <title>客堂住宿系统</title>
   </head>
   <body>
@@ -617,22 +619,20 @@
                     <input
                       type="tel"
                       id="ci-phone"
-                      placeholder="13800138000"
-                      inputmode="numeric"
-                      pattern="1[3-9]\d{9}"
-                      oninput="filterDigits(this)"
+                      placeholder="手机 / 座机 / 国际号；无则填下方紧急联系人"
+                      oninput="filterPhoneLoose(this)"
                       onblur="validateField(this)"
                     />
                     <div class="field-error" id="ci-phone-error"></div>
                   </div>
                   <div class="field">
-                    <label>身份证</label>
+                    <label>身份证 *</label>
                     <input
                       type="text"
                       id="ci-idcard"
-                      placeholder="18 位，可选"
+                      required
+                      placeholder="18 位必填"
                       inputmode="numeric"
-                      pattern="\d{17}[\dXx]"
                       oninput="filterIdCard(this)"
                       onblur="validateField(this)"
                     />
@@ -706,6 +706,8 @@
                       type="tel"
                       id="ci-emergency-phone"
                       placeholder="电话"
+                      oninput="filterPhoneLoose(this)"
+                      onblur="validateField(this)"
                     />
                   </div>
                 </div>
@@ -838,24 +840,43 @@
                     <input
                       type="tel"
                       id="resv-phone"
-                      placeholder="13800138000"
-                      inputmode="numeric"
-                      oninput="filterDigits(this)"
+                      placeholder="手机 / 座机 / 国际号；无则填紧急联系人"
+                      oninput="filterPhoneLoose(this)"
                       onblur="validateField(this)"
                     />
                     <div class="field-error" id="resv-phone-error"></div>
                   </div>
                   <div class="field">
-                    <label>身份证</label>
+                    <label>身份证 *</label>
                     <input
                       type="text"
                       id="resv-idcard"
-                      placeholder="18 位，可选"
+                      required
+                      placeholder="18 位必填"
                       inputmode="numeric"
                       oninput="filterIdCard(this)"
                       onblur="validateField(this)"
                     />
                     <div class="field-error" id="resv-idcard-error"></div>
+                  </div>
+                  <div class="field">
+                    <label>紧急联系人</label>
+                    <input
+                      type="text"
+                      id="resv-emergency-name"
+                      placeholder="无手机号时必填"
+                    />
+                  </div>
+                  <div class="field">
+                    <label>紧急联系电话</label>
+                    <input
+                      type="tel"
+                      id="resv-emergency-phone"
+                      placeholder="无手机号时必填"
+                      oninput="filterPhoneLoose(this)"
+                      onblur="validateField(this)"
+                    />
+                    <div class="field-error" id="resv-emergency-phone-error"></div>
                   </div>
                   <div class="field">
                     <label>身份</label>
@@ -967,24 +988,26 @@
                   No-show
                 </button>
               </div>
-              <table>
-                <thead>
-                  <tr>
-                    <th>姓名</th>
-                    <th>性别</th>
-                    <th>手机号</th>
-                    <th>预计入住</th>
-                    <th>预计离院</th>
-                    <th>用斋需求</th>
-                    <th>身份</th>
-                    <th>房间偏好</th>
-                    <th>状态</th>
-                    <th>来源</th>
-                    <th>操作</th>
-                  </tr>
-                </thead>
-                <tbody id="resv-table"></tbody>
-              </table>
+              <div class="table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>姓名</th>
+                      <th>性别</th>
+                      <th>手机号</th>
+                      <th>预计入住</th>
+                      <th>预计离院</th>
+                      <th>用斋需求</th>
+                      <th>身份</th>
+                      <th>房间偏好</th>
+                      <th>状态</th>
+                      <th>来源</th>
+                      <th>操作</th>
+                    </tr>
+                  </thead>
+                  <tbody id="resv-table"></tbody>
+                </table>
+              </div>
             </div>
           </div>
         </div>
@@ -1206,25 +1229,27 @@
                 重置
               </button>
             </div>
-            <table>
-              <thead>
-                <tr>
-                  <th>床位</th>
-                  <th>姓名</th>
-                  <th>身份</th>
-                  <th>性别</th>
-                  <th>手机号</th>
-                  <th>入住日</th>
-                  <th>预离日</th>
-                  <th>实际离院</th>
-                  <th>状态</th>
-                  <th>用斋</th>
-                  <th>备注</th>
-                  <th>操作</th>
-                </tr>
-              </thead>
-              <tbody id="history-table"></tbody>
-            </table>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>床位</th>
+                    <th>姓名</th>
+                    <th>身份</th>
+                    <th>性别</th>
+                    <th>手机号</th>
+                    <th>入住日</th>
+                    <th>预离日</th>
+                    <th>实际离院</th>
+                    <th>状态</th>
+                    <th>用斋</th>
+                    <th>备注</th>
+                    <th>操作</th>
+                  </tr>
+                </thead>
+                <tbody id="history-table"></tbody>
+              </table>
+            </div>
           </div>
         </div>
 
@@ -1295,6 +1320,16 @@
           </div>
 
           <div class="card">
+            <h2 class="section-title">运营配置</h2>
+            <p class="field-hint" style="margin-bottom: var(--space-3)">
+              房务流转与床位分配规则；保存后立即影响本机/云端。
+            </p>
+            <div id="operational-settings-panel">
+              <p class="empty-tip">加载中…</p>
+            </div>
+          </div>
+
+          <div class="card">
             <h2 class="section-title">角色权限配置</h2>
             <p class="field-hint" style="margin-bottom: var(--space-3)">
               按角色勾选可见菜单与 API
@@ -1318,6 +1353,100 @@
       </main>
     </div>
 
+    <nav class="mobile-bottom-nav" aria-label="快捷导航">
+      <button
+        type="button"
+        class="mobile-nav-btn active"
+        data-view="board"
+        onclick="showView('board')"
+      >
+        房态
+      </button>
+      <button
+        type="button"
+        class="mobile-nav-btn"
+        data-view="lodgers"
+        onclick="showView('lodgers')"
+      >
+        在住
+      </button>
+      <button
+        type="button"
+        class="mobile-nav-btn"
+        data-view="stay"
+        onclick="showView('stay')"
+      >
+        办理
+      </button>
+      <button
+        type="button"
+        class="mobile-nav-btn"
+        data-view="reports"
+        onclick="showView('reports')"
+      >
+        报表
+      </button>
+      <button
+        type="button"
+        class="mobile-nav-btn"
+        data-action="more"
+        onclick="toggleMobileMoreMenu()"
+        aria-expanded="false"
+        aria-controls="mobile-more-sheet"
+      >
+        更多
+      </button>
+    </nav>
+
+    <div
+      class="mobile-more-backdrop"
+      id="mobile-more-backdrop"
+      hidden
+      onclick="closeMobileMoreMenu()"
+    ></div>
+    <div
+      class="mobile-more-sheet"
+      id="mobile-more-sheet"
+      role="dialog"
+      aria-label="更多功能"
+      aria-hidden="true"
+      hidden
+    >
+      <div class="mobile-more-sheet-head">
+        <strong>更多功能</strong>
+        <button
+          type="button"
+          class="btn btn-default btn-sm"
+          onclick="closeMobileMoreMenu()"
+        >
+          关闭
+        </button>
+      </div>
+      <div class="mobile-more-grid">
+        <button type="button" class="mobile-more-item" data-view="lodging" onclick="mobileNavGo('lodging')">
+          住宿管理
+        </button>
+        <button type="button" class="mobile-more-item" data-view="housekeeping" onclick="mobileNavGo('housekeeping')">
+          客房维护
+        </button>
+        <button type="button" class="mobile-more-item" data-view="forecast" onclick="mobileNavGo('forecast')">
+          流动预测
+        </button>
+        <button type="button" class="mobile-more-item" data-view="history" onclick="mobileNavGo('history')">
+          历史查询
+        </button>
+        <button type="button" class="mobile-more-item" data-view="reservations" onclick="mobileNavGo('reservations')">
+          新增预约
+        </button>
+        <button type="button" class="mobile-more-item" data-view="info" onclick="mobileNavGo('info')">
+          信息管理
+        </button>
+        <button type="button" class="mobile-more-item" data-view="backup" onclick="mobileNavGo('backup')">
+          系统设置
+        </button>
+      </div>
+    </div>
+
     <!-- 入住确认弹窗 -->
     <div class="modal-backdrop" id="modal">
       <div class="modal">
@@ -1332,28 +1461,28 @@
     <div class="toast" id="toast"></div>
 
     <script src="./lib/sql-wasm.js?v=2"></script>
-    <script src="./js/utils.js?v=6"></script>
-    <script src="./js/db.js?v=22"></script>
-    <script src="./js/api-client.js?v=8"></script>
+    <script src="./js/utils.js?v=7"></script>
+    <script src="./js/db.js?v=23"></script>
+    <script src="./js/api-client.js?v=9"></script>
     <script src="./js/guests.js?v=3"></script>
     <script src="./js/audit.js?v=3"></script>
-    <script src="./js/housekeeping.js?v=6"></script>
+    <script src="./js/housekeeping.js?v=7"></script>
     <script src="./js/meals.js?v=21"></script>
-    <script src="./js/checkin.js?v=20"></script>
-    <script src="./js/lodger-actions.js?v=14"></script>
-    <script src="./js/reservations.js?v=8"></script>
+    <script src="./js/checkin.js?v=21"></script>
+    <script src="./js/lodger-actions.js?v=15"></script>
+    <script src="./js/reservations.js?v=9"></script>
     <script src="./js/history.js?v=5"></script>
-    <script src="./js/validation.js?v=4"></script>
+    <script src="./js/validation.js?v=5"></script>
     <script src="./lib/chart.umd.min.js?v=1"></script>
     <script src="./js/chart-theme.js?v=3"></script>
     <script src="./js/forecast.js?v=6"></script>
-    <script src="./js/reports.js?v=10"></script>
-    <script src="./js/events.js?v=8"></script>
+    <script src="./js/reports.js?v=11"></script>
+    <script src="./js/events.js?v=9"></script>
     <script src="./js/info.js?v=10"></script>
     <script src="./js/permissions.js?v=4"></script>
     <script src="./js/auth.js?v=23"></script>
     <script src="./js/icons.js?v=7"></script>
     <script src="./js/picker.js?v=4"></script>
-    <script src="./js/app.js?v=48"></script>
+    <script src="./js/app.js?v=50"></script>
   </body>
 </html>

@@ -185,6 +185,7 @@ function initLocalSchemaAndMigrations() {
   migrateV12toV13();
   migrateV13toV14();
   migrateV14toV15();
+  migrateV15toV16();
   createIndexes();
 }
 
@@ -486,6 +487,7 @@ function initSchema() {
       end_date TEXT,
       status TEXT DEFAULT '筹备中' CHECK(status IN ('筹备中','招生中','进行中','已结束','已取消')),
       notes TEXT,
+      include_spare_beds INTEGER DEFAULT 0 CHECK(include_spare_beds IN (0,1)),
       created_at TEXT DEFAULT CURRENT_TIMESTAMP
     );
     CREATE TABLE IF NOT EXISTS users (
@@ -1744,6 +1746,33 @@ function migrateV14toV15() {
   }
 }
 
+function migrateV15toV16() {
+  const version =
+    db.exec("SELECT MIN(version) as v FROM schema_version")[0]?.values[0][0] ||
+    0;
+  if (version >= 16) return;
+  db.run("BEGIN TRANSACTION;");
+  try {
+    try {
+      db.run(
+        "ALTER TABLE events ADD COLUMN include_spare_beds INTEGER DEFAULT 0 CHECK(include_spare_beds IN (0,1))",
+      );
+    } catch (e) {
+      /* 已存在则忽略 */
+    }
+    db.run("DELETE FROM schema_version WHERE version < 16");
+    db.run("INSERT OR REPLACE INTO schema_version (version) VALUES (16)");
+    db.run("COMMIT;");
+  } catch (e) {
+    try {
+      db.run("ROLLBACK;");
+    } catch (rollbackErr) {
+      /* ignore */
+    }
+    throw new Error("migrateV15toV16 failed: " + e.message);
+  }
+}
+
 function createIndexes() {
   db.run(`
     CREATE INDEX IF NOT EXISTS idx_events_name ON events(name);
@@ -1952,6 +1981,7 @@ async function importDB(input) {
       migrateV12toV13();
       migrateV13toV14();
       migrateV14toV15();
+      migrateV15toV16();
       createIndexes();
       await seedRooms();
       await saveDB();

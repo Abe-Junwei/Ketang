@@ -504,16 +504,39 @@ document
     }
 
     // 批量校验所有字段 | Batch validate all fields
-    if (!validateFields(["ci-name", "ci-phone", "ci-idcard"])) {
-      scrollToFirstError(["ci-name", "ci-phone", "ci-idcard"]);
+    if (
+      !validateFields([
+        "ci-name",
+        "ci-phone",
+        "ci-idcard",
+        "ci-emergency-phone",
+      ])
+    ) {
+      scrollToFirstError([
+        "ci-name",
+        "ci-phone",
+        "ci-idcard",
+        "ci-emergency-phone",
+      ]);
       return;
     }
 
     const name = document.getElementById("ci-name").value.trim();
-    // 手机号存入时去掉空格 | Strip spaces from phone before saving
     const phoneRaw = document.getElementById("ci-phone").value.trim();
     const phone = phoneRaw ? phoneRaw.replace(/\s/g, "") : null;
-    const idCard = document.getElementById("ci-idcard").value.trim() || null;
+    const idCard = document.getElementById("ci-idcard").value.trim();
+    const contact = validateGuestContact({
+      phone: phone,
+      idCard: idCard,
+      emergencyName: document.getElementById("ci-emergency-name").value.trim(),
+      emergencyPhone: document
+        .getElementById("ci-emergency-phone")
+        .value.trim(),
+    });
+    if (!contact.ok) {
+      alertGuestContactError(contact);
+      return;
+    }
 
     const checkIn = document.getElementById("ci-in").value;
     const checkOut = document.getElementById("ci-out").value || null;
@@ -524,7 +547,7 @@ document
     if (!validateMealNeedPicker("ci-meal-need")) return;
     const ciMeal = readMealNeedPicker("ci-meal-need");
 
-    const dup = checkDuplicate(phone, idCard);
+    const dup = checkDuplicate(contact.phone, contact.idCard);
     if (dup) {
       const info =
         personDisplayName(dup) + (dup.phone ? " · " + dup.phone : "");
@@ -551,8 +574,8 @@ document
           bed_id: parseInt(bedId, 10),
           name: name,
           gender: gender || null,
-          phone: phone,
-          id_card: idCard,
+          phone: contact.phone,
+          id_card: contact.idCard,
           check_in_date: checkIn,
           expected_check_out: checkOut,
           event_id: document.getElementById("ci-event").value || null,
@@ -581,8 +604,8 @@ document
           const guestId = findOrCreateGuest(
             person.name,
             gender || null,
-            phone,
-            idCard,
+            contact.phone,
+            contact.idCard,
           );
           incrementGuestVisit(guestId, checkIn);
 
@@ -613,8 +636,8 @@ document
               person.name,
               person.dharma_name,
               gender || null,
-              phone,
-              idCard,
+              contact.phone,
+              contact.idCard,
               checkIn,
               checkOut,
               bedId,
@@ -771,6 +794,15 @@ function parseCSV(text) {
       gender: get(cols, ["性别", "gender"]),
       phone: get(cols, ["手机号", "手机", "phone"]),
       id_card: get(cols, ["身份证", "id_card", "idCard"]),
+      emergency_name: get(cols, [
+        "紧急联系人",
+        "emergency_name",
+        "emergency_contact",
+      ]),
+      emergency_phone: get(cols, [
+        "紧急联系电话",
+        "emergency_phone",
+      ]),
       role: get(cols, ["身份", "role"]),
       check_in_date: get(cols, ["入住日期", "check_in_date", "checkIn"]),
       expected_check_out: get(cols, [
@@ -809,11 +841,7 @@ function findAssignableBed(gender, roomPreference) {
       ["%" + roomPreference + "%", "%" + roomPreference + "%"],
     );
     for (const b of exact) {
-      const hk = getHouseStatus(b.id);
-      if (
-        (hk === "净房" || hk === "可用") &&
-        dormMatchGender(b.dorm_type, gender)
-      )
+      if (isBedAssignable(b.id) && dormMatchGender(b.dorm_type, gender))
         return b;
     }
   }
@@ -827,12 +855,7 @@ function findAssignableBed(gender, roomPreference) {
     ORDER BY r.id, b.id
   `);
   for (const b of beds) {
-    const hk = getHouseStatus(b.id);
-    if (
-      (hk === "净房" || hk === "可用") &&
-      dormMatchGender(b.dorm_type, gender)
-    )
-      return b;
+    if (isBedAssignable(b.id) && dormMatchGender(b.dorm_type, gender)) return b;
   }
   return null;
 }
@@ -901,6 +924,10 @@ async function importBatchCSV(input) {
           if (!row.name || !row.gender) {
             throw new Error("姓名/性别缺失");
           }
+          const contact = validateGuestContactRow(row);
+          if (!contact.ok) {
+            throw new Error(contact.msg);
+          }
           const checkIn = row.check_in_date || today;
           const checkOut = row.expected_check_out || null;
           if (checkOut && checkOut < checkIn) {
@@ -918,9 +945,20 @@ async function importBatchCSV(input) {
           const guestId = findOrCreateGuest(
             row.name,
             row.gender,
-            row.phone || null,
-            row.id_card || null,
+            contact.phone,
+            contact.idCard,
           );
+          if (contact.emergencyName || contact.emergencyPhone) {
+            run(
+              "UPDATE guests SET emergency_contact = COALESCE(?, emergency_contact), emergency_phone = COALESCE(?, emergency_phone), updated_at = ? WHERE id = ?",
+              [
+                contact.emergencyName || null,
+                contact.emergencyPhone || null,
+                new Date().toISOString(),
+                guestId,
+              ],
+            );
+          }
           incrementGuestVisit(guestId, checkIn);
 
           await withTransaction(async () => {
@@ -934,8 +972,8 @@ async function importBatchCSV(input) {
                 row.name,
                 row.dharma_name || null,
                 row.gender,
-                row.phone || null,
-                row.id_card || null,
+                contact.phone,
+                contact.idCard,
                 checkIn,
                 checkOut,
                 bed.id,

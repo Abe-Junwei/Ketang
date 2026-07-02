@@ -61,6 +61,7 @@ function renderEventList() {
           <span class="event-tag event-tag-type">${infoEscape(e.event_type)}</span>
           <span class="event-tag event-tag-gender-${e.gender_type === "男众" ? "male" : e.gender_type === "女众" ? "female" : "mix"}">${infoEscape(e.gender_type)}</span>
           <span class="event-tag event-tag-status-${e.status}">${infoEscape(e.status)}</span>
+          ${e.include_spare_beds ? '<span class="event-tag">含备用床</span>' : ""}
         </div>
         <div class="event-card-meta">
           <span>${infoEscape(e.start_date) || "-"} ~ ${infoEscape(e.end_date) || "-"}</span>
@@ -342,6 +343,7 @@ function openEventModal(id) {
               ${infoField("结束日期", `<input type="date" id="event-end" value="${isEdit ? infoEscape(e.end_date) : ""}">`, "event-end")}
               ${infoField("状态", infoSelectHtml("event-status", EVENT_STATUS_OPTIONS, isEdit ? e.status : "筹备中"), "event-status")}
               ${infoField("备注", `<textarea id="event-notes" rows="2">${isEdit ? infoEscape(e.notes) : ""}</textarea>`, "event-notes")}
+              ${infoField("统计口径", `<label class="role-perm-item"><input type="checkbox" id="event-include-spare" ${isEdit && e.include_spare_beds ? "checked" : ""}> 排房/营期统计包含备用床（日常房态仍排除）</label>`, "event-include-spare")}
             </div>
             <div class="btn-bar">
               <button type="submit" class="btn btn-primary">保存</button>
@@ -368,6 +370,9 @@ async function submitEvent(e) {
   const endDate = document.getElementById("event-end").value || null;
   const status = document.getElementById("event-status").value;
   const notes = document.getElementById("event-notes").value.trim() || null;
+  const includeSpareBeds = document.getElementById("event-include-spare")?.checked
+    ? 1
+    : 0;
 
   if (!name) {
     alert("请输入营期名称");
@@ -390,6 +395,7 @@ async function submitEvent(e) {
         end_date: endDate,
         status: status,
         notes: notes,
+        include_spare_beds: includeSpareBeds,
       });
     } else {
       await withTransaction(async () => {
@@ -397,7 +403,7 @@ async function submitEvent(e) {
           const old = query("SELECT status FROM events WHERE id=?", [id])[0];
           const oldStatus = old ? old.status : "";
           run(
-            `UPDATE events SET name=?, event_type=?, gender_type=?, expected_count=?, start_date=?, end_date=?, status=?, notes=? WHERE id=?`,
+            `UPDATE events SET name=?, event_type=?, gender_type=?, expected_count=?, start_date=?, end_date=?, status=?, notes=?, include_spare_beds=? WHERE id=?`,
             [
               name,
               eventType,
@@ -407,6 +413,7 @@ async function submitEvent(e) {
               endDate,
               status,
               notes,
+              includeSpareBeds,
               id,
             ],
           );
@@ -450,8 +457,8 @@ async function submitEvent(e) {
           logAudit("更新营期", "event", id, { name });
         } else {
           const result = run(
-            `INSERT INTO events (name, event_type, gender_type, expected_count, start_date, end_date, status, notes)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+            `INSERT INTO events (name, event_type, gender_type, expected_count, start_date, end_date, status, notes, include_spare_beds)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             [
               name,
               eventType,
@@ -461,6 +468,7 @@ async function submitEvent(e) {
               endDate,
               status,
               notes,
+              includeSpareBeds,
             ],
           );
           const newId = result.lastInsertId;
@@ -658,13 +666,20 @@ function generateRoomingSuggestion(eventId) {
   }
 
   // 查询可用床位（按房间分组）
+  const requireInspect =
+    typeof housekeepingRequiresInspect === "function" &&
+    housekeepingRequiresInspect();
+  const hkStatuses = requireInspect ? "('可用')" : "('净房','可用')";
+  const includeSpare = !!evt.include_spare_beds;
+  const spareSql = spareRoomExcludeClause("r", includeSpare);
   const availRooms = query(`
     SELECT r.id, r.name, r.location, r.dorm_type, COUNT(b.id) as avail_beds
     FROM rooms r
     JOIN beds b ON b.room_id = r.id
     LEFT JOIN lodgers l ON l.bed_id = b.id AND l.status='在住'
     WHERE b.status != '维修' AND b.status != '备用' AND l.id IS NULL
-      AND COALESCE((SELECT status FROM housekeeping WHERE bed_id = b.id ORDER BY changed_at DESC LIMIT 1), '净房') IN ('净房','可用')
+      AND ${spareSql}
+      AND COALESCE((SELECT status FROM housekeeping WHERE bed_id = b.id ORDER BY changed_at DESC LIMIT 1), '净房') IN ${hkStatuses}
     GROUP BY r.id
     HAVING avail_beds > 0
     ORDER BY CASE r.dorm_type WHEN '男寮' THEN 1 WHEN '女寮' THEN 2 ELSE 3 END, r.location, r.name

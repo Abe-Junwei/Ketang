@@ -151,6 +151,23 @@ def test_read_model_role_tables():
         if block and 'app_meta' in block.group(1):
             print(f'FAIL {role} read-model must not include app_meta')
             sys.exit(1)
+    if 'LODGING_APP_META_KEYS' not in model:
+        print('FAIL read-model.js must import LODGING_APP_META_KEYS for filtered app_meta sync')
+        sys.exit(1)
+    if 'fetchReadModelTableRows' not in model or 'lodging.read' not in model.split('fetchReadModelTableRows', 1)[1][:400]:
+        print('FAIL fetchReadModelTableRows must filter app_meta for lodging.read')
+        sys.exit(1)
+    ops = read('functions/_shared/operational-settings.js')
+    if 'LODGING_APP_META_KEYS' not in ops or 'housekeeping_require_inspect_v1' not in ops:
+        print('FAIL operational-settings.js must export LODGING_APP_META_KEYS with inspect key')
+        sys.exit(1)
+    if 'isHousekeepingTransitionAllowed' not in ops:
+        print('FAIL operational-settings.js missing isHousekeepingTransitionAllowed')
+        sys.exit(1)
+    hk = read('functions/_shared/housekeeping.js')
+    if 'isHousekeepingTransitionAllowed' not in hk:
+        print('FAIL housekeeping.js must enforce transition guard')
+        sys.exit(1)
     if 'canSyncReadModel' not in model:
         print('FAIL read-model.js missing canSyncReadModel helper')
         sys.exit(1)

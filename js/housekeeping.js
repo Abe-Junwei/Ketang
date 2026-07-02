@@ -23,6 +23,8 @@ function isBedAssignable(bedId) {
     )[0]?.c || 0;
   if (occ > 0) return false;
   const hk = getHouseStatus(bedId);
+  if (typeof housekeepingRequiresInspect === "function" && housekeepingRequiresInspect())
+    return hk === "可用";
   return hk === "净房" || hk === "可用";
 }
 
@@ -54,7 +56,8 @@ function renderHousekeeping() {
         <div class="info">${b.lodger_id ? escapeHtml(personDisplayName(b)) + " 在住" : "无人"}</div>
         <div style="margin-top: var(--space-2); display: flex; gap: var(--space-1); flex-wrap: wrap;">
           ${hk === "脏房" ? `<button class="btn btn-success btn-sm" onclick="setHkAndRender(${b.id}, '净房')">已净房</button>` : ""}
-          ${hk === "净房" ? `<button class="btn btn-primary btn-sm" onclick="setHkAndRender(${b.id}, '查房')">查房</button>` : ""}
+          ${hk === "净房" && housekeepingRequiresInspect() ? `<button class="btn btn-primary btn-sm" onclick="setHkAndRender(${b.id}, '查房')">查房</button>` : ""}
+          ${hk === "净房" && !housekeepingRequiresInspect() ? `<button class="btn btn-success btn-sm" onclick="setHkAndRender(${b.id}, '可用')">可入住</button>` : ""}
           ${hk === "查房" ? `<button class="btn btn-success btn-sm" onclick="setHkAndRender(${b.id}, '可用')">可入住</button>` : ""}
           ${!b.lodger_id && hk !== "维修" ? `<button class="btn btn-warning btn-sm" onclick="setHkAndRender(${b.id}, '维修')">报修</button>` : ""}
           ${hk === "维修" ? `<button class="btn btn-default btn-sm" onclick="setHkAndRender(${b.id}, '净房')">维修完成</button>` : ""}
@@ -76,6 +79,16 @@ async function setHkAndRender(bedId, status) {
       alert("该床位当前有在住住客，不能设为维修");
       return;
     }
+  }
+  const current = getHouseStatus(bedId);
+  const requireInspect = housekeepingRequiresInspect();
+  if (!isHousekeepingTransitionAllowed(current, status, requireInspect)) {
+    alert(
+      requireInspect
+        ? `当前为「${current}」，需按脏房→净房→查房→可入住流转`
+        : `当前为「${current}」，不能直接设为「${status}」`,
+    );
+    return;
   }
   try {
     if (useRemoteWriteApi()) {
@@ -106,5 +119,67 @@ async function setHkAndRender(bedId, status) {
   } catch (e) {
     console.error(e);
     alert("房务状态变更失败：" + e.message);
+  }
+}
+
+function renderOperationalSettingsPanel() {
+  const panel = document.getElementById("operational-settings-panel");
+  if (!panel) return;
+  if (typeof requireAdmin === "function" && !requireAdmin()) {
+    panel.innerHTML = '<p class="empty-tip">需要 users.write 权限。</p>';
+    return;
+  }
+  panel.innerHTML = '<p class="empty-tip">加载中…</p>';
+  loadOperationalSettings()
+    .then(function (data) {
+      const checked = data.housekeeping_require_inspect ? "checked" : "";
+      panel.innerHTML =
+        '<label class="role-perm-item">' +
+        '<input type="checkbox" id="hk-require-inspect" ' +
+        checked +
+        "> " +
+        "分配床位前必须经过「查房→可入住」（关闭时「净房」即可分配）" +
+        "</label>" +
+        '<div class="btn-bar" style="margin-top: var(--space-3);">' +
+        '<button type="button" class="btn btn-primary" onclick="saveOperationalSettings()">保存运营配置</button>' +
+        "</div>";
+    })
+    .catch(function (e) {
+      panel.innerHTML =
+        '<p class="empty-tip">加载失败：' + escapeHtml(e.message) + "</p>";
+    });
+}
+
+function loadOperationalSettings() {
+  if (typeof useRemoteWriteApi === "function" && useRemoteWriteApi()) {
+    return apiAdminGetOperationalSettings();
+  }
+  return Promise.resolve({
+    housekeeping_require_inspect: housekeepingRequiresInspect(),
+  });
+}
+
+async function saveOperationalSettings() {
+  if (typeof requireAdmin === "function" && !requireAdmin()) return;
+  const requireInspect = !!document.getElementById("hk-require-inspect")
+    ?.checked;
+  try {
+    if (typeof useRemoteWriteApi === "function" && useRemoteWriteApi()) {
+      await apiAdminSaveOperationalSettings({
+        housekeeping_require_inspect: requireInspect,
+      });
+    } else {
+      setAppMetaValue(
+        APP_META_HK_REQUIRE_INSPECT,
+        requireInspect ? "1" : "0",
+      );
+      if (typeof saveDB === "function") await saveDB();
+    }
+    showToast("运营配置已保存");
+    renderOperationalSettingsPanel();
+    if (document.getElementById("view-housekeeping")?.classList.contains("active"))
+      renderHousekeeping();
+  } catch (e) {
+    alert("保存失败：" + e.message);
   }
 }
