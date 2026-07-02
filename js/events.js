@@ -462,7 +462,7 @@ async function submitEvent(e) {
           const old = query("SELECT status FROM events WHERE id=?", [id])[0];
           const oldStatus = old ? old.status : "";
           run(
-            `UPDATE events SET name=?, event_type=?, gender_type=?, expected_count=?, start_date=?, end_date=?, status=?, notes=?, include_spare_beds=?, ${EVENT_ROOMING_DB_COLUMNS} WHERE id=?`,
+            `UPDATE events SET name=?, event_type=?, gender_type=?, expected_count=?, start_date=?, end_date=?, status=?, notes=?, include_spare_beds=?, ${EVENT_ROOMING_DB_SET} WHERE id=?`,
             [
               name,
               eventType,

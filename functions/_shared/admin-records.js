@@ -11,6 +11,7 @@ import { requirePermission } from "./permissions.js";
 import { assertGuestIdentityFields } from "./validation.js";
 import {
   EVENT_ROOMING_COLUMN_SQL,
+  EVENT_ROOMING_SET_SQL,
   eventRoomingValues,
   parseBedTagFields,
   parseEventRoomingFields,
@@ -471,7 +472,7 @@ async function upsertEvent(env, session, body) {
     if (!old) throw new Error("营期不存在");
     const statements = [
       {
-        sql: `UPDATE events SET name=?, event_type=?, gender_type=?, expected_count=?, start_date=?, end_date=?, status=?, notes=?, include_spare_beds=?, ${EVENT_ROOMING_COLUMN_SQL} WHERE id=?`,
+        sql: `UPDATE events SET name=?, event_type=?, gender_type=?, expected_count=?, start_date=?, end_date=?, status=?, notes=?, include_spare_beds=?, ${EVENT_ROOMING_SET_SQL} WHERE id=?`,
         params: [
           name,
           eventType,

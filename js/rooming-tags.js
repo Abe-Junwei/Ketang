@@ -40,6 +40,31 @@ function roomingIntOrZero(value) {
   return isFinite(n) && n >= 0 ? n : 0;
 }
 
+/** 招生阶段人数可留空 | Optional event headcount (null = unknown) */
+function roomingIntOrNull(value) {
+  if (value == null || String(value).trim() === "") return null;
+  var n = parseInt(value, 10);
+  if (!isFinite(n) || n < 0) {
+    throw new Error("人数须为非负整数，或留空表示暂未确定");
+  }
+  return n;
+}
+
+function roomingCountInputValue(value) {
+  if (value == null || value === "") return "";
+  return String(value);
+}
+
+function roomingCountFieldHtml(id, value) {
+  return (
+    '<input type="number" id="' +
+    id +
+    '" min="0" placeholder="可留空" value="' +
+    infoEscape(roomingCountInputValue(value)) +
+    '">'
+  );
+}
+
 function roomingOptionalInSet(value, options, label) {
   var v = value == null ? "" : String(value).trim();
   if (!v) return null;
@@ -94,32 +119,34 @@ function readEventRoomingFromForm() {
     ),
     arrival_date: document.getElementById("event-arrival-date")?.value || null,
     departure_date: document.getElementById("event-departure-date")?.value || null,
-    confirmed_count: roomingIntOrZero(
+    confirmed_count: roomingIntOrNull(
       document.getElementById("event-confirmed-count")?.value,
     ),
-    actual_arrival_count: roomingIntOrZero(
+    actual_arrival_count: roomingIntOrNull(
       document.getElementById("event-actual-arrival-count")?.value,
     ),
-    expected_absent_count: roomingIntOrZero(
+    expected_absent_count: roomingIntOrNull(
       document.getElementById("event-expected-absent-count")?.value,
     ),
-    male_count: roomingIntOrZero(document.getElementById("event-male-count")?.value),
-    female_count: roomingIntOrZero(
+    male_count: roomingIntOrNull(
+      document.getElementById("event-male-count")?.value,
+    ),
+    female_count: roomingIntOrNull(
       document.getElementById("event-female-count")?.value,
     ),
-    child_count: roomingIntOrZero(
+    child_count: roomingIntOrNull(
       document.getElementById("event-child-count")?.value,
     ),
-    elder_count: roomingIntOrZero(
+    elder_count: roomingIntOrNull(
       document.getElementById("event-elder-count")?.value,
     ),
-    teacher_count: roomingIntOrZero(
+    teacher_count: roomingIntOrNull(
       document.getElementById("event-teacher-count")?.value,
     ),
-    volunteer_count: roomingIntOrZero(
+    volunteer_count: roomingIntOrNull(
       document.getElementById("event-volunteer-count")?.value,
     ),
-    special_needs_count: roomingIntOrZero(
+    special_needs_count: roomingIntOrNull(
       document.getElementById("event-special-needs-count")?.value,
     ),
     manager_name:
@@ -147,6 +174,7 @@ function eventRoomingFormFieldsHtml(e) {
   var row = e || {};
   return (
     '<div class="rooming-section-title">夏季排房信息</div>' +
+    '<p class="rooming-plan-hint">招生阶段人数可留空；确定后再填写，容量预测将优先参考已报名人数。</p>' +
     '<div class="form-grid">' +
     infoField(
       "活动对象",
@@ -173,72 +201,58 @@ function eventRoomingFormFieldsHtml(e) {
     ) +
     infoField(
       "确认人数",
-      '<input type="number" id="event-confirmed-count" min="0" value="' +
-        (row.confirmed_count || 0) +
-        '">',
+      roomingCountFieldHtml("event-confirmed-count", row.confirmed_count),
       "event-confirmed-count",
     ) +
     infoField(
       "实到人数",
-      '<input type="number" id="event-actual-arrival-count" min="0" value="' +
-        (row.actual_arrival_count || 0) +
-        '">',
+      roomingCountFieldHtml("event-actual-arrival-count", row.actual_arrival_count),
       "event-actual-arrival-count",
     ) +
     infoField(
       "预计缺席",
-      '<input type="number" id="event-expected-absent-count" min="0" value="' +
-        (row.expected_absent_count || 0) +
-        '">',
+      roomingCountFieldHtml(
+        "event-expected-absent-count",
+        row.expected_absent_count,
+      ),
       "event-expected-absent-count",
     ) +
     infoField(
       "男众人数",
-      '<input type="number" id="event-male-count" min="0" value="' +
-        (row.male_count || 0) +
-        '">',
+      roomingCountFieldHtml("event-male-count", row.male_count),
       "event-male-count",
     ) +
     infoField(
       "女众人数",
-      '<input type="number" id="event-female-count" min="0" value="' +
-        (row.female_count || 0) +
-        '">',
+      roomingCountFieldHtml("event-female-count", row.female_count),
       "event-female-count",
     ) +
     infoField(
       "儿童人数",
-      '<input type="number" id="event-child-count" min="0" value="' +
-        (row.child_count || 0) +
-        '">',
+      roomingCountFieldHtml("event-child-count", row.child_count),
       "event-child-count",
     ) +
     infoField(
       "老人人数",
-      '<input type="number" id="event-elder-count" min="0" value="' +
-        (row.elder_count || 0) +
-        '">',
+      roomingCountFieldHtml("event-elder-count", row.elder_count),
       "event-elder-count",
     ) +
     infoField(
       "师资人数",
-      '<input type="number" id="event-teacher-count" min="0" value="' +
-        (row.teacher_count || 0) +
-        '">',
+      roomingCountFieldHtml("event-teacher-count", row.teacher_count),
       "event-teacher-count",
     ) +
     infoField(
       "义工人数",
-      '<input type="number" id="event-volunteer-count" min="0" value="' +
-        (row.volunteer_count || 0) +
-        '">',
+      roomingCountFieldHtml("event-volunteer-count", row.volunteer_count),
       "event-volunteer-count",
     ) +
     infoField(
       "特殊需求人数",
-      '<input type="number" id="event-special-needs-count" min="0" value="' +
-        (row.special_needs_count || 0) +
-        '">',
+      roomingCountFieldHtml(
+        "event-special-needs-count",
+        row.special_needs_count,
+      ),
       "event-special-needs-count",
     ) +
     infoField(
@@ -445,8 +459,34 @@ function fillRoomingSelect(el, options, selected) {
   if (typeof rebuildSelectPicker === "function") rebuildSelectPicker(el);
 }
 
-var EVENT_ROOMING_DB_COLUMNS =
-  "activity_target, arrival_date, departure_date, confirmed_count, actual_arrival_count, expected_absent_count, male_count, female_count, child_count, elder_count, teacher_count, volunteer_count, special_needs_count, manager_name, manager_phone, backup_manager_name, needs_central_lodging, needs_quiet_zone, needs_near_zen_hall, needs_teacher_room";
+var EVENT_ROOMING_COLUMN_NAMES = [
+  "activity_target",
+  "arrival_date",
+  "departure_date",
+  "confirmed_count",
+  "actual_arrival_count",
+  "expected_absent_count",
+  "male_count",
+  "female_count",
+  "child_count",
+  "elder_count",
+  "teacher_count",
+  "volunteer_count",
+  "special_needs_count",
+  "manager_name",
+  "manager_phone",
+  "backup_manager_name",
+  "needs_central_lodging",
+  "needs_quiet_zone",
+  "needs_near_zen_hall",
+  "needs_teacher_room",
+];
+
+var EVENT_ROOMING_DB_COLUMNS = EVENT_ROOMING_COLUMN_NAMES.join(", ");
+
+var EVENT_ROOMING_DB_SET = EVENT_ROOMING_COLUMN_NAMES.map(function (col) {
+  return col + "=?";
+}).join(", ");
 
 function eventRoomingDbValues(data) {
   var row = data || {};
@@ -454,16 +494,16 @@ function eventRoomingDbValues(data) {
     row.activity_target || null,
     row.arrival_date || null,
     row.departure_date || null,
-    roomingIntOrZero(row.confirmed_count),
-    roomingIntOrZero(row.actual_arrival_count),
-    roomingIntOrZero(row.expected_absent_count),
-    roomingIntOrZero(row.male_count),
-    roomingIntOrZero(row.female_count),
-    roomingIntOrZero(row.child_count),
-    roomingIntOrZero(row.elder_count),
-    roomingIntOrZero(row.teacher_count),
-    roomingIntOrZero(row.volunteer_count),
-    roomingIntOrZero(row.special_needs_count),
+    row.confirmed_count,
+    row.actual_arrival_count,
+    row.expected_absent_count,
+    row.male_count,
+    row.female_count,
+    row.child_count,
+    row.elder_count,
+    row.teacher_count,
+    row.volunteer_count,
+    row.special_needs_count,
     row.manager_name || null,
     row.manager_phone || null,
     row.backup_manager_name || null,

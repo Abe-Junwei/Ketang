@@ -45,6 +45,16 @@ export function intOrZero(value) {
   return Number.isFinite(n) && n >= 0 ? n : 0;
 }
 
+/** 招生阶段人数可留空 | Optional headcount (null = unknown) */
+export function intOrNull(value) {
+  if (value == null || String(value).trim() === "") return null;
+  const n = parseInt(value, 10);
+  if (!Number.isFinite(n) || n < 0) {
+    throw new Error("人数须为非负整数，或留空表示暂未确定");
+  }
+  return n;
+}
+
 export function flag01(value) {
   return value === true || value === 1 || value === "1" ? 1 : 0;
 }
@@ -65,16 +75,16 @@ export function parseEventRoomingFields(body) {
     ),
     arrival_date: text(body.arrival_date),
     departure_date: text(body.departure_date),
-    confirmed_count: intOrZero(body.confirmed_count),
-    actual_arrival_count: intOrZero(body.actual_arrival_count),
-    expected_absent_count: intOrZero(body.expected_absent_count),
-    male_count: intOrZero(body.male_count),
-    female_count: intOrZero(body.female_count),
-    child_count: intOrZero(body.child_count),
-    elder_count: intOrZero(body.elder_count),
-    teacher_count: intOrZero(body.teacher_count),
-    volunteer_count: intOrZero(body.volunteer_count),
-    special_needs_count: intOrZero(body.special_needs_count),
+    confirmed_count: intOrNull(body.confirmed_count),
+    actual_arrival_count: intOrNull(body.actual_arrival_count),
+    expected_absent_count: intOrNull(body.expected_absent_count),
+    male_count: intOrNull(body.male_count),
+    female_count: intOrNull(body.female_count),
+    child_count: intOrNull(body.child_count),
+    elder_count: intOrNull(body.elder_count),
+    teacher_count: intOrNull(body.teacher_count),
+    volunteer_count: intOrNull(body.volunteer_count),
+    special_needs_count: intOrNull(body.special_needs_count),
     manager_name: text(body.manager_name),
     manager_phone: text(body.manager_phone),
     backup_manager_name: text(body.backup_manager_name),
@@ -115,14 +125,36 @@ export function parseParticipantTagFields(body) {
   };
 }
 
-export const EVENT_ROOMING_COLUMN_SQL = `
-  activity_target, arrival_date, departure_date,
-  confirmed_count, actual_arrival_count, expected_absent_count,
-  male_count, female_count, child_count, elder_count,
-  teacher_count, volunteer_count, special_needs_count,
-  manager_name, manager_phone, backup_manager_name,
-  needs_central_lodging, needs_quiet_zone, needs_near_zen_hall, needs_teacher_room
-`;
+export const EVENT_ROOMING_COLUMN_NAMES = [
+  "activity_target",
+  "arrival_date",
+  "departure_date",
+  "confirmed_count",
+  "actual_arrival_count",
+  "expected_absent_count",
+  "male_count",
+  "female_count",
+  "child_count",
+  "elder_count",
+  "teacher_count",
+  "volunteer_count",
+  "special_needs_count",
+  "manager_name",
+  "manager_phone",
+  "backup_manager_name",
+  "needs_central_lodging",
+  "needs_quiet_zone",
+  "needs_near_zen_hall",
+  "needs_teacher_room",
+];
+
+export const EVENT_ROOMING_COLUMN_SQL = EVENT_ROOMING_COLUMN_NAMES.join(", ");
+
+export const EVENT_ROOMING_SET_SQL = EVENT_ROOMING_COLUMN_NAMES.map(
+  function (col) {
+    return col + "=?";
+  },
+).join(", ");
 
 export function eventRoomingValues(rooming) {
   return [
