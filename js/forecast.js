@@ -41,6 +41,9 @@ function renderForecastTab(tab) {
   if (panel) panel.classList.add("active");
   if (tab === "today") renderTodayForecast();
   if (tab === "flow") renderFlowForecast();
+  if (typeof updateTopbarForForecastTab === "function") {
+    updateTopbarForForecastTab(tab);
+  }
 }
 
 /* ============================================================

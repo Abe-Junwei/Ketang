@@ -32,6 +32,9 @@ function renderInfo(tab) {
   else if (infoCurrentTab === "guests") renderGuestList();
   else if (infoCurrentTab === "lodgers") renderLodgerList();
   else if (infoCurrentTab === "events") renderEventList();
+  if (typeof updateTopbarForInfoTab === "function") {
+    updateTopbarForInfoTab(infoCurrentTab);
+  }
 }
 
 function infoToolbarEl() {

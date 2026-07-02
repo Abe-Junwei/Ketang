@@ -121,6 +121,24 @@ const TOPBAR_TITLES = {
   backup: "系统设置",
 };
 
+const INFO_TAB_TITLES = {
+  rooms: "房间管理",
+  beds: "床位管理",
+  guests: "住客档案",
+  lodgers: "挂单记录",
+  events: "营期管理",
+};
+
+const STAY_MODE_TITLES = {
+  checkin: "现场入住",
+  reservation: "提前预约",
+};
+
+const FORECAST_TAB_TITLES = {
+  today: "每日预报",
+  flow: "周流动预测",
+};
+
 /** 注册 PWA Service Worker（仅 HTTPS / localhost）| Register offline shell SW */
 function registerAppServiceWorker() {
   if (!("serviceWorker" in navigator)) return;
@@ -230,8 +248,9 @@ function initMobileMoreSheetSwipe() {
   sheet.addEventListener("touchcancel", endDrag, { passive: true });
 }
 
-function updateTopbarTitle(name) {
-  var title = TOPBAR_TITLES[name] || "客堂管理系统";
+function updateTopbarTitle(name, titleOverride) {
+  var title =
+    titleOverride || TOPBAR_TITLES[name] || "客堂管理系统";
   var el = document.getElementById("topbar-title");
   if (el) el.textContent = title;
   var mobileTitle = document.getElementById("mobile-title-text");
@@ -242,6 +261,21 @@ function updateTopbarTitle(name) {
   var mobileSearchBar = document.getElementById("mobile-search-bar");
   if (mobileSearchBar) mobileSearchBar.hidden = !showSearch;
   syncBoardSearchInputs(document.getElementById("board-search")?.value || "");
+}
+
+function updateTopbarForInfoTab(tab) {
+  updateTopbarTitle("info", INFO_TAB_TITLES[tab] || TOPBAR_TITLES.info);
+}
+
+function updateTopbarForStayMode(mode) {
+  updateTopbarTitle("stay", STAY_MODE_TITLES[mode] || TOPBAR_TITLES.stay);
+}
+
+function updateTopbarForForecastTab(tab) {
+  updateTopbarTitle(
+    "forecast",
+    FORECAST_TAB_TITLES[tab] || TOPBAR_TITLES.forecast,
+  );
 }
 
 function syncBoardSearchInputs(value) {
@@ -294,6 +328,7 @@ function setStayMode(mode) {
   }
   if (isCheckin) renderBedOptions();
   else renderReservations("全部");
+  updateTopbarForStayMode(mode);
 }
 
 function requireAuth() {
@@ -443,6 +478,7 @@ function showView(name) {
   if (name === "lodgers") renderLodgersPage();
   if (name === "stay") {
     setStayMode(_pendingStayMode);
+    updateTopbarForStayMode(_pendingStayMode);
     if (typeof syncStayFormWizard === "function") {
       syncStayFormWizard("checkin-form");
       syncStayFormWizard("resv-form");

@@ -20,7 +20,7 @@
       href="icons/icon-192.png"
     />
     <link rel="stylesheet" href="fonts/fonts.css?v=1" />
-    <link rel="stylesheet" href="styles.css?v=68" />
+    <link rel="stylesheet" href="styles.css?v=69" />
     <title>客堂管理系统</title>
   </head>
   <body>
@@ -560,13 +560,6 @@
           <div class="lodgers-page panel-card">
             <header class="lodgers-page-head">
               <div class="lodgers-page-head-text">
-                <h2 class="lodgers-page-title">
-                  <span
-                    class="section-icon section-icon-people"
-                    aria-hidden="true"
-                  ></span
-                  >在住挂单
-                </h2>
                 <p class="lodgers-page-desc" id="lodgers-page-count">加载中…</p>
               </div>
               <div class="lodgers-page-search">
@@ -699,8 +692,7 @@
             </button>
           </div>
           <div id="stay-panel-checkin">
-            <div class="card">
-              <h2 class="section-title">现场入住</h2>
+            <div class="card page-section">
               <form id="checkin-form" class="stay-form-wizard" novalidate>
                 <div
                   class="form-wizard-steps"
@@ -995,8 +987,8 @@
               </form>
             </div>
 
-            <div class="card">
-              <h2 class="section-title">批量导入（法会/批次）</h2>
+            <div class="card page-section">
+              <h3 class="page-section-title">批量导入（法会/批次）</h3>
               <p>
                 支持 CSV
                 文件，列名：姓名/法名（或分列「姓名」「法名」）、性别、手机号、身份证、身份、入住日期、预离日期、营期、班级、房间偏好、备注。
@@ -1032,8 +1024,8 @@
           </div>
 
           <div id="stay-panel-reservation" hidden>
-            <div class="card">
-              <h2 class="section-title">添加预约</h2>
+            <div class="card page-section">
+              <h3 class="page-section-title">添加预约</h3>
               <form id="resv-form" class="stay-form-wizard" novalidate>
                 <div
                   class="form-wizard-steps"
@@ -1263,8 +1255,8 @@
                 </div>
               </form>
             </div>
-            <div class="card">
-              <h2 class="section-title">预约列表</h2>
+            <div class="card page-section">
+              <h3 class="page-section-title">预约列表</h3>
               <div class="btn-bar">
                 <button
                   class="btn btn-default btn-sm"
@@ -1329,7 +1321,7 @@
 
         <!-- 流动预测 -->
         <div id="view-forecast" class="view">
-          <div class="card">
+          <div class="page-shell">
             <div class="forecast-tabs">
               <button
                 class="forecast-tab-btn active"
@@ -1405,8 +1397,7 @@
 
         <!-- 房务清洁 -->
         <div id="view-housekeeping" class="view">
-          <div class="card">
-            <h2 class="section-title">客房维护</h2>
+          <div class="page-shell">
             <p>
               退房后床位自动标记为「脏房」，清洁后点击「已净房」方可再次分配。
             </p>
@@ -1416,8 +1407,9 @@
 
         <!-- 报表 -->
         <div id="view-reports" class="view">
-          <div class="card">
-            <h2 class="section-title">厨房用斋汇总</h2>
+          <div class="page-shell">
+          <section class="card page-section">
+            <h3 class="page-section-title">厨房用斋汇总</h3>
             <div class="filter-row">
               <div class="field">
                 <label>日期</label>
@@ -1433,10 +1425,10 @@
               </button>
             </div>
             <div id="meal-report-result"></div>
-          </div>
+          </section>
 
-          <div class="card">
-            <h2 class="section-title">账务报表</h2>
+          <section class="card page-section">
+            <h3 class="page-section-title">账务报表</h3>
             <div class="filter-row">
               <div class="field">
                 <label>日期</label>
@@ -1452,10 +1444,10 @@
               </button>
             </div>
             <div id="daily-report-result"></div>
-          </div>
+          </section>
 
-          <div class="card">
-            <h2 class="section-title">月报</h2>
+          <section class="card page-section">
+            <h3 class="page-section-title">月报</h3>
             <div class="filter-row">
               <div class="field">
                 <label>月份</label>
@@ -1474,10 +1466,10 @@
               </button>
             </div>
             <div id="monthly-report-result"></div>
-          </div>
+          </section>
 
-          <div class="card">
-            <h2 class="section-title">营期统计</h2>
+          <section class="card page-section">
+            <h3 class="page-section-title">营期统计</h3>
             <div class="filter-row">
               <div class="field">
                 <label>营期</label>
@@ -1503,13 +1495,13 @@
               </button>
             </div>
             <div id="event-report-result"></div>
+          </section>
           </div>
         </div>
 
         <!-- 历史查询 -->
         <div id="view-history" class="view">
-          <div class="card">
-            <h2 class="section-title">历史挂单查询</h2>
+          <div class="page-shell">
             <div class="filter-row">
               <div class="field">
                 <label>开始日期</label>
@@ -1570,8 +1562,7 @@
 
         <!-- 信息管理 -->
         <div id="view-info" class="view info-view">
-          <div class="info-page panel-card">
-            <h2 class="info-page-title">信息管理</h2>
+          <div class="info-page page-shell">
             <div class="info-tabs" id="info-tabs" role="tablist">
               <button
                 type="button"
@@ -1620,8 +1611,8 @@
         </div>
 
         <div id="view-backup" class="view">
-          <div class="card">
-            <h2 class="section-title">系统设置</h2>
+          <div class="page-shell">
+          <section class="card page-section">
             <p id="backup-mode-desc">
               数据自动保存在本机浏览器内。建议每天导出
               <strong>ketang.db</strong> 到 U 盘备份。
@@ -1675,20 +1666,20 @@
                 </li>
               </ol>
             </div>
-          </div>
+          </section>
 
-          <div class="card">
-            <h2 class="section-title">运营配置</h2>
+          <section class="card page-section">
+            <h3 class="page-section-title">运营配置</h3>
             <p class="field-hint" style="margin-bottom: var(--space-3)">
               房务流转与床位分配规则；保存后立即影响本机/云端。
             </p>
             <div id="operational-settings-panel">
               <p class="empty-tip">加载中…</p>
             </div>
-          </div>
+          </section>
 
-          <div class="card">
-            <h2 class="section-title">角色权限配置</h2>
+          <section class="card page-section">
+            <h3 class="page-section-title">角色权限配置</h3>
             <p class="field-hint" style="margin-bottom: var(--space-3)">
               按角色勾选可见菜单与 API
               权限；保存后<strong>新登录</strong>会话生效。知客师账号勾选「高级知客」可额外获得备份/用户管理等权限（见用户编辑）。
@@ -1696,16 +1687,17 @@
             <div id="role-permissions-panel">
               <p class="empty-tip">加载中…</p>
             </div>
-          </div>
+          </section>
 
-          <div class="card">
-            <h2 class="section-title">用户管理</h2>
+          <section class="card page-section">
+            <h3 class="page-section-title">用户管理</h3>
             <div class="btn-bar" style="margin-bottom: var(--space-4)">
               <button class="btn btn-primary" onclick="openUserModal()">
                 + 新增用户
               </button>
             </div>
             <div id="user-list"></div>
+          </section>
           </div>
         </div>
       </main>
@@ -1875,21 +1867,21 @@
     <script src="./js/validation.js?v=5"></script>
     <script src="./lib/chart.umd.min.js?v=1"></script>
     <script src="./js/chart-theme.js?v=3"></script>
-    <script src="./js/forecast.js?v=7"></script>
+    <script src="./js/forecast.js?v=8"></script>
     <script src="./js/reports.js?v=12"></script>
     <script src="./js/rooming-tags.js?v=5"></script>
-    <script src="./js/events.js?v=16"></script>
+    <script src="./js/events.js?v=17"></script>
     <script src="./js/rooming-capacity.js?v=2"></script>
     <script src="./js/rooming-conflicts.js?v=1"></script>
     <script src="./js/rooming-plans.js?v=5"></script>
     <script src="./js/rooming-adjustments.js?v=1"></script>
     <script src="./js/rooming-publish.js?v=4"></script>
-    <script src="./js/info.js?v=14"></script>
+    <script src="./js/info.js?v=15"></script>
     <script src="./js/permissions.js?v=4"></script>
     <script src="./js/auth.js?v=24"></script>
     <script src="./js/icons.js?v=8"></script>
     <script src="./js/picker.js?v=4"></script>
     <script src="./js/mobile-ui.js?v=1"></script>
-    <script src="./js/app.js?v=59"></script>
+    <script src="./js/app.js?v=60"></script>
   </body>
 </html>

@@ -723,6 +723,114 @@ main,
 }
 
 /* ============================================================
+       Flat Page Shell | 扁平页面（无卡片外框）
+       ============================================================ */
+.page-shell {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.page-section + .page-section {
+  padding-top: var(--space-6);
+  margin-top: var(--space-6);
+  border-top: 1px solid var(--color-border);
+}
+
+.page-section-title {
+  margin: 0 0 var(--space-4);
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-foreground);
+}
+
+.content .card,
+.content .panel-card {
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+  padding: 0;
+  margin-bottom: var(--space-6);
+}
+
+.content .card + .card,
+.content .panel-card + .panel-card,
+.content .page-section + .page-section {
+  padding-top: var(--space-6);
+  margin-top: var(--space-6);
+  border-top: 1px solid var(--color-border);
+}
+
+.content .board-chart-card,
+.content .board-capacity.panel-card,
+.content .ops-panel.panel-card,
+.content .meals-panel.panel-card {
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+  padding: var(--space-5) 0 0;
+  margin-top: var(--space-5);
+  border-top: 1px solid var(--color-border);
+}
+
+.content .board-charts {
+  gap: var(--space-4);
+}
+
+.content .board-charts .board-chart-card {
+  margin-top: 0;
+  padding: var(--space-4) 0;
+  border: none;
+  border-bottom: 1px solid var(--color-border);
+  border-radius: 0;
+  box-shadow: none;
+  min-height: 220px;
+}
+
+.content .board-charts .board-chart-card:last-child {
+  border-bottom: none;
+}
+
+@media (min-width: 900px) {
+  .content .board-charts .board-chart-card {
+    border-bottom: none;
+    border-right: 1px solid var(--color-border);
+    padding: 0 var(--space-4);
+  }
+
+  .content .board-charts .board-chart-card:last-child {
+    border-right: none;
+  }
+}
+
+.content .stat {
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.content .kpi-item {
+  border-color: var(--color-border);
+}
+
+.content .card-info {
+  background: color-mix(in srgb, var(--color-surface) 35%, transparent);
+  border: none;
+  border-radius: var(--radius-sm);
+  padding: var(--space-4);
+  margin-top: var(--space-4);
+}
+
+.content .table-wrap {
+  border: 1px solid color-mix(in srgb, var(--color-border) 75%, transparent);
+  border-radius: var(--radius-sm);
+  background: var(--color-card);
+}
+
+/* ============================================================
        Card | 卡片
        ============================================================ */
 .card {

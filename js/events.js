@@ -16,6 +16,9 @@ function eventWriteRefreshOptions() {
 
 // 营期列表（用于基础设置页）
 function renderEventList() {
+  if (typeof updateTopbarForInfoTab === "function") {
+    updateTopbarForInfoTab("events");
+  }
   const f = infoGetFilters("events");
   const events = query(`
     SELECT e.*,
@@ -138,6 +141,9 @@ function renderEventList() {
 function renderEventMembers(eventId) {
   const evt = query("SELECT * FROM events WHERE id = ?", [eventId])[0];
   if (!evt) return;
+  if (typeof updateTopbarTitle === "function") {
+    updateTopbarTitle("info", (evt.name || "营期") + " · 成员");
+  }
 
   const lodgers = query(
     `
