@@ -10,8 +10,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     typeof isRemoteDB === "function" &&
     isRemoteDB() &&
     typeof restoreRemoteSession === "function" &&
-    !(typeof isRemoteRefreshBlocked === "function" &&
-      isRemoteRefreshBlocked())
+    !(typeof isRemoteRefreshBlocked === "function" && isRemoteRefreshBlocked())
       ? restoreRemoteSession()
       : null;
 
@@ -180,7 +179,8 @@ function initMobileShell() {
     if (!iconEl) return;
     var view = btn.getAttribute("data-view");
     var action = btn.getAttribute("data-action");
-    var iconName = action === "more" ? MOBILE_NAV_ICONS.more : MOBILE_NAV_ICONS[view];
+    var iconName =
+      action === "more" ? MOBILE_NAV_ICONS.more : MOBILE_NAV_ICONS[view];
     if (iconName) iconEl.innerHTML = icon(iconName, "icon-sm");
   });
   var searchIcon = document.querySelector(".mobile-search-icon");
@@ -789,10 +789,7 @@ async function pollRemoteBoardVersion() {
   if (!isLoggedIn || (typeof isLoggedIn === "function" && !isLoggedIn()))
     return;
   if (document.visibilityState === "hidden") return;
-  if (
-    typeof isBoardViewActive === "function" &&
-    !isBoardViewActive()
-  ) {
+  if (typeof isBoardViewActive === "function" && !isBoardViewActive()) {
     var now = Date.now();
     var idleMs =
       typeof BOARD_POLL_IDLE_INTERVAL_MS === "number"

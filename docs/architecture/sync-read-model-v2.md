@@ -10,14 +10,14 @@
 
 ### 1.1 现状（as-is）
 
-| 维度 | 当前实现 |
-|------|----------|
-| 权威数据源 | Cloudflare D1 |
-| 写路径 | `/api/v1/*`、`/api/v1/admin/records` 等业务 API |
-| 读路径 | 登录后 `GET /api/v1/read-model` 全表快照 → 灌入浏览器内存 sql.js |
-| 变更通知 | `app_meta.board_version` + 客户端每 8s 轮询 `GET /api/v1/board-version` |
-| 写后刷新 | `refreshAfterWrite()` → `renderAll({ forceSync: true })` 强制全量重拉 |
-| 本地模式 | `localhost` / `file://` 仍用 IndexedDB + 完整 migration |
+| 维度       | 当前实现                                                                |
+| ---------- | ----------------------------------------------------------------------- |
+| 权威数据源 | Cloudflare D1                                                           |
+| 写路径     | `/api/v1/*`、`/api/v1/admin/records` 等业务 API                         |
+| 读路径     | 登录后 `GET /api/v1/read-model` 全表快照 → 灌入浏览器内存 sql.js        |
+| 变更通知   | `app_meta.board_version` + 客户端每 8s 轮询 `GET /api/v1/board-version` |
+| 写后刷新   | `refreshAfterWrite()` → `renderAll({ forceSync: true })` 强制全量重拉   |
+| 本地模式   | `localhost` / `file://` 仍用 IndexedDB + 完整 migration                 |
 
 ### 1.2 已暴露的痛点
 
@@ -29,14 +29,14 @@
 
 ### 1.3 目标（to-be，对齐业内成熟 PMS / 协作后台）
 
-| 原则 | 说明 |
-|------|------|
-| **写读分离** | 写走业务 API；读按页面/模块拉取，避免「整库灌入」为默认路径 |
-| **单一真相源** | D1 仍为唯一权威；浏览器 sql.js 降级为**缓存与查询引擎**，非第二份真相源 |
-| **变更可定位** | 每次写返回 `board_version`；客户端知道「要不要同步、同步哪一块」 |
-| **当前视图优先** | 用户正在看的列表/看板，在版本变化后必须自动重绘 |
-| **渐进增强** | 先修契约与刷新，再拆读 API，最后增量/推送；每阶段可独立验收 |
-| **本地模式不变** | 离线/灾备仍用现有 IndexedDB 路径，不与在线同步架构耦合 |
+| 原则             | 说明                                                                    |
+| ---------------- | ----------------------------------------------------------------------- |
+| **写读分离**     | 写走业务 API；读按页面/模块拉取，避免「整库灌入」为默认路径             |
+| **单一真相源**   | D1 仍为唯一权威；浏览器 sql.js 降级为**缓存与查询引擎**，非第二份真相源 |
+| **变更可定位**   | 每次写返回 `board_version`；客户端知道「要不要同步、同步哪一块」        |
+| **当前视图优先** | 用户正在看的列表/看板，在版本变化后必须自动重绘                         |
+| **渐进增强**     | 先修契约与刷新，再拆读 API，最后增量/推送；每阶段可独立验收             |
+| **本地模式不变** | 离线/灾备仍用现有 IndexedDB 路径，不与在线同步架构耦合                  |
 
 ### 1.4 非目标（本规划不做）
 
@@ -84,11 +84,11 @@ flowchart TB
 
 ### 2.1 三层职责
 
-| 层 | 职责 | 成熟产品对标 |
-|----|------|----------------|
-| **Write API** | 校验、权限、事务/batch、审计、`bumpBoardVersion` | 酒店 PMS 业务服务层 |
-| **Read API** | 按域返回 JSON（看板、在住、营期、设置…） | 民宿 SaaS 列表/详情接口 |
-| **SyncCoordinator（客户端）** | 版本比对、拉取策略、灌缓存、触发当前视图 refresh | 前台终端同步代理 |
+| 层                            | 职责                                             | 成熟产品对标            |
+| ----------------------------- | ------------------------------------------------ | ----------------------- |
+| **Write API**                 | 校验、权限、事务/batch、审计、`bumpBoardVersion` | 酒店 PMS 业务服务层     |
+| **Read API**                  | 按域返回 JSON（看板、在住、营期、设置…）         | 民宿 SaaS 列表/详情接口 |
+| **SyncCoordinator（客户端）** | 版本比对、拉取策略、灌缓存、触发当前视图 refresh | 前台终端同步代理        |
 
 ### 2.2 数据流（目标态）
 
@@ -105,13 +105,13 @@ flowchart TB
 
 建议作为 **Phase 12：同步与读模型 v2**，插入在 Phase 9 验收之后、Phase 4 公开预约之前（公开预约会放大量写读，应先有稳定同步）。
 
-| 子阶段 | 名称 | 工期（估） | 依赖 |
-|--------|------|----------|------|
-| **12.1** | 同步热修复与写契约 | 2–3 天 | Phase 9 收尾 |
-| **12.2** | 智能刷新与视图注册 | 3–4 天 | 12.1 |
-| **12.3** | 模块读 API | 1–2 周 | 12.2 |
-| **12.4** | 表级增量同步 | 1–2 周 | 12.3 |
-| **12.5** | 房态实时推送（可选） | 3–5 天 | 12.3 |
+| 子阶段   | 名称                 | 工期（估） | 依赖         |
+| -------- | -------------------- | ---------- | ------------ |
+| **12.1** | 同步热修复与写契约   | 2–3 天     | Phase 9 收尾 |
+| **12.2** | 智能刷新与视图注册   | 3–4 天     | 12.1         |
+| **12.3** | 模块读 API           | 1–2 周     | 12.2         |
+| **12.4** | 表级增量同步         | 1–2 周     | 12.3         |
+| **12.5** | 房态实时推送（可选） | 3–5 天     | 12.3         |
 
 ---
 
@@ -121,21 +121,21 @@ flowchart TB
 
 ### 4.1 服务端
 
-| 任务 | 说明 |
-|------|------|
+| 任务             | 说明                                                                       |
+| ---------------- | -------------------------------------------------------------------------- |
 | 写操作原子 batch | `deleteEvent` 等：`DELETE` + `audit_logs` + `board_version` 同一 `batchD1` |
-| 统一写响应形状 | 所有 mutating API 返回 `{ ok: true, board_version: number, ...payload }` |
-| 辅助函数 | `functions/_shared/write-response.js`：`finishWrite(env, extra)` |
+| 统一写响应形状   | 所有 mutating API 返回 `{ ok: true, board_version: number, ...payload }`   |
+| 辅助函数         | `functions/_shared/write-response.js`：`finishWrite(env, extra)`           |
 
 ### 4.2 客户端
 
-| 任务 | 说明 |
-|------|------|
-| 删除/保存后 `await refreshAfterWrite()` | 营期、房间、床位等 settings 写路径 |
-| `refreshAfterWrite` 智能同步 | 若响应含 `board_version` 且与本地相同 → 跳过拉取，只重绘 |
-| 否则先 `GET board-version` | 未变则 `304`/跳过重拉；变了再 `syncRemoteReadModel` |
-| 权限与按钮 | 无 `settings.write` 不渲染删除/编辑营期按钮 |
-| `renderAll` 补全 | `view-info` 激活时 `renderInfo(infoCurrentTab)` |
+| 任务                                    | 说明                                                     |
+| --------------------------------------- | -------------------------------------------------------- |
+| 删除/保存后 `await refreshAfterWrite()` | 营期、房间、床位等 settings 写路径                       |
+| `refreshAfterWrite` 智能同步            | 若响应含 `board_version` 且与本地相同 → 跳过拉取，只重绘 |
+| 否则先 `GET board-version`              | 未变则 `304`/跳过重拉；变了再 `syncRemoteReadModel`      |
+| 权限与按钮                              | 无 `settings.write` 不渲染删除/编辑营期按钮              |
+| `renderAll` 补全                        | `view-info` 激活时 `renderInfo(infoCurrentTab)`          |
 
 ### 4.3 验收
 
@@ -168,14 +168,14 @@ syncRemoteReadModel(options)
 
 ### 5.2 变更域（domain）枚举
 
-| domain | 典型表 | 触发刷新的视图 |
-|--------|--------|----------------|
-| `board` | rooms, beds, lodgers, housekeeping, app_meta（运营键） | 房态看板、首页 KPI、查房开关 |
-| `lodging` | lodgers, guests, beds, payments | 在住、历史、登记、支付 |
-| `events` | events, rooming_* | 营期管理、排房、预报 |
-| `reservations` | reservations | 预约 |
-| `meals` | meals, lodgers | 用斋 |
-| `settings` | rooms, beds, guests | 信息管理各 tab |
+| domain         | 典型表                                                 | 触发刷新的视图               |
+| -------------- | ------------------------------------------------------ | ---------------------------- |
+| `board`        | rooms, beds, lodgers, housekeeping, app_meta（运营键） | 房态看板、首页 KPI、查房开关 |
+| `lodging`      | lodgers, guests, beds, payments                        | 在住、历史、登记、支付       |
+| `events`       | events, rooming_*                                      | 营期管理、排房、预报         |
+| `reservations` | reservations                                           | 预约                         |
+| `meals`        | meals, lodgers                                         | 用斋                         |
+| `settings`     | rooms, beds, guests                                    | 信息管理各 tab               |
 
 写 API 响应增加可选字段：`changed_domains: ['events']`（12.1 可先写死映射，12.3 由服务端显式返回）。
 
@@ -200,15 +200,15 @@ syncRemoteReadModel(options)
 
 ### 6.1 新读接口（`functions/api/v1/read/`）
 
-| 路径 | 用途 | 权限 |
-|------|------|------|
-| `GET /api/v1/read/board` | 房态看板（房间/床/在住/房务摘要） | `board.read` |
-| `GET /api/v1/read/lodgers` | 在住列表 + 分页/筛选 query | `lodging.read` |
-| `GET /api/v1/read/events` | 营期列表 + 统计字段 | `lodging.read` |
-| `GET /api/v1/read/event/:id` | 单营期 + 排房 bundle | `lodging.read` |
-| `GET /api/v1/read/reservations` | 预约列表 | `reservation.read` |
-| `GET /api/v1/read/meals?date=` | 某日用餐 | `meals.read` |
-| `GET /api/v1/read/settings/:resource` | rooms/beds/guests 设置列表 | `settings.read` |
+| 路径                                  | 用途                              | 权限               |
+| ------------------------------------- | --------------------------------- | ------------------ |
+| `GET /api/v1/read/board`              | 房态看板（房间/床/在住/房务摘要） | `board.read`       |
+| `GET /api/v1/read/lodgers`            | 在住列表 + 分页/筛选 query        | `lodging.read`     |
+| `GET /api/v1/read/events`             | 营期列表 + 统计字段               | `lodging.read`     |
+| `GET /api/v1/read/event/:id`          | 单营期 + 排房 bundle              | `lodging.read`     |
+| `GET /api/v1/read/reservations`       | 预约列表                          | `reservation.read` |
+| `GET /api/v1/read/meals?date=`        | 某日用餐                          | `meals.read`       |
+| `GET /api/v1/read/settings/:resource` | rooms/beds/guests 设置列表        | `settings.read`    |
 
 约定：
 
@@ -218,12 +218,12 @@ syncRemoteReadModel(options)
 
 ### 6.2 客户端策略
 
-| 场景 | 行为 |
-|------|------|
-| 登录 | 全量 `read-model` 一次（或并行拉各 module 拼成缓存） |
-| 打开房态 | `read/board` 若 version 匹配则跳过 |
-| 打开营期 | `read/events` |
-| 写后 | 按 `changed_domains` 只拉对应 module，patch 本地表 |
+| 场景     | 行为                                                 |
+| -------- | ---------------------------------------------------- |
+| 登录     | 全量 `read-model` 一次（或并行拉各 module 拼成缓存） |
+| 打开房态 | `read/board` 若 version 匹配则跳过                   |
+| 打开营期 | `read/events`                                        |
+| 写后     | 按 `changed_domains` 只拉对应 module，patch 本地表   |
 
 ### 6.3 与现有 sql.js 的关系
 
@@ -262,7 +262,7 @@ syncRemoteReadModel(options)
 
 ### 7.3 Migration
 
-- schema v21：`updated_at` 列 +  backfill `created_at` 或当前时间
+- schema v21：`updated_at` 列 + backfill `created_at` 或当前时间
 - 写 API 统一 `touchRow(table, id)`
 
 ### 7.4 验收
@@ -279,11 +279,11 @@ syncRemoteReadModel(options)
 
 ### 8.1 技术选型（Cloudflare 友好）
 
-| 选项 | 优点 | 缺点 |
-|------|------|------|
+| 选项                               | 优点                       | 缺点                    |
+| ---------------------------------- | -------------------------- | ----------------------- |
 | **SSE** `GET /api/v1/stream/board` | Workers 原生支持、实现简单 | 每连接占 Worker；需心跳 |
-| 短轮询 3s（仅看板页） | 零新基础设施 | 仍非真推送 |
-| Durable Objects + WebSocket | 真双向 | 复杂度与成本上升 |
+| 短轮询 3s（仅看板页）              | 零新基础设施               | 仍非真推送              |
+| Durable Objects + WebSocket        | 真双向                     | 复杂度与成本上升        |
 
 **建议：** 先做看板页 3s 轮询 `read/board`（12.3 后很轻）；夏季高峰前再评估 SSE。
 
@@ -303,7 +303,7 @@ syncRemoteReadModel(options)
   "ok": true,
   "board_version": 1284,
   "changed_domains": ["events"],
-  "data": { }
+  "data": {}
 }
 ```
 
@@ -329,37 +329,37 @@ syncRemoteReadModel(options)
 
 在 `docs/ops/performance-baseline.json` 增补（12.3 起启用）：
 
-| 指标 | 目标 P95 |
-|------|----------|
-| `read/board` | ≤ 3s |
-| `read/events` | ≤ 2s |
-| `sync/delta` | ≤ 2s |
-| `read-model` 全量（冷启动） | ≤ 25s（维持） |
-| `read-model` 304 | ≤ 5s（维持） |
-| 写后用户感知等待 | ≤ 1.5s（不含冷启动） |
+| 指标                        | 目标 P95             |
+| --------------------------- | -------------------- |
+| `read/board`                | ≤ 3s                 |
+| `read/events`               | ≤ 2s                 |
+| `sync/delta`                | ≤ 2s                 |
+| `read-model` 全量（冷启动） | ≤ 25s（维持）        |
+| `read-model` 304            | ≤ 5s（维持）         |
+| 写后用户感知等待            | ≤ 1.5s（不含冷启动） |
 
 ---
 
 ## 11. 测试与验收矩阵
 
-| 类型 | 内容 |
-|------|------|
-| 自动化 | 扩展 `test_api_structure.py`、契约测试写响应含 `board_version` |
-| 多人 | 沿用 `final-acceptance-checklist.md` §1–3，补充营期删除/编辑场景 |
-| 性能 | `test_prod_latency.py` 增加 module/delta 探测 |
-| 回归 | 本地 IndexedDB 模式全套 headless 仍通过 |
+| 类型   | 内容                                                             |
+| ------ | ---------------------------------------------------------------- |
+| 自动化 | 扩展 `test_api_structure.py`、契约测试写响应含 `board_version`   |
+| 多人   | 沿用 `final-acceptance-checklist.md` §1–3，补充营期删除/编辑场景 |
+| 性能   | `test_prod_latency.py` 增加 module/delta 探测                    |
+| 回归   | 本地 IndexedDB 模式全套 headless 仍通过                          |
 
 ---
 
 ## 12. 风险与缓解
 
-| 风险 | 缓解 |
-|------|------|
+| 风险                              | 缓解                                             |
+| --------------------------------- | ------------------------------------------------ |
 | 拆读 API 与 sql.js 报表逻辑不一致 | 12.3 仍灌 sql.js；单测对比 module 与全量快照行数 |
-| `updated_at` migration 漏 touch | 写路径集中 helper；CI 检查 mutation 是否调用 |
-| 增量 gap 导致脏缓存 | version 回退或 delta 过大时自动全量 |
-| SSE 连接数 | 仅看板页、仅在线用户；降级轮询 |
-| 工期膨胀 | 严格分阶段；12.1 可独立上线 |
+| `updated_at` migration 漏 touch   | 写路径集中 helper；CI 检查 mutation 是否调用     |
+| 增量 gap 导致脏缓存               | version 回退或 delta 过大时自动全量              |
+| SSE 连接数                        | 仅看板页、仅在线用户；降级轮询                   |
+| 工期膨胀                          | 严格分阶段；12.1 可独立上线                      |
 
 ---
 
@@ -367,12 +367,12 @@ syncRemoteReadModel(options)
 
 建议更新 `docs/roadmap.md` 阶段表：
 
-| 阶段 | 名称 | 说明 |
-|------|------|------|
-| Phase 9 | 夏季活动排房 | 当前收尾 + 验收清单 |
-| **Phase 12** | **同步与读模型 v2** | 本文 12.1–12.5 |
-| Phase 4 | 公开预约 | 依赖 12.1 至少、推荐 12.3 完成 |
-| 最终总验收 | | 性能项改用 §10 新指标 |
+| 阶段         | 名称                | 说明                           |
+| ------------ | ------------------- | ------------------------------ |
+| Phase 9      | 夏季活动排房        | 当前收尾 + 验收清单            |
+| **Phase 12** | **同步与读模型 v2** | 本文 12.1–12.5                 |
+| Phase 4      | 公开预约            | 依赖 12.1 至少、推荐 12.3 完成 |
+| 最终总验收   |                     | 性能项改用 §10 新指标          |
 
 ---
 
@@ -397,13 +397,13 @@ syncRemoteReadModel(options)
 
 ## 16. 实施状态
 
-| 子阶段 | 状态 | 备注 |
-|--------|------|------|
-| 12.1 | **已完成** | 写契约、deleteEvent 原子 batch、sync-coordinator、3s 轮询、营期页刷新 |
-| 12.2 | **已完成** | 视图注册、轮询分级（看板 3s / 其他 20s）、SSE 钩子 |
-| 12.3 | **已完成** | 模块读 API + 写后按域拉取 |
-| 12.4 | **已完成** | sync_domain_log + delta API + 客户端 applyRemoteDelta |
-| 12.5 | **已完成** | 看板 SSE `/api/v1/stream/board`（3s 内推送版本变化） |
+| 子阶段 | 状态       | 备注                                                                  |
+| ------ | ---------- | --------------------------------------------------------------------- |
+| 12.1   | **已完成** | 写契约、deleteEvent 原子 batch、sync-coordinator、3s 轮询、营期页刷新 |
+| 12.2   | **已完成** | 视图注册、轮询分级（看板 3s / 其他 20s）、SSE 钩子                    |
+| 12.3   | **已完成** | 模块读 API + 写后按域拉取                                             |
+| 12.4   | **已完成** | sync_domain_log + delta API + 客户端 applyRemoteDelta                 |
+| 12.5   | **已完成** | 看板 SSE `/api/v1/stream/board`（3s 内推送版本变化）                  |
 
 ---
 

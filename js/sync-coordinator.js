@@ -92,7 +92,8 @@ function refreshActiveViewsAfterSync() {
 async function fetchAndApplyModule(moduleKey) {
   var payload = await apiReadModule(moduleKey, getLocalBoardVersion());
   if (payload && payload.notModified) {
-    if (payload.board_version != null) setLocalBoardVersion(payload.board_version);
+    if (payload.board_version != null)
+      setLocalBoardVersion(payload.board_version);
     return { module: moduleKey, skipped: true };
   }
   if (payload && payload.tables) {
@@ -130,7 +131,8 @@ async function syncRemoteDeltaSince(sinceVersion) {
   try {
     var delta = await apiSyncDelta(since, since);
     if (delta && delta.not_modified) {
-      if (delta.board_version != null) setLocalBoardVersion(delta.board_version);
+      if (delta.board_version != null)
+        setLocalBoardVersion(delta.board_version);
       setRemoteSyncStatus("ready");
       return true;
     }
@@ -294,7 +296,8 @@ function onBoardViewVisibilityChange() {
 /** 设置页手动全量同步 | Full read-model sync (settings only) */
 async function forceFullRemoteSync() {
   if (typeof isRemoteDB !== "function" || !isRemoteDB()) {
-    if (typeof showToast === "function") showToast("当前为本地模式，无需云端同步");
+    if (typeof showToast === "function")
+      showToast("当前为本地模式，无需云端同步");
     return;
   }
   if (!confirm("将重新从云端拉取全部数据，可能需要十几秒。继续？")) return;

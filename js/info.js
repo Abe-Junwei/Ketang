@@ -211,8 +211,20 @@ function renderRoomList() {
 
   const toolbar = infoToolbarHtml(
     `${infoSearchBox("rooms", "搜索房间名、位置…")}
-     ${infoFilterSelect("rooms", "location", "位置筛选", locations.map((loc) => [loc, loc]), "位置筛选")}
-     ${infoFilterSelect("rooms", "dorm", "类型筛选", INFO_DORM_OPTIONS.map((d) => [d, d]), "类型筛选")}`,
+     ${infoFilterSelect(
+       "rooms",
+       "location",
+       "位置筛选",
+       locations.map((loc) => [loc, loc]),
+       "位置筛选",
+     )}
+     ${infoFilterSelect(
+       "rooms",
+       "dorm",
+       "类型筛选",
+       INFO_DORM_OPTIONS.map((d) => [d, d]),
+       "类型筛选",
+     )}`,
     `<button type="button" class="btn btn-primary" onclick="openRoomModal()">+ 新增房间</button>`,
   );
 
@@ -692,13 +704,9 @@ function renderGuestList() {
     if (
       f.q &&
       !infoTextIncludes(
-        [
-          g.name,
-          g.dharma_name,
-          g.phone,
-          g.id_card,
-          g.emergency_contact,
-        ].join(" "),
+        [g.name, g.dharma_name, g.phone, g.id_card, g.emergency_contact].join(
+          " ",
+        ),
         f.q,
       )
     ) {
@@ -880,7 +888,14 @@ async function submitGuest(id) {
           run(
             `UPDATE lodgers SET name=?, dharma_name=?, gender=?, phone=?, id_card=?
              WHERE guest_id=?`,
-            [name, person.dharma_name, gender, contact.phone, contact.idCard, id],
+            [
+              name,
+              person.dharma_name,
+              gender,
+              contact.phone,
+              contact.idCard,
+              id,
+            ],
           );
           logAudit("更新住客档案", "guest", id, { name, phone: contact.phone });
         } else {
@@ -902,7 +917,10 @@ async function submitGuest(id) {
             ],
           );
           const newId = result.lastInsertId;
-          logAudit("新增住客档案", "guest", newId, { name, phone: contact.phone });
+          logAudit("新增住客档案", "guest", newId, {
+            name,
+            phone: contact.phone,
+          });
         }
       });
       await saveDB();
@@ -969,9 +987,14 @@ function renderLodgerList() {
     if (
       f.q &&
       !infoTextIncludes(
-        [l.name, l.dharma_name, l.phone, l.room_name, l.bed_number, l.notes].join(
-          " ",
-        ),
+        [
+          l.name,
+          l.dharma_name,
+          l.phone,
+          l.room_name,
+          l.bed_number,
+          l.notes,
+        ].join(" "),
         f.q,
       )
     ) {

@@ -2,7 +2,10 @@
 <html lang="zh-CN">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, viewport-fit=cover"
+    />
     <meta name="theme-color" content="#5c4a32" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-title" content="客堂管理" />
@@ -10,7 +13,12 @@
     <meta name="mobile-web-app-capable" content="yes" />
     <link rel="manifest" href="manifest.webmanifest" />
     <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
-    <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png" />
+    <link
+      rel="icon"
+      type="image/png"
+      sizes="192x192"
+      href="icons/icon-192.png"
+    />
     <link rel="stylesheet" href="fonts/fonts.css?v=1" />
     <link rel="stylesheet" href="styles.css?v=68" />
     <title>客堂管理系统</title>
@@ -196,7 +204,10 @@
             aria-label="账户菜单"
             aria-haspopup="true"
           >
-            <span class="topbar-avatar" id="mobile-title-avatar" aria-hidden="true"
+            <span
+              class="topbar-avatar"
+              id="mobile-title-avatar"
+              aria-hidden="true"
               >—</span
             >
           </button>
@@ -417,11 +428,18 @@
               <div class="board-capacity-controls">
                 <label class="board-cap-control">
                   起始日期
-                  <input type="date" id="board-cap-start" onchange="renderBoardCapacityForecast()" />
+                  <input
+                    type="date"
+                    id="board-cap-start"
+                    onchange="renderBoardCapacityForecast()"
+                  />
                 </label>
                 <label class="board-cap-control">
                   预测天数
-                  <select id="board-cap-days" onchange="renderBoardCapacityForecast()">
+                  <select
+                    id="board-cap-days"
+                    onchange="renderBoardCapacityForecast()"
+                  >
                     <option value="7">7 天</option>
                     <option value="14" selected>14 天</option>
                     <option value="30">30 天</option>
@@ -563,7 +581,10 @@
                 />
               </div>
             </header>
-            <div class="lodgers-table-scroll lodgers-desktop-table" id="lodgers-table-scroll">
+            <div
+              class="lodgers-table-scroll lodgers-desktop-table"
+              id="lodgers-table-scroll"
+            >
               <table class="lodger-table">
                 <thead>
                   <tr>
@@ -691,7 +712,12 @@
                     class="form-wizard-step active"
                     data-wizard-step="1"
                     aria-selected="true"
-                    onclick="document.getElementById('checkin-form').setAttribute('data-wizard-step','1'); syncStayFormWizard('checkin-form');"
+                    onclick="
+                      document
+                        .getElementById('checkin-form')
+                        .setAttribute('data-wizard-step', '1');
+                      syncStayFormWizard('checkin-form');
+                    "
                   >
                     1 身份
                   </button>
@@ -700,7 +726,12 @@
                     class="form-wizard-step"
                     data-wizard-step="2"
                     aria-selected="false"
-                    onclick="document.getElementById('checkin-form').setAttribute('data-wizard-step','2'); syncStayFormWizard('checkin-form');"
+                    onclick="
+                      document
+                        .getElementById('checkin-form')
+                        .setAttribute('data-wizard-step', '2');
+                      syncStayFormWizard('checkin-form');
+                    "
                   >
                     2 床位
                   </button>
@@ -709,217 +740,230 @@
                     class="form-wizard-step"
                     data-wizard-step="3"
                     aria-selected="false"
-                    onclick="document.getElementById('checkin-form').setAttribute('data-wizard-step','3'); syncStayFormWizard('checkin-form');"
+                    onclick="
+                      document
+                        .getElementById('checkin-form')
+                        .setAttribute('data-wizard-step', '3');
+                      syncStayFormWizard('checkin-form');
+                    "
                   >
                     3 收款
                   </button>
                 </div>
 
-                <section class="form-wizard-panel is-active" data-wizard-panel="1">
-                <div class="form-grid">
-                  <div class="field">
-                    <label>姓名 / 法名 *</label>
-                    <input
-                      type="text"
-                      id="ci-name"
-                      required
-                      placeholder="姓名或法名"
-                    />
-                    <div class="field-error" id="ci-name-error"></div>
+                <section
+                  class="form-wizard-panel is-active"
+                  data-wizard-panel="1"
+                >
+                  <div class="form-grid">
+                    <div class="field">
+                      <label>姓名 / 法名 *</label>
+                      <input
+                        type="text"
+                        id="ci-name"
+                        required
+                        placeholder="姓名或法名"
+                      />
+                      <div class="field-error" id="ci-name-error"></div>
+                    </div>
+                    <div class="field">
+                      <label>性别 *</label>
+                      <select id="ci-gender" required>
+                        <option value="">请选择</option>
+                        <option value="男">男</option>
+                        <option value="女">女</option>
+                      </select>
+                    </div>
+                    <div class="field">
+                      <label>手机号</label>
+                      <input
+                        type="tel"
+                        id="ci-phone"
+                        placeholder="手机 / 座机 / 国际号；无则填下方紧急联系人"
+                        oninput="filterPhoneLoose(this)"
+                        onblur="validateField(this)"
+                      />
+                      <div class="field-error" id="ci-phone-error"></div>
+                    </div>
+                    <div class="field">
+                      <label>身份证 *</label>
+                      <input
+                        type="text"
+                        id="ci-idcard"
+                        required
+                        placeholder="18 位必填"
+                        inputmode="numeric"
+                        oninput="filterIdCard(this)"
+                        onblur="validateField(this)"
+                      />
+                      <div class="field-error" id="ci-idcard-error"></div>
+                    </div>
+                    <div class="field">
+                      <label>紧急联系人</label>
+                      <input
+                        type="text"
+                        id="ci-emergency-name"
+                        placeholder="姓名"
+                      />
+                    </div>
+                    <div class="field">
+                      <label>紧急联系电话</label>
+                      <input
+                        type="tel"
+                        id="ci-emergency-phone"
+                        placeholder="电话"
+                        oninput="filterPhoneLoose(this)"
+                        onblur="validateField(this)"
+                      />
+                      <div
+                        class="field-error"
+                        id="ci-emergency-phone-error"
+                      ></div>
+                    </div>
                   </div>
-                  <div class="field">
-                    <label>性别 *</label>
-                    <select id="ci-gender" required>
-                      <option value="">请选择</option>
-                      <option value="男">男</option>
-                      <option value="女">女</option>
-                    </select>
-                  </div>
-                  <div class="field">
-                    <label>手机号</label>
-                    <input
-                      type="tel"
-                      id="ci-phone"
-                      placeholder="手机 / 座机 / 国际号；无则填下方紧急联系人"
-                      oninput="filterPhoneLoose(this)"
-                      onblur="validateField(this)"
-                    />
-                    <div class="field-error" id="ci-phone-error"></div>
-                  </div>
-                  <div class="field">
-                    <label>身份证 *</label>
-                    <input
-                      type="text"
-                      id="ci-idcard"
-                      required
-                      placeholder="18 位必填"
-                      inputmode="numeric"
-                      oninput="filterIdCard(this)"
-                      onblur="validateField(this)"
-                    />
-                    <div class="field-error" id="ci-idcard-error"></div>
-                  </div>
-                  <div class="field">
-                    <label>紧急联系人</label>
-                    <input
-                      type="text"
-                      id="ci-emergency-name"
-                      placeholder="姓名"
-                    />
-                  </div>
-                  <div class="field">
-                    <label>紧急联系电话</label>
-                    <input
-                      type="tel"
-                      id="ci-emergency-phone"
-                      placeholder="电话"
-                      oninput="filterPhoneLoose(this)"
-                      onblur="validateField(this)"
-                    />
-                    <div class="field-error" id="ci-emergency-phone-error"></div>
-                  </div>
-                </div>
                 </section>
 
                 <section class="form-wizard-panel" data-wizard-panel="2" hidden>
-                <div class="form-grid">
-                  <div class="field field-span-all">
-                    <label>分配床位 *</label>
-                    <div class="bed-picker" id="ci-bed-picker">
-                      <div
-                        class="bed-picker-trigger"
-                        onclick="toggleBedPicker()"
-                      >
-                        <span id="ci-bed-label">请选择床位</span>
-                        <span class="bed-picker-arrow">▾</span>
+                  <div class="form-grid">
+                    <div class="field field-span-all">
+                      <label>分配床位 *</label>
+                      <div class="bed-picker" id="ci-bed-picker">
+                        <div
+                          class="bed-picker-trigger"
+                          onclick="toggleBedPicker()"
+                        >
+                          <span id="ci-bed-label">请选择床位</span>
+                          <span class="bed-picker-arrow">▾</span>
+                        </div>
+                        <div
+                          class="bed-picker-dropdown"
+                          id="ci-bed-dropdown"
+                        ></div>
                       </div>
-                      <div
-                        class="bed-picker-dropdown"
-                        id="ci-bed-dropdown"
-                      ></div>
+                      <input type="hidden" id="ci-bed" required />
                     </div>
-                    <input type="hidden" id="ci-bed" required />
+                    <div class="field">
+                      <label>身份</label>
+                      <select id="ci-role" class="lodger-role-select"></select>
+                    </div>
+                    <div class="field">
+                      <label>入住日期 *</label>
+                      <input type="date" id="ci-in" required />
+                    </div>
+                    <div class="field">
+                      <label>预计离院日期</label>
+                      <input type="date" id="ci-out" />
+                    </div>
+                    <div class="field">
+                      <label>入住来源</label>
+                      <select id="ci-source">
+                        <option value="">请选择</option>
+                        <option value="现场">现场</option>
+                        <option value="电话">电话</option>
+                        <option value="微信">微信</option>
+                        <option value="法会预约">法会预约</option>
+                        <option value="其他">其他</option>
+                      </select>
+                    </div>
+                    <div class="field">
+                      <label>所属营期</label>
+                      <select id="ci-event">
+                        <option value="">散客 / 不归属营期</option>
+                      </select>
+                    </div>
+                    <div class="field">
+                      <label>班级/分组</label>
+                      <input
+                        type="text"
+                        id="ci-class"
+                        placeholder="如：一班、师父组"
+                      />
+                    </div>
+                    <div class="field">
+                      <label>排房身份</label>
+                      <select id="ci-participant-identity"></select>
+                    </div>
+                    <div class="field">
+                      <label>年龄段</label>
+                      <select id="ci-age-group"></select>
+                    </div>
+                    <div class="field field-span-all">
+                      <label>特殊需求（排房）</label>
+                      <textarea
+                        id="ci-special-needs"
+                        rows="2"
+                        placeholder="如：下铺、安静、行动不便"
+                      ></textarea>
+                    </div>
                   </div>
-                  <div class="field">
-                    <label>身份</label>
-                    <select id="ci-role" class="lodger-role-select"></select>
-                  </div>
-                  <div class="field">
-                    <label>入住日期 *</label>
-                    <input type="date" id="ci-in" required />
-                  </div>
-                  <div class="field">
-                    <label>预计离院日期</label>
-                    <input type="date" id="ci-out" />
-                  </div>
-                  <div class="field">
-                    <label>入住来源</label>
-                    <select id="ci-source">
-                      <option value="">请选择</option>
-                      <option value="现场">现场</option>
-                      <option value="电话">电话</option>
-                      <option value="微信">微信</option>
-                      <option value="法会预约">法会预约</option>
-                      <option value="其他">其他</option>
-                    </select>
-                  </div>
-                  <div class="field">
-                    <label>所属营期</label>
-                    <select id="ci-event">
-                      <option value="">散客 / 不归属营期</option>
-                    </select>
-                  </div>
-                  <div class="field">
-                    <label>班级/分组</label>
-                    <input
-                      type="text"
-                      id="ci-class"
-                      placeholder="如：一班、师父组"
-                    />
-                  </div>
-                  <div class="field">
-                    <label>排房身份</label>
-                    <select id="ci-participant-identity"></select>
-                  </div>
-                  <div class="field">
-                    <label>年龄段</label>
-                    <select id="ci-age-group"></select>
-                  </div>
-                  <div class="field field-span-all">
-                    <label>特殊需求（排房）</label>
-                    <textarea
-                      id="ci-special-needs"
-                      rows="2"
-                      placeholder="如：下铺、安静、行动不便"
-                    ></textarea>
-                  </div>
-                </div>
                 </section>
 
                 <section class="form-wizard-panel" data-wizard-panel="3" hidden>
-                <div class="section-title">收款信息</div>
-                <div class="form-grid">
-                  <div class="field">
-                    <label>押金</label>
-                    <input
-                      type="number"
-                      id="ci-deposit"
-                      min="0"
-                      step="0.01"
-                      placeholder="0.00"
-                    />
+                  <div class="section-title">收款信息</div>
+                  <div class="form-grid">
+                    <div class="field">
+                      <label>押金</label>
+                      <input
+                        type="number"
+                        id="ci-deposit"
+                        min="0"
+                        step="0.01"
+                        placeholder="0.00"
+                      />
+                    </div>
+                    <div class="field">
+                      <label>房费</label>
+                      <input
+                        type="number"
+                        id="ci-room-fee"
+                        min="0"
+                        step="0.01"
+                        placeholder="0.00"
+                      />
+                    </div>
+                    <div class="field">
+                      <label>收款方式</label>
+                      <select id="ci-pay-method">
+                        <option value="">请选择</option>
+                        <option value="现金">现金</option>
+                        <option value="微信">微信</option>
+                        <option value="支付宝">支付宝</option>
+                        <option value="刷卡">刷卡</option>
+                        <option value="挂账">挂账</option>
+                        <option value="免费">免费</option>
+                      </select>
+                    </div>
+                    <div class="field">
+                      <label>收款备注</label>
+                      <input
+                        type="text"
+                        id="ci-pay-remark"
+                        placeholder="收据号/团账等"
+                      />
+                    </div>
                   </div>
                   <div class="field">
-                    <label>房费</label>
-                    <input
-                      type="number"
-                      id="ci-room-fee"
-                      min="0"
-                      step="0.01"
-                      placeholder="0.00"
-                    />
+                    <label>用斋默认 *</label>
+                    <div id="ci-meal-need-wrap"></div>
+                    <div class="field-error" id="ci-meal-need-error"></div>
                   </div>
                   <div class="field">
-                    <label>收款方式</label>
-                    <select id="ci-pay-method">
-                      <option value="">请选择</option>
-                      <option value="现金">现金</option>
-                      <option value="微信">微信</option>
-                      <option value="支付宝">支付宝</option>
-                      <option value="刷卡">刷卡</option>
-                      <option value="挂账">挂账</option>
-                      <option value="免费">免费</option>
-                    </select>
+                    <label>备注</label>
+                    <textarea
+                      id="ci-notes"
+                      rows="2"
+                      placeholder="如：随众、病号、老人等"
+                    ></textarea>
                   </div>
-                  <div class="field">
-                    <label>收款备注</label>
-                    <input
-                      type="text"
-                      id="ci-pay-remark"
-                      placeholder="收据号/团账等"
-                    />
+                  <input type="hidden" id="ci-resv-id" />
+                  <div class="form-wizard-inline-actions">
+                    <button type="submit" class="btn btn-primary">
+                      办理入住
+                    </button>
+                    <button type="button" class="btn" onclick="resetCheckin()">
+                      清空
+                    </button>
                   </div>
-                </div>
-                <div class="field">
-                  <label>用斋默认 *</label>
-                  <div id="ci-meal-need-wrap"></div>
-                  <div class="field-error" id="ci-meal-need-error"></div>
-                </div>
-                <div class="field">
-                  <label>备注</label>
-                  <textarea
-                    id="ci-notes"
-                    rows="2"
-                    placeholder="如：随众、病号、老人等"
-                  ></textarea>
-                </div>
-                <input type="hidden" id="ci-resv-id" />
-                <div class="form-wizard-inline-actions">
-                  <button type="submit" class="btn btn-primary">办理入住</button>
-                  <button type="button" class="btn" onclick="resetCheckin()">
-                    清空
-                  </button>
-                </div>
                 </section>
                 <div class="form-wizard-sticky">
                   <button
@@ -1001,7 +1045,12 @@
                     class="form-wizard-step active"
                     data-wizard-step="1"
                     aria-selected="true"
-                    onclick="document.getElementById('resv-form').setAttribute('data-wizard-step','1'); syncStayFormWizard('resv-form');"
+                    onclick="
+                      document
+                        .getElementById('resv-form')
+                        .setAttribute('data-wizard-step', '1');
+                      syncStayFormWizard('resv-form');
+                    "
                   >
                     1 身份
                   </button>
@@ -1010,165 +1059,179 @@
                     class="form-wizard-step"
                     data-wizard-step="2"
                     aria-selected="false"
-                    onclick="document.getElementById('resv-form').setAttribute('data-wizard-step','2'); syncStayFormWizard('resv-form');"
+                    onclick="
+                      document
+                        .getElementById('resv-form')
+                        .setAttribute('data-wizard-step', '2');
+                      syncStayFormWizard('resv-form');
+                    "
                   >
                     2 预约
                   </button>
                 </div>
 
-                <section class="form-wizard-panel is-active" data-wizard-panel="1">
-                <div class="form-grid">
-                  <div class="field">
-                    <label>姓名 / 法名 *</label
-                    ><input
-                      type="text"
-                      id="resv-name"
-                      required
-                      placeholder="姓名或法名"
-                    />
+                <section
+                  class="form-wizard-panel is-active"
+                  data-wizard-panel="1"
+                >
+                  <div class="form-grid">
+                    <div class="field">
+                      <label>姓名 / 法名 *</label
+                      ><input
+                        type="text"
+                        id="resv-name"
+                        required
+                        placeholder="姓名或法名"
+                      />
+                    </div>
+                    <div class="field">
+                      <label>性别 *</label>
+                      <select id="resv-gender" required>
+                        <option value="">请选择</option>
+                        <option value="男">男</option>
+                        <option value="女">女</option>
+                      </select>
+                    </div>
+                    <div class="field">
+                      <label>手机号</label>
+                      <input
+                        type="tel"
+                        id="resv-phone"
+                        placeholder="手机 / 座机 / 国际号；无则填紧急联系人"
+                        oninput="filterPhoneLoose(this)"
+                        onblur="validateField(this)"
+                      />
+                      <div class="field-error" id="resv-phone-error"></div>
+                    </div>
+                    <div class="field">
+                      <label>身份证 *</label>
+                      <input
+                        type="text"
+                        id="resv-idcard"
+                        required
+                        placeholder="18 位必填"
+                        inputmode="numeric"
+                        oninput="filterIdCard(this)"
+                        onblur="validateField(this)"
+                      />
+                      <div class="field-error" id="resv-idcard-error"></div>
+                    </div>
+                    <div class="field">
+                      <label>紧急联系人</label>
+                      <input
+                        type="text"
+                        id="resv-emergency-name"
+                        placeholder="无手机号时必填"
+                      />
+                    </div>
+                    <div class="field">
+                      <label>紧急联系电话</label>
+                      <input
+                        type="tel"
+                        id="resv-emergency-phone"
+                        placeholder="无手机号时必填"
+                        oninput="filterPhoneLoose(this)"
+                        onblur="validateField(this)"
+                      />
+                      <div
+                        class="field-error"
+                        id="resv-emergency-phone-error"
+                      ></div>
+                    </div>
                   </div>
-                  <div class="field">
-                    <label>性别 *</label>
-                    <select id="resv-gender" required>
-                      <option value="">请选择</option>
-                      <option value="男">男</option>
-                      <option value="女">女</option>
-                    </select>
-                  </div>
-                  <div class="field">
-                    <label>手机号</label>
-                    <input
-                      type="tel"
-                      id="resv-phone"
-                      placeholder="手机 / 座机 / 国际号；无则填紧急联系人"
-                      oninput="filterPhoneLoose(this)"
-                      onblur="validateField(this)"
-                    />
-                    <div class="field-error" id="resv-phone-error"></div>
-                  </div>
-                  <div class="field">
-                    <label>身份证 *</label>
-                    <input
-                      type="text"
-                      id="resv-idcard"
-                      required
-                      placeholder="18 位必填"
-                      inputmode="numeric"
-                      oninput="filterIdCard(this)"
-                      onblur="validateField(this)"
-                    />
-                    <div class="field-error" id="resv-idcard-error"></div>
-                  </div>
-                  <div class="field">
-                    <label>紧急联系人</label>
-                    <input
-                      type="text"
-                      id="resv-emergency-name"
-                      placeholder="无手机号时必填"
-                    />
-                  </div>
-                  <div class="field">
-                    <label>紧急联系电话</label>
-                    <input
-                      type="tel"
-                      id="resv-emergency-phone"
-                      placeholder="无手机号时必填"
-                      oninput="filterPhoneLoose(this)"
-                      onblur="validateField(this)"
-                    />
-                    <div class="field-error" id="resv-emergency-phone-error"></div>
-                  </div>
-                </div>
                 </section>
 
                 <section class="form-wizard-panel" data-wizard-panel="2" hidden>
-                <div class="form-grid">
-                  <div class="field">
-                    <label>身份</label>
-                    <select id="resv-role" class="lodger-role-select"></select>
+                  <div class="form-grid">
+                    <div class="field">
+                      <label>身份</label>
+                      <select
+                        id="resv-role"
+                        class="lodger-role-select"
+                      ></select>
+                    </div>
+                    <div class="field">
+                      <label>预计入住 *</label
+                      ><input type="date" id="resv-in" required />
+                    </div>
+                    <div class="field">
+                      <label>预计离院</label><input type="date" id="resv-out" />
+                    </div>
+                    <div class="field">
+                      <label>房间偏好</label
+                      ><input
+                        type="text"
+                        id="resv-room"
+                        placeholder="如：101 / 男众"
+                      />
+                    </div>
+                    <div class="field">
+                      <label>所属营期</label
+                      ><select id="resv-event">
+                        <option value="">散客 / 不归属营期</option>
+                      </select>
+                    </div>
+                    <div class="field">
+                      <label>班级/分组</label
+                      ><input
+                        type="text"
+                        id="resv-class"
+                        placeholder="如：一班、师父组"
+                      />
+                    </div>
+                    <div class="field">
+                      <label>排房身份</label>
+                      <select id="resv-participant-identity"></select>
+                    </div>
+                    <div class="field">
+                      <label>年龄段</label>
+                      <select id="resv-age-group"></select>
+                    </div>
+                    <div class="field field-span-all">
+                      <label>特殊需求（排房）</label>
+                      <textarea
+                        id="resv-special-needs"
+                        rows="2"
+                        placeholder="如：下铺、安静、行动不便"
+                      ></textarea>
+                    </div>
+                    <div class="field">
+                      <label>来源</label>
+                      <select id="resv-source">
+                        <option value="">请选择</option>
+                        <option value="电话">电话</option>
+                        <option value="微信">微信</option>
+                        <option value="现场">现场</option>
+                        <option value="其他">其他</option>
+                      </select>
+                    </div>
                   </div>
                   <div class="field">
-                    <label>预计入住 *</label
-                    ><input type="date" id="resv-in" required />
+                    <label>用斋需求 *</label>
+                    <div id="resv-meal-need-wrap"></div>
+                    <div class="field-error" id="resv-meal-need-error"></div>
                   </div>
                   <div class="field">
-                    <label>预计离院</label><input type="date" id="resv-out" />
-                  </div>
-                  <div class="field">
-                    <label>房间偏好</label
-                    ><input
-                      type="text"
-                      id="resv-room"
-                      placeholder="如：101 / 男众"
-                    />
-                  </div>
-                  <div class="field">
-                    <label>所属营期</label
-                    ><select id="resv-event">
-                      <option value="">散客 / 不归属营期</option>
-                    </select>
-                  </div>
-                  <div class="field">
-                    <label>班级/分组</label
-                    ><input
-                      type="text"
-                      id="resv-class"
-                      placeholder="如：一班、师父组"
-                    />
-                  </div>
-                  <div class="field">
-                    <label>排房身份</label>
-                    <select id="resv-participant-identity"></select>
-                  </div>
-                  <div class="field">
-                    <label>年龄段</label>
-                    <select id="resv-age-group"></select>
-                  </div>
-                  <div class="field field-span-all">
-                    <label>特殊需求（排房）</label>
-                    <textarea
-                      id="resv-special-needs"
+                    <label>备注</label
+                    ><textarea
+                      id="resv-notes"
                       rows="2"
-                      placeholder="如：下铺、安静、行动不便"
+                      placeholder="特殊需求"
                     ></textarea>
                   </div>
-                  <div class="field">
-                    <label>来源</label>
-                    <select id="resv-source">
-                      <option value="">请选择</option>
-                      <option value="电话">电话</option>
-                      <option value="微信">微信</option>
-                      <option value="现场">现场</option>
-                      <option value="其他">其他</option>
-                    </select>
+                  <input type="hidden" id="resv-id" />
+                  <div class="form-wizard-inline-actions">
+                    <button
+                      type="submit"
+                      class="btn btn-primary"
+                      id="resv-submit-btn"
+                    >
+                      添加预约
+                    </button>
+                    <button type="button" class="btn" onclick="resetResvForm()">
+                      清空
+                    </button>
                   </div>
-                </div>
-                <div class="field">
-                  <label>用斋需求 *</label>
-                  <div id="resv-meal-need-wrap"></div>
-                  <div class="field-error" id="resv-meal-need-error"></div>
-                </div>
-                <div class="field">
-                  <label>备注</label
-                  ><textarea
-                    id="resv-notes"
-                    rows="2"
-                    placeholder="特殊需求"
-                  ></textarea>
-                </div>
-                <input type="hidden" id="resv-id" />
-                <div class="form-wizard-inline-actions">
-                  <button
-                    type="submit"
-                    class="btn btn-primary"
-                    id="resv-submit-btn"
-                  >
-                    添加预约
-                  </button>
-                  <button type="button" class="btn" onclick="resetResvForm()">
-                    清空
-                  </button>
-                </div>
                 </section>
                 <div class="form-wizard-sticky">
                   <button
@@ -1724,25 +1787,60 @@
         </button>
       </div>
       <div class="mobile-more-grid">
-        <button type="button" class="mobile-more-item" data-view="lodging" onclick="mobileNavGo('lodging')">
+        <button
+          type="button"
+          class="mobile-more-item"
+          data-view="lodging"
+          onclick="mobileNavGo('lodging')"
+        >
           住宿管理
         </button>
-        <button type="button" class="mobile-more-item" data-view="housekeeping" onclick="mobileNavGo('housekeeping')">
+        <button
+          type="button"
+          class="mobile-more-item"
+          data-view="housekeeping"
+          onclick="mobileNavGo('housekeeping')"
+        >
           客房维护
         </button>
-        <button type="button" class="mobile-more-item" data-view="forecast" onclick="mobileNavGo('forecast')">
+        <button
+          type="button"
+          class="mobile-more-item"
+          data-view="forecast"
+          onclick="mobileNavGo('forecast')"
+        >
           流动预测
         </button>
-        <button type="button" class="mobile-more-item" data-view="history" onclick="mobileNavGo('history')">
+        <button
+          type="button"
+          class="mobile-more-item"
+          data-view="history"
+          onclick="mobileNavGo('history')"
+        >
           历史查询
         </button>
-        <button type="button" class="mobile-more-item" data-view="reservations" onclick="mobileNavGo('reservations')">
+        <button
+          type="button"
+          class="mobile-more-item"
+          data-view="reservations"
+          onclick="mobileNavGo('reservations')"
+        >
           新增预约
         </button>
-        <button type="button" class="mobile-more-item" data-view="info" onclick="mobileNavGo('info')">
+        <button
+          type="button"
+          class="mobile-more-item"
+          data-view="info"
+          onclick="mobileNavGo('info')"
+        >
           信息管理
         </button>
-        <button type="button" class="mobile-more-item" data-view="backup" onclick="mobileNavGo('backup')">
+        <button
+          type="button"
+          class="mobile-more-item"
+          data-view="backup"
+          onclick="mobileNavGo('backup')"
+        >
           系统设置
         </button>
       </div>

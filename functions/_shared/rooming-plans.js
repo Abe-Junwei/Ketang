@@ -1,13 +1,11 @@
-import {
-  batchD1,
-  insertAudit,
-  queryD1,
-  runD1,
-} from "./d1.js";
+import { batchD1, insertAudit, queryD1, runD1 } from "./d1.js";
 import { finishWrite } from "./write-response.js";
 import { housekeepingRequiresInspect } from "./operational-settings.js";
 import { requirePermission } from "./permissions.js";
-import { evaluateRoomingConflicts, dateRangesOverlap } from "./rooming-conflicts.js";
+import {
+  evaluateRoomingConflicts,
+  dateRangesOverlap,
+} from "./rooming-conflicts.js";
 
 export const PLAN_STATUSES = new Set(["未确认", "待调整", "已确认"]);
 export const ITEM_STATUSES = new Set(["未确认", "待调整", "已确认"]);
@@ -46,7 +44,12 @@ function spareRoomExcludeSql(alias, includeSpare) {
   return `(COALESCE(${a}.location, '') NOT LIKE '备用%' AND COALESCE(${a}.location, '') NOT LIKE '%备用床%' AND COALESCE(${a}.name, '') NOT LIKE '备用%')`;
 }
 
-export function buildForecastMembers(event, registeredCount, registeredMale, registeredFemale) {
+export function buildForecastMembers(
+  event,
+  registeredCount,
+  registeredMale,
+  registeredFemale,
+) {
   const members = [];
   const expected = event.expected_count || 0;
   if (expected <= registeredCount) return members;
@@ -59,7 +62,8 @@ export function buildForecastMembers(event, registeredCount, registeredMale, reg
   } else if (event.gender_type === "女众") {
     needFemale = Math.max(0, expected - registeredFemale);
   } else {
-    const maleRatio = registeredCount > 0 ? registeredMale / registeredCount : 0.5;
+    const maleRatio =
+      registeredCount > 0 ? registeredMale / registeredCount : 0.5;
     needMale = Math.round(remaining * maleRatio);
     needFemale = remaining - needMale;
   }
@@ -96,7 +100,10 @@ export function buildAutoBedAssignments(members, beds) {
     const ka = KIND_ORDER[a.member_kind] ?? 9;
     const kb = KIND_ORDER[b.member_kind] ?? 9;
     if (ka !== kb) return ka - kb;
-    return String(a.member_name || "").localeCompare(String(b.member_name || ""), "zh");
+    return String(a.member_name || "").localeCompare(
+      String(b.member_name || ""),
+      "zh",
+    );
   });
 
   const maleBeds = beds.filter((b) => dormMatchesGender(b.dorm_type, "男"));
@@ -184,8 +191,12 @@ export async function listEventMembersForPlan(env, eventId) {
     });
   });
   const registeredMale = members.filter((m) => m.member_gender === "男").length;
-  const registeredFemale = members.filter((m) => m.member_gender === "女").length;
-  const eventRows = await queryD1(env, "SELECT * FROM events WHERE id = ?", [eventId]);
+  const registeredFemale = members.filter(
+    (m) => m.member_gender === "女",
+  ).length;
+  const eventRows = await queryD1(env, "SELECT * FROM events WHERE id = ?", [
+    eventId,
+  ]);
   if (!eventRows.length) throw new Error("营期不存在");
   const forecast = buildForecastMembers(
     eventRows[0],
@@ -197,7 +208,9 @@ export async function listEventMembersForPlan(env, eventId) {
 }
 
 export async function listAssignableBeds(env, event, excludeBedIds) {
-  const exclude = new Set((excludeBedIds || []).map((id) => parseInt(id, 10)).filter(Boolean));
+  const exclude = new Set(
+    (excludeBedIds || []).map((id) => parseInt(id, 10)).filter(Boolean),
+  );
   const requireInspect = await housekeepingRequiresInspect(env);
   const hkStatuses = requireInspect ? "('可用')" : "('净房','可用')";
   const includeSpare = !!event.include_spare_beds;
@@ -267,7 +280,9 @@ export async function getRoomingPlanBundle(env, eventId) {
 }
 
 async function ensurePlanForEvent(env, session, eventId) {
-  const eventRows = await queryD1(env, "SELECT * FROM events WHERE id = ?", [eventId]);
+  const eventRows = await queryD1(env, "SELECT * FROM events WHERE id = ?", [
+    eventId,
+  ]);
   if (!eventRows.length) throw new Error("营期不存在");
   const existing = await queryD1(
     env,
@@ -302,16 +317,25 @@ async function ensurePlanForEvent(env, session, eventId) {
 
 export async function generateRoomingPlanAssignments(env, session, eventId) {
   await requirePermission(env, session, "settings.write");
-  const eventRows = await queryD1(env, "SELECT * FROM events WHERE id = ?", [eventId]);
+  const eventRows = await queryD1(env, "SELECT * FROM events WHERE id = ?", [
+    eventId,
+  ]);
   if (!eventRows.length) throw new Error("营期不存在");
   const event = eventRows[0];
   const plan = await ensurePlanForEvent(env, session, eventId);
   const members = await listEventMembersForPlan(env, eventId);
-  const reservedBedIds = await listDraftReservedBedIds(env, eventId, plan.id, event);
+  const reservedBedIds = await listDraftReservedBedIds(
+    env,
+    eventId,
+    plan.id,
+    event,
+  );
   const beds = await listAssignableBeds(env, event, reservedBedIds);
   const draft = buildAutoBedAssignments(members, beds);
 
-  await runD1(env, "DELETE FROM rooming_assignments WHERE plan_id = ?", [plan.id]);
+  await runD1(env, "DELETE FROM rooming_assignments WHERE plan_id = ?", [
+    plan.id,
+  ]);
   const statements = draft.map(function (item) {
     return {
       sql: `INSERT INTO rooming_assignments
@@ -356,7 +380,9 @@ export async function generateRoomingPlanAssignments(env, session, eventId) {
 export async function saveRoomingPlan(env, session, body) {
   await requirePermission(env, session, "settings.write");
   const planId = requireId(body.plan_id, "预分房方案");
-  const plans = await queryD1(env, "SELECT * FROM rooming_plans WHERE id = ?", [planId]);
+  const plans = await queryD1(env, "SELECT * FROM rooming_plans WHERE id = ?", [
+    planId,
+  ]);
   if (!plans.length) throw new Error("预分房方案不存在");
   const plan = plans[0];
   const status = assertInSet(
@@ -512,7 +538,9 @@ export async function checkRoomingPlanConflicts(env, session, body) {
   const eventId = parseInt(body.event_id, 10) || 0;
   if (!eventId) throw new Error("缺少营期");
   const planId = parseInt(body.plan_id, 10) || 0;
-  const eventRows = await queryD1(env, "SELECT * FROM events WHERE id = ?", [eventId]);
+  const eventRows = await queryD1(env, "SELECT * FROM events WHERE id = ?", [
+    eventId,
+  ]);
   if (!eventRows.length) throw new Error("营期不存在");
 
   let assignments = body.assignments;
@@ -523,7 +551,9 @@ export async function checkRoomingPlanConflicts(env, session, body) {
   const enriched = await enrichAssignmentsForConflict(env, assignments);
   const bedIds = [
     ...new Set(
-      enriched.filter((row) => row.bed_id).map((row) => parseInt(row.bed_id, 10)),
+      enriched
+        .filter((row) => row.bed_id)
+        .map((row) => parseInt(row.bed_id, 10)),
     ),
   ];
   return evaluateRoomingConflicts({

@@ -75,10 +75,9 @@ async function logRoomingAdjustment(payload) {
 }
 
 function maybeLogRoomingChangeBed(lodgerId, oldBedId, newBedId) {
-  var lodger = query(
-    "SELECT event_id, name FROM lodgers WHERE id=?",
-    [lodgerId],
-  )[0];
+  var lodger = query("SELECT event_id, name FROM lodgers WHERE id=?", [
+    lodgerId,
+  ])[0];
   if (!lodger || !lodger.event_id) return;
   var plan = getPublishedRoomingPlan(lodger.event_id);
   if (!plan) return;
@@ -116,10 +115,9 @@ async function fetchRoomingRetrospective(eventId) {
   }
   var evt = query("SELECT * FROM events WHERE id = ?", [eventId])[0];
   if (!evt) throw new Error("营期不存在");
-  var plan = query(
-    "SELECT * FROM rooming_plans WHERE event_id = ? LIMIT 1",
-    [eventId],
-  )[0];
+  var plan = query("SELECT * FROM rooming_plans WHERE event_id = ? LIMIT 1", [
+    eventId,
+  ])[0];
   var queue = getLocalRoomingCheckinQueue(eventId);
   var adjustments = getLocalRoomingAdjustments(eventId);
   return {
@@ -248,7 +246,10 @@ async function renderRoomingRetrospective(eventId) {
 }
 
 async function handleRoomingManualNote(eventId) {
-  if (typeof hasPermission === "function" && !hasPermission("lodging.checkin")) {
+  if (
+    typeof hasPermission === "function" &&
+    !hasPermission("lodging.checkin")
+  ) {
     alert("权限不足");
     return;
   }
@@ -278,16 +279,7 @@ async function exportRoomingRetrospectiveCSV(eventId) {
   }
   var lines = [
     "\uFEFF" +
-      [
-        "营期",
-        "时间",
-        "类型",
-        "姓名",
-        "原床位",
-        "新床位",
-        "说明",
-        "操作人",
-      ]
+      ["营期", "时间", "类型", "姓名", "原床位", "新床位", "说明", "操作人"]
         .map(csvCell)
         .join(","),
   ];

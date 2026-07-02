@@ -80,9 +80,7 @@ function roomingSelectHtml(id, options, selected, emptyLabel) {
   var html = '<select id="' + id + '">';
   if (emptyLabel !== false) {
     html +=
-      '<option value="">' +
-      escapeHtml(emptyLabel || "请选择") +
-      "</option>";
+      '<option value="">' + escapeHtml(emptyLabel || "请选择") + "</option>";
   }
   options.forEach(function (opt) {
     html +=
@@ -118,7 +116,8 @@ function readEventRoomingFromForm() {
       "活动对象",
     ),
     arrival_date: document.getElementById("event-arrival-date")?.value || null,
-    departure_date: document.getElementById("event-departure-date")?.value || null,
+    departure_date:
+      document.getElementById("event-departure-date")?.value || null,
     confirmed_count: roomingIntOrNull(
       document.getElementById("event-confirmed-count")?.value,
     ),
@@ -154,7 +153,8 @@ function readEventRoomingFromForm() {
     manager_phone:
       document.getElementById("event-manager-phone")?.value.trim() || null,
     backup_manager_name:
-      document.getElementById("event-backup-manager-name")?.value.trim() || null,
+      document.getElementById("event-backup-manager-name")?.value.trim() ||
+      null,
     needs_central_lodging: roomingFlag01(
       document.getElementById("event-needs-central-lodging"),
     ),
@@ -206,7 +206,10 @@ function eventRoomingFormFieldsHtml(e) {
     ) +
     infoField(
       "实到人数",
-      roomingCountFieldHtml("event-actual-arrival-count", row.actual_arrival_count),
+      roomingCountFieldHtml(
+        "event-actual-arrival-count",
+        row.actual_arrival_count,
+      ),
       "event-actual-arrival-count",
     ) +
     infoField(
@@ -277,7 +280,7 @@ function eventRoomingFormFieldsHtml(e) {
       "event-backup-manager-name",
     ) +
     '<div class="field field-span-all">' +
-    '<label>住宿需求</label>' +
+    "<label>住宿需求</label>" +
     '<div class="role-perm-grid">' +
     roomingCheckboxField(
       "event-needs-central-lodging",
@@ -342,7 +345,7 @@ function participantTagFieldsHtml(prefix, row) {
       prefix + "-age-group",
     ) +
     '<div class="field field-span-all">' +
-    '<label>特殊需求（排房）</label>' +
+    "<label>特殊需求（排房）</label>" +
     '<textarea id="' +
     prefix +
     '-special-needs" rows="2" placeholder="如：下铺、安静、行动不便">' +
@@ -356,14 +359,35 @@ function roomTagFieldsHtml(r) {
   return (
     infoField(
       "房间类型",
-      roomingSelectHtml("info-room-type", ROOM_TYPE_OPTIONS, row.room_type || "学员房", false),
+      roomingSelectHtml(
+        "info-room-type",
+        ROOM_TYPE_OPTIONS,
+        row.room_type || "学员房",
+        false,
+      ),
       "info-room-type",
     ) +
     '<div class="field field-span-all"><label>排房标签</label><div class="role-perm-grid">' +
-    roomingCheckboxField("info-room-suitable-elder", "适合老人", !!row.suitable_elder) +
-    roomingCheckboxField("info-room-suitable-child", "适合儿童", !!row.suitable_child) +
-    roomingCheckboxField("info-room-near-zen", "靠近禅堂", !!row.near_zen_hall) +
-    roomingCheckboxField("info-room-flexible", "机动/可转换", !!row.flexible_use) +
+    roomingCheckboxField(
+      "info-room-suitable-elder",
+      "适合老人",
+      !!row.suitable_elder,
+    ) +
+    roomingCheckboxField(
+      "info-room-suitable-child",
+      "适合儿童",
+      !!row.suitable_child,
+    ) +
+    roomingCheckboxField(
+      "info-room-near-zen",
+      "靠近禅堂",
+      !!row.near_zen_hall,
+    ) +
+    roomingCheckboxField(
+      "info-room-flexible",
+      "机动/可转换",
+      !!row.flexible_use,
+    ) +
     "</div></div>"
   );
 }
@@ -373,11 +397,20 @@ function bedTagFieldsHtml(b) {
   return (
     infoField(
       "床位类型",
-      roomingSelectHtml("info-bed-type", BED_TYPE_OPTIONS, row.bed_type || "单床", false),
+      roomingSelectHtml(
+        "info-bed-type",
+        BED_TYPE_OPTIONS,
+        row.bed_type || "单床",
+        false,
+      ),
       "info-bed-type",
     ) +
     '<div class="field field-span-all"><label>排房标签</label><div class="role-perm-grid">' +
-    roomingCheckboxField("info-bed-suitable-elder", "适合老人", !!row.suitable_elder) +
+    roomingCheckboxField(
+      "info-bed-suitable-elder",
+      "适合老人",
+      !!row.suitable_elder,
+    ) +
     roomingCheckboxField("info-bed-flexible", "机动床", !!row.is_flexible) +
     "</div></div>"
   );
@@ -391,8 +424,12 @@ function readRoomTagFieldsFromForm() {
         ROOM_TYPE_OPTIONS,
         "房间类型",
       ) || "学员房",
-    suitable_elder: roomingFlag01(document.getElementById("info-room-suitable-elder")),
-    suitable_child: roomingFlag01(document.getElementById("info-room-suitable-child")),
+    suitable_elder: roomingFlag01(
+      document.getElementById("info-room-suitable-elder"),
+    ),
+    suitable_child: roomingFlag01(
+      document.getElementById("info-room-suitable-child"),
+    ),
     near_zen_hall: roomingFlag01(document.getElementById("info-room-near-zen")),
     flexible_use: roomingFlag01(document.getElementById("info-room-flexible")),
   };
@@ -406,7 +443,9 @@ function readBedTagFieldsFromForm() {
         BED_TYPE_OPTIONS,
         "床位类型",
       ) || "单床",
-    suitable_elder: roomingFlag01(document.getElementById("info-bed-suitable-elder")),
+    suitable_elder: roomingFlag01(
+      document.getElementById("info-bed-suitable-elder"),
+    ),
     is_flexible: roomingFlag01(document.getElementById("info-bed-flexible")),
   };
 }
@@ -414,12 +453,16 @@ function readBedTagFieldsFromForm() {
 function mountParticipantTagSelects() {
   populateParticipantTagSelects("ci");
   populateParticipantTagSelects("resv");
-  ["ci-participant-identity", "ci-age-group", "resv-participant-identity", "resv-age-group"].forEach(
-    function (id) {
-      var el = document.getElementById(id);
-      if (el && typeof rebuildSelectPicker === "function") rebuildSelectPicker(el);
-    },
-  );
+  [
+    "ci-participant-identity",
+    "ci-age-group",
+    "resv-participant-identity",
+    "resv-age-group",
+  ].forEach(function (id) {
+    var el = document.getElementById(id);
+    if (el && typeof rebuildSelectPicker === "function")
+      rebuildSelectPicker(el);
+  });
 }
 
 function populateParticipantTagSelects(prefix, row) {
@@ -436,10 +479,13 @@ function populateParticipantTagSelects(prefix, row) {
   );
   var needs = document.getElementById(prefix + "-special-needs");
   if (needs) needs.value = row.special_needs || "";
-  [prefix + "-participant-identity", prefix + "-age-group"].forEach(function (id) {
-    var el = document.getElementById(id);
-    if (el && typeof refreshSelectPicker === "function") refreshSelectPicker(el);
-  });
+  [prefix + "-participant-identity", prefix + "-age-group"].forEach(
+    function (id) {
+      var el = document.getElementById(id);
+      if (el && typeof refreshSelectPicker === "function")
+        refreshSelectPicker(el);
+    },
+  );
 }
 
 function fillRoomingSelect(el, options, selected) {

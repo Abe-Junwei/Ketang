@@ -12,18 +12,8 @@ document.getElementById("resv-form").addEventListener("submit", async (e) => {
     alert("预计离院日期不能早于预计入住日期");
     return;
   }
-  if (
-    !validateFields([
-      "resv-phone",
-      "resv-idcard",
-      "resv-emergency-phone",
-    ])
-  ) {
-    scrollToFirstError([
-      "resv-phone",
-      "resv-idcard",
-      "resv-emergency-phone",
-    ]);
+  if (!validateFields(["resv-phone", "resv-idcard", "resv-emergency-phone"])) {
+    scrollToFirstError(["resv-phone", "resv-idcard", "resv-emergency-phone"]);
     return;
   }
   const phoneRaw = document.getElementById("resv-phone").value.trim();
@@ -210,7 +200,8 @@ function resetResvForm() {
   var form = document.getElementById("resv-form");
   if (form) {
     form.setAttribute("data-wizard-step", "1");
-    if (typeof syncStayFormWizard === "function") syncStayFormWizard("resv-form");
+    if (typeof syncStayFormWizard === "function")
+      syncStayFormWizard("resv-form");
   }
 }
 
@@ -320,7 +311,10 @@ async function updateResvStatus(id, status) {
   try {
     var writeResult = null;
     if (useRemoteWriteApi()) {
-      writeResult = await apiUpdateReservationStatus({ reservation_id: id, status: status });
+      writeResult = await apiUpdateReservationStatus({
+        reservation_id: id,
+        status: status,
+      });
     } else {
       await withTransaction(async () => {
         run("UPDATE reservations SET status=? WHERE id=?", [status, id]);

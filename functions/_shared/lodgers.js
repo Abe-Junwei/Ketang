@@ -1,15 +1,7 @@
-import {
-  batchD1,
-  insertAudit,
-  queryD1,
-  runD1,
-} from "./d1.js";
+import { batchD1, insertAudit, queryD1, runD1 } from "./d1.js";
 import { finishWrite, recordSyncDeletion } from "./write-response.js";
 import { parsePersonNameInput, mergePersonNameFields } from "./person.js";
-import {
-  assertGuestIdentityFields,
-  normalizePhone,
-} from "./validation.js";
+import { assertGuestIdentityFields, normalizePhone } from "./validation.js";
 import { housekeepingRequiresInspect } from "./operational-settings.js";
 import { parseParticipantTagFields } from "./rooming-tags.js";
 

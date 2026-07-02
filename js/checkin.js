@@ -353,7 +353,10 @@ async function assignExistingLodgerToBed(lodgerId, bedId, opts) {
   try {
     var writeResult = null;
     if (useRemoteWriteApi()) {
-      writeResult = await apiAssignBed({ lodger_id: lodgerId, bed_id: parseInt(bedId, 10) });
+      writeResult = await apiAssignBed({
+        lodger_id: lodgerId,
+        bed_id: parseInt(bedId, 10),
+      });
     } else {
       await withTransaction(async () => {
         run("UPDATE lodgers SET bed_id=? WHERE id=? AND status='在住'", [
@@ -376,7 +379,12 @@ async function assignExistingLodgerToBed(lodgerId, bedId, opts) {
       showToast("已分配床位");
     }
     var refreshTask = refreshAfterWrite(writeResult);
-    if (opts && opts.awaitRefresh && refreshTask && typeof refreshTask.then === "function") {
+    if (
+      opts &&
+      opts.awaitRefresh &&
+      refreshTask &&
+      typeof refreshTask.then === "function"
+    ) {
       await refreshTask;
     }
     return true;
@@ -485,7 +493,12 @@ async function assignReservationToBed(resvId, bedId, opts) {
       showToast("已分配床位");
     }
     var refreshTask = refreshAfterWrite(writeResult);
-    if (opts && opts.awaitRefresh && refreshTask && typeof refreshTask.then === "function") {
+    if (
+      opts &&
+      opts.awaitRefresh &&
+      refreshTask &&
+      typeof refreshTask.then === "function"
+    ) {
       await refreshTask;
     }
     return true;
@@ -771,7 +784,8 @@ function resetCheckin() {
   var form = document.getElementById("checkin-form");
   if (form) {
     form.setAttribute("data-wizard-step", "1");
-    if (typeof syncStayFormWizard === "function") syncStayFormWizard("checkin-form");
+    if (typeof syncStayFormWizard === "function")
+      syncStayFormWizard("checkin-form");
   }
 }
 
@@ -836,10 +850,7 @@ function parseCSV(text) {
         "emergency_name",
         "emergency_contact",
       ]),
-      emergency_phone: get(cols, [
-        "紧急联系电话",
-        "emergency_phone",
-      ]),
+      emergency_phone: get(cols, ["紧急联系电话", "emergency_phone"]),
       role: get(cols, ["身份", "role"]),
       check_in_date: get(cols, ["入住日期", "check_in_date", "checkIn"]),
       expected_check_out: get(cols, [

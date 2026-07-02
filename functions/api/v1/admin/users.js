@@ -1,4 +1,9 @@
-import { json, readJson, apiErrorStatus, clientIp } from "../../../_shared/http.js";
+import {
+  json,
+  readJson,
+  apiErrorStatus,
+  clientIp,
+} from "../../../_shared/http.js";
 import { requireSession } from "../../../_shared/auth.js";
 import { buildDualAuthSuccess } from "../../../_shared/auth-response.js";
 import {

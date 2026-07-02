@@ -163,13 +163,7 @@ async function deleteRoom(env, session, body) {
     env,
     [
       { sql: "DELETE FROM rooms WHERE id = ?", params: [id] },
-      auditLogStatement(
-        "删除房间",
-        "room",
-        id,
-        { name: room.name },
-        session,
-      ),
+      auditLogStatement("删除房间", "room", id, { name: room.name }, session),
     ],
     {},
     ["settings"],
@@ -589,13 +583,7 @@ async function deleteEvent(env, session, body) {
     env,
     [
       { sql: "DELETE FROM events WHERE id = ?", params: [id] },
-      auditLogStatement(
-        "删除营期",
-        "event",
-        id,
-        { name: event.name },
-        session,
-      ),
+      auditLogStatement("删除营期", "event", id, { name: event.name }, session),
     ],
     {},
     ["events"],

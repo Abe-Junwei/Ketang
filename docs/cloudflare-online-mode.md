@@ -62,34 +62,34 @@
 
 ## API 路由
 
-| 路径                                 | 说明                                  |
-| ------------------------------------ | ------------------------------------- |
-| `POST /api/db`                       | 登录、query/run/batch_query、改密     |
-| `POST /api/v1/check-in`              | 入住登记                              |
-| `POST /api/v1/checkout`              | 退房                                  |
-| `POST /api/v1/change-bed`            | 换床                                  |
-| `POST /api/v1/extend-stay`           | 续住                                  |
-| `POST /api/v1/assign-bed`            | 分床（含预约转入住）                  |
-| `POST /api/v1/edit-lodger`           | 编辑在住挂单                          |
-| `POST /api/v1/delete-lodger`         | 删除历史挂单                          |
-| `POST /api/v1/save-meals`            | 保存用斋                              |
-| `POST /api/v1/set-house-status`      | 房务状态                              |
-| `POST /api/v1/upsert-reservation`    | 新增/编辑预约                         |
-| `POST /api/v1/reservation-status`    | 更新预约状态                          |
-| `POST /api/v1/batch-event-members`   | 营期批量取消/No-show                  |
-| `POST /api/v1/batch-check-in`        | CSV 批量入住（最多 100 条）           |
-| `GET /api/v1/read-model`             | 登录后全量读模型（冷启动/强制同步，ETag） |
-| `GET /api/v1/read/:module`           | 按模块读（board/events/lodgers/…）        |
-| `GET /api/v1/read/settings/:resource`| 信息管理子模块（rooms/beds/guests）       |
-| `GET /api/v1/read/event/:id`         | 单营期排房读模型                          |
-| `GET /api/v1/sync/delta?since=`      | 按域增量同步                              |
-| `GET /api/v1/stream/board`           | 看板版本 SSE 推送                         |
-| `GET /api/v1/board-version`          | 看板版本号                            |
-| `GET /api/v1/session`                | 校验当前登录会话                      |
-| `GET/POST /api/v1/admin/users`       | 用户列表 / 增改停用 / 重置密码 / 启用 |
-| `GET/POST /api/v1/admin/records`     | 房间床位营期等基础资料写操作          |
-| `GET/POST /api/v1/admin/data-backup` | JSON 导入导出                         |
-| `POST /api/public/reservations`      | 公开预约                              |
+| 路径                                  | 说明                                      |
+| ------------------------------------- | ----------------------------------------- |
+| `POST /api/db`                        | 登录、query/run/batch_query、改密         |
+| `POST /api/v1/check-in`               | 入住登记                                  |
+| `POST /api/v1/checkout`               | 退房                                      |
+| `POST /api/v1/change-bed`             | 换床                                      |
+| `POST /api/v1/extend-stay`            | 续住                                      |
+| `POST /api/v1/assign-bed`             | 分床（含预约转入住）                      |
+| `POST /api/v1/edit-lodger`            | 编辑在住挂单                              |
+| `POST /api/v1/delete-lodger`          | 删除历史挂单                              |
+| `POST /api/v1/save-meals`             | 保存用斋                                  |
+| `POST /api/v1/set-house-status`       | 房务状态                                  |
+| `POST /api/v1/upsert-reservation`     | 新增/编辑预约                             |
+| `POST /api/v1/reservation-status`     | 更新预约状态                              |
+| `POST /api/v1/batch-event-members`    | 营期批量取消/No-show                      |
+| `POST /api/v1/batch-check-in`         | CSV 批量入住（最多 100 条）               |
+| `GET /api/v1/read-model`              | 登录后全量读模型（冷启动/强制同步，ETag） |
+| `GET /api/v1/read/:module`            | 按模块读（board/events/lodgers/…）        |
+| `GET /api/v1/read/settings/:resource` | 信息管理子模块（rooms/beds/guests）       |
+| `GET /api/v1/read/event/:id`          | 单营期排房读模型                          |
+| `GET /api/v1/sync/delta?since=`       | 按域增量同步                              |
+| `GET /api/v1/stream/board`            | 看板版本 SSE 推送                         |
+| `GET /api/v1/board-version`           | 看板版本号                                |
+| `GET /api/v1/session`                 | 校验当前登录会话                          |
+| `GET/POST /api/v1/admin/users`        | 用户列表 / 增改停用 / 重置密码 / 启用     |
+| `GET/POST /api/v1/admin/records`      | 房间床位营期等基础资料写操作              |
+| `GET/POST /api/v1/admin/data-backup`  | JSON 导入导出                             |
+| `POST /api/public/reservations`       | 公开预约                                  |
 
 ## 本地 wrangler
 

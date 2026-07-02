@@ -1,15 +1,7 @@
-import {
-  batchD1,
-  insertAudit,
-  queryD1,
-  runD1,
-} from "./d1.js";
+import { batchD1, insertAudit, queryD1, runD1 } from "./d1.js";
 import { finishWrite } from "./write-response.js";
 import { parsePersonNameInput } from "./person.js";
-import {
-  assertGuestIdentityFields,
-  normalizePhone,
-} from "./validation.js";
+import { assertGuestIdentityFields, normalizePhone } from "./validation.js";
 import { parseParticipantTagFields } from "./rooming-tags.js";
 
 function participantTagValues(body) {

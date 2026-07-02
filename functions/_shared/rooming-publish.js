@@ -1,16 +1,16 @@
-import {
-  batchD1,
-  insertAudit,
-  queryD1,
-  runD1,
-} from "./d1.js";
+import { batchD1, insertAudit, queryD1, runD1 } from "./d1.js";
 import { finishWrite } from "./write-response.js";
 import { apiAssignBed, apiAssignReservationToBed } from "./lodgers.js";
 import { requirePermission } from "./permissions.js";
 import { checkRoomingPlanConflicts } from "./rooming-plans.js";
 
 export const QUEUE_STATUSES = new Set(["待办理", "已办理", "已跳过"]);
-export const ADJUSTMENT_KINDS = new Set(["换床", "跳过预分", "手动备注", "其他"]);
+export const ADJUSTMENT_KINDS = new Set([
+  "换床",
+  "跳过预分",
+  "手动备注",
+  "其他",
+]);
 
 function text(value) {
   const v = String(value || "").trim();
@@ -94,7 +94,9 @@ async function insertQueueFromAssignments(env, planId, eventId, assignments) {
 
 export async function publishRoomingPlan(env, session, eventId) {
   await requirePermission(env, session, "settings.write");
-  const eventRows = await queryD1(env, "SELECT * FROM events WHERE id = ?", [eventId]);
+  const eventRows = await queryD1(env, "SELECT * FROM events WHERE id = ?", [
+    eventId,
+  ]);
   if (!eventRows.length) throw new Error("营期不存在");
   const plans = await queryD1(
     env,
@@ -273,9 +275,11 @@ async function roomingQueueAssignAlreadyDoneServer(env, item) {
     return !!(rows[0] && rows[0].bed_id == item.suggested_bed_id);
   }
   if (item.member_kind === "reservation") {
-    const rows = await queryD1(env, "SELECT status FROM reservations WHERE id=?", [
-      item.member_ref_id,
-    ]);
+    const rows = await queryD1(
+      env,
+      "SELECT status FROM reservations WHERE id=?",
+      [item.member_ref_id],
+    );
     return !!(rows[0] && rows[0].status === "已入住");
   }
   return false;

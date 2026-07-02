@@ -85,7 +85,9 @@ self.addEventListener("activate", function (event) {
         return Promise.all(
           keys
             .filter(function (key) {
-              return key.indexOf("ketang-shell-") === 0 && key !== CACHE_VERSION;
+              return (
+                key.indexOf("ketang-shell-") === 0 && key !== CACHE_VERSION
+              );
             })
             .map(function (key) {
               return caches.delete(key);

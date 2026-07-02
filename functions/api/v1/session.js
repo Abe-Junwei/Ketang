@@ -20,11 +20,9 @@ export async function onRequestGet({ request, env }) {
       getSessionUser(env, request, (sql, params) => queryD1(env, sql, params)),
     );
     if (!result) {
-      return jsonWithCookies(
-        { error: "登录已过期，请重新登录" },
-        401,
-        [clearAccessCookieHeader()],
-      );
+      return jsonWithCookies({ error: "登录已过期，请重新登录" }, 401, [
+        clearAccessCookieHeader(),
+      ]);
     }
     if (wantTiming(request)) {
       console.log("ketang_timing", JSON.stringify({ session_ms: "see stage" }));

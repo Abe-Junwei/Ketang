@@ -143,7 +143,10 @@ async function submitExtend(id) {
   try {
     var writeResult = null;
     if (useRemoteWriteApi()) {
-      writeResult = await apiExtendStay({ lodger_id: id, expected_check_out: date });
+      writeResult = await apiExtendStay({
+        lodger_id: id,
+        expected_check_out: date,
+      });
     } else {
       await withTransaction(async () => {
         run(
@@ -289,7 +292,10 @@ async function submitChangeBed(lodgerId, gender) {
         "SELECT bed_id, guest_id, name, event_id FROM lodgers WHERE id=?",
         [lodgerId],
       )[0];
-      writeResult = await apiChangeBed({ lodger_id: lodgerId, bed_id: parseInt(bedId, 10) });
+      writeResult = await apiChangeBed({
+        lodger_id: lodgerId,
+        bed_id: parseInt(bedId, 10),
+      });
       if (old && typeof maybeLogRoomingChangeBed === "function") {
         await maybeLogRoomingChangeBed(lodgerId, old.bed_id, bedId);
       }
@@ -397,7 +403,8 @@ function openEditLodgerModal(id) {
   populateEventSelect("edit-event", l.event_id || null);
   ["edit-participant-identity", "edit-age-group"].forEach(function (id) {
     var el = document.getElementById(id);
-    if (el && typeof rebuildSelectPicker === "function") rebuildSelectPicker(el);
+    if (el && typeof rebuildSelectPicker === "function")
+      rebuildSelectPicker(el);
   });
   modal.classList.add("active");
 }
@@ -419,8 +426,9 @@ async function submitEditLodger(id) {
   const phoneRaw = document.getElementById("edit-phone").value.trim();
   const phone = phoneRaw ? phoneRaw.replace(/\s/g, "") : null;
   const idCard = document.getElementById("edit-idcard").value.trim();
-  const emergencyName =
-    document.getElementById("edit-emergency-name").value.trim();
+  const emergencyName = document
+    .getElementById("edit-emergency-name")
+    .value.trim();
   const emergencyPhoneRaw = document
     .getElementById("edit-emergency-phone")
     .value.trim();

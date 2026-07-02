@@ -70,9 +70,11 @@ export function evaluateRoomingConflicts(input) {
       code: "bed_duplicate",
       message:
         "同一床位分配给多人：" +
-        rows.map(function (r) {
-          return r.member_name;
-        }).join("、") +
+        rows
+          .map(function (r) {
+            return r.member_name;
+          })
+          .join("、") +
         " → " +
         bedLabel(rows[0]),
       assignment_ids: rows.map(function (r) {
@@ -110,7 +112,9 @@ export function evaluateRoomingConflicts(input) {
     }
 
     const hk = hkByBed[row.bed_id];
-    const hkOk = requireInspect ? hk === "可用" : hk === "净房" || hk === "可用";
+    const hkOk = requireInspect
+      ? hk === "可用"
+      : hk === "净房" || hk === "可用";
     if (hk && !hkOk) {
       pushConflict(conflicts, {
         severity: CONFLICT_SEVERITY.ERROR,

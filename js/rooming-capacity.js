@@ -123,15 +123,10 @@ function getCapacityBedTotals(includeSpare) {
     " FROM beds b JOIN rooms r ON r.id=b.room_id WHERE b.status!='维修' AND b.status!='备用' AND " +
     spareSql;
   return {
-    male: query(
-      "SELECT COUNT(*) as c" + base + " AND r.dorm_type='男寮'",
-    )[0].c,
-    female: query(
-      "SELECT COUNT(*) as c" + base + " AND r.dorm_type='女寮'",
-    )[0].c,
-    flex: query(
-      "SELECT COUNT(*) as c" + base + " AND r.dorm_type='不限'",
-    )[0].c,
+    male: query("SELECT COUNT(*) as c" + base + " AND r.dorm_type='男寮'")[0].c,
+    female: query("SELECT COUNT(*) as c" + base + " AND r.dorm_type='女寮'")[0]
+      .c,
+    flex: query("SELECT COUNT(*) as c" + base + " AND r.dorm_type='不限'")[0].c,
     total: query("SELECT COUNT(*) as c" + base)[0].c,
   };
 }
@@ -201,8 +196,7 @@ function computeDailyCapacityForecast(startDate, dayCount) {
     var totalElder = demo.elder + forecastElder;
     var totalTeacher = demo.teacher + forecastTeacher;
     var totalVolunteer = demo.volunteer + forecastVolunteer;
-    var totalPeople =
-      registered.length + forecastMale + forecastFemale;
+    var totalPeople = registered.length + forecastMale + forecastFemale;
     var capacityUsable = beds.male + beds.female + beds.flex;
     var lodgingDemand = totalMale + totalFemale;
     var maleGap = Math.max(0, totalMale - beds.male);
@@ -293,7 +287,9 @@ function renderBoardCapacityForecast() {
   rows.forEach(function (row) {
     var gapText = row.totalGap > 0 ? "缺 " + row.totalGap : "充足";
     var gapClass = row.totalGap > 0 ? "forecast-warning" : "forecast-ok";
-    var spareHint = row.includeSpare ? ' <span class="board-cap-spare-hint">含备用床</span>' : "";
+    var spareHint = row.includeSpare
+      ? ' <span class="board-cap-spare-hint">含备用床</span>'
+      : "";
     html +=
       "<tr" +
       (row.totalGap > 0 ? ' class="board-cap-gap-row"' : "") +

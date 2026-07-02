@@ -75,10 +75,9 @@ function insertLocalRoomingQueueRows(planId, eventId, assignments) {
 async function publishLocalRoomingPlan(eventId) {
   var evt = query("SELECT * FROM events WHERE id = ?", [eventId])[0];
   if (!evt) throw new Error("营期不存在");
-  var plan = query(
-    "SELECT * FROM rooming_plans WHERE event_id = ? LIMIT 1",
-    [eventId],
-  )[0];
+  var plan = query("SELECT * FROM rooming_plans WHERE event_id = ? LIMIT 1", [
+    eventId,
+  ])[0];
   if (!plan) throw new Error("请先生成并保存预分房草稿");
   if (plan.status !== "已确认") {
     throw new Error("仅「已确认」的预分房方案可发布");
@@ -103,10 +102,9 @@ async function publishLocalRoomingPlan(eventId) {
 }
 
 async function republishLocalRoomingPlan(eventId) {
-  var plan = query(
-    "SELECT * FROM rooming_plans WHERE event_id = ? LIMIT 1",
-    [eventId],
-  )[0];
+  var plan = query("SELECT * FROM rooming_plans WHERE event_id = ? LIMIT 1", [
+    eventId,
+  ])[0];
   if (!plan) throw new Error("预分房方案不存在");
   if (!plan.published_at) throw new Error("尚未发布，请使用首次发布");
   if (plan.status !== "已确认") {
@@ -120,10 +118,7 @@ async function republishLocalRoomingPlan(eventId) {
   );
   var finalizedAssignmentIds = {};
   existing.forEach(function (row) {
-    if (
-      row.queue_status !== "待办理" &&
-      row.assignment_id != null
-    ) {
+    if (row.queue_status !== "待办理" && row.assignment_id != null) {
       finalizedAssignmentIds[row.assignment_id] = true;
     }
   });
@@ -151,10 +146,9 @@ async function fetchRoomingQueueBundle(eventId) {
   if (typeof useRemoteWriteApi === "function" && useRemoteWriteApi()) {
     return apiRoomingPlanAction("queue", { event_id: eventId });
   }
-  var plan = query(
-    "SELECT * FROM rooming_plans WHERE event_id = ? LIMIT 1",
-    [eventId],
-  )[0];
+  var plan = query("SELECT * FROM rooming_plans WHERE event_id = ? LIMIT 1", [
+    eventId,
+  ])[0];
   return { plan: plan || null, queue: getLocalRoomingCheckinQueue(eventId) };
 }
 
@@ -239,7 +233,8 @@ function renderRoomingQueueTable(eventId, queue, canProcess) {
         eventId +
         ')">跳过</button>';
     } else if (row.queue_status !== "待办理") {
-      actions = '<span class="text-muted">' + infoEscape(row.queue_status) + "</span>";
+      actions =
+        '<span class="text-muted">' + infoEscape(row.queue_status) + "</span>";
     }
     html +=
       "<tr>" +
@@ -247,7 +242,9 @@ function renderRoomingQueueTable(eventId, queue, canProcess) {
       infoEscape(row.member_name) +
       "</td>" +
       "<td>" +
-      infoEscape(ROOMING_QUEUE_KIND_LABELS[row.member_kind] || row.member_kind) +
+      infoEscape(
+        ROOMING_QUEUE_KIND_LABELS[row.member_kind] || row.member_kind,
+      ) +
       "</td>" +
       "<td>" +
       infoEscape(row.member_gender || "-") +
@@ -328,7 +325,9 @@ async function renderRoomingCheckinQueue(eventId) {
     '<p class="rooming-plan-hint">由预分房发布生成，不自动占床；知客师请逐条核对后办理入住或分配床位。</p>' +
     '<div class="rooming-summary">' +
     '<div class="rooming-summary-item"><span class="rooming-summary-label">发布状态</span><span class="rooming-summary-value">' +
-    (plan && plan.published_at ? "已发布 " + infoEscape(String(plan.published_at).slice(0, 16)) : "未发布") +
+    (plan && plan.published_at
+      ? "已发布 " + infoEscape(String(plan.published_at).slice(0, 16))
+      : "未发布") +
     "</span></div>" +
     '<div class="rooming-summary-item"><span class="rooming-summary-label">待办理</span><span class="rooming-summary-value' +
     (pending > 0 ? " rooming-gap" : "") +
@@ -358,7 +357,9 @@ async function handlePublishRoomingPlan(eventId) {
   }
   try {
     if (typeof useRemoteWriteApi === "function" && useRemoteWriteApi()) {
-      var publishResult = await apiRoomingPlanAction("publish", { event_id: eventId });
+      var publishResult = await apiRoomingPlanAction("publish", {
+        event_id: eventId,
+      });
       if (typeof refreshAfterWrite === "function") {
         var publishRefresh = refreshAfterWrite(publishResult);
         if (publishRefresh && typeof publishRefresh.then === "function") {
@@ -416,7 +417,10 @@ async function completeRoomingQueueCheckin(queueId, eventId, item) {
 }
 
 async function handleRoomingQueueCheckin(queueId, eventId) {
-  if (typeof hasPermission === "function" && !hasPermission("lodging.checkin")) {
+  if (
+    typeof hasPermission === "function" &&
+    !hasPermission("lodging.checkin")
+  ) {
     alert("权限不足");
     return;
   }
@@ -498,7 +502,10 @@ async function handleRoomingQueueCheckin(queueId, eventId) {
 }
 
 async function handleRoomingQueueSkip(queueId, eventId) {
-  if (typeof hasPermission === "function" && !hasPermission("lodging.checkin")) {
+  if (
+    typeof hasPermission === "function" &&
+    !hasPermission("lodging.checkin")
+  ) {
     alert("权限不足");
     return;
   }
@@ -535,7 +542,17 @@ async function exportRoomingCheckinListCSV(eventId) {
   }
   var lines = [
     "\uFEFF" +
-      ["营期", "姓名", "来源", "性别", "身份", "年龄段", "建议房间", "建议床位", "状态"]
+      [
+        "营期",
+        "姓名",
+        "来源",
+        "性别",
+        "身份",
+        "年龄段",
+        "建议房间",
+        "建议床位",
+        "状态",
+      ]
         .map(csvCell)
         .join(","),
   ];
@@ -548,7 +565,9 @@ async function exportRoomingCheckinListCSV(eventId) {
         row.member_gender || "",
         row.participant_identity || "",
         row.age_group || "",
-        row.room_location ? row.room_location + " " + (row.room_name || "") : row.room_name || "",
+        row.room_location
+          ? row.room_location + " " + (row.room_name || "")
+          : row.room_name || "",
         row.bed_number || "",
         row.queue_status,
       ]
@@ -572,8 +591,10 @@ async function exportRoomingRoomTableCSV(eventId) {
     return;
   }
   queue.sort(function (a, b) {
-    var ra = (a.room_location || "") + (a.room_name || "") + (a.bed_number || "");
-    var rb = (b.room_location || "") + (b.room_name || "") + (b.bed_number || "");
+    var ra =
+      (a.room_location || "") + (a.room_name || "") + (a.bed_number || "");
+    var rb =
+      (b.room_location || "") + (b.room_name || "") + (b.bed_number || "");
     return ra.localeCompare(rb, "zh");
   });
   var lines = [
@@ -687,7 +708,9 @@ function buildRoomingPrintMeta(evt) {
     infoEscape(evt.name) +
     "</h2>" +
     (dates.length
-      ? '<p class="rooming-print-dates">' + infoEscape(dates.join(" ~ ")) + "</p>"
+      ? '<p class="rooming-print-dates">' +
+        infoEscape(dates.join(" ~ ")) +
+        "</p>"
       : "") +
     '<p class="rooming-print-ts">打印时间：' +
     infoEscape(roomingQueueProcessedAt()) +
@@ -697,7 +720,8 @@ function buildRoomingPrintMeta(evt) {
 
 function buildRoomingRoomTablePrintHtml(evt, groups) {
   var html = buildRoomingPrintMeta(evt);
-  html += '<table class="rooming-print-table"><thead><tr>' +
+  html +=
+    '<table class="rooming-print-table"><thead><tr>' +
     "<th>位置</th><th>房间</th><th>寮房</th><th>床位</th><th>姓名</th><th>性别</th><th>身份</th><th>状态</th>" +
     "</tr></thead><tbody>";
   groups.forEach(function (group) {
@@ -737,12 +761,14 @@ function buildRoomingDoorLabelsPrintHtml(evt, groups) {
       infoEscape(group.room_name) +
       "</h3>" +
       (group.room_location
-        ? '<p class="rooming-door-loc">' + infoEscape(group.room_location) + "</p>"
+        ? '<p class="rooming-door-loc">' +
+          infoEscape(group.room_location) +
+          "</p>"
         : "") +
       (group.dorm_type
         ? '<p class="rooming-door-type">' + infoEscape(group.dorm_type) + "</p>"
         : "") +
-      "</div><ul class=\"rooming-door-beds\">";
+      '</div><ul class="rooming-door-beds">';
     group.beds.forEach(function (row) {
       html +=
         '<li><span class="rooming-door-bed">' +

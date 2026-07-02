@@ -35,9 +35,11 @@ function enrichAssignmentsForConflictCheck(assignments) {
 
 function listLocalOccupiedBedsForConflict(bedIds, eventId) {
   if (!bedIds.length) return [];
-  var placeholders = bedIds.map(function () {
-    return "?";
-  }).join(",");
+  var placeholders = bedIds
+    .map(function () {
+      return "?";
+    })
+    .join(",");
   return query(
     "SELECT l.id AS lodger_id, l.name AS lodger_name, l.event_id, l.bed_id, l.check_in_date, " +
       "COALESCE(l.actual_check_out, l.expected_check_out) AS check_out_date, " +
@@ -68,9 +70,11 @@ function listLocalOccupiedBedsForConflict(bedIds, eventId) {
 
 function listLocalOtherPlanBedUsage(bedIds, eventId, planId) {
   if (!bedIds.length) return [];
-  var placeholders = bedIds.map(function () {
-    return "?";
-  }).join(",");
+  var placeholders = bedIds
+    .map(function () {
+      return "?";
+    })
+    .join(",");
   var params = bedIds.concat([eventId, planId || 0]);
   return query(
     "SELECT ra.bed_id, ra.member_name, rp.id AS plan_id, rp.event_id, e.name AS event_name, " +
@@ -103,9 +107,11 @@ function listLocalOtherPlanBedUsage(bedIds, eventId, planId) {
 function buildLocalHkByBed(bedIds) {
   var map = {};
   if (!bedIds.length) return map;
-  var placeholders = bedIds.map(function () {
-    return "?";
-  }).join(",");
+  var placeholders = bedIds
+    .map(function () {
+      return "?";
+    })
+    .join(",");
   query(
     "SELECT bed_id, status FROM housekeeping WHERE bed_id IN (" +
       placeholders +
@@ -138,11 +144,7 @@ function evaluateLocalRoomingConflicts(eventId, planId, assignments) {
     event: evt,
     assignments: enriched,
     occupiedBeds: listLocalOccupiedBedsForConflict(uniqueBedIds, eventId),
-    otherPlanBeds: listLocalOtherPlanBedUsage(
-      uniqueBedIds,
-      eventId,
-      planId,
-    ),
+    otherPlanBeds: listLocalOtherPlanBedUsage(uniqueBedIds, eventId, planId),
     hkByBed: buildLocalHkByBed(uniqueBedIds),
     requireInspect: requireInspect,
   });
@@ -193,7 +195,8 @@ function renderRoomingConflictsPanel(conflictResult) {
     "</span>" +
     "</div>";
   if (errors.length) {
-    html += '<div class="rooming-conflict-group"><div class="rooming-conflict-group-title">必须处理</div><ul class="rooming-conflict-list">';
+    html +=
+      '<div class="rooming-conflict-group"><div class="rooming-conflict-group-title">必须处理</div><ul class="rooming-conflict-list">';
     errors.forEach(function (item) {
       html +=
         '<li class="rooming-conflict-item rooming-conflict-error">' +
@@ -383,18 +386,12 @@ function evaluateRoomingConflictsBrowser(input) {
         severity: "warning",
         code: "identity_room",
         message:
-          row.member_name +
-          "（师资）建议安排在师资房/客房，当前为 " +
-          roomType,
+          row.member_name + "（师资）建议安排在师资房/客房，当前为 " + roomType,
         assignment_ids: [row.id],
         bed_id: row.bed_id,
       });
     }
-    if (
-      identity === "义工" &&
-      roomType !== "义工房" &&
-      roomType !== "机动房"
-    ) {
+    if (identity === "义工" && roomType !== "义工房" && roomType !== "机动房") {
       conflicts.push({
         severity: "warning",
         code: "identity_room",
@@ -447,12 +444,7 @@ function evaluateRoomingConflictsBrowser(input) {
     if (
       eventStart &&
       eventEnd &&
-      !overlap(
-        eventStart,
-        eventEnd,
-        occ.check_in_date,
-        occ.check_out_date,
-      )
+      !overlap(eventStart, eventEnd, occ.check_in_date, occ.check_out_date)
     ) {
       return;
     }

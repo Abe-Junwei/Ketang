@@ -188,7 +188,11 @@ function validateField(input) {
     const rule = RULES[name];
     if (!rule) continue;
     const testValue =
-      name === "idCard" ? String(input.value || "").trim().toUpperCase() : raw;
+      name === "idCard"
+        ? String(input.value || "")
+            .trim()
+            .toUpperCase()
+        : raw;
     if (!rule.test(testValue)) {
       firstError = rule.msg;
       break;

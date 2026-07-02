@@ -29,9 +29,7 @@ export async function apiSetHouseStatus(env, session, body) {
   }
   const current = await getHouseStatus(env, bedId);
   const requireInspect = await housekeepingRequiresInspect(env);
-  if (
-    !isHousekeepingTransitionAllowed(current, status, requireInspect)
-  ) {
+  if (!isHousekeepingTransitionAllowed(current, status, requireInspect)) {
     throw new Error(
       requireInspect
         ? `当前为「${current}」，需按脏房→净房→查房→可入住流转`

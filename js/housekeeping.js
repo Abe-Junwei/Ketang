@@ -205,23 +205,17 @@ function loadOperationalSettings() {
 
 async function saveOperationalSettings() {
   if (typeof requireAdmin === "function" && !requireAdmin()) return;
-  const requireInspect = !!document.getElementById("hk-require-inspect")
-    ?.checked;
+  const requireInspect =
+    !!document.getElementById("hk-require-inspect")?.checked;
   try {
     var writeResult = null;
     if (typeof useRemoteWriteApi === "function" && useRemoteWriteApi()) {
       writeResult = await apiAdminSaveOperationalSettings({
         housekeeping_require_inspect: requireInspect,
       });
-      setAppMetaValue(
-        APP_META_HK_REQUIRE_INSPECT,
-        requireInspect ? "1" : "0",
-      );
+      setAppMetaValue(APP_META_HK_REQUIRE_INSPECT, requireInspect ? "1" : "0");
     } else {
-      setAppMetaValue(
-        APP_META_HK_REQUIRE_INSPECT,
-        requireInspect ? "1" : "0",
-      );
+      setAppMetaValue(APP_META_HK_REQUIRE_INSPECT, requireInspect ? "1" : "0");
       if (typeof saveDB === "function") await saveDB();
     }
     showToast("运营配置已保存");

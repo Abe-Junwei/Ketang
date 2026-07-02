@@ -33,7 +33,14 @@ export const PARTICIPANT_IDENTITY_OPTIONS = [
 
 export const AGE_GROUP_OPTIONS = ["成年", "老年", "儿童", "青少年"];
 
-export const BED_TYPE_OPTIONS = ["上铺", "下铺", "单床", "地铺", "折叠床", "机动床"];
+export const BED_TYPE_OPTIONS = [
+  "上铺",
+  "下铺",
+  "单床",
+  "地铺",
+  "折叠床",
+  "机动床",
+];
 
 export function text(value) {
   const v = value == null ? "" : String(value).trim();
@@ -97,7 +104,9 @@ export function parseEventRoomingFields(body) {
 
 export function parseRoomTagFields(body) {
   return {
-    room_type: assertOptionalInSet(body.room_type, ROOM_TYPE_OPTIONS, "房间类型") || "学员房",
+    room_type:
+      assertOptionalInSet(body.room_type, ROOM_TYPE_OPTIONS, "房间类型") ||
+      "学员房",
     suitable_elder: flag01(body.suitable_elder),
     suitable_child: flag01(body.suitable_child),
     near_zen_hall: flag01(body.near_zen_hall),
@@ -107,7 +116,9 @@ export function parseRoomTagFields(body) {
 
 export function parseBedTagFields(body) {
   return {
-    bed_type: assertOptionalInSet(body.bed_type, BED_TYPE_OPTIONS, "床位类型") || "单床",
+    bed_type:
+      assertOptionalInSet(body.bed_type, BED_TYPE_OPTIONS, "床位类型") ||
+      "单床",
     suitable_elder: flag01(body.suitable_elder),
     is_flexible: flag01(body.is_flexible),
   };

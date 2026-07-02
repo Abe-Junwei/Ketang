@@ -421,7 +421,8 @@ async function submitEvent(e) {
   const endDate = document.getElementById("event-end").value || null;
   const status = document.getElementById("event-status").value;
   const notes = document.getElementById("event-notes").value.trim() || null;
-  const includeSpareBeds = document.getElementById("event-include-spare")?.checked
+  const includeSpareBeds = document.getElementById("event-include-spare")
+    ?.checked
     ? 1
     : 0;
   let rooming;
@@ -663,7 +664,10 @@ function openRoomingSuggestion(eventId) {
   // 男众方案
   if (suggestion.malePlan.length > 0) {
     bodyHtml += `<h4 class="rooming-section-title">男众分配方案（${suggestion.registeredMale + (suggestion.maleGap > 0 ? suggestion.maleGap : 0)} 人）</h4>`;
-    bodyHtml += renderRoomingSuggestionTable(suggestion.malePlan, suggestion.maleGap);
+    bodyHtml += renderRoomingSuggestionTable(
+      suggestion.malePlan,
+      suggestion.maleGap,
+    );
   }
 
   // 女众方案

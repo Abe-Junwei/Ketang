@@ -212,7 +212,11 @@ function buildLocalAutoBedAssignments(members, beds) {
   sorted.forEach(function (member, index) {
     var gender = member.member_gender || "";
     var pool =
-      gender === "男" ? queues["男"] : gender === "女" ? queues["女"] : queues[""];
+      gender === "男"
+        ? queues["男"]
+        : gender === "女"
+          ? queues["女"]
+          : queues[""];
     var bed = null;
     for (var i = 0; i < pool.length; i++) {
       if (!used[pool[i].bed_id]) {
@@ -239,10 +243,9 @@ function buildLocalAutoBedAssignments(members, beds) {
 }
 
 function getLocalRoomingPlanBundle(eventId) {
-  var plan = query(
-    "SELECT * FROM rooming_plans WHERE event_id = ? LIMIT 1",
-    [eventId],
-  )[0];
+  var plan = query("SELECT * FROM rooming_plans WHERE event_id = ? LIMIT 1", [
+    eventId,
+  ])[0];
   if (!plan) return { plan: null, assignments: [] };
   var assignments = query(
     "SELECT ra.*, r.name AS room_name, r.location AS room_location, r.dorm_type, b.bed_number " +
@@ -267,10 +270,9 @@ function ensureLocalRoomingPlan(eventId) {
     "INSERT INTO rooming_plans (event_id, name, status, notes, updated_at) VALUES (?, ?, '未确认', '', CURRENT_TIMESTAMP)",
     [eventId, evt.name + " 预分房"],
   );
-  return query(
-    "SELECT * FROM rooming_plans WHERE event_id = ? LIMIT 1",
-    [eventId],
-  )[0];
+  return query("SELECT * FROM rooming_plans WHERE event_id = ? LIMIT 1", [
+    eventId,
+  ])[0];
 }
 
 function generateLocalRoomingPlan(eventId) {
@@ -320,13 +322,14 @@ function roomingBedLabel(row) {
 
 function roomingBedOptionLabel(bed) {
   var loc = bed.location ? bed.location + " " : "";
-  return loc + bed.room_name + " " + bed.bed_number + "（" + bed.dorm_type + "）";
+  return (
+    loc + bed.room_name + " " + bed.bed_number + "（" + bed.dorm_type + "）"
+  );
 }
 
 function buildRoomingBedSelectOptions(event, selectedBedId, memberGender) {
   var beds = listAllAssignableBedOptions(event);
-  var html =
-    '<option value="">未分配</option>';
+  var html = '<option value="">未分配</option>';
   beds.forEach(function (bed) {
     if (
       memberGender &&
@@ -358,7 +361,12 @@ function roomingPlanSummaryStats(assignments) {
   var female = assignments.filter(function (a) {
     return a.member_gender === "女";
   }).length;
-  return { assigned: assigned, unassigned: unassigned, male: male, female: female };
+  return {
+    assigned: assigned,
+    unassigned: unassigned,
+    male: male,
+    female: female,
+  };
 }
 
 function renderRoomingDraftTable(event, assignments, canEdit) {
@@ -388,7 +396,10 @@ function renderRoomingDraftTable(event, assignments, canEdit) {
     }
     var statusCell;
     if (canEdit) {
-      statusCell = '<select class="rooming-item-status-select" data-assignment-id="' + row.id + '">';
+      statusCell =
+        '<select class="rooming-item-status-select" data-assignment-id="' +
+        row.id +
+        '">';
       ROOMING_ITEM_STATUSES.forEach(function (st) {
         statusCell +=
           '<option value="' +
@@ -407,9 +418,7 @@ function renderRoomingDraftTable(event, assignments, canEdit) {
       "<tr>" +
       "<td>" +
       infoEscape(row.member_name) +
-      (row.special_needs
-        ? ' <span class="rooming-tag">特殊</span>'
-        : "") +
+      (row.special_needs ? ' <span class="rooming-tag">特殊</span>' : "") +
       "</td>" +
       "<td>" +
       infoEscape(ROOMING_KIND_LABELS[row.member_kind] || row.member_kind) +
@@ -500,7 +509,8 @@ function collectRoomingPlanFormState(plan, assignments) {
     );
     return {
       id: row.id,
-      bed_id: bedSelect && bedSelect.value ? parseInt(bedSelect.value, 10) : null,
+      bed_id:
+        bedSelect && bedSelect.value ? parseInt(bedSelect.value, 10) : null,
       item_status: statusSelect ? statusSelect.value : row.item_status,
       notes: row.notes,
       member_name: row.member_name,
@@ -558,8 +568,7 @@ async function renderRoomingPlan(eventId, options) {
   var assignments = bundle.assignments || [];
   var stats = roomingPlanSummaryStats(assignments);
   var noteParts = stripManagerAckFromNotes((plan && plan.notes) || "");
-  var formState =
-    options && options.formState ? options.formState : null;
+  var formState = options && options.formState ? options.formState : null;
   var checkAssignments = assignmentsForConflictCheck(
     assignments,
     formState ? formState.assignments : null,
@@ -633,7 +642,8 @@ async function renderRoomingPlan(eventId, options) {
 
   var statusSelect = "";
   if (canEdit && !isPublished) {
-    statusSelect = '<select id="rooming-plan-status" class="rooming-plan-status-select">';
+    statusSelect =
+      '<select id="rooming-plan-status" class="rooming-plan-status-select">';
     ROOMING_PLAN_STATUSES.forEach(function (st) {
       statusSelect +=
         '<option value="' +
@@ -691,7 +701,9 @@ async function renderRoomingPlan(eventId, options) {
         ) +
         "</textarea></div>"
       : plan && plan.notes
-        ? '<p class="rooming-plan-notes">备注：' + infoEscape(plan.notes) + "</p>"
+        ? '<p class="rooming-plan-notes">备注：' +
+          infoEscape(plan.notes) +
+          "</p>"
         : "") +
     renderRoomingDraftTable(evt, assignments, canEdit && !isPublished) +
     "</div>";

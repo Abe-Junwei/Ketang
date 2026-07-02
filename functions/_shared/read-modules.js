@@ -1,10 +1,7 @@
 import { getBoardVersion, initRemoteDatabase, queryD1 } from "./d1.js";
 import { LODGING_APP_META_KEYS } from "./operational-settings.js";
 import { getSessionPermissions } from "./permissions.js";
-import {
-  canSyncReadModel,
-  sanitizeRowForRole,
-} from "./read-model.js";
+import { canSyncReadModel, sanitizeRowForRole } from "./read-model.js";
 
 const TABLE_NAME_RE = /^[a-z_][a-z0-9_]*$/i;
 

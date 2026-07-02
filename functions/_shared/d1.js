@@ -209,7 +209,11 @@ async function addRemoteColumnIfMissing(env, table, column, definition) {
   const cols = await queryD1(env, `PRAGMA table_info(${table})`, []);
   if (!cols.length) return;
   if (cols.some((col) => col.name === column)) return;
-  await runD1(env, `ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`, []);
+  await runD1(
+    env,
+    `ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`,
+    [],
+  );
 }
 
 async function ensureRoomingSchemaColumnsIfTablesExist(env) {

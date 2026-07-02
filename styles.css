@@ -4140,7 +4140,8 @@ form .field {
     z-index: 120;
     background: var(--color-surface);
     border-top: 1px solid var(--color-border);
-    padding: var(--space-1) var(--space-2) calc(var(--space-1) + env(safe-area-inset-bottom, 0));
+    padding: var(--space-1) var(--space-2)
+      calc(var(--space-1) + env(safe-area-inset-bottom, 0));
     gap: var(--space-1);
     justify-content: space-around;
   }
@@ -4220,7 +4221,8 @@ form .field {
     border-top-left-radius: var(--radius-lg);
     border-top-right-radius: var(--radius-lg);
     border-top: 1px solid var(--color-border);
-    padding: var(--space-2) var(--space-4) calc(var(--space-4) + env(safe-area-inset-bottom, 0));
+    padding: var(--space-2) var(--space-4)
+      calc(var(--space-4) + env(safe-area-inset-bottom, 0));
     box-shadow: var(--shadow-lg);
     touch-action: none;
     transition: transform 0.2s ease-out;
@@ -4231,7 +4233,11 @@ form .field {
     height: 4px;
     margin: 0 auto var(--space-3);
     border-radius: 999px;
-    background: color-mix(in srgb, var(--color-border) 80%, var(--color-text-muted));
+    background: color-mix(
+      in srgb,
+      var(--color-border) 80%,
+      var(--color-text-muted)
+    );
     cursor: grab;
   }
 
@@ -4267,7 +4273,11 @@ form .field {
   .mobile-more-item.active {
     border-color: var(--color-primary);
     color: var(--color-primary);
-    background: color-mix(in srgb, var(--color-primary) 10%, var(--color-surface));
+    background: color-mix(
+      in srgb,
+      var(--color-primary) 10%,
+      var(--color-surface)
+    );
     font-weight: 600;
   }
 
@@ -4359,12 +4369,20 @@ form .field {
   }
 
   .mobile-hero-card-primary {
-    border-color: color-mix(in srgb, var(--color-primary) 35%, var(--color-border));
+    border-color: color-mix(
+      in srgb,
+      var(--color-primary) 35%,
+      var(--color-border)
+    );
     background: color-mix(in srgb, var(--color-primary) 8%, var(--color-card));
   }
 
   .mobile-hero-card-warn {
-    border-color: color-mix(in srgb, var(--color-warning) 45%, var(--color-border));
+    border-color: color-mix(
+      in srgb,
+      var(--color-warning) 45%,
+      var(--color-border)
+    );
   }
 
   .mobile-hero-label {
@@ -4411,7 +4429,8 @@ form .field {
   }
 
   .board-view .kpi-item:last-child {
-    border-right: 1px solid color-mix(in srgb, var(--color-border) 55%, transparent);
+    border-right: 1px solid
+      color-mix(in srgb, var(--color-border) 55%, transparent);
   }
 
   .lodgers-desktop-table {
@@ -4611,7 +4630,11 @@ form .field {
     border-color: var(--color-primary);
     color: var(--color-primary);
     font-weight: 600;
-    background: color-mix(in srgb, var(--color-primary) 10%, var(--color-surface));
+    background: color-mix(
+      in srgb,
+      var(--color-primary) 10%,
+      var(--color-surface)
+    );
   }
 
   .stay-form-wizard.is-wizard-mobile .form-wizard-inline-actions {
@@ -5375,7 +5398,11 @@ form .field {
 }
 
 .rooming-conflicts {
-  background: color-mix(in srgb, var(--color-background) 92%, var(--color-border));
+  background: color-mix(
+    in srgb,
+    var(--color-background) 92%,
+    var(--color-border)
+  );
   border-radius: var(--radius-sm);
   padding: var(--space-3);
 }

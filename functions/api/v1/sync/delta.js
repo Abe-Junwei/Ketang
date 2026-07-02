@@ -41,7 +41,10 @@ export async function onRequestGet({ request, env }) {
       buildSyncDelta(env, session, since, { skipInit: true }),
     );
     const response = timer.finish(payload, request);
-    response.headers.set("ETag", String(payload.board_version || currentVersion));
+    response.headers.set(
+      "ETag",
+      String(payload.board_version || currentVersion),
+    );
     return response;
   } catch (error) {
     const status = /登录已过期/.test(error.message)

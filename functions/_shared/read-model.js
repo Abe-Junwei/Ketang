@@ -49,7 +49,14 @@ const PERMISSION_TABLE_INCLUDES = {
   "reservation.read": ["reservations"],
   "meals.read": ["meals", "rooms", "beds", "guests", "lodgers"],
   "housekeeping.read": ["housekeeping", "rooms", "beds", "lodgers"],
-  "settings.read": ["schema_version", "app_meta", "rooming_plans", "rooming_assignments", "rooming_checkin_queue", "rooming_adjustments"],
+  "settings.read": [
+    "schema_version",
+    "app_meta",
+    "rooming_plans",
+    "rooming_assignments",
+    "rooming_checkin_queue",
+    "rooming_adjustments",
+  ],
 };
 
 /** 各角色可读表（脱敏/测试回退）| Role fallback for row sanitization */
