@@ -289,12 +289,52 @@ def test_login_waits_for_read_model():
 
 def test_read_model_parallel_and_audit_limit():
     model = read('functions/_shared/read-model.js')
-    block = model.split('export async function buildReadModel')[1].split('}', 1)[0]
-    if 'Promise.all' not in block:
+    if 'await Promise.all' not in model:
         print('FAIL buildReadModel must query tables in parallel')
         sys.exit(1)
     if 'audit_logs ORDER BY id DESC LIMIT 200' not in model:
         print('FAIL buildReadModel must cap audit_logs rows')
+        sys.exit(1)
+
+
+def test_login_uses_lightweight_auth_init():
+    db_api = read('functions/api/db.js')
+    d1 = read('functions/_shared/d1.js')
+    if 'ensureDatabaseForAuth' not in d1:
+        print('FAIL d1.js missing ensureDatabaseForAuth helper')
+        sys.exit(1)
+    login_role = re.search(
+        r'if \(payload\.action === "login_role"\) \{([\s\S]*?)\n    \}',
+        db_api,
+    )
+    if not login_role or 'ensureDatabaseForAuth' not in login_role.group(1):
+        print('FAIL login_role must use ensureDatabaseForAuth instead of full init')
+        sys.exit(1)
+    login = re.search(
+        r'if \(payload\.action === "login"\) \{([\s\S]*?)\n    \}',
+        db_api,
+    )
+    if not login or 'ensureDatabaseForAuth' not in login.group(1):
+        print('FAIL login must use ensureDatabaseForAuth instead of full init')
+        sys.exit(1)
+
+
+def test_remote_loaddb_skips_init():
+    db_js = read('js/db.js')
+    block = re.search(r'async function loadDB\(\) \{([\s\S]*?)^\}', db_js, re.M)
+    if not block:
+        print('FAIL db.js missing loadDB')
+        sys.exit(1)
+    remote_part = block.group(1).split('let idb', 1)[0]
+    if 'action: "init"' in remote_part or "action: 'init'" in remote_part:
+        print('FAIL remote loadDB must not call /api/db init before login')
+        sys.exit(1)
+
+
+def test_login_select_has_static_roles():
+    index_html = read('index.html')
+    if 'value="admin"' not in index_html or 'value="zhike"' not in index_html:
+        print('FAIL login select must include static role options in HTML')
         sys.exit(1)
 
 
@@ -362,6 +402,9 @@ TESTS = [
     test_permissions_layer_exists,
     test_read_model_role_tables,
     test_read_model_parallel_and_audit_limit,
+    test_login_uses_lightweight_auth_init,
+    test_remote_loaddb_skips_init,
+    test_login_select_has_static_roles,
     test_remote_sync_helpers,
     test_admin_update_returns_token,
     test_frontend_unauthorized_handler,

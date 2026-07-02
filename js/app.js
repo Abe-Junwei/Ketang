@@ -1,5 +1,7 @@
 document.addEventListener("DOMContentLoaded", async () => {
   initShellIcons();
+  if (typeof populateLoginUsers === "function") populateLoginUsers();
+  if (typeof applyDeploymentModeUI === "function") applyDeploymentModeUI();
   try {
     await initSqlite();
     if (typeof initRolePermissionDefaults === "function") {

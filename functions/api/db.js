@@ -17,6 +17,7 @@ import {
   queryD1,
   runD1,
   initRemoteDatabase,
+  ensureDatabaseForAuth,
   isDatabaseEmpty,
   assertAllowedSql,
   safeErrorMessage,
@@ -145,7 +146,7 @@ export async function onRequestPost({ request, env }) {
 
     if (payload.action === "login_role") {
       const timer = createRequestTimer();
-      await timer.stage("init_ms", () => initRemoteDatabase(env));
+      await timer.stage("init_ms", () => ensureDatabaseForAuth(env));
       await timer.stage("rate_limit_ms", () =>
         checkLoginRateLimit(env, ip, bindQuery(env), bindRun(env)),
       );
@@ -195,7 +196,7 @@ export async function onRequestPost({ request, env }) {
 
     if (payload.action === "login") {
       const timer = createRequestTimer();
-      await timer.stage("init_ms", () => initRemoteDatabase(env));
+      await timer.stage("init_ms", () => ensureDatabaseForAuth(env));
       const freshUser = await timer.stage("login_ms", () =>
         authenticateUsername(env, ip, payload.username, payload.password),
       );

@@ -178,7 +178,41 @@ export async function initRemoteDatabase(env) {
   return remoteInitPromise;
 }
 
+/** 登录前轻量探测：已有业务数据则跳过全量 schema 重放 | Fast path before login */
+export async function ensureDatabaseForAuth(env) {
+  if (remoteInitReady) return false;
+  const roomsTable = await queryD1(
+    env,
+    "SELECT 1 AS ok FROM sqlite_master WHERE type='table' AND name='rooms' LIMIT 1",
+    [],
+  );
+  if (roomsTable.length) {
+    const count = await queryD1(env, "SELECT COUNT(*) AS c FROM rooms", []);
+    if ((count[0]?.c || 0) > 0) {
+      await ensureUserAuthColumns(env);
+      await ensureUserRoleColumns(env);
+      remoteInitReady = true;
+      return false;
+    }
+  }
+  return initRemoteDatabase(env);
+}
+
 async function initRemoteDatabaseOnce(env) {
+  const roomsTable = await queryD1(
+    env,
+    "SELECT 1 AS ok FROM sqlite_master WHERE type='table' AND name='rooms' LIMIT 1",
+    [],
+  );
+  if (roomsTable.length) {
+    const count = await queryD1(env, "SELECT COUNT(*) AS c FROM rooms", []);
+    if ((count[0]?.c || 0) > 0) {
+      await ensureUserAuthColumns(env);
+      await ensureUserRoleColumns(env);
+      remoteInitReady = true;
+      return false;
+    }
+  }
   await repairUsersTableState(env);
   try {
     await runSchemaSql(env, SCHEMA_SQL);

@@ -53,7 +53,8 @@
 - `/api/db` 网关：知客师仅允许 `SELECT`/`PRAGMA` 与 `INSERT audit_logs`；管理员可管理用户与房间设置。
 - 管理员可在「系统设置」导出/导入 JSON 备份（含 `users` 表，`/api/v1/admin/data-backup`）。
 - 房态看板在云端模式每 8 秒轮询 `board-version` 自动刷新（全视图 + 切回前台时也会检查）。
-- 同步进行中/失败时，顶栏下方会显示状态条；写操作成功后强制拉取读模型再渲染。
+- 登录前不再阻塞远程 `init`；身份下拉在 HTML 中静态列出，页面打开即可选。
+- 已有数据的 D1 库登录走 `ensureDatabaseForAuth` 快速路径，跳过全量 schema 重放。
 - 公开预约：`POST /api/public/reservations`（IP 限流；可用 `KETANG_PUBLIC_RESERVATIONS=false` 关闭）。
 - `init` 在非空库时默认幂等；仅 `force: true` 且带 `x-ketang-bootstrap` 才允许强制 reseed。
 - 登录与公开预约均有限流。

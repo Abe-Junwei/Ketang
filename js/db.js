@@ -307,11 +307,6 @@ async function syncRemoteReadModel(options) {
 
 async function loadDB() {
   if (isRemoteDB()) {
-    try {
-      await remoteDBRequestAsync({ action: "init" });
-    } catch (e) {
-      if (!/已初始化|403/.test(String(e.message))) throw e;
-    }
     remoteReadModelReady = false;
     setRemoteSyncStatus("idle");
     return;
