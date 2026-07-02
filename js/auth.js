@@ -318,6 +318,8 @@ async function login(username, password) {
     if (typeof mountFormMealNeedPickers === "function")
       mountFormMealNeedPickers();
     if (typeof mountLodgerRoleSelects === "function") mountLodgerRoleSelects();
+    if (typeof mountParticipantTagSelects === "function")
+      mountParticipantTagSelects();
     return true;
   }
   const user = query(
@@ -350,6 +352,8 @@ async function login(username, password) {
   if (typeof mountFormMealNeedPickers === "function")
     mountFormMealNeedPickers();
   if (typeof mountLodgerRoleSelects === "function") mountLodgerRoleSelects();
+  if (typeof mountParticipantTagSelects === "function")
+    mountParticipantTagSelects();
   return true;
 }
 
@@ -373,6 +377,8 @@ async function loginByRole(role, password) {
     if (typeof mountFormMealNeedPickers === "function")
       mountFormMealNeedPickers();
     if (typeof mountLodgerRoleSelects === "function") mountLodgerRoleSelects();
+    if (typeof mountParticipantTagSelects === "function")
+      mountParticipantTagSelects();
     return true;
   }
 
@@ -406,6 +412,8 @@ async function loginByRole(role, password) {
     if (typeof mountFormMealNeedPickers === "function")
       mountFormMealNeedPickers();
     if (typeof mountLodgerRoleSelects === "function") mountLodgerRoleSelects();
+    if (typeof mountParticipantTagSelects === "function")
+      mountParticipantTagSelects();
     return true;
   }
   return false;

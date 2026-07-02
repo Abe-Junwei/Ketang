@@ -375,6 +375,7 @@ function openEditLodgerModal(id) {
         <div class="field"><label>预离日期</label><input type="date" id="edit-out" value="${escapeHtml(l.expected_check_out || "")}"></div>
         <div class="field"><label>所属营期</label><select id="edit-event"><option value="">散客 / 不归属营期</option></select></div>
         <div class="field"><label>班级/分组</label><input type="text" id="edit-class" value="${escapeHtml(l.class_name || "")}" placeholder="如：一班、师父组"></div>
+        ${participantTagFieldsHtml("edit", l)}
       </div>
       <div class="field"><label>备注</label><textarea id="edit-notes" rows="2">${escapeHtml(l.notes || "")}</textarea></div>
       <div class="modal-actions">
@@ -463,6 +464,7 @@ async function submitEditLodger(id) {
         expected_check_out: checkOut,
         role: readLodgerRoleInput("edit-role"),
         class_name: document.getElementById("edit-class").value.trim() || null,
+        ...readParticipantTagsFromForm("edit"),
         event_id: document.getElementById("edit-event").value || null,
         notes: document.getElementById("edit-notes").value.trim() || null,
       });
@@ -471,7 +473,7 @@ async function submitEditLodger(id) {
         run(
           `UPDATE lodgers SET
         name=?, dharma_name=?, gender=?, phone=?, id_card=?,
-        check_in_date=?, expected_check_out=?, role=?, class_name=?, event_id=?, notes=?
+        check_in_date=?, expected_check_out=?, role=?, class_name=?, participant_identity=?, age_group=?, special_needs=?, event_id=?, notes=?
         WHERE id=?`,
           [
             person.name,
@@ -483,6 +485,7 @@ async function submitEditLodger(id) {
             checkOut,
             readLodgerRoleInput("edit-role"),
             document.getElementById("edit-class").value.trim() || null,
+            ...Object.values(readParticipantTagsFromForm("edit")),
             document.getElementById("edit-event").value || null,
             document.getElementById("edit-notes").value.trim() || null,
             id,

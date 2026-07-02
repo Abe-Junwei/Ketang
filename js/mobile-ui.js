@@ -63,14 +63,14 @@ var WIZARD_FORMS = {
   "checkin-form": {
     steps: [
       { label: "身份信息", fields: ["ci-name", "ci-gender", "ci-phone", "ci-idcard", "ci-emergency-name", "ci-emergency-phone"] },
-      { label: "床位安排", fields: ["ci-bed", "ci-role", "ci-in", "ci-out", "ci-source", "ci-event", "ci-class"] },
+      { label: "床位安排", fields: ["ci-bed", "ci-role", "ci-in", "ci-out", "ci-source", "ci-event", "ci-class", "ci-participant-identity", "ci-age-group", "ci-special-needs"] },
       { label: "收款用斋", fields: ["ci-deposit", "ci-room-fee", "ci-pay-method", "ci-meal-need"] },
     ],
   },
   "resv-form": {
     steps: [
       { label: "身份信息", fields: ["resv-name", "resv-gender", "resv-phone", "resv-idcard", "resv-emergency-name", "resv-emergency-phone"] },
-      { label: "预约详情", fields: ["resv-in", "resv-out", "resv-role", "resv-room", "resv-event", "resv-class", "resv-source", "resv-meal-need"] },
+      { label: "预约详情", fields: ["resv-in", "resv-out", "resv-role", "resv-room", "resv-event", "resv-class", "resv-source", "resv-participant-identity", "resv-age-group", "resv-special-needs", "resv-meal-need"] },
     ],
   },
 };

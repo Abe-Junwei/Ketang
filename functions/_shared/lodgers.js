@@ -11,6 +11,12 @@ import {
   normalizePhone,
 } from "./validation.js";
 import { housekeepingRequiresInspect } from "./operational-settings.js";
+import { parseParticipantTagFields } from "./rooming-tags.js";
+
+function participantTagValues(body) {
+  const tags = parseParticipantTagFields(body);
+  return [tags.participant_identity, tags.age_group, tags.special_needs];
+}
 
 function dormMatchGender(dormType, gender) {
   if (!dormType || dormType === "不限") return true;
@@ -239,8 +245,8 @@ export async function apiCheckIn(env, session, body) {
     });
   }
   statements.push({
-    sql: `INSERT INTO lodgers (guest_id, event_id, name, dharma_name, gender, phone, id_card, check_in_date, expected_check_out, bed_id, role, class_name, status, source, notes, meal_default_breakfast, meal_default_lunch, meal_default_dinner)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '在住', ?, ?, ?, ?, ?)`,
+    sql: `INSERT INTO lodgers (guest_id, event_id, name, dharma_name, gender, phone, id_card, check_in_date, expected_check_out, bed_id, role, class_name, participant_identity, age_group, special_needs, status, source, notes, meal_default_breakfast, meal_default_lunch, meal_default_dinner)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '在住', ?, ?, ?, ?, ?)`,
     params: [
       guestId,
       body.event_id || null,
@@ -254,6 +260,7 @@ export async function apiCheckIn(env, session, body) {
       bedId,
       body.role || null,
       body.class_name || null,
+      ...participantTagValues(body),
       body.source || null,
       body.notes || null,
       mealBf,
@@ -598,8 +605,8 @@ export async function apiAssignReservationToBed(env, session, body) {
   };
   await batchD1(env, [
     {
-      sql: `INSERT INTO lodgers (guest_id, event_id, name, dharma_name, gender, phone, id_card, check_in_date, expected_check_out, bed_id, role, class_name, status, source, notes, meal_default_breakfast, meal_default_lunch, meal_default_dinner)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '在住', ?, ?, ?, ?, ?)`,
+      sql: `INSERT INTO lodgers (guest_id, event_id, name, dharma_name, gender, phone, id_card, check_in_date, expected_check_out, bed_id, role, class_name, participant_identity, age_group, special_needs, status, source, notes, meal_default_breakfast, meal_default_lunch, meal_default_dinner)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '在住', ?, ?, ?, ?, ?)`,
       params: [
         guestId,
         r.event_id || null,
@@ -613,6 +620,9 @@ export async function apiAssignReservationToBed(env, session, body) {
         bedId,
         r.role || null,
         r.class_name || null,
+        r.participant_identity || null,
+        r.age_group || null,
+        r.special_needs || null,
         r.source || "预约分配",
         r.notes || null,
         mf.breakfast ? 1 : 0,
@@ -681,7 +691,7 @@ export async function apiEditLodger(env, session, body) {
 
   await runD1(
     env,
-    `UPDATE lodgers SET name=?, dharma_name=?, gender=?, phone=?, id_card=?, check_in_date=?, expected_check_out=?, role=?, class_name=?, event_id=?, notes=? WHERE id=?`,
+    `UPDATE lodgers SET name=?, dharma_name=?, gender=?, phone=?, id_card=?, check_in_date=?, expected_check_out=?, role=?, class_name=?, participant_identity=?, age_group=?, special_needs=?, event_id=?, notes=? WHERE id=?`,
     [
       person.name,
       person.dharma_name,
@@ -692,6 +702,7 @@ export async function apiEditLodger(env, session, body) {
       checkOut,
       body.role || null,
       body.class_name || null,
+      ...participantTagValues(body),
       body.event_id || null,
       body.notes || null,
       id,
@@ -939,8 +950,8 @@ async function checkInBatchRow(env, session, row, mealDefaults) {
 
   const statements = [
     {
-      sql: `INSERT INTO lodgers (guest_id, event_id, name, dharma_name, gender, phone, id_card, check_in_date, expected_check_out, bed_id, role, class_name, status, source, notes, meal_default_breakfast, meal_default_lunch, meal_default_dinner)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '在住', '法会批量导入', ?, ?, ?, ?)`,
+      sql: `INSERT INTO lodgers (guest_id, event_id, name, dharma_name, gender, phone, id_card, check_in_date, expected_check_out, bed_id, role, class_name, participant_identity, age_group, special_needs, status, source, notes, meal_default_breakfast, meal_default_lunch, meal_default_dinner)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '在住', '法会批量导入', ?, ?, ?, ?)`,
       params: [
         guestId,
         evt ? evt.id : null,
@@ -954,6 +965,9 @@ async function checkInBatchRow(env, session, row, mealDefaults) {
         bed.id,
         row.role || null,
         row.class_name || null,
+        row.participant_identity || null,
+        row.age_group || null,
+        row.special_needs || null,
         row.notes || null,
         mealBf,
         mealLc,

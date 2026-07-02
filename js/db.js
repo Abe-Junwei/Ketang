@@ -186,6 +186,7 @@ function initLocalSchemaAndMigrations() {
   migrateV13toV14();
   migrateV14toV15();
   migrateV15toV16();
+  migrateV16toV17();
   createIndexes();
 }
 
@@ -450,6 +451,11 @@ function initSchema() {
       location TEXT,
       floor INTEGER DEFAULT 1,
       dorm_type TEXT DEFAULT '不限' CHECK(dorm_type IN ('男寮','女寮','不限')),
+      room_type TEXT DEFAULT '学员房',
+      suitable_elder INTEGER DEFAULT 0 CHECK(suitable_elder IN (0,1)),
+      suitable_child INTEGER DEFAULT 0 CHECK(suitable_child IN (0,1)),
+      near_zen_hall INTEGER DEFAULT 0 CHECK(near_zen_hall IN (0,1)),
+      flexible_use INTEGER DEFAULT 0 CHECK(flexible_use IN (0,1)),
       notes TEXT,
       created_at TEXT DEFAULT CURRENT_TIMESTAMP
     );
@@ -458,6 +464,9 @@ function initSchema() {
       room_id INTEGER NOT NULL REFERENCES rooms(id) ON DELETE CASCADE,
       bed_number TEXT NOT NULL,
       status TEXT DEFAULT '可用' CHECK(status IN ('可用','占用','维修','备用')),
+      bed_type TEXT DEFAULT '单床',
+      suitable_elder INTEGER DEFAULT 0 CHECK(suitable_elder IN (0,1)),
+      is_flexible INTEGER DEFAULT 0 CHECK(is_flexible IN (0,1)),
       notes TEXT,
       created_at TEXT DEFAULT CURRENT_TIMESTAMP
     );
@@ -488,6 +497,26 @@ function initSchema() {
       status TEXT DEFAULT '筹备中' CHECK(status IN ('筹备中','招生中','进行中','已结束','已取消')),
       notes TEXT,
       include_spare_beds INTEGER DEFAULT 0 CHECK(include_spare_beds IN (0,1)),
+      activity_target TEXT,
+      arrival_date TEXT,
+      departure_date TEXT,
+      confirmed_count INTEGER DEFAULT 0,
+      actual_arrival_count INTEGER DEFAULT 0,
+      expected_absent_count INTEGER DEFAULT 0,
+      male_count INTEGER DEFAULT 0,
+      female_count INTEGER DEFAULT 0,
+      child_count INTEGER DEFAULT 0,
+      elder_count INTEGER DEFAULT 0,
+      teacher_count INTEGER DEFAULT 0,
+      volunteer_count INTEGER DEFAULT 0,
+      special_needs_count INTEGER DEFAULT 0,
+      manager_name TEXT,
+      manager_phone TEXT,
+      backup_manager_name TEXT,
+      needs_central_lodging INTEGER DEFAULT 0 CHECK(needs_central_lodging IN (0,1)),
+      needs_quiet_zone INTEGER DEFAULT 0 CHECK(needs_quiet_zone IN (0,1)),
+      needs_near_zen_hall INTEGER DEFAULT 0 CHECK(needs_near_zen_hall IN (0,1)),
+      needs_teacher_room INTEGER DEFAULT 0 CHECK(needs_teacher_room IN (0,1)),
       created_at TEXT DEFAULT CURRENT_TIMESTAMP
     );
     CREATE TABLE IF NOT EXISTS users (
@@ -520,6 +549,9 @@ function initSchema() {
       bed_id INTEGER REFERENCES beds(id) ON DELETE SET NULL,
       role TEXT,
       class_name TEXT,
+      participant_identity TEXT,
+      age_group TEXT,
+      special_needs TEXT,
       status TEXT DEFAULT '在住' CHECK(status IN ('在住','已退','已取消','No-show')),
       source TEXT,
       notes TEXT,
@@ -560,6 +592,9 @@ function initSchema() {
       id_card TEXT,
       role TEXT,
       class_name TEXT,
+      participant_identity TEXT,
+      age_group TEXT,
+      special_needs TEXT,
       expected_check_in TEXT,
       expected_check_out TEXT,
       room_preference TEXT,
@@ -1773,6 +1808,108 @@ function migrateV15toV16() {
   }
 }
 
+function addColumnIfMissing(table, column, definition) {
+  try {
+    db.run(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
+  } catch (e) {
+    /* 已存在则忽略 | column may already exist */
+  }
+}
+
+function migrateV16toV17() {
+  const version =
+    db.exec("SELECT MIN(version) as v FROM schema_version")[0]?.values[0][0] ||
+    0;
+  if (version >= 17) return;
+  db.run("BEGIN TRANSACTION;");
+  try {
+    addColumnIfMissing("events", "activity_target", "TEXT");
+    addColumnIfMissing("events", "arrival_date", "TEXT");
+    addColumnIfMissing("events", "departure_date", "TEXT");
+    addColumnIfMissing("events", "confirmed_count", "INTEGER DEFAULT 0");
+    addColumnIfMissing("events", "actual_arrival_count", "INTEGER DEFAULT 0");
+    addColumnIfMissing("events", "expected_absent_count", "INTEGER DEFAULT 0");
+    addColumnIfMissing("events", "male_count", "INTEGER DEFAULT 0");
+    addColumnIfMissing("events", "female_count", "INTEGER DEFAULT 0");
+    addColumnIfMissing("events", "child_count", "INTEGER DEFAULT 0");
+    addColumnIfMissing("events", "elder_count", "INTEGER DEFAULT 0");
+    addColumnIfMissing("events", "teacher_count", "INTEGER DEFAULT 0");
+    addColumnIfMissing("events", "volunteer_count", "INTEGER DEFAULT 0");
+    addColumnIfMissing("events", "special_needs_count", "INTEGER DEFAULT 0");
+    addColumnIfMissing("events", "manager_name", "TEXT");
+    addColumnIfMissing("events", "manager_phone", "TEXT");
+    addColumnIfMissing("events", "backup_manager_name", "TEXT");
+    addColumnIfMissing(
+      "events",
+      "needs_central_lodging",
+      "INTEGER DEFAULT 0 CHECK(needs_central_lodging IN (0,1))",
+    );
+    addColumnIfMissing(
+      "events",
+      "needs_quiet_zone",
+      "INTEGER DEFAULT 0 CHECK(needs_quiet_zone IN (0,1))",
+    );
+    addColumnIfMissing(
+      "events",
+      "needs_near_zen_hall",
+      "INTEGER DEFAULT 0 CHECK(needs_near_zen_hall IN (0,1))",
+    );
+    addColumnIfMissing(
+      "events",
+      "needs_teacher_room",
+      "INTEGER DEFAULT 0 CHECK(needs_teacher_room IN (0,1))",
+    );
+    addColumnIfMissing("rooms", "room_type", "TEXT DEFAULT '学员房'");
+    addColumnIfMissing(
+      "rooms",
+      "suitable_elder",
+      "INTEGER DEFAULT 0 CHECK(suitable_elder IN (0,1))",
+    );
+    addColumnIfMissing(
+      "rooms",
+      "suitable_child",
+      "INTEGER DEFAULT 0 CHECK(suitable_child IN (0,1))",
+    );
+    addColumnIfMissing(
+      "rooms",
+      "near_zen_hall",
+      "INTEGER DEFAULT 0 CHECK(near_zen_hall IN (0,1))",
+    );
+    addColumnIfMissing(
+      "rooms",
+      "flexible_use",
+      "INTEGER DEFAULT 0 CHECK(flexible_use IN (0,1))",
+    );
+    addColumnIfMissing("beds", "bed_type", "TEXT DEFAULT '单床'");
+    addColumnIfMissing(
+      "beds",
+      "suitable_elder",
+      "INTEGER DEFAULT 0 CHECK(suitable_elder IN (0,1))",
+    );
+    addColumnIfMissing(
+      "beds",
+      "is_flexible",
+      "INTEGER DEFAULT 0 CHECK(is_flexible IN (0,1))",
+    );
+    addColumnIfMissing("lodgers", "participant_identity", "TEXT");
+    addColumnIfMissing("lodgers", "age_group", "TEXT");
+    addColumnIfMissing("lodgers", "special_needs", "TEXT");
+    addColumnIfMissing("reservations", "participant_identity", "TEXT");
+    addColumnIfMissing("reservations", "age_group", "TEXT");
+    addColumnIfMissing("reservations", "special_needs", "TEXT");
+    db.run("DELETE FROM schema_version WHERE version < 17");
+    db.run("INSERT OR REPLACE INTO schema_version (version) VALUES (17)");
+    db.run("COMMIT;");
+  } catch (e) {
+    try {
+      db.run("ROLLBACK;");
+    } catch (rollbackErr) {
+      /* ignore */
+    }
+    throw new Error("migrateV16toV17 failed: " + e.message);
+  }
+}
+
 function createIndexes() {
   db.run(`
     CREATE INDEX IF NOT EXISTS idx_events_name ON events(name);
@@ -1982,6 +2119,7 @@ async function importDB(input) {
       migrateV13toV14();
       migrateV14toV15();
       migrateV15toV16();
+      migrateV16toV17();
       createIndexes();
       await seedRooms();
       await saveDB();

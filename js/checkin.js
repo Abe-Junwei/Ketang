@@ -424,8 +424,8 @@ async function assignReservationToBed(resvId, bedId) {
         incrementGuestVisit(guestId, checkIn);
         const result = run(
           `INSERT INTO lodgers
-        (guest_id, event_id, name, dharma_name, gender, phone, id_card, check_in_date, expected_check_out, bed_id, role, class_name, status, source, notes)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '在住', ?, ?)`,
+        (guest_id, event_id, name, dharma_name, gender, phone, id_card, check_in_date, expected_check_out, bed_id, role, class_name, participant_identity, age_group, special_needs, status, source, notes)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '在住', ?, ?)`,
           [
             guestId,
             r.event_id || null,
@@ -439,6 +439,9 @@ async function assignReservationToBed(resvId, bedId) {
             bedId,
             r.role || null,
             r.class_name || null,
+            r.participant_identity || null,
+            r.age_group || null,
+            r.special_needs || null,
             r.source || "预约分配",
             r.notes || null,
           ],
@@ -581,6 +584,7 @@ document
           event_id: document.getElementById("ci-event").value || null,
           role: readLodgerRoleInput("ci-role"),
           class_name: document.getElementById("ci-class").value.trim() || null,
+          ...readParticipantTagsFromForm("ci"),
           source: document.getElementById("ci-source").value || null,
           notes: document.getElementById("ci-notes").value.trim() || null,
           emergency_name:
@@ -628,8 +632,8 @@ document
 
           const result = run(
             `INSERT INTO lodgers
-        (guest_id, event_id, name, dharma_name, gender, phone, id_card, check_in_date, expected_check_out, bed_id, role, class_name, status, source, notes)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '在住', ?, ?)`,
+        (guest_id, event_id, name, dharma_name, gender, phone, id_card, check_in_date, expected_check_out, bed_id, role, class_name, participant_identity, age_group, special_needs, status, source, notes)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '在住', ?, ?)`,
             [
               guestId,
               document.getElementById("ci-event").value || null,
@@ -643,6 +647,7 @@ document
               bedId,
               readLodgerRoleInput("ci-role"),
               document.getElementById("ci-class").value.trim() || null,
+              ...Object.values(readParticipantTagsFromForm("ci")),
               document.getElementById("ci-source").value || null,
               document.getElementById("ci-notes").value.trim() || null,
             ],
@@ -969,8 +974,8 @@ async function importBatchCSV(input) {
           await withTransaction(async () => {
             const result = run(
               `INSERT INTO lodgers
-              (guest_id, event_id, name, dharma_name, gender, phone, id_card, check_in_date, expected_check_out, bed_id, role, class_name, status, source, notes)
-              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '在住', '法会批量导入', ?)`,
+              (guest_id, event_id, name, dharma_name, gender, phone, id_card, check_in_date, expected_check_out, bed_id, role, class_name, participant_identity, age_group, special_needs, status, source, notes)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '在住', '法会批量导入', ?)`,
               [
                 guestId,
                 evt ? evt.id : null,
@@ -984,6 +989,9 @@ async function importBatchCSV(input) {
                 bed.id,
                 row.role || null,
                 row.class_name || null,
+                row.participant_identity || null,
+                row.age_group || null,
+                row.special_needs || null,
                 row.notes || null,
               ],
             );

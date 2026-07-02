@@ -9,6 +9,13 @@ import { parsePersonNameInput } from "./person.js";
 import { housekeepingRequiresInspect } from "./operational-settings.js";
 import { requirePermission } from "./permissions.js";
 import { assertGuestIdentityFields } from "./validation.js";
+import {
+  EVENT_ROOMING_COLUMN_SQL,
+  eventRoomingValues,
+  parseBedTagFields,
+  parseEventRoomingFields,
+  parseRoomTagFields,
+} from "./rooming-tags.js";
 
 const DORM_TYPES = new Set(["男寮", "女寮", "不限"]);
 const BED_STATUSES = new Set(["可用", "维修", "备用"]);
@@ -84,20 +91,45 @@ async function upsertRoom(env, session, body) {
       [id],
     );
     if (!existing[0]) throw new Error("房间不存在");
+    const tags = parseRoomTagFields(body);
     await runD1(
       env,
-      "UPDATE rooms SET name=?, location=?, floor=?, dorm_type=?, notes=? WHERE id=?",
-      [name, text(body.location), floor, dormType, text(body.notes), id],
+      "UPDATE rooms SET name=?, location=?, floor=?, dorm_type=?, notes=?, room_type=?, suitable_elder=?, suitable_child=?, near_zen_hall=?, flexible_use=? WHERE id=?",
+      [
+        name,
+        text(body.location),
+        floor,
+        dormType,
+        text(body.notes),
+        tags.room_type,
+        tags.suitable_elder,
+        tags.suitable_child,
+        tags.near_zen_hall,
+        tags.flexible_use,
+        id,
+      ],
     );
     await insertAudit(env, "更新房间", "room", id, { name }, session);
     await bumpBoardVersion(env);
     return { room_id: id };
   }
 
+  const tags = parseRoomTagFields(body);
   const meta = await runD1(
     env,
-    "INSERT INTO rooms (name, location, floor, dorm_type, notes) VALUES (?, ?, ?, ?, ?)",
-    [name, text(body.location), floor, dormType, text(body.notes)],
+    "INSERT INTO rooms (name, location, floor, dorm_type, notes, room_type, suitable_elder, suitable_child, near_zen_hall, flexible_use) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+    [
+      name,
+      text(body.location),
+      floor,
+      dormType,
+      text(body.notes),
+      tags.room_type,
+      tags.suitable_elder,
+      tags.suitable_child,
+      tags.near_zen_hall,
+      tags.flexible_use,
+    ],
   );
   await insertAudit(
     env,
@@ -167,6 +199,8 @@ async function upsertBed(env, session, body) {
   if (occupied && (status === "维修" || status === "备用"))
     throw new Error("该床位当前有住客，不能设为维修或备用");
 
+  const bedTags = parseBedTagFields(body);
+
   if (id) {
     const old = (
       await queryD1(env, "SELECT status FROM beds WHERE id = ? LIMIT 1", [id])
@@ -174,8 +208,17 @@ async function upsertBed(env, session, body) {
     if (!old) throw new Error("床位不存在");
     const statements = [
       {
-        sql: "UPDATE beds SET room_id=?, bed_number=?, status=?, notes=? WHERE id=?",
-        params: [roomId, bedNumber, status, text(body.notes), id],
+        sql: "UPDATE beds SET room_id=?, bed_number=?, status=?, notes=?, bed_type=?, suitable_elder=?, is_flexible=? WHERE id=?",
+        params: [
+          roomId,
+          bedNumber,
+          status,
+          text(body.notes),
+          bedTags.bed_type,
+          bedTags.suitable_elder,
+          bedTags.is_flexible,
+          id,
+        ],
       },
     ];
     if (old.status !== status) {
@@ -204,8 +247,16 @@ async function upsertBed(env, session, body) {
 
   const meta = await runD1(
     env,
-    "INSERT INTO beds (room_id, bed_number, status, notes) VALUES (?, ?, ?, ?)",
-    [roomId, bedNumber, status, text(body.notes)],
+    "INSERT INTO beds (room_id, bed_number, status, notes, bed_type, suitable_elder, is_flexible) VALUES (?, ?, ?, ?, ?, ?, ?)",
+    [
+      roomId,
+      bedNumber,
+      status,
+      text(body.notes),
+      bedTags.bed_type,
+      bedTags.suitable_elder,
+      bedTags.is_flexible,
+    ],
   );
   await runD1(
     env,
@@ -401,8 +452,17 @@ async function upsertEvent(env, session, body) {
   const startDate = text(body.start_date);
   const endDate = text(body.end_date);
   const includeSpareBeds = body.include_spare_beds ? 1 : 0;
+  const rooming = parseEventRoomingFields(body);
+  const roomingValues = eventRoomingValues(rooming);
   if (startDate && endDate && endDate < startDate)
     throw new Error("结束日期不能早于开始日期");
+  if (
+    rooming.arrival_date &&
+    rooming.departure_date &&
+    rooming.departure_date < rooming.arrival_date
+  ) {
+    throw new Error("离寺日期不能早于报到日期");
+  }
 
   if (id) {
     const old = (
@@ -411,7 +471,7 @@ async function upsertEvent(env, session, body) {
     if (!old) throw new Error("营期不存在");
     const statements = [
       {
-        sql: "UPDATE events SET name=?, event_type=?, gender_type=?, expected_count=?, start_date=?, end_date=?, status=?, notes=?, include_spare_beds=? WHERE id=?",
+        sql: `UPDATE events SET name=?, event_type=?, gender_type=?, expected_count=?, start_date=?, end_date=?, status=?, notes=?, include_spare_beds=?, ${EVENT_ROOMING_COLUMN_SQL} WHERE id=?`,
         params: [
           name,
           eventType,
@@ -422,6 +482,7 @@ async function upsertEvent(env, session, body) {
           status,
           text(body.notes),
           includeSpareBeds,
+          ...roomingValues,
           id,
         ],
       },
@@ -471,7 +532,7 @@ async function upsertEvent(env, session, body) {
 
   const meta = await runD1(
     env,
-    "INSERT INTO events (name, event_type, gender_type, expected_count, start_date, end_date, status, notes, include_spare_beds) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+    `INSERT INTO events (name, event_type, gender_type, expected_count, start_date, end_date, status, notes, include_spare_beds, ${EVENT_ROOMING_COLUMN_SQL}) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ${roomingValues.map(() => "?").join(", ")})`,
     [
       name,
       eventType,
@@ -482,6 +543,7 @@ async function upsertEvent(env, session, body) {
       status,
       text(body.notes),
       includeSpareBeds,
+      ...roomingValues,
     ],
   );
   await insertAudit(

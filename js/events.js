@@ -9,6 +9,7 @@ const EVENT_STATUS_OPTIONS = ["筹备中", "招生中", "进行中", "已结束"
 
 // 营期列表（用于基础设置页）
 function renderEventList() {
+  const f = infoGetFilters("events");
   const events = query(`
     SELECT e.*,
       (SELECT COUNT(*) FROM lodgers l WHERE l.event_id = e.id AND l.status = '在住') as checked_in,
@@ -18,24 +19,50 @@ function renderEventList() {
     ORDER BY e.start_date DESC, e.id DESC
   `);
 
+  const filtered = events.filter((e) => {
+    if (f.eventType && e.event_type !== f.eventType) return false;
+    if (
+      f.q &&
+      !infoTextIncludes(
+        [e.name, e.event_type, e.manager_name, e.notes].join(" "),
+        f.q,
+      )
+    ) {
+      return false;
+    }
+    return true;
+  });
+
+  const toolbar = infoToolbarHtml(
+    `${infoSearchBox("events", "搜索营期名称…")}
+     ${infoFilterSelect(
+       "events",
+       "eventType",
+       "类型筛选",
+       EVENT_TYPE_OPTIONS.map((t) => [t, t]),
+       "类型筛选",
+     )}`,
+    `<button type="button" class="btn btn-primary" onclick="openEventModal()">+ 新增营期</button>`,
+  );
+
   let html = `
-    <div class="btn-bar" style="margin-bottom: var(--space-4);">
-      <button class="btn btn-primary" onclick="openEventModal()">+ 新增营期</button>
-    </div>
     <div class="event-chart-box">
       <h4>营期招生进度</h4>
       <canvas id="chart-events-progress"></canvas>
     </div>
   `;
 
-  if (!events.length) {
-    html += `<div class="empty-tip">暂无营期，请先新增。</div>`;
-    infoSetHtml(html);
+  if (!filtered.length) {
+    html += infoEmptyTable(
+      events.length ? "没有符合条件的营期。" : "暂无营期，请先新增。",
+    );
+    infoPageShell(toolbar, html);
+    renderEventProgressChart(events);
     return;
   }
 
   html += `<div class="event-grid">`;
-  events.forEach((e) => {
+  filtered.forEach((e) => {
     const registered = (e.reserved || 0) + (e.checked_in || 0);
     const expected = e.expected_count || 0;
     const pct = expected ? Math.round((registered / expected) * 100) : 0;
@@ -62,10 +89,13 @@ function renderEventList() {
           <span class="event-tag event-tag-gender-${e.gender_type === "男众" ? "male" : e.gender_type === "女众" ? "female" : "mix"}">${infoEscape(e.gender_type)}</span>
           <span class="event-tag event-tag-status-${e.status}">${infoEscape(e.status)}</span>
           ${e.include_spare_beds ? '<span class="event-tag">含备用床</span>' : ""}
+          ${e.activity_target ? '<span class="event-tag">' + infoEscape(e.activity_target) + "</span>" : ""}
         </div>
         <div class="event-card-meta">
           <span>${infoEscape(e.start_date) || "-"} ~ ${infoEscape(e.end_date) || "-"}</span>
+          ${e.arrival_date || e.departure_date ? `<span>报到 ${infoEscape(e.arrival_date) || "-"} / 离寺 ${infoEscape(e.departure_date) || "-"}</span>` : ""}
           <span>预计 ${expected} 人</span>
+          ${e.manager_name ? `<span>负责人 ${infoEscape(e.manager_name)}</span>` : ""}
         </div>
         <div class="event-card-stats">
           <div class="event-stat"><div class="event-stat-num">${registered}</div><div class="event-stat-label">已报名</div></div>
@@ -85,8 +115,8 @@ function renderEventList() {
     `;
   });
   html += `</div>`;
-  infoSetHtml(html);
-  renderEventProgressChart(events);
+  infoPageShell(toolbar, html);
+  renderEventProgressChart(filtered);
 }
 
 // 营期成员与批量操作
@@ -119,15 +149,19 @@ function renderEventMembers(eventId) {
   const members = [...lodgers, ...reservations];
 
   let html = `
-    <div class="btn-bar" style="margin-bottom: var(--space-4);">
-      <button class="btn btn-default" onclick="renderEventList()">← 返回营期列表</button>
-    </div>
-    <h3 class="section-title">${infoEscape(evt.name)} · 成员管理</h3>
+    <h3 class="info-subsection-title">${infoEscape(evt.name)} · 成员管理</h3>
     <p class="text-muted">共 ${members.length} 人（在住/已预约）。勾选后可批量操作。</p>
   `;
 
+  infoSetToolbar(
+    infoToolbarHtml(
+      "",
+      `<button type="button" class="btn btn-default" onclick="renderEventList()">← 返回营期列表</button>`,
+    ),
+  );
+
   if (!members.length) {
-    html += `<div class="empty-tip">该营期暂无在住或预约成员。</div>`;
+    html += infoEmptyTable("该营期暂无在住或预约成员。");
     infoSetHtml(html);
     return;
   }
@@ -142,7 +176,7 @@ function renderEventMembers(eventId) {
     <div class="table-wrap"><table>
       <thead><tr>
         <th><input type="checkbox" id="event-member-select-all-header" onchange="toggleSelectAllEventMembers(this)"></th>
-        <th>姓名 / 法名</th><th>性别</th><th>身份</th><th>班级</th><th>类型</th><th>状态</th><th>入住/预计入住</th><th>预离</th><th>房间/床位/偏好</th>
+        <th>姓名 / 法名</th><th>性别</th><th>身份</th><th>排房身份</th><th>年龄段</th><th>班级</th><th>类型</th><th>状态</th><th>入住/预计入住</th><th>预离</th><th>房间/床位/偏好</th>
       </tr></thead><tbody>
   `;
 
@@ -160,6 +194,8 @@ function renderEventMembers(eventId) {
         <td>${infoEscape(personDisplayName(m))}</td>
         <td>${infoEscape(m.gender) || "-"}</td>
         <td>${infoEscape(m.role) || "-"}</td>
+        <td>${infoEscape(m.participant_identity) || "-"}</td>
+        <td>${infoEscape(m.age_group) || "-"}</td>
         <td>${infoEscape(m.class_name) || "-"}</td>
         <td>${kindLabel}</td>
         <td>${infoEscape(m.status)}</td>
@@ -330,7 +366,7 @@ function openEventModal(id) {
   document.getElementById("modal-title").textContent = isEdit
     ? "编辑营期"
     : "新增营期";
-  setModalWide(false);
+  setModalWide(true);
   setModalBody(`
           <form id="event-form" onsubmit="submitEvent(event)">
             <input type="hidden" id="event-id" value="${isEdit ? e.id : ""}">
@@ -345,6 +381,7 @@ function openEventModal(id) {
               ${infoField("备注", `<textarea id="event-notes" rows="2">${isEdit ? infoEscape(e.notes) : ""}</textarea>`, "event-notes")}
               ${infoField("统计口径", `<label class="role-perm-item"><input type="checkbox" id="event-include-spare" ${isEdit && e.include_spare_beds ? "checked" : ""}> 排房/营期统计包含备用床（日常房态仍排除）</label>`, "event-include-spare")}
             </div>
+            ${eventRoomingFormFieldsHtml(e)}
             <div class="btn-bar">
               <button type="submit" class="btn btn-primary">保存</button>
               <button type="button" class="btn" onclick="closeModal()">取消</button>
@@ -373,6 +410,8 @@ async function submitEvent(e) {
   const includeSpareBeds = document.getElementById("event-include-spare")?.checked
     ? 1
     : 0;
+  const rooming = readEventRoomingFromForm();
+  const roomingValues = eventRoomingDbValues(rooming);
 
   if (!name) {
     alert("请输入营期名称");
@@ -380,6 +419,14 @@ async function submitEvent(e) {
   }
   if (startDate && endDate && endDate < startDate) {
     alert("结束日期不能早于开始日期");
+    return;
+  }
+  if (
+    rooming.arrival_date &&
+    rooming.departure_date &&
+    rooming.departure_date < rooming.arrival_date
+  ) {
+    alert("离寺日期不能早于报到日期");
     return;
   }
 
@@ -396,6 +443,7 @@ async function submitEvent(e) {
         status: status,
         notes: notes,
         include_spare_beds: includeSpareBeds,
+        ...rooming,
       });
     } else {
       await withTransaction(async () => {
@@ -403,7 +451,7 @@ async function submitEvent(e) {
           const old = query("SELECT status FROM events WHERE id=?", [id])[0];
           const oldStatus = old ? old.status : "";
           run(
-            `UPDATE events SET name=?, event_type=?, gender_type=?, expected_count=?, start_date=?, end_date=?, status=?, notes=?, include_spare_beds=? WHERE id=?`,
+            `UPDATE events SET name=?, event_type=?, gender_type=?, expected_count=?, start_date=?, end_date=?, status=?, notes=?, include_spare_beds=?, ${EVENT_ROOMING_DB_COLUMNS} WHERE id=?`,
             [
               name,
               eventType,
@@ -414,6 +462,7 @@ async function submitEvent(e) {
               status,
               notes,
               includeSpareBeds,
+              ...roomingValues,
               id,
             ],
           );
@@ -457,8 +506,8 @@ async function submitEvent(e) {
           logAudit("更新营期", "event", id, { name });
         } else {
           const result = run(
-            `INSERT INTO events (name, event_type, gender_type, expected_count, start_date, end_date, status, notes, include_spare_beds)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            `INSERT INTO events (name, event_type, gender_type, expected_count, start_date, end_date, status, notes, include_spare_beds, ${EVENT_ROOMING_DB_COLUMNS})
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ${roomingValues.map(() => "?").join(", ")})`,
             [
               name,
               eventType,
@@ -469,6 +518,7 @@ async function submitEvent(e) {
               status,
               notes,
               includeSpareBeds,
+              ...roomingValues,
             ],
           );
           const newId = result.lastInsertId;

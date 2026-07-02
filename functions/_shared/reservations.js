@@ -10,6 +10,12 @@ import {
   assertGuestIdentityFields,
   normalizePhone,
 } from "./validation.js";
+import { parseParticipantTagFields } from "./rooming-tags.js";
+
+function participantTagValues(body) {
+  const tags = parseParticipantTagFields(body);
+  return [tags.participant_identity, tags.age_group, tags.special_needs];
+}
 
 async function findOrCreateGuest(env, displayName, gender, phone, idCard) {
   const person = parsePersonNameInput(displayName);
@@ -106,7 +112,8 @@ export async function apiUpsertReservation(env, session, body) {
       env,
       `UPDATE reservations SET
       guest_id=?, event_id=?, name=?, dharma_name=?, gender=?, phone=?, id_card=?,
-      role=?, class_name=?, expected_check_in=?, expected_check_out=?,
+      role=?, class_name=?, participant_identity=?, age_group=?, special_needs=?,
+      expected_check_in=?, expected_check_out=?,
       room_preference=?, source=?, notes=?, meal_breakfast=?, meal_lunch=?, meal_dinner=?
       WHERE id=?`,
       [
@@ -119,6 +126,7 @@ export async function apiUpsertReservation(env, session, body) {
         identity.idCard,
         body.role || null,
         body.class_name || null,
+        ...participantTagValues(body),
         body.expected_check_in,
         checkOut,
         body.room_preference || null,
@@ -145,8 +153,8 @@ export async function apiUpsertReservation(env, session, body) {
   const meta = await runD1(
     env,
     `INSERT INTO reservations
-    (guest_id, event_id, name, dharma_name, gender, phone, id_card, role, class_name, expected_check_in, expected_check_out, room_preference, source, status, notes, meal_breakfast, meal_lunch, meal_dinner)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '预约', ?, ?, ?, ?)`,
+    (guest_id, event_id, name, dharma_name, gender, phone, id_card, role, class_name, participant_identity, age_group, special_needs, expected_check_in, expected_check_out, room_preference, source, status, notes, meal_breakfast, meal_lunch, meal_dinner)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '预约', ?, ?, ?, ?)`,
     [
       guestId,
       body.event_id || null,
@@ -157,6 +165,7 @@ export async function apiUpsertReservation(env, session, body) {
       identity.idCard,
       body.role || null,
       body.class_name || null,
+      ...participantTagValues(body),
       body.expected_check_in,
       checkOut,
       body.room_preference || null,

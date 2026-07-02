@@ -70,6 +70,7 @@ document.getElementById("resv-form").addEventListener("submit", async (e) => {
         event_id: eventId,
         role: readLodgerRoleInput("resv-role"),
         class_name: document.getElementById("resv-class").value.trim() || null,
+        ...readParticipantTagsFromForm("resv"),
         expected_check_in: checkIn,
         expected_check_out: checkOut,
         room_preference:
@@ -113,7 +114,8 @@ document.getElementById("resv-form").addEventListener("submit", async (e) => {
           run(
             `UPDATE reservations SET
           guest_id=?, event_id=?, name=?, dharma_name=?, gender=?, phone=?, id_card=?,
-          role=?, class_name=?, expected_check_in=?, expected_check_out=?,
+          role=?, class_name=?, participant_identity=?, age_group=?, special_needs=?,
+          expected_check_in=?, expected_check_out=?,
           room_preference=?, source=?, notes=?, meal_breakfast=?, meal_lunch=?, meal_dinner=?
           WHERE id=?`,
             [
@@ -126,6 +128,7 @@ document.getElementById("resv-form").addEventListener("submit", async (e) => {
               contact.idCard,
               readLodgerRoleInput("resv-role"),
               document.getElementById("resv-class").value.trim() || null,
+              ...Object.values(readParticipantTagsFromForm("resv")),
               checkIn,
               checkOut,
               document.getElementById("resv-room").value.trim() || null,
@@ -145,8 +148,8 @@ document.getElementById("resv-form").addEventListener("submit", async (e) => {
           // 新增模式 | Add mode
           const result = run(
             `INSERT INTO reservations
-          (guest_id, event_id, name, dharma_name, gender, phone, id_card, role, class_name, expected_check_in, expected_check_out, room_preference, source, status, notes, meal_breakfast, meal_lunch, meal_dinner)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '预约', ?, ?, ?, ?)`,
+          (guest_id, event_id, name, dharma_name, gender, phone, id_card, role, class_name, participant_identity, age_group, special_needs, expected_check_in, expected_check_out, room_preference, source, status, notes, meal_breakfast, meal_lunch, meal_dinner)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '预约', ?, ?, ?, ?)`,
             [
               guestId,
               eventId,
@@ -157,6 +160,7 @@ document.getElementById("resv-form").addEventListener("submit", async (e) => {
               contact.idCard,
               readLodgerRoleInput("resv-role"),
               document.getElementById("resv-class").value.trim() || null,
+              ...Object.values(readParticipantTagsFromForm("resv")),
               checkIn,
               checkOut,
               document.getElementById("resv-room").value.trim() || null,
@@ -227,6 +231,9 @@ function editResv(id) {
   document.getElementById("resv-room").value = r.room_preference || "";
   populateEventSelect("resv-event", r.event_id || null);
   document.getElementById("resv-class").value = r.class_name || "";
+  if (typeof populateParticipantTagSelects === "function") {
+    populateParticipantTagSelects("resv", r);
+  }
   document.getElementById("resv-source").value = r.source || "";
   document.getElementById("resv-notes").value = r.notes || "";
   if (r.guest_id) {
@@ -366,6 +373,9 @@ function checkInFromResv(id) {
       refreshSelectPicker(document.getElementById(id));
   });
   document.getElementById("ci-class").value = r.class_name || "";
+  if (typeof populateParticipantTagSelects === "function") {
+    populateParticipantTagSelects("ci", r);
+  }
   document.getElementById("ci-notes").value = r.notes || "";
   setMealNeedPicker("ci-meal-need", mf.breakfast, mf.lunch, mf.dinner);
   document.getElementById("ci-resv-id").value = id;

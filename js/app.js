@@ -37,6 +37,8 @@ document.addEventListener("DOMContentLoaded", async () => {
       migrateV12toV13();
       migrateV13toV14();
       migrateV14toV15();
+      migrateV15toV16();
+      migrateV16toV17();
       createIndexes();
       await seedRooms();
       if (typeof finishLocalAuth === "function") finishLocalAuth();
@@ -48,6 +50,9 @@ document.addEventListener("DOMContentLoaded", async () => {
       hideLoginOverlay();
       mountFormMealNeedPickers();
       mountLodgerRoleSelects();
+      if (typeof mountParticipantTagSelects === "function") {
+        mountParticipantTagSelects();
+      }
       await renderAll();
       document.getElementById("ci-in").valueAsDate = new Date();
       startBoardPolling();

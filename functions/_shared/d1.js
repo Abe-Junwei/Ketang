@@ -201,17 +201,85 @@ export async function ensureDatabaseForAuth(env) {
   return initRemoteDatabase(env);
 }
 
-async function ensureEventColumns(env) {
-  const cols = await queryD1(env, "PRAGMA table_info(events)", []);
+async function addRemoteColumnIfMissing(env, table, column, definition) {
+  const cols = await queryD1(env, `PRAGMA table_info(${table})`, []);
   if (!cols.length) return;
-  const names = new Set(cols.map((col) => col.name));
-  if (!names.has("include_spare_beds")) {
-    await runD1(
-      env,
-      "ALTER TABLE events ADD COLUMN include_spare_beds INTEGER DEFAULT 0 CHECK(include_spare_beds IN (0,1))",
-      [],
-    );
+  if (cols.some((col) => col.name === column)) return;
+  await runD1(env, `ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`, []);
+}
+
+async function ensureRoomingSchemaColumns(env) {
+  await addRemoteColumnIfMissing(
+    env,
+    "events",
+    "include_spare_beds",
+    "INTEGER DEFAULT 0 CHECK(include_spare_beds IN (0,1))",
+  );
+  const eventCols = [
+    ["activity_target", "TEXT"],
+    ["arrival_date", "TEXT"],
+    ["departure_date", "TEXT"],
+    ["confirmed_count", "INTEGER DEFAULT 0"],
+    ["actual_arrival_count", "INTEGER DEFAULT 0"],
+    ["expected_absent_count", "INTEGER DEFAULT 0"],
+    ["male_count", "INTEGER DEFAULT 0"],
+    ["female_count", "INTEGER DEFAULT 0"],
+    ["child_count", "INTEGER DEFAULT 0"],
+    ["elder_count", "INTEGER DEFAULT 0"],
+    ["teacher_count", "INTEGER DEFAULT 0"],
+    ["volunteer_count", "INTEGER DEFAULT 0"],
+    ["special_needs_count", "INTEGER DEFAULT 0"],
+    ["manager_name", "TEXT"],
+    ["manager_phone", "TEXT"],
+    ["backup_manager_name", "TEXT"],
+    [
+      "needs_central_lodging",
+      "INTEGER DEFAULT 0 CHECK(needs_central_lodging IN (0,1))",
+    ],
+    ["needs_quiet_zone", "INTEGER DEFAULT 0 CHECK(needs_quiet_zone IN (0,1))"],
+    [
+      "needs_near_zen_hall",
+      "INTEGER DEFAULT 0 CHECK(needs_near_zen_hall IN (0,1))",
+    ],
+    [
+      "needs_teacher_room",
+      "INTEGER DEFAULT 0 CHECK(needs_teacher_room IN (0,1))",
+    ],
+  ];
+  for (const [column, definition] of eventCols) {
+    await addRemoteColumnIfMissing(env, "events", column, definition);
   }
+  const roomCols = [
+    ["room_type", "TEXT DEFAULT '学员房'"],
+    ["suitable_elder", "INTEGER DEFAULT 0 CHECK(suitable_elder IN (0,1))"],
+    ["suitable_child", "INTEGER DEFAULT 0 CHECK(suitable_child IN (0,1))"],
+    ["near_zen_hall", "INTEGER DEFAULT 0 CHECK(near_zen_hall IN (0,1))"],
+    ["flexible_use", "INTEGER DEFAULT 0 CHECK(flexible_use IN (0,1))"],
+  ];
+  for (const [column, definition] of roomCols) {
+    await addRemoteColumnIfMissing(env, "rooms", column, definition);
+  }
+  const bedCols = [
+    ["bed_type", "TEXT DEFAULT '单床'"],
+    ["suitable_elder", "INTEGER DEFAULT 0 CHECK(suitable_elder IN (0,1))"],
+    ["is_flexible", "INTEGER DEFAULT 0 CHECK(is_flexible IN (0,1))"],
+  ];
+  for (const [column, definition] of bedCols) {
+    await addRemoteColumnIfMissing(env, "beds", column, definition);
+  }
+  const participantCols = [
+    ["participant_identity", "TEXT"],
+    ["age_group", "TEXT"],
+    ["special_needs", "TEXT"],
+  ];
+  for (const [column, definition] of participantCols) {
+    await addRemoteColumnIfMissing(env, "lodgers", column, definition);
+    await addRemoteColumnIfMissing(env, "reservations", column, definition);
+  }
+}
+
+async function ensureEventColumns(env) {
+  await ensureRoomingSchemaColumns(env);
 }
 
 async function initRemoteDatabaseOnce(env) {

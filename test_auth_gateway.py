@@ -560,7 +560,7 @@ def test_backup_permissions_on_frontend():
 def test_batch_csv_class_name_binding():
     checkin = read('js/checkin.js')
     if re.search(
-        r"class_name, status, source, notes\)\s*\n\s*VALUES \(\?, \?, \?, \?, \?, \?, \?, \?, \?, \?, \?, \?, '在住', '法会批量导入', \?\)",
+        r"class_name, participant_identity, age_group, special_needs, status, source, notes\)\s*\n\s*VALUES \(\?, \?, \?, \?, \?, \?, \?, \?, \?, \?, \?, \?, \?, \?, \?, '在住', '法会批量导入', \?\)",
         checkin,
     ) is None:
         print('FAIL checkin.js batch CSV insert must bind class_name placeholder')

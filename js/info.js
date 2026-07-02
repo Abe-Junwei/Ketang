@@ -4,6 +4,13 @@
    ============================================================ */
 
 let infoCurrentTab = "rooms";
+const infoFilters = {
+  rooms: { q: "", location: "", dorm: "" },
+  beds: { q: "", roomId: "", status: "" },
+  guests: { q: "", gender: "" },
+  lodgers: { q: "", status: "", source: "" },
+  events: { q: "", eventType: "" },
+};
 
 const INFO_DORM_OPTIONS = ["男寮", "女寮", "不限"];
 const INFO_BED_STATUS_OPTIONS = ["可用", "维修", "备用"];
@@ -15,9 +22,8 @@ function renderInfo(tab) {
   infoCurrentTab = tab || infoCurrentTab;
   const tabs = document.getElementById("info-tabs");
   if (tabs) {
-    tabs.querySelectorAll("button").forEach((btn, idx) => {
-      const map = ["rooms", "beds", "guests", "lodgers", "events"];
-      btn.classList.toggle("active", map[idx] === infoCurrentTab);
+    tabs.querySelectorAll(".info-tab").forEach((btn) => {
+      btn.classList.toggle("active", btn.dataset.tab === infoCurrentTab);
     });
   }
   if (infoCurrentTab === "rooms") renderRoomList();
@@ -25,6 +31,84 @@ function renderInfo(tab) {
   else if (infoCurrentTab === "guests") renderGuestList();
   else if (infoCurrentTab === "lodgers") renderLodgerList();
   else if (infoCurrentTab === "events") renderEventList();
+}
+
+function infoToolbarEl() {
+  return document.getElementById("info-toolbar");
+}
+
+function infoSetToolbar(html) {
+  const el = infoToolbarEl();
+  if (!el) return;
+  el.hidden = !html;
+  el.innerHTML = html || "";
+}
+
+function infoPageShell(toolbarHtml, bodyHtml) {
+  infoSetToolbar(toolbarHtml);
+  infoSetHtml(bodyHtml);
+}
+
+function infoGetFilters(tab) {
+  if (!infoFilters[tab]) infoFilters[tab] = {};
+  return infoFilters[tab];
+}
+
+function infoOnFilter(tab, key, value) {
+  infoGetFilters(tab)[key] = value;
+  renderInfo(tab);
+}
+
+function infoTextIncludes(haystack, needle) {
+  if (!needle) return true;
+  return String(haystack || "")
+    .toLowerCase()
+    .includes(String(needle).toLowerCase());
+}
+
+function infoSearchBox(tab, placeholder) {
+  const f = infoGetFilters(tab);
+  return `
+    <div class="info-search">
+      <span class="info-search-icon" aria-hidden="true">${icon("search")}</span>
+      <input type="search" class="info-search-input" placeholder="${infoEscape(placeholder)}"
+        value="${infoEscape(f.q || "")}"
+        oninput="infoOnFilter('${tab}','q',this.value)">
+    </div>
+  `;
+}
+
+function infoFilterSelect(tab, key, label, options, allLabel) {
+  const f = infoGetFilters(tab);
+  let html = `<select class="info-filter-select" aria-label="${infoEscape(label)}"
+    onchange="infoOnFilter('${tab}','${key}',this.value)">`;
+  html += `<option value="">${infoEscape(allLabel || "全部")}</option>`;
+  options.forEach((opt) => {
+    const value = Array.isArray(opt) ? opt[0] : opt;
+    const text = Array.isArray(opt) ? opt[1] : opt;
+    const selected = String(f[key] || "") === String(value) ? " selected" : "";
+    html += `<option value="${infoEscape(value)}"${selected}>${infoEscape(text)}</option>`;
+  });
+  html += "</select>";
+  return html;
+}
+
+function infoToolbarHtml(filtersHtml, actionHtml) {
+  return `
+    <div class="info-toolbar-filters">${filtersHtml}</div>
+    <div class="info-toolbar-actions">${actionHtml}</div>
+  `;
+}
+
+function infoActionLinks(editOnclick, deleteOnclick) {
+  return `<div class="info-row-actions">
+    <button type="button" class="info-row-action" onclick="${editOnclick}">${icon("edit")}编辑</button>
+    <button type="button" class="info-row-action info-row-action-danger" onclick="${deleteOnclick}">${icon("delete")}删除</button>
+  </div>`;
+}
+
+function infoEmptyTable(msg) {
+  return `<div class="empty-tip">${infoEscape(msg)}</div>`;
 }
 
 function infoContent() {
@@ -99,26 +183,54 @@ function infoGetInt(id) {
 /* ── 房间管理 | Room Management ── */
 
 function renderRoomList() {
+  const f = infoGetFilters("rooms");
   const rooms = query(`
     SELECT r.*, (SELECT COUNT(*) FROM beds WHERE room_id = r.id AND status != '备用') AS bed_count
     FROM rooms r
     ORDER BY r.name
   `);
-  let html = `
-    <div class="btn-bar" style="margin-bottom: var(--space-4);">
-      <button class="btn btn-primary" onclick="openRoomModal()">+ 新增房间</button>
-    </div>
-  `;
-  if (!rooms.length) {
-    html += `<div class="empty-tip">暂无房间，请先新增。</div>`;
-    infoSetHtml(html);
+  const locations = [
+    ...new Set(
+      rooms.map((r) => r.location).filter((loc) => loc && String(loc).trim()),
+    ),
+  ].sort();
+  const filtered = rooms.filter((r) => {
+    if (f.location && r.location !== f.location) return false;
+    if (f.dorm && r.dorm_type !== f.dorm) return false;
+    if (
+      f.q &&
+      !infoTextIncludes(
+        [r.name, r.location, r.notes, r.dorm_type].join(" "),
+        f.q,
+      )
+    ) {
+      return false;
+    }
+    return true;
+  });
+
+  const toolbar = infoToolbarHtml(
+    `${infoSearchBox("rooms", "搜索房间名、位置…")}
+     ${infoFilterSelect("rooms", "location", "位置筛选", locations.map((loc) => [loc, loc]), "位置筛选")}
+     ${infoFilterSelect("rooms", "dorm", "类型筛选", INFO_DORM_OPTIONS.map((d) => [d, d]), "类型筛选")}`,
+    `<button type="button" class="btn btn-primary" onclick="openRoomModal()">+ 新增房间</button>`,
+  );
+
+  if (!filtered.length) {
+    infoPageShell(
+      toolbar,
+      infoEmptyTable(
+        rooms.length ? "没有符合条件的房间。" : "暂无房间，请先新增。",
+      ),
+    );
     return;
   }
-  html += `<div class="table-wrap"><table>
+
+  let html = `<div class="table-wrap"><table>
     <thead><tr>
       <th>房间名</th><th>位置</th><th>楼层</th><th>寮房类型</th><th>备注</th><th>床位</th><th>操作</th>
     </tr></thead><tbody>`;
-  rooms.forEach((r) => {
+  filtered.forEach((r) => {
     html += `<tr>
       <td>${infoEscape(r.name)}</td>
       <td>${infoEscape(r.location)}</td>
@@ -126,14 +238,11 @@ function renderRoomList() {
       <td>${infoEscape(r.dorm_type)}</td>
       <td>${infoEscape(r.notes)}</td>
       <td>${r.bed_count}</td>
-      <td>
-        <button class="btn btn-sm btn-default" onclick="openRoomModal(${r.id})">编辑</button>
-        <button class="btn btn-sm btn-danger" onclick="deleteRoom(${r.id})">删除</button>
-      </td>
+      <td>${infoActionLinks(`openRoomModal(${r.id})`, `deleteRoom(${r.id})`)}</td>
     </tr>`;
   });
   html += "</tbody></table></div>";
-  infoSetHtml(html);
+  infoPageShell(toolbar, html);
 }
 
 function openRoomModal(id) {
@@ -153,6 +262,7 @@ function openRoomModal(id) {
       ${infoField("位置", `<input type="text" id="info-room-location" value="${infoEscape(r.location)}">`, "info-room-location")}
       ${infoField("楼层", `<input type="number" id="info-room-floor" value="${r.floor}">`, "info-room-floor")}
       ${infoField("寮房类型", infoSelectHtml("info-room-dorm", INFO_DORM_OPTIONS, r.dorm_type), "info-room-dorm")}
+      ${roomTagFieldsHtml(r)}
       ${infoField("备注", `<textarea id="info-room-notes" rows="2">${infoEscape(r.notes)}</textarea>`, "info-room-notes")}
     </form>
     <div class="btn-bar" style="margin-top: var(--space-4);">
@@ -170,6 +280,7 @@ async function submitRoom(id) {
   const floor = infoGetInt("info-room-floor");
   const dorm = infoGetValue("info-room-dorm");
   const notes = infoGetValue("info-room-notes");
+  const roomTags = readRoomTagFieldsFromForm();
 
   if (!name) {
     infoShowFieldError("info-room-name", "房间名为必填");
@@ -197,19 +308,43 @@ async function submitRoom(id) {
         floor: floor || 1,
         dorm_type: dorm,
         notes: notes,
+        ...roomTags,
       });
     } else {
       await withTransaction(async () => {
         if (id) {
           run(
-            "UPDATE rooms SET name=?, location=?, floor=?, dorm_type=?, notes=? WHERE id=?",
-            [name, location, floor || 1, dorm, notes, id],
+            "UPDATE rooms SET name=?, location=?, floor=?, dorm_type=?, notes=?, room_type=?, suitable_elder=?, suitable_child=?, near_zen_hall=?, flexible_use=? WHERE id=?",
+            [
+              name,
+              location,
+              floor || 1,
+              dorm,
+              notes,
+              roomTags.room_type,
+              roomTags.suitable_elder,
+              roomTags.suitable_child,
+              roomTags.near_zen_hall,
+              roomTags.flexible_use,
+              id,
+            ],
           );
           logAudit("更新房间", "room", id, { name });
         } else {
           const result = run(
-            "INSERT INTO rooms (name, location, floor, dorm_type, notes) VALUES (?, ?, ?, ?, ?)",
-            [name, location, floor || 1, dorm, notes],
+            "INSERT INTO rooms (name, location, floor, dorm_type, notes, room_type, suitable_elder, suitable_child, near_zen_hall, flexible_use) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            [
+              name,
+              location,
+              floor || 1,
+              dorm,
+              notes,
+              roomTags.room_type,
+              roomTags.suitable_elder,
+              roomTags.suitable_child,
+              roomTags.near_zen_hall,
+              roomTags.flexible_use,
+            ],
           );
           const newId = result.lastInsertId;
           logAudit("新增房间", "room", newId, { name });
@@ -260,6 +395,7 @@ async function deleteRoom(id) {
 /* ── 床位管理 | Bed Management ── */
 
 function renderBedList() {
+  const f = infoGetFilters("beds");
   const beds = query(`
     SELECT b.*, r.name AS room_name, r.dorm_type,
            (SELECT COUNT(*) FROM lodgers WHERE bed_id = b.id AND status = '在住') AS occupant_count
@@ -267,36 +403,71 @@ function renderBedList() {
     JOIN rooms r ON r.id = b.room_id
     ORDER BY r.name, b.bed_number
   `);
-  let html = `
-    <div class="btn-bar" style="margin-bottom: var(--space-4);">
-      <button class="btn btn-primary" onclick="openBedModal()">+ 新增床位</button>
-    </div>
-  `;
-  if (!beds.length) {
-    html += `<div class="empty-tip">暂无床位，请先新增。</div>`;
-    infoSetHtml(html);
+  const rooms = query("SELECT id, name FROM rooms ORDER BY name");
+  const filtered = beds.filter((b) => {
+    const statusLabel = b.occupant_count > 0 ? "占用" : b.status;
+    if (f.roomId && String(b.room_id) !== String(f.roomId)) return false;
+    if (f.status && statusLabel !== f.status) return false;
+    if (
+      f.q &&
+      !infoTextIncludes(
+        [b.room_name, b.bed_number, b.notes, b.bed_type, statusLabel].join(" "),
+        f.q,
+      )
+    ) {
+      return false;
+    }
+    return true;
+  });
+
+  const statusOptions = ["可用", "占用", "维修", "备用"];
+  const toolbar = infoToolbarHtml(
+    `${infoSearchBox("beds", "搜索房间、床位号…")}
+     ${infoFilterSelect(
+       "beds",
+       "roomId",
+       "房间筛选",
+       rooms.map((r) => [r.id, r.name]),
+       "房间筛选",
+     )}
+     ${infoFilterSelect(
+       "beds",
+       "status",
+       "状态筛选",
+       statusOptions.map((s) => [s, s]),
+       "状态筛选",
+     )}`,
+    `<button type="button" class="btn btn-primary" onclick="openBedModal()">+ 新增床位</button>`,
+  );
+
+  if (!filtered.length) {
+    infoPageShell(
+      toolbar,
+      infoEmptyTable(
+        beds.length ? "没有符合条件的床位。" : "暂无床位，请先新增。",
+      ),
+    );
     return;
   }
-  html += `<div class="table-wrap"><table>
+
+  let html = `<div class="table-wrap"><table>
     <thead><tr>
-      <th>房间</th><th>床位号</th><th>寮房类型</th><th>状态</th><th>备注</th><th>操作</th>
+      <th>房间</th><th>床位号</th><th>床位类型</th><th>寮房类型</th><th>状态</th><th>备注</th><th>操作</th>
     </tr></thead><tbody>`;
-  beds.forEach((b) => {
+  filtered.forEach((b) => {
     const statusLabel = b.occupant_count > 0 ? "占用" : b.status;
     html += `<tr>
       <td>${infoEscape(b.room_name)}</td>
       <td>${infoEscape(b.bed_number)}</td>
+      <td>${infoEscape(b.bed_type || "单床")}</td>
       <td>${infoEscape(b.dorm_type)}</td>
       <td>${infoEscape(statusLabel)}</td>
       <td>${infoEscape(b.notes)}</td>
-      <td>
-        <button class="btn btn-sm btn-default" onclick="openBedModal(${b.id})">编辑</button>
-        <button class="btn btn-sm btn-danger" onclick="deleteBed(${b.id})">删除</button>
-      </td>
+      <td>${infoActionLinks(`openBedModal(${b.id})`, `deleteBed(${b.id})`)}</td>
     </tr>`;
   });
   html += "</tbody></table></div>";
-  infoSetHtml(html);
+  infoPageShell(toolbar, html);
 }
 
 function openBedModal(id) {
@@ -325,6 +496,7 @@ function openBedModal(id) {
       ${infoField("所属房间 *", infoSelectHtml("info-bed-room", roomOptions, b.room_id, "required"), "info-bed-room")}
       ${infoField("床位号 *", `<input type="text" id="info-bed-number" value="${infoEscape(b.bed_number)}">`, "info-bed-number")}
       ${infoField("状态", infoSelectHtml("info-bed-status", statusOptions, statusValue, occupied ? "disabled" : ""), "info-bed-status")}
+      ${bedTagFieldsHtml(b)}
       ${infoField("备注", `<textarea id="info-bed-notes" rows="2">${infoEscape(b.notes)}</textarea>`, "info-bed-notes")}
     </form>
     <div class="btn-bar" style="margin-top: var(--space-4);">
@@ -341,6 +513,7 @@ async function submitBed(id) {
   const number = infoGetValue("info-bed-number");
   const status = infoGetValue("info-bed-status");
   const notes = infoGetValue("info-bed-notes");
+  const bedTags = readBedTagFieldsFromForm();
 
   if (!roomId) {
     infoShowFieldError("info-bed-room", "请选择所属房间");
@@ -384,14 +557,24 @@ async function submitBed(id) {
         bed_number: number,
         status: status,
         notes: notes,
+        ...bedTags,
       });
     } else {
       await withTransaction(async () => {
         if (id) {
           const old = query("SELECT status FROM beds WHERE id = ?", [id])[0];
           run(
-            "UPDATE beds SET room_id=?, bed_number=?, status=?, notes=? WHERE id=?",
-            [roomId, number, status, notes, id],
+            "UPDATE beds SET room_id=?, bed_number=?, status=?, notes=?, bed_type=?, suitable_elder=?, is_flexible=? WHERE id=?",
+            [
+              roomId,
+              number,
+              status,
+              notes,
+              bedTags.bed_type,
+              bedTags.suitable_elder,
+              bedTags.is_flexible,
+              id,
+            ],
           );
           if (old && old.status !== status) {
             setHouseStatus(id, status, `信息管理修改床位状态：${status}`);
@@ -403,8 +586,16 @@ async function submitBed(id) {
           });
         } else {
           const result = run(
-            "INSERT INTO beds (room_id, bed_number, status, notes) VALUES (?, ?, ?, ?)",
-            [roomId, number, status, notes],
+            "INSERT INTO beds (room_id, bed_number, status, notes, bed_type, suitable_elder, is_flexible) VALUES (?, ?, ?, ?, ?, ?, ?)",
+            [
+              roomId,
+              number,
+              status,
+              notes,
+              bedTags.bed_type,
+              bedTags.suitable_elder,
+              bedTags.is_flexible,
+            ],
           );
           const newId = result.lastInsertId;
           setHouseStatus(newId, status, "新增床位");
@@ -473,28 +664,61 @@ async function deleteBed(id) {
 /* ── 住客主档案 | Guest Master Profile ── */
 
 function renderGuestList() {
+  const f = infoGetFilters("guests");
   const guests = query(`
     SELECT g.*,
            (SELECT COUNT(*) FROM lodgers WHERE guest_id = g.id) AS lodger_count
     FROM guests g
     ORDER BY g.updated_at DESC, g.id DESC
   `);
-  let html = `
-    <div class="btn-bar" style="margin-bottom: var(--space-4);">
-      <button class="btn btn-primary" onclick="openGuestModal()">+ 新增住客档案</button>
-    </div>
-  `;
-  if (!guests.length) {
-    html += `<div class="empty-tip">暂无住客档案。</div>`;
-    infoSetHtml(html);
+  const filtered = guests.filter((g) => {
+    if (f.gender && g.gender !== f.gender) return false;
+    if (
+      f.q &&
+      !infoTextIncludes(
+        [
+          g.name,
+          g.dharma_name,
+          g.phone,
+          g.id_card,
+          g.emergency_contact,
+        ].join(" "),
+        f.q,
+      )
+    ) {
+      return false;
+    }
+    return true;
+  });
+
+  const toolbar = infoToolbarHtml(
+    `${infoSearchBox("guests", "搜索姓名、手机号…")}
+     ${infoFilterSelect(
+       "guests",
+       "gender",
+       "性别筛选",
+       INFO_GENDER_OPTIONS.map((g) => [g, g]),
+       "性别筛选",
+     )}`,
+    `<button type="button" class="btn btn-primary" onclick="openGuestModal()">+ 新增住客档案</button>`,
+  );
+
+  if (!filtered.length) {
+    infoPageShell(
+      toolbar,
+      infoEmptyTable(
+        guests.length ? "没有符合条件的住客档案。" : "暂无住客档案。",
+      ),
+    );
     return;
   }
-  html += `<div class="table-wrap"><table>
+
+  let html = `<div class="table-wrap"><table>
     <thead><tr>
       <th>姓名 / 法名</th><th>性别</th><th>手机号</th><th>身份证</th>
       <th>紧急联系人</th><th>到访次数</th><th>最近到访</th><th>操作</th>
     </tr></thead><tbody>`;
-  guests.forEach((g) => {
+  filtered.forEach((g) => {
     html += `<tr>
       <td>${infoEscape(personDisplayName(g))}</td>
       <td>${infoEscape(g.gender)}</td>
@@ -503,14 +727,11 @@ function renderGuestList() {
       <td>${infoEscape(g.emergency_contact)}${g.emergency_phone ? "<br>" + infoEscape(g.emergency_phone) : ""}</td>
       <td>${g.visit_count || 0}</td>
       <td>${infoEscape(g.last_visit_date)}</td>
-      <td>
-        <button class="btn btn-sm btn-default" onclick="openGuestModal(${g.id})">编辑</button>
-        <button class="btn btn-sm btn-danger" onclick="deleteGuest(${g.id})">删除</button>
-      </td>
+      <td>${infoActionLinks(`openGuestModal(${g.id})`, `deleteGuest(${g.id})`)}</td>
     </tr>`;
   });
   html += "</tbody></table></div>";
-  infoSetHtml(html);
+  infoPageShell(toolbar, html);
 }
 
 function openGuestModal(id) {
@@ -716,6 +937,7 @@ async function deleteGuest(id) {
 /* ── 挂单记录 | Lodger Records ── */
 
 function renderLodgerList() {
+  const f = infoGetFilters("lodgers");
   const lodgers = query(`
     SELECT l.*, r.name AS room_name, b.bed_number
     FROM lodgers l
@@ -723,22 +945,58 @@ function renderLodgerList() {
     LEFT JOIN rooms r ON r.id = b.room_id
     ORDER BY l.check_in_date DESC, l.id DESC
   `);
-  let html = `
-    <div class="btn-bar" style="margin-bottom: var(--space-4);">
-      <button class="btn btn-primary" onclick="showView('checkin')">+ 新增挂单（去住宿办理）</button>
-    </div>
-  `;
-  if (!lodgers.length) {
-    html += `<div class="empty-tip">暂无挂单记录。</div>`;
-    infoSetHtml(html);
+  const filtered = lodgers.filter((l) => {
+    if (f.status && l.status !== f.status) return false;
+    if (f.source && (l.source || "现场") !== f.source) return false;
+    if (
+      f.q &&
+      !infoTextIncludes(
+        [l.name, l.dharma_name, l.phone, l.room_name, l.bed_number, l.notes].join(
+          " ",
+        ),
+        f.q,
+      )
+    ) {
+      return false;
+    }
+    return true;
+  });
+
+  const toolbar = infoToolbarHtml(
+    `${infoSearchBox("lodgers", "搜索姓名、房号…")}
+     ${infoFilterSelect(
+       "lodgers",
+       "status",
+       "状态筛选",
+       INFO_LODGER_STATUS_OPTIONS.map((s) => [s, s]),
+       "状态筛选",
+     )}
+     ${infoFilterSelect(
+       "lodgers",
+       "source",
+       "来源筛选",
+       INFO_SOURCE_OPTIONS.map((s) => [s, s]),
+       "来源筛选",
+     )}`,
+    `<button type="button" class="btn btn-primary" onclick="showView('checkin')">+ 新增挂单（去住宿办理）</button>`,
+  );
+
+  if (!filtered.length) {
+    infoPageShell(
+      toolbar,
+      infoEmptyTable(
+        lodgers.length ? "没有符合条件的挂单记录。" : "暂无挂单记录。",
+      ),
+    );
     return;
   }
-  html += `<div class="table-wrap"><table>
+
+  let html = `<div class="table-wrap"><table>
     <thead><tr>
       <th>姓名 / 法名</th><th>性别</th><th>手机号</th><th>房间/床位</th>
       <th>入住日</th><th>预离日</th><th>状态</th><th>来源</th><th>备注</th><th>操作</th>
     </tr></thead><tbody>`;
-  lodgers.forEach((l) => {
+  filtered.forEach((l) => {
     const roomBed =
       (l.room_name ? infoEscape(l.room_name) : "-") +
       (l.bed_number ? " / " + infoEscape(l.bed_number) : "");
@@ -752,14 +1010,11 @@ function renderLodgerList() {
       <td>${infoEscape(l.status)}</td>
       <td>${infoEscape(l.source)}</td>
       <td>${infoEscape(l.notes)}</td>
-      <td>
-        <button class="btn btn-sm btn-default" onclick="openLodgerModal(${l.id})">编辑</button>
-        <button class="btn btn-sm btn-danger" onclick="deleteInfoLodger(${l.id})">删除</button>
-      </td>
+      <td>${infoActionLinks(`openLodgerModal(${l.id})`, `deleteInfoLodger(${l.id})`)}</td>
     </tr>`;
   });
   html += "</tbody></table></div>";
-  infoSetHtml(html);
+  infoPageShell(toolbar, html);
 }
 
 function openLodgerModal(id) {

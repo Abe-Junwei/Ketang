@@ -1818,6 +1818,237 @@ main,
 }
 
 /* ============================================================
+       Information Management | 信息管理页
+       ============================================================ */
+.info-view .info-page {
+  padding: var(--space-5) var(--space-6);
+  background: var(--color-card);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+}
+
+.info-page-title {
+  margin: 0 0 var(--space-4);
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-foreground);
+  letter-spacing: 0.05em;
+}
+
+.info-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+  margin-bottom: var(--space-4);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.info-tab {
+  margin: 0;
+  padding: var(--space-2) var(--space-4) var(--space-3);
+  border: none;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: var(--color-muted);
+  font-size: var(--font-size-sm);
+  font-family: inherit;
+  cursor: pointer;
+  transition:
+    color 0.15s ease,
+    border-color 0.15s ease;
+}
+
+.info-tab:hover {
+  color: var(--color-foreground);
+}
+
+.info-tab.active {
+  color: var(--color-primary-text);
+  border-bottom-color: var(--color-primary);
+  font-weight: var(--font-weight-medium);
+}
+
+.info-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
+  padding: var(--space-3) var(--space-4);
+  background: color-mix(in srgb, var(--color-surface) 30%, var(--color-card));
+  border: 1px solid color-mix(in srgb, var(--color-border) 65%, transparent);
+  border-radius: var(--radius-md);
+}
+
+.info-toolbar-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+  flex: 1 1 12rem;
+  min-width: 0;
+}
+
+.info-toolbar-actions {
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+.info-search {
+  position: relative;
+  flex: 1 1 200px;
+  max-width: 280px;
+  min-width: 160px;
+}
+
+.info-search-icon {
+  position: absolute;
+  left: var(--space-3);
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  color: var(--color-muted);
+  pointer-events: none;
+}
+
+.info-search-icon .icon {
+  width: 16px;
+  height: 16px;
+}
+
+.info-search-input {
+  width: 100%;
+  padding: var(--space-2) var(--space-3) var(--space-2)
+    calc(var(--space-3) + 22px);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-card);
+  color: var(--color-foreground);
+  font-size: var(--font-size-sm);
+  font-family: inherit;
+}
+
+.info-search-input:focus {
+  outline: none;
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 1px var(--color-primary);
+}
+
+.info-filter-select {
+  padding: var(--space-2) var(--space-3);
+  padding-right: var(--space-6);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-card);
+  color: var(--color-foreground);
+  font-size: var(--font-size-sm);
+  font-family: inherit;
+  min-width: 7.5rem;
+}
+
+.info-filter-select:focus {
+  outline: none;
+  border-color: var(--color-primary);
+}
+
+.info-table-card {
+  background: var(--color-card);
+  border: 1px solid color-mix(in srgb, var(--color-border) 70%, transparent);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+
+.info-table-card .table-wrap {
+  margin: 0;
+}
+
+.info-table-card table {
+  width: 100%;
+}
+
+.info-table-card tbody tr:nth-child(even) {
+  background: color-mix(in srgb, var(--color-surface) 22%, var(--color-card));
+}
+
+.info-table-card tbody tr:hover {
+  background: var(--color-primary-muted);
+}
+
+.info-row-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  align-items: center;
+}
+
+.info-row-action {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--color-primary-text);
+  font-size: var(--font-size-sm);
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.info-row-action .icon {
+  width: 15px;
+  height: 15px;
+}
+
+.info-row-action:hover {
+  color: var(--color-primary);
+}
+
+.info-row-action-danger {
+  color: var(--color-danger);
+}
+
+.info-row-action-danger:hover {
+  color: color-mix(in srgb, var(--color-danger) 85%, var(--color-foreground));
+}
+
+.info-table-card .empty-tip {
+  padding: var(--space-8) var(--space-4);
+}
+
+.info-table-card .event-chart-box,
+.info-table-card .event-grid {
+  padding: var(--space-4);
+}
+
+.info-subsection-title {
+  margin: 0 0 var(--space-3);
+  padding: var(--space-4) var(--space-4) 0;
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-foreground);
+}
+
+@media (max-width: 720px) {
+  .info-view .info-page {
+    padding: var(--space-4);
+  }
+
+  .info-toolbar-actions {
+    width: 100%;
+    margin-left: 0;
+  }
+
+  .info-toolbar-actions .btn {
+    width: 100%;
+  }
+
+  .info-search {
+    max-width: none;
+    flex-basis: 100%;
+  }
+}
+
+/* ============================================================
        Room Grid & Room Cards | 房间卡片（按寮分组）
        ============================================================ */
 .room-legend {
