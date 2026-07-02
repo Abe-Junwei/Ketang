@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import http.cookiejar
 import json
 import sys
 import time
@@ -12,6 +13,10 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
 DEFAULT_BASELINE = ROOT / "docs/ops/performance-baseline.json"
+_COOKIE_JAR = http.cookiejar.CookieJar()
+_URL_OPENER = urllib.request.build_opener(
+    urllib.request.HTTPCookieProcessor(_COOKIE_JAR),
+)
 
 
 def percentile(values: list[int], pct: float) -> int:
@@ -50,7 +55,7 @@ def request_json(url, method="GET", headers=None, body=None, timeout=60):
     req = urllib.request.Request(url, data=data, headers=req_headers, method=method)
     started = time.perf_counter()
     try:
-        with urllib.request.urlopen(req, timeout=timeout) as resp:
+        with _URL_OPENER.open(req, timeout=timeout) as resp:
             raw = resp.read().decode("utf-8")
             elapsed_ms = int((time.perf_counter() - started) * 1000)
             payload = json.loads(raw or "{}") if raw else {}
@@ -135,7 +140,6 @@ def main() -> int:
         return 1
 
     login_samples: list[int] = []
-    token = None
     for _ in range(sample_n):
         status, body, ms, _ = request_json(
             f"{base}/api/db",
@@ -143,10 +147,9 @@ def main() -> int:
             body={"action": "login_role", "role": args.role, "password": args.password},
         )
         login_samples.append(ms)
-        if status != 200 or not body.get("token"):
+        if status != 200 or not body.get("user"):
             print(f"FAIL login_role status={status} body={body}")
             return 1
-        token = body["token"]
     results["login_role_ms"] = summarize_samples(login_samples)
     results["login_role_timing"] = body.get("_timing")
 
@@ -154,7 +157,6 @@ def main() -> int:
     for _ in range(sample_n):
         status, body, ms, _ = request_json(
             f"{base}/api/v1/session{timing_q}",
-            headers={"Authorization": f"Bearer {token}"},
         )
         session_samples.append(ms)
         if status != 200:
@@ -168,7 +170,6 @@ def main() -> int:
     for _ in range(sample_n):
         status, body, ms, headers = request_json(
             f"{base}/api/v1/read-model{timing_q}",
-            headers={"Authorization": f"Bearer {token}"},
         )
         read_samples.append(ms)
         if status != 200:
@@ -184,10 +185,7 @@ def main() -> int:
         for _ in range(sample_n):
             status, _, ms, _ = request_json(
                 f"{base}/api/v1/read-model{timing_q}",
-                headers={
-                    "Authorization": f"Bearer {token}",
-                    "If-None-Match": etag_text,
-                },
+                headers={"If-None-Match": etag_text},
             )
             samples_304.append(ms)
             if status != 304:
@@ -201,7 +199,6 @@ def main() -> int:
     for _ in range(sample_n):
         status, body, ms, _ = request_json(
             f"{base}/api/v1/board-version",
-            headers={"Authorization": f"Bearer {token}"},
         )
         board_samples.append(ms)
         if status != 200:

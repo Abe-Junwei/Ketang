@@ -498,14 +498,11 @@ function countActiveAdmins(excludeId) {
   const excluded = parseInt(excludeId || 0, 10);
   if (typeof useRemoteAdminUsers === "function" && useRemoteAdminUsers()) {
     return (
-      (typeof cachedAdminUsers !== "undefined" ? cachedAdminUsers : [])
-        .filter(function (u) {
-          return (
-            u.role === "admin" &&
-            u.is_active !== 0 &&
-            u.id !== excluded
-          );
-        }).length || 0
+      (typeof cachedAdminUsers !== "undefined" ? cachedAdminUsers : []).filter(
+        function (u) {
+          return u.role === "admin" && u.is_active !== 0 && u.id !== excluded;
+        },
+      ).length || 0
     );
   }
   return (

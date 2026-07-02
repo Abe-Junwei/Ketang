@@ -28,14 +28,7 @@ const READ_MODEL_SYNC_PERMISSIONS = [
 /** 权限码 → 可读表 | Permission-driven table allowlist */
 const PERMISSION_TABLE_INCLUDES = {
   "board.read": ["rooms", "beds"],
-  "lodging.read": [
-    "rooms",
-    "beds",
-    "guests",
-    "events",
-    "lodgers",
-    "payments",
-  ],
+  "lodging.read": ["rooms", "beds", "guests", "events", "lodgers", "payments"],
   "reservation.read": ["reservations"],
   "meals.read": ["meals", "rooms", "beds", "guests", "lodgers"],
   "housekeeping.read": ["housekeeping", "rooms", "beds", "lodgers"],

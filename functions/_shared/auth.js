@@ -3,6 +3,7 @@ import {
   hashPasswordPlain,
   isLegacySha256Hash,
 } from "./password.js";
+import { getAccessCookie } from "./cookies.js";
 
 export { verifyPassword, hashPasswordPlain, isLegacySha256Hash };
 
@@ -86,7 +87,8 @@ export async function signSession(env, user) {
 export async function verifySession(request, env, queryD1) {
   assertSessionSecret(env);
   const auth = request.headers.get("authorization") || "";
-  const token = auth.startsWith("Bearer ") ? auth.slice(7) : "";
+  let token = auth.startsWith("Bearer ") ? auth.slice(7) : "";
+  if (!token) token = getAccessCookie(request);
   const [payload, signature] = token.split(".");
   if (!payload || !signature) return null;
   const expected = await hmac(env.KETANG_SESSION_SECRET, payload);

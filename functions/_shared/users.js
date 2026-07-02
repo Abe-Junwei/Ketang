@@ -1,4 +1,9 @@
-import { verifySession, verifyPassword, hashPasswordPlain, signAccessToken } from "./auth.js";
+import {
+  verifySession,
+  verifyPassword,
+  hashPasswordPlain,
+  signAccessToken,
+} from "./auth.js";
 import { revokeAllRefreshSessionsForUser } from "./refresh-sessions.js";
 import { insertAudit, queryD1, runD1 } from "./d1.js";
 import { getSessionPermissions, requirePermission } from "./permissions.js";
@@ -170,9 +175,10 @@ export async function updateUser(env, session, body) {
     hash = await hashPasswordPlain(body.password);
   }
   if (hash) {
+    await bumpAuthVersion(env, id);
     await runD1(
       env,
-      "UPDATE users SET display_name=?, role=?, is_advanced=?, password=?, auth_version = COALESCE(auth_version, 1) + 1, must_change_password = 0 WHERE id=?",
+      "UPDATE users SET display_name=?, role=?, is_advanced=?, password=?, must_change_password = 0 WHERE id=?",
       [displayName, role, isAdvanced, hash, id],
     );
   } else {

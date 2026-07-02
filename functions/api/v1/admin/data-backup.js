@@ -131,15 +131,7 @@ const TABLE_IMPORT_COLUMNS = {
     "notes",
     "created_at",
   ],
-  meals: [
-    "id",
-    "lodger_id",
-    "date",
-    "breakfast",
-    "lunch",
-    "dinner",
-    "notes",
-  ],
+  meals: ["id", "lodger_id", "date", "breakfast", "lunch", "dinner", "notes"],
   payments: [
     "id",
     "lodger_id",
@@ -151,14 +143,7 @@ const TABLE_IMPORT_COLUMNS = {
     "paid_at",
     "created_at",
   ],
-  housekeeping: [
-    "id",
-    "bed_id",
-    "status",
-    "operator",
-    "changed_at",
-    "notes",
-  ],
+  housekeeping: ["id", "bed_id", "status", "operator", "changed_at", "notes"],
   audit_logs: [
     "id",
     "action",

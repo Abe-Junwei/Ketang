@@ -12,15 +12,15 @@ let loginSubmitting = false;
 
 function applySessionRefresh(result) {
   if (!result) return;
-  var access = result.access_token || result.token;
-  if (access && typeof setRemoteSessionToken === "function")
-    setRemoteSessionToken(access);
-  if (typeof setRemoteRefreshBlocked === "function") setRemoteRefreshBlocked(false);
+  if (typeof setRemoteRefreshBlocked === "function")
+    setRemoteRefreshBlocked(false);
   if (result.user) {
     currentUser = result.user;
     if (result.permissions) setSessionPermissions(result.permissions);
     else if (currentUser.role) {
-      setSessionPermissions(getSessionPermissionsForRole(currentUser.role, currentUser));
+      setSessionPermissions(
+        getSessionPermissionsForRole(currentUser.role, currentUser),
+      );
     }
     localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(currentUser));
     updateAuthUI();
@@ -91,8 +91,8 @@ function restoreCachedUserFromStorage(isRemote) {
 
 function initAuth() {
   const isRemote = typeof isRemoteDB === "function" && isRemoteDB();
-  if (isRemote && typeof purgeLegacyRemoteSessionToken === "function") {
-    purgeLegacyRemoteSessionToken();
+  if (isRemote && typeof purgeLegacyClientTokens === "function") {
+    purgeLegacyClientTokens();
   }
   restoreCachedUserFromStorage(isRemote);
   if (!isRemote && currentUser && typeof query === "function") {
@@ -121,11 +121,42 @@ function initAuth() {
     }
   }
   updateAuthUI();
+  if (shouldShowRemoteSessionRestore()) showLoginRestoring();
 }
 
 function syncAuthBodyClass() {
   document.body.classList.toggle("auth-logged-in", !!currentUser);
   document.body.classList.toggle("auth-login-required", !currentUser);
+}
+
+function shouldShowRemoteSessionRestore() {
+  if (typeof isRemoteDB !== "function" || !isRemoteDB()) return false;
+  if (
+    typeof isRemoteRefreshBlocked === "function" &&
+    isRemoteRefreshBlocked()
+  ) {
+    return false;
+  }
+  if (currentUser) return true;
+  return false;
+}
+
+function setLoginOverlayPanel(mode) {
+  const overlay = document.getElementById("login-overlay");
+  const formPanel = document.getElementById("login-form-panel");
+  const restorePanel = document.getElementById("login-restore-panel");
+  if (!overlay || !formPanel || !restorePanel) return;
+  const restoring = mode === "restore";
+  formPanel.hidden = restoring;
+  restorePanel.hidden = !restoring;
+  overlay.classList.toggle("login-overlay--restore", restoring);
+}
+
+function showLoginRestoring() {
+  const overlay = document.getElementById("login-overlay");
+  if (overlay) overlay.classList.add("active");
+  setLoginOverlayPanel("restore");
+  syncAuthBodyClass();
 }
 
 function closeProfileMenu() {
@@ -163,8 +194,6 @@ function clearAuthSession() {
   closeProfileMenu();
   currentUser = null;
   localStorage.removeItem(AUTH_STORAGE_KEY);
-  if (typeof clearRemoteAccessToken === "function") clearRemoteAccessToken();
-  else if (typeof setRemoteSessionToken === "function") setRemoteSessionToken("");
   if (typeof resetRemoteReadModelState === "function")
     resetRemoteReadModelState();
   syncAuthBodyClass();
@@ -180,26 +209,27 @@ async function restoreRemoteSession() {
     isRemoteRefreshBlocked()
   ) {
     clearAuthSession();
+    showLoginOverlay();
     return false;
   }
 
-  if (getRemoteSessionToken()) {
-    try {
-      const data = await apiSessionMeForRestore();
-      applySessionRefresh(data);
-      hideLoginOverlay();
-      return true;
-    } catch (e) {
-      const msg = String(e.message || "");
-      const authExpired = /登录已过期|401|Unauthorized/i.test(msg);
-      if (!authExpired && currentUser) {
-        updateAuthUI();
-        applyPermissions();
-        if (typeof showToast === "function") {
-          showToast("会话校验暂时失败，已使用本地缓存登录态：" + msg);
-        }
-        return true;
+  if (shouldShowRemoteSessionRestore()) showLoginRestoring();
+
+  try {
+    const data = await apiSessionMeForRestore();
+    applySessionRefresh(data);
+    hideLoginOverlay();
+    return true;
+  } catch (e) {
+    const msg = String(e.message || "");
+    const authExpired = /登录已过期|401|Unauthorized/i.test(msg);
+    if (!authExpired && currentUser) {
+      updateAuthUI();
+      applyPermissions();
+      if (typeof showToast === "function") {
+        showToast("会话校验暂时失败，已使用本地缓存登录态：" + msg);
       }
+      return true;
     }
   }
 
@@ -213,6 +243,7 @@ async function restoreRemoteSession() {
     const authExpired = /登录已过期|401|Unauthorized/i.test(msg);
     if (authExpired) {
       clearAuthSession();
+      showLoginOverlay();
       return false;
     }
     if (currentUser) {
@@ -224,6 +255,7 @@ async function restoreRemoteSession() {
       return true;
     }
     clearAuthSession();
+    showLoginOverlay();
     return false;
   }
 }
@@ -282,7 +314,9 @@ async function login(username, password) {
     is_advanced: fresh.is_advanced ? 1 : 0,
     auth_version: fresh.auth_version || 1,
   };
-  setSessionPermissions(getSessionPermissionsForRole(currentUser.role, currentUser));
+  setSessionPermissions(
+    getSessionPermissionsForRole(currentUser.role, currentUser),
+  );
   localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(currentUser));
   logAudit("用户登录", "user", user.id, {
     username: user.username,
@@ -305,8 +339,7 @@ async function loginByRole(role, password) {
       console.warn("云端身份登录失败 | Remote role login failed:", err);
       throw err;
     }
-    if (!result.access_token && !result.token)
-      throw new Error("登录成功但未收到会话令牌，请刷新后重试");
+    if (!result.user) throw new Error("登录成功但未收到用户信息，请刷新后重试");
     applySessionRefresh(result);
     logAudit("用户登录", "user", result.user.id, {
       username: result.user.username,
@@ -337,7 +370,9 @@ async function loginByRole(role, password) {
       is_advanced: fresh.is_advanced ? 1 : 0,
       auth_version: fresh.auth_version || 1,
     };
-    setSessionPermissions(getSessionPermissionsForRole(currentUser.role, currentUser));
+    setSessionPermissions(
+      getSessionPermissionsForRole(currentUser.role, currentUser),
+    );
     localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(currentUser));
     logAudit("用户登录", "user", user.id, {
       username: user.username,
@@ -404,6 +439,7 @@ function showLoginOverlay() {
   const passwordEl = document.getElementById("login-password");
   if (errorEl) errorEl.textContent = "";
   if (passwordEl) passwordEl.value = "";
+  setLoginOverlayPanel("form");
   if (overlay) overlay.classList.add("active");
   syncAuthBodyClass();
   setLoginPending(false);
@@ -412,6 +448,7 @@ function showLoginOverlay() {
 
 function hideLoginOverlay() {
   const overlay = document.getElementById("login-overlay");
+  setLoginOverlayPanel("form");
   if (overlay) overlay.classList.remove("active");
   syncAuthBodyClass();
 }
@@ -916,15 +953,19 @@ async function submitUser(e) {
         bumpLocalAuthVersion(id);
         run(
           "UPDATE users SET display_name=?, role=?, is_advanced=?, password=?, must_change_password=0 WHERE id=?",
-          [displayName, role, isAdvanced, await hashPasswordAsync(password), id],
+          [
+            displayName,
+            role,
+            isAdvanced,
+            await hashPasswordAsync(password),
+            id,
+          ],
         );
       } else {
-        run("UPDATE users SET display_name=?, role=?, is_advanced=? WHERE id=?", [
-          displayName,
-          role,
-          isAdvanced,
-          id,
-        ]);
+        run(
+          "UPDATE users SET display_name=?, role=?, is_advanced=? WHERE id=?",
+          [displayName, role, isAdvanced, id],
+        );
       }
       logAudit("更新用户", "user", id, { username: existing.username, role });
       if (currentUser && currentUser.id == id) {
@@ -943,7 +984,13 @@ async function submitUser(e) {
     } else {
       const result = run(
         "INSERT INTO users (username, display_name, role, is_advanced, password, auth_version, must_change_password) VALUES (?, ?, ?, ?, ?, 1, 0)",
-        [username, displayName, role, isAdvanced, await hashPasswordAsync(password)],
+        [
+          username,
+          displayName,
+          role,
+          isAdvanced,
+          await hashPasswordAsync(password),
+        ],
       );
       logAudit("新增用户", "user", result.lastInsertId, { username, role });
     }

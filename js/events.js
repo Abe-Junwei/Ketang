@@ -549,8 +549,7 @@ function openRoomingSuggestion(eventId) {
 
   const suggestion = generateRoomingSuggestion(eventId);
 
-  document.getElementById("modal-title").textContent =
-    "排房建议 · " + evt.name;
+  document.getElementById("modal-title").textContent = "排房建议 · " + evt.name;
   setModalWide(true);
 
   let bodyHtml = `
@@ -583,7 +582,10 @@ function openRoomingSuggestion(eventId) {
   // 女众方案
   if (suggestion.femalePlan.length > 0) {
     bodyHtml += `<h4 class="rooming-section-title">女众分配方案（${suggestion.registeredFemale + (suggestion.femaleGap > 0 ? suggestion.femaleGap : 0)} 人）</h4>`;
-    bodyHtml += renderRoomingPlanTable(suggestion.femalePlan, suggestion.femaleGap);
+    bodyHtml += renderRoomingPlanTable(
+      suggestion.femalePlan,
+      suggestion.femaleGap,
+    );
   }
 
   // 调剂建议

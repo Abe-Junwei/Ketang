@@ -105,7 +105,7 @@ export async function getSessionPermissions(env, session) {
       "SELECT is_advanced FROM users WHERE id = ? LIMIT 1",
       [session.id || session.sub],
     );
-    isAdvanced = !!(rows[0]?.is_advanced);
+    isAdvanced = !!rows[0]?.is_advanced;
   }
   const defaults = getDefaultRolePermissions();
   const custom = await loadRolePermissions(env);

@@ -1,5 +1,6 @@
-import { json, readJson, apiErrorStatus } from "../../../_shared/http.js";
-import { requireSession, signSession } from "../../../_shared/auth.js";
+import { json, readJson, apiErrorStatus, clientIp } from "../../../_shared/http.js";
+import { requireSession } from "../../../_shared/auth.js";
+import { buildDualAuthSuccess } from "../../../_shared/auth-response.js";
 import {
   initRemoteDatabase,
   queryD1,
@@ -41,7 +42,14 @@ export async function onRequestPost({ request, env }) {
     if (body.action === "update") {
       const result = await updateUser(env, session, body);
       if (result.user) {
-        result.token = await signSession(env, result.user);
+        const meta = {
+          ip: clientIp(request),
+          userAgent: request.headers.get("user-agent") || "",
+        };
+        return await buildDualAuthSuccess(env, request, result.user, meta, {
+          ok: true,
+          password_changed: !!result.password_changed,
+        });
       }
       return json(result);
     }

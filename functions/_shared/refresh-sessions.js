@@ -67,7 +67,9 @@ export async function createRefreshSession(env, user, meta) {
   const authVersion =
     user.auth_version != null ? Number(user.auth_version) || 1 : 1;
   const now = new Date();
-  const expiresAt = new Date(now.getTime() + REFRESH_TTL_SEC * 1000).toISOString();
+  const expiresAt = new Date(
+    now.getTime() + REFRESH_TTL_SEC * 1000,
+  ).toISOString();
   await runD1(
     env,
     `INSERT INTO refresh_sessions (id, user_id, token_hash, auth_version, created_at, expires_at, last_used_at, user_agent, ip, revoked)

@@ -4,7 +4,7 @@ import { getRefreshCookie } from "../../../_shared/cookies.js";
 import { consumeRefreshToken } from "../../../_shared/refresh-sessions.js";
 import { buildRefreshSuccess } from "../../../_shared/auth-response.js";
 import { getSessionPermissions } from "../../../_shared/permissions.js";
-import { clearRefreshCookieHeader } from "../../../_shared/cookies.js";
+import { clearAllAuthCookieHeaders } from "../../../_shared/cookies.js";
 import { jsonWithCookies } from "../../../_shared/http.js";
 
 /** POST /api/v1/auth/refresh — Cookie 续期 access | Refresh access via HttpOnly cookie */
@@ -17,7 +17,7 @@ export async function onRequestPost({ request, env }) {
     return jsonWithCookies(
       { error: "登录已过期，请重新登录" },
       401,
-      [clearRefreshCookieHeader()],
+      clearAllAuthCookieHeaders(),
     );
   }
   const meta = {
@@ -30,7 +30,7 @@ export async function onRequestPost({ request, env }) {
       return jsonWithCookies(
         { error: "登录已过期，请重新登录" },
         401,
-        [clearRefreshCookieHeader()],
+        clearAllAuthCookieHeaders(),
       );
     }
     const sessionShape = {

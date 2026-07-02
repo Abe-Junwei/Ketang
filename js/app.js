@@ -464,11 +464,7 @@ function renderLodgingOccupancyChart() {
 
 async function renderAll(options) {
   if (typeof isLoggedIn === "function" && !isLoggedIn()) return;
-  if (
-    isRemoteDB() &&
-    getRemoteSessionToken() &&
-    !(options && options.skipSync)
-  ) {
+  if (isRemoteDB() && !(options && options.skipSync)) {
     const forceSync = !!(options && options.forceSync);
     try {
       if (forceSync || !remoteReadModelReady) {
@@ -476,10 +472,7 @@ async function renderAll(options) {
       } else {
         try {
           const result = await apiBoardVersion();
-          if (
-            lastBoardVersion == null ||
-            result.version !== lastBoardVersion
-          ) {
+          if (lastBoardVersion == null || result.version !== lastBoardVersion) {
             await syncRemoteReadModel({ force: true });
           }
           lastBoardVersion = result.version;
@@ -894,8 +887,7 @@ function renderRooms() {
       remoteSyncStatus === "error"
         ? remoteSyncError || "数据同步失败，请刷新后重试"
         : "正在加载房态数据…";
-    grid.innerHTML =
-      '<p class="empty-tip">' + escapeHtml(msg) + "</p>";
+    grid.innerHTML = '<p class="empty-tip">' + escapeHtml(msg) + "</p>";
     return;
   }
   const rooms = query("SELECT * FROM rooms ORDER BY floor ASC, id");

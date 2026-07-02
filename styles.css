@@ -4562,6 +4562,16 @@ form .field {
   display: flex;
 }
 
+.login-restore-card {
+  text-align: center;
+}
+
+.login-restore-hint {
+  margin: 0;
+  color: var(--color-muted);
+  font-size: var(--font-size-sm);
+}
+
 body.auth-login-required .sidebar,
 body.auth-login-required .app-shell {
   display: none !important;

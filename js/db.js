@@ -3,7 +3,7 @@ const DB_NAME = "ketang";
 const STORE_NAME = "db";
 const KEY = "main";
 const REMOTE_SESSION_KEY = "ketang_remote_session_token";
-const ACCESS_TOKEN_KEY = "ketang_access_token";
+const LEGACY_ACCESS_TOKEN_KEY = "ketang_access_token";
 const REFRESH_BLOCK_KEY = "ketang_block_refresh";
 const REMOTE_DB_ENABLED = (() => {
   if (typeof window === "undefined" || !window.location) return false;
@@ -47,30 +47,13 @@ function isRemoteDB() {
   return REMOTE_DB_ENABLED;
 }
 
-function purgeLegacyRemoteSessionToken() {
+function purgeLegacyClientTokens() {
   try {
     localStorage.removeItem(REMOTE_SESSION_KEY);
+    sessionStorage.removeItem(LEGACY_ACCESS_TOKEN_KEY);
   } catch (e) {
     /* ignore */
   }
-}
-
-function getRemoteSessionToken() {
-  try {
-    return sessionStorage.getItem(ACCESS_TOKEN_KEY) || "";
-  } catch (e) {
-    return "";
-  }
-}
-
-function setRemoteSessionToken(token) {
-  try {
-    if (token) sessionStorage.setItem(ACCESS_TOKEN_KEY, token);
-    else sessionStorage.removeItem(ACCESS_TOKEN_KEY);
-  } catch (e) {
-    /* ignore */
-  }
-  purgeLegacyRemoteSessionToken();
 }
 
 function isRemoteRefreshBlocked() {
@@ -90,10 +73,6 @@ function setRemoteRefreshBlocked(blocked) {
   }
 }
 
-function clearRemoteAccessToken() {
-  setRemoteSessionToken("");
-}
-
 function setRemoteSyncStatus(status, message) {
   remoteSyncStatus = status || "idle";
   remoteSyncError = message || "";
@@ -103,8 +82,7 @@ function setRemoteSyncStatus(status, message) {
 function updateRemoteSyncBanner() {
   const el = document.getElementById("remote-sync-banner");
   if (!el) return;
-  const loggedIn =
-    typeof isLoggedIn === "function" ? isLoggedIn() : false;
+  const loggedIn = typeof isLoggedIn === "function" ? isLoggedIn() : false;
   if (!isRemoteDB() || !loggedIn) {
     el.hidden = true;
     return;
@@ -118,8 +96,7 @@ function updateRemoteSyncBanner() {
   if (remoteSyncStatus === "error") {
     el.hidden = false;
     el.className = "remote-sync-banner remote-sync-banner-error";
-    el.textContent =
-      remoteSyncError || "数据同步失败，请刷新页面或重新登录";
+    el.textContent = remoteSyncError || "数据同步失败，请刷新页面或重新登录";
     return;
   }
   el.hidden = true;
@@ -155,14 +132,12 @@ async function remoteLoginAsync(username, password) {
     username,
     password,
   });
-  if (!result.access_token && !result.token)
-    throw new Error("登录成功但未收到会话令牌");
-  setRemoteSessionToken(result.access_token || result.token);
+  if (!result.user) throw new Error("登录成功但未收到用户信息");
   return result;
 }
 
 function remoteLogout() {
-  clearRemoteAccessToken();
+  /* access/refresh 由服务端 HttpOnly Cookie 管理 | Cookies cleared via apiAuthLogout */
 }
 
 async function initSqlite() {
@@ -226,7 +201,9 @@ function insertSnapshotRow(table, row) {
   // 读模型永不下发 password；占位以满足 NOT NULL | Read-model never ships password
   if (
     table === "users" &&
-    (data.password === undefined || data.password === null || data.password === "")
+    (data.password === undefined ||
+      data.password === null ||
+      data.password === "")
   ) {
     data.password = "remote_sync_placeholder";
   }
@@ -321,7 +298,7 @@ function resetRemoteReadModelState() {
 
 async function syncRemoteReadModel(options) {
   if (!isRemoteDB()) return;
-  if (!getRemoteSessionToken()) return;
+  if (typeof isLoggedIn === "function" && !isLoggedIn()) return;
   if (remoteSyncPromise) return remoteSyncPromise;
   const force = !!(options && options.force);
   if (
@@ -1874,9 +1851,7 @@ function formatImportSummary(summary) {
     "恢复成功：" +
     (summary.rooms != null ? `${summary.rooms} 间房间` : "") +
     (summary.beds != null ? `，${summary.beds} 张床位` : "") +
-    (summary.active_lodgers != null
-      ? `，${summary.active_lodgers} 人在住`
-      : "")
+    (summary.active_lodgers != null ? `，${summary.active_lodgers} 人在住` : "")
   );
 }
 

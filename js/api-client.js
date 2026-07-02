@@ -2,12 +2,14 @@
 
 var _refreshInFlight = null;
 
+function remoteApiCredentials() {
+  return typeof isRemoteDB === "function" && isRemoteDB()
+    ? "include"
+    : "same-origin";
+}
+
 function apiAuthHeaders() {
-  const headers = { "Content-Type": "application/json" };
-  const token =
-    typeof getRemoteSessionToken === "function" ? getRemoteSessionToken() : "";
-  if (token) headers.Authorization = "Bearer " + token;
-  return headers;
+  return { "Content-Type": "application/json" };
 }
 
 function handleApiUnauthorized() {
@@ -42,11 +44,7 @@ async function tryRefreshAccessToken() {
         credentials: "include",
       });
       const data = await parseJsonResponse(response);
-      if (!response.ok) return false;
-      const access = data.access_token || data.token;
-      if (!access) return false;
-      if (typeof setRemoteSessionToken === "function")
-        setRemoteSessionToken(access);
+      if (!response.ok || !data.user) return false;
       if (typeof applySessionRefresh === "function") applySessionRefresh(data);
       return true;
     } catch (e) {
@@ -63,7 +61,7 @@ async function apiFetch(path, options) {
   const response = await fetch(path, {
     method: options.method || "GET",
     headers: apiAuthHeaders(),
-    credentials: options.credentials || "same-origin",
+    credentials: options.credentials || remoteApiCredentials(),
     body: options.body != null ? JSON.stringify(options.body) : undefined,
   });
   let data = await parseJsonResponse(response);
@@ -101,7 +99,7 @@ async function apiReadModel(ifNoneMatch) {
   let response = await fetch("/api/v1/read-model", {
     method: "GET",
     headers: headers,
-    credentials: "same-origin",
+    credentials: "include",
   });
   if (response.status === 401) {
     const refreshed = await tryRefreshAccessToken();
@@ -113,7 +111,7 @@ async function apiReadModel(ifNoneMatch) {
       response = await fetch("/api/v1/read-model", {
         method: "GET",
         headers: headers2,
-        credentials: "same-origin",
+        credentials: "include",
       });
     }
   }
@@ -253,7 +251,7 @@ async function apiSessionMe() {
   return apiFetch("/api/v1/session");
 }
 
-/** 启动恢复会话：401 时不立即清空 token，由 restoreRemoteSession 决定 | Boot-time session restore */
+/** 启动恢复会话：401 时不立即清空，由 restoreRemoteSession 决定 | Boot-time session restore */
 async function apiSessionMeForRestore() {
   return apiFetch("/api/v1/session", { preserveSessionOn401: true });
 }

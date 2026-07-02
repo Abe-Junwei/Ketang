@@ -23,9 +23,7 @@ export async function onRequestGet({ request, env }) {
       requireSession(request, env, (sql, p) => queryD1(env, sql, p)),
     );
     await timer.stage("init_ms", () => ensureDatabaseForAuth(env));
-    const version = await timer.stage("version_ms", () =>
-      getBoardVersion(env),
-    );
+    const version = await timer.stage("version_ms", () => getBoardVersion(env));
     const ifNoneMatch = request.headers.get("If-None-Match");
     if (
       ifNoneMatch != null &&

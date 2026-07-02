@@ -183,9 +183,10 @@ function loadLocalRolePermissions() {
 
 function saveLocalRolePermissions(map) {
   if (typeof run !== "function") throw new Error("本地数据库未就绪");
-  run("INSERT OR REPLACE INTO app_meta (key, value) VALUES ('role_permissions_v1', ?)", [
-    JSON.stringify(map),
-  ]);
+  run(
+    "INSERT OR REPLACE INTO app_meta (key, value) VALUES ('role_permissions_v1', ?)",
+    [JSON.stringify(map)],
+  );
   if (typeof saveDB === "function") saveDB();
 }
 
@@ -267,7 +268,8 @@ function sanitizeRolePermissionPayload(raw) {
   const sanitized = {};
   roles.forEach(function (role) {
     const codes = raw[role];
-    if (!Array.isArray(codes)) throw new Error("角色 " + role + " 权限格式错误");
+    if (!Array.isArray(codes))
+      throw new Error("角色 " + role + " 权限格式错误");
     const filtered = codes.filter(function (code) {
       return all.includes(code);
     });

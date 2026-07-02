@@ -874,8 +874,7 @@ async function checkInBatchRow(env, session, row, mealDefaults) {
 
   const checkIn = row.check_in_date || mealDefaults.today;
   const checkOut = row.expected_check_out || null;
-  if (checkOut && checkOut < checkIn)
-    throw new Error("预离日期早于入住日期");
+  if (checkOut && checkOut < checkIn) throw new Error("预离日期早于入住日期");
 
   const bed = await findAssignableBed(env, row.gender, row.room_preference);
   if (!bed) throw new Error("无可用床位");

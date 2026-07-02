@@ -183,8 +183,11 @@ def test_users_list_and_is_advanced():
 def test_admin_update_returns_token():
     users_api = read('functions/api/v1/admin/users.js')
     users_shared = read('functions/_shared/users.js')
-    if 'signSession' not in users_api:
-        print('FAIL admin/users.js missing signSession on update')
+    if 'buildDualAuthSuccess(env, request, result.user' not in users_api:
+        print('FAIL admin/users.js self password update must issue HttpOnly auth cookies')
+        sys.exit(1)
+    if 'bumpAuthVersion(env, id)' not in users_shared.split('export async function updateUser', 1)[1].split('export async function deactivateUser', 1)[0]:
+        print('FAIL updateUser must bump auth_version and revoke refresh on password change')
         sys.exit(1)
     if 'result.user' not in users_shared:
         print('FAIL users.js updateUser missing result.user for self password change')
@@ -220,8 +223,8 @@ def test_remote_session_persistence():
     if 'SESSION_TTL_SEC = ACCESS_TTL_SEC' not in auth_shared:
         print('FAIL auth.js shared SESSION_TTL_SEC must alias ACCESS_TTL_SEC')
         sys.exit(1)
-    if 'normalizeAuthVersion' not in auth_shared:
-        print('FAIL auth.js shared missing normalizeAuthVersion')
+    if 'getAccessCookie' not in auth_shared:
+        print('FAIL auth.js shared must read access token from HttpOnly cookie')
         sys.exit(1)
     if 'const access_token = await signAccessToken(env, {' not in users_shared:
         print('FAIL getSessionUser must refresh access token')
@@ -229,11 +232,23 @@ def test_remote_session_persistence():
     if 'ketang_refresh' not in cookies or 'HttpOnly' not in cookies:
         print('FAIL cookies.js missing HttpOnly ketang_refresh cookie helpers')
         sys.exit(1)
+    if 'ketang_access' not in cookies or 'ACCESS_COOKIE_PATH' not in cookies:
+        print('FAIL cookies.js missing HttpOnly ketang_access cookie helpers')
+        sys.exit(1)
+    if 'getAccessCookie' not in cookies:
+        print('FAIL cookies.js missing getAccessCookie')
+        sys.exit(1)
     if 'refresh_sessions' not in refresh_sessions or 'consumeRefreshToken' not in refresh_sessions:
         print('FAIL refresh-sessions.js missing refresh_sessions table helpers')
         sys.exit(1)
     if 'revoked = 0' not in refresh_sessions or 'revokeMeta.changes' not in refresh_sessions:
         print('FAIL refresh-sessions.js must atomically revoke refresh token on rotation')
+        sys.exit(1)
+    if 'buildSessionUserResponse' not in auth_response:
+        print('FAIL auth-response.js must rotate access cookie on session check')
+        sys.exit(1)
+    if 'accessCookieHeader' not in auth_response:
+        print('FAIL auth-response.js must set HttpOnly access cookie on login')
         sys.exit(1)
     if 'buildDualAuthSuccess' not in auth_response or 'buildRefreshSuccess' not in auth_response:
         print('FAIL auth-response.js missing dual-token response builders')
@@ -248,11 +263,17 @@ def test_remote_session_persistence():
     if 'apiSessionMeForRestore' not in api or 'apiAuthRefreshForRestore' not in api:
         print('FAIL api-client.js missing session restore helpers')
         sys.exit(1)
-    if 'tryRefreshAccessToken' not in api or 'credentials: "same-origin"' not in api:
+    if 'tryRefreshAccessToken' not in api or 'credentials: "include"' not in api:
         print('FAIL api-client.js missing refresh retry with credentials')
         sys.exit(1)
-    if 'ACCESS_TOKEN_KEY' not in db or 'sessionStorage' not in db:
-        print('FAIL db.js must store access token in sessionStorage')
+    if 'Authorization' in api and 'Bearer' in api:
+        print('FAIL api-client.js must not send Bearer access token from client storage')
+        sys.exit(1)
+    if 'LEGACY_ACCESS_TOKEN_KEY' not in db or 'purgeLegacyClientTokens' not in db:
+        print('FAIL db.js must purge legacy client-side access tokens')
+        sys.exit(1)
+    if 'getRemoteSessionToken' in db or 'setRemoteSessionToken' in db:
+        print('FAIL db.js must not store access token in client storage')
         sys.exit(1)
     if 'isRemoteRefreshBlocked' not in db or 'REFRESH_BLOCK_KEY' not in db:
         print('FAIL db.js must block refresh after explicit logout')
@@ -260,14 +281,20 @@ def test_remote_session_persistence():
     if 'localStorage.getItem(REMOTE_SESSION_KEY)' in db:
         print('FAIL db.js must not fall back to legacy localStorage session token')
         sys.exit(1)
-    if 'if (!result.access_token && !result.token)' not in db:
-        print('FAIL db.js remoteLoginAsync must require access token')
+    if 'if (!result.user)' not in db:
+        print('FAIL db.js remoteLoginAsync must require user payload')
         sys.exit(1)
 
 
 def test_session_query_binding():
     session_api = read('functions/api/v1/session.js')
     users_shared = read('functions/_shared/users.js')
+    if 'buildSessionUserResponse' not in session_api:
+        print('FAIL session.js must set access cookie on successful session check')
+        sys.exit(1)
+    if 'clearAccessCookieHeader' not in session_api:
+        print('FAIL session.js must clear access cookie on 401')
+        sys.exit(1)
     if 'getSessionUser(env, request,' not in session_api:
         print('FAIL session.js must pass bound query function to getSessionUser')
         sys.exit(1)
@@ -314,6 +341,12 @@ def test_login_ui_has_no_fake_identity_loading():
         sys.exit(1)
     if 'login-submit-btn' not in index:
         print('FAIL login submit button missing stable id for pending state')
+        sys.exit(1)
+    if 'login-restore-panel' not in index or '正在恢复登录' not in index:
+        print('FAIL login overlay missing remote session restore panel')
+        sys.exit(1)
+    if 'showLoginRestoring' not in auth or 'shouldShowRemoteSessionRestore' not in auth:
+        print('FAIL auth.js missing remote session restore overlay helpers')
         sys.exit(1)
     if 'setLoginPending' not in auth or '登录中' not in auth or 'aria-busy' not in auth:
         print('FAIL auth.js missing login pending UI state')
