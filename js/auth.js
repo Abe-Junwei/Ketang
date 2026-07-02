@@ -229,6 +229,7 @@ async function login(username, password) {
     username: fresh.username,
     display_name: fresh.display_name,
     role: fresh.role,
+    is_advanced: fresh.is_advanced ? 1 : 0,
     auth_version: fresh.auth_version || 1,
   };
   setSessionPermissions(getSessionPermissionsForRole(currentUser.role, currentUser));
@@ -289,6 +290,7 @@ async function loginByRole(role, password) {
       username: fresh.username,
       display_name: fresh.display_name,
       role: fresh.role,
+      is_advanced: fresh.is_advanced ? 1 : 0,
       auth_version: fresh.auth_version || 1,
     };
     setSessionPermissions(getSessionPermissionsForRole(currentUser.role, currentUser));
@@ -477,7 +479,7 @@ function applyPermissions() {
 
 function requireAdmin() {
   if (!hasPermission("users.write")) {
-    alert("需要管理员权限");
+    alert("需要用户管理权限");
     return false;
   }
   return true;
@@ -605,7 +607,6 @@ async function saveRolePermissionsConfig() {
       await apiAdminSaveRolePermissions(sanitized);
     } else {
       saveLocalRolePermissions(sanitized);
-      await saveDB();
     }
     showToast("角色权限已保存，请相关账号重新登录后生效");
     renderRolePermissionsPanel();
