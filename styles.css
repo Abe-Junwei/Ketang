@@ -5164,7 +5164,7 @@ form .field {
 }
 
 .login-hero {
-  flex: 1 1 50%;
+  flex: 58 1 0%;
   min-width: 0;
   min-height: 0;
   background:
@@ -5177,12 +5177,14 @@ form .field {
 }
 
 .login-panel {
-  flex: 1 1 50%;
+  flex: 42 1 0%;
   min-width: 0;
   display: flex;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-start;
   padding: var(--space-6);
+  padding-left: clamp(2rem, 5vw, 3.5rem);
+  padding-right: clamp(var(--space-6), 8vw, 5rem);
   background: var(--color-card);
   box-sizing: border-box;
   overflow: hidden;
@@ -5218,7 +5220,7 @@ body.auth-bootstrapping .login-overlay {
 
 .login-card {
   width: 100%;
-  max-width: min(22rem, 100%);
+  max-width: min(24rem, 100%);
   min-width: 0;
   padding: 0;
   border: none;
