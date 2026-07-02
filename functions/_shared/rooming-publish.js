@@ -5,6 +5,7 @@ import {
   queryD1,
   runD1,
 } from "./d1.js";
+import { apiAssignBed, apiAssignReservationToBed } from "./lodgers.js";
 import { requirePermission } from "./permissions.js";
 import { checkRoomingPlanConflicts } from "./rooming-plans.js";
 
@@ -55,9 +56,8 @@ async function getPublishableAssignments(env, planId) {
   );
 }
 
-async function insertQueueFromAssignments(env, planId, eventId, assignments) {
-  if (!assignments.length) return;
-  const statements = assignments.map(function (row, index) {
+function buildQueueInsertStatements(planId, eventId, assignments) {
+  return assignments.map(function (row, index) {
     return {
       sql: `INSERT INTO rooming_checkin_queue
         (plan_id, assignment_id, event_id, member_kind, member_ref_id, member_name,
@@ -80,7 +80,16 @@ async function insertQueueFromAssignments(env, planId, eventId, assignments) {
       ],
     };
   });
+}
+
+async function runAtomicRoomingBatch(env, statements) {
+  if (!statements.length) return;
   await batchD1(env, statements);
+}
+
+async function insertQueueFromAssignments(env, planId, eventId, assignments) {
+  const statements = buildQueueInsertStatements(planId, eventId, assignments);
+  if (statements.length) await batchD1(env, statements);
 }
 
 export async function publishRoomingPlan(env, session, eventId) {
@@ -114,15 +123,18 @@ export async function publishRoomingPlan(env, session, eventId) {
     throw new Error("没有可发布的在住/预约条目（预计占位不会进入待入住清单）");
   }
 
-  await runD1(env, "DELETE FROM rooming_checkin_queue WHERE plan_id = ?", [plan.id]);
-  await insertQueueFromAssignments(env, plan.id, eventId, assignments);
-
   const publishedAt = roomingQueueProcessedAt();
-  await runD1(
-    env,
-    "UPDATE rooming_plans SET published_at = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
-    [publishedAt, plan.id],
-  );
+  await runAtomicRoomingBatch(env, [
+    {
+      sql: "DELETE FROM rooming_checkin_queue WHERE plan_id = ?",
+      params: [plan.id],
+    },
+    ...buildQueueInsertStatements(plan.id, eventId, assignments),
+    {
+      sql: "UPDATE rooming_plans SET published_at = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+      params: [publishedAt, plan.id],
+    },
+  ]);
   await bumpBoardVersion(env);
   await insertAudit(
     env,
@@ -188,17 +200,17 @@ export async function republishRoomingPlan(env, session, eventId, body) {
     return !finalizedAssignmentIds.has(row.id);
   });
 
-  await runD1(
-    env,
-    "DELETE FROM rooming_checkin_queue WHERE plan_id = ? AND queue_status = '待办理'",
-    [plan.id],
-  );
-  await insertQueueFromAssignments(env, plan.id, eventId, pendingAssignments);
-  await runD1(
-    env,
-    "UPDATE rooming_plans SET updated_at = CURRENT_TIMESTAMP WHERE id = ?",
-    [plan.id],
-  );
+  await runAtomicRoomingBatch(env, [
+    {
+      sql: "DELETE FROM rooming_checkin_queue WHERE plan_id = ? AND queue_status = '待办理'",
+      params: [plan.id],
+    },
+    ...buildQueueInsertStatements(plan.id, eventId, pendingAssignments),
+    {
+      sql: "UPDATE rooming_plans SET updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+      params: [plan.id],
+    },
+  ]);
   await bumpBoardVersion(env);
   await insertAudit(
     env,
@@ -246,6 +258,97 @@ export async function updateRoomingQueueItem(env, session, body) {
     session,
   );
   return rows[0];
+}
+
+async function roomingQueueAssignAlreadyDoneServer(env, item) {
+  if (!item.member_ref_id) return false;
+  if (item.member_kind === "lodger") {
+    const rows = await queryD1(
+      env,
+      "SELECT bed_id FROM lodgers WHERE id=? AND status='在住'",
+      [item.member_ref_id],
+    );
+    return !!(rows[0] && rows[0].bed_id == item.suggested_bed_id);
+  }
+  if (item.member_kind === "reservation") {
+    const rows = await queryD1(env, "SELECT status FROM reservations WHERE id=?", [
+      item.member_ref_id,
+    ]);
+    return !!(rows[0] && rows[0].status === "已入住");
+  }
+  return false;
+}
+
+async function markRoomingQueueDone(env, session, queueId) {
+  const processedAt = roomingQueueProcessedAt();
+  await runD1(
+    env,
+    "UPDATE rooming_checkin_queue SET queue_status = ?, processed_at = ? WHERE id = ?",
+    ["已办理", processedAt, queueId],
+  );
+  await bumpBoardVersion(env);
+  await insertAudit(
+    env,
+    "更新待入住清单",
+    "rooming_checkin_queue",
+    queueId,
+    { queue_status: "已办理" },
+    session,
+  );
+}
+
+export async function processRoomingQueueCheckin(env, session, body) {
+  await requirePermission(env, session, "lodging.checkin");
+  const queueId = requireId(body.queue_id, "待入住条目");
+  const rows = await queryD1(
+    env,
+    "SELECT * FROM rooming_checkin_queue WHERE id = ?",
+    [queueId],
+  );
+  if (!rows.length) throw new Error("待入住条目不存在");
+  const item = rows[0];
+  if (item.queue_status !== "待办理") throw new Error("该条目已处理");
+  if (!item.suggested_bed_id) throw new Error("该条目未指定建议床位");
+  if (!item.member_ref_id) throw new Error("该条目缺少关联人员");
+
+  let assigned = await roomingQueueAssignAlreadyDoneServer(env, item);
+  if (!assigned) {
+    try {
+      if (item.member_kind === "lodger") {
+        await apiAssignBed(env, session, {
+          lodger_id: item.member_ref_id,
+          bed_id: item.suggested_bed_id,
+        });
+      } else {
+        await apiAssignReservationToBed(env, session, {
+          reservation_id: item.member_ref_id,
+          bed_id: item.suggested_bed_id,
+        });
+      }
+      assigned = true;
+    } catch (err) {
+      if (await roomingQueueAssignAlreadyDoneServer(env, item)) {
+        assigned = true;
+      } else if (item.member_kind === "lodger") {
+        const lodgerRows = await queryD1(
+          env,
+          "SELECT bed_id FROM lodgers WHERE id=? AND status='在住'",
+          [item.member_ref_id],
+        );
+        if (lodgerRows[0]?.bed_id) {
+          throw new Error("该挂单已占用其他床位，请手动处理或跳过本条");
+        }
+      }
+      if (!assigned) throw err;
+    }
+  }
+
+  await markRoomingQueueDone(env, session, queueId);
+  return {
+    ok: true,
+    member_name: item.member_name,
+    queue_id: queueId,
+  };
 }
 
 export async function logRoomingAdjustment(env, session, body) {
@@ -382,6 +485,10 @@ export async function handleRoomingPublishAction(env, session, body) {
 
   if (action === "update_queue") {
     return updateRoomingQueueItem(env, session, body);
+  }
+
+  if (action === "process_queue") {
+    return processRoomingQueueCheckin(env, session, body);
   }
 
   if (action === "log_adjustment") {

@@ -289,15 +289,14 @@ async function submitChangeBed(lodgerId, gender) {
       )[0];
       await apiChangeBed({ lodger_id: lodgerId, bed_id: parseInt(bedId, 10) });
       if (old && typeof maybeLogRoomingChangeBed === "function") {
-        maybeLogRoomingChangeBed(lodgerId, old.bed_id, bedId);
+        await maybeLogRoomingChangeBed(lodgerId, old.bed_id, bedId);
       }
     } else {
+      const old = query(
+        "SELECT bed_id, guest_id, name, event_id FROM lodgers WHERE id=?",
+        [lodgerId],
+      )[0];
       await withTransaction(async () => {
-        // 查出旧床位 ID 以便释放 | Get old bed ID for release
-        const old = query(
-          "SELECT bed_id, guest_id, name FROM lodgers WHERE id=?",
-          [lodgerId],
-        )[0];
         run("UPDATE lodgers SET bed_id=? WHERE id=? AND status='在住'", [
           bedId,
           lodgerId,
@@ -317,6 +316,9 @@ async function submitChangeBed(lodgerId, gender) {
         });
       });
       await saveDB();
+      if (old && typeof maybeLogRoomingChangeBed === "function") {
+        await maybeLogRoomingChangeBed(lodgerId, old.bed_id, bedId);
+      }
     }
     closeModal();
     showToast("换床成功");

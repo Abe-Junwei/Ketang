@@ -13,6 +13,7 @@ const PUBLISH_ACTIONS = new Set([
   "republish",
   "queue",
   "update_queue",
+  "process_queue",
   "log_adjustment",
   "retrospective",
 ]);

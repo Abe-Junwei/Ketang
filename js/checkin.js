@@ -374,7 +374,10 @@ async function assignExistingLodgerToBed(lodgerId, bedId, opts) {
       closeModal();
       showToast("已分配床位");
     }
-    refreshAfterWrite();
+    var refreshTask = refreshAfterWrite();
+    if (opts && opts.awaitRefresh && refreshTask && typeof refreshTask.then === "function") {
+      await refreshTask;
+    }
     return true;
   } catch (e) {
     console.error(e);
@@ -479,7 +482,10 @@ async function assignReservationToBed(resvId, bedId, opts) {
       closeModal();
       showToast("已分配床位");
     }
-    refreshAfterWrite();
+    var refreshTask = refreshAfterWrite();
+    if (opts && opts.awaitRefresh && refreshTask && typeof refreshTask.then === "function") {
+      await refreshTask;
+    }
     return true;
   } catch (e) {
     console.error(e);

@@ -168,6 +168,7 @@ async function findRoomingQueueItem(queueId, eventId) {
 }
 
 function roomingQueueAssignAlreadyDone(item) {
+  if (!item.member_ref_id) return false;
   if (item.member_kind === "lodger") {
     var lodger = query(
       "SELECT bed_id FROM lodgers WHERE id=? AND status='在住'",
@@ -190,7 +191,12 @@ async function markRoomingQueueItemStatus(queueId, status) {
       queue_id: queueId,
       queue_status: status,
     });
-    if (typeof refreshAfterWrite === "function") refreshAfterWrite();
+    if (typeof refreshAfterWrite === "function") {
+      var refreshTask = refreshAfterWrite();
+      if (refreshTask && typeof refreshTask.then === "function") {
+        await refreshTask;
+      }
+    }
     return;
   }
   var processed = status === "待办理" ? null : roomingQueueProcessedAt();
@@ -353,7 +359,12 @@ async function handlePublishRoomingPlan(eventId) {
   try {
     if (typeof useRemoteWriteApi === "function" && useRemoteWriteApi()) {
       await apiRoomingPlanAction("publish", { event_id: eventId });
-      if (typeof refreshAfterWrite === "function") refreshAfterWrite();
+      if (typeof refreshAfterWrite === "function") {
+        var publishRefresh = refreshAfterWrite();
+        if (publishRefresh && typeof publishRefresh.then === "function") {
+          await publishRefresh;
+        }
+      }
     } else {
       await publishLocalRoomingPlan(eventId);
     }
@@ -382,7 +393,12 @@ async function handleRepublishRoomingPlan(eventId) {
         event_id: eventId,
         confirm_republish: true,
       });
-      if (typeof refreshAfterWrite === "function") refreshAfterWrite();
+      if (typeof refreshAfterWrite === "function") {
+        var republishRefresh = refreshAfterWrite();
+        if (republishRefresh && typeof republishRefresh.then === "function") {
+          await republishRefresh;
+        }
+      }
     } else {
       await republishLocalRoomingPlan(eventId);
     }
@@ -391,6 +407,12 @@ async function handleRepublishRoomingPlan(eventId) {
   } catch (err) {
     alert("重新发布失败：" + (err.message || err));
   }
+}
+
+async function completeRoomingQueueCheckin(queueId, eventId, item) {
+  await markRoomingQueueItemStatus(queueId, "已办理");
+  showToast("已办理：" + item.member_name);
+  await renderRoomingCheckinQueue(eventId);
 }
 
 async function handleRoomingQueueCheckin(queueId, eventId) {
@@ -404,6 +426,10 @@ async function handleRoomingQueueCheckin(queueId, eventId) {
     alert("该条目未指定建议床位，请在住宿办理中手动操作。");
     return;
   }
+  if (!item.member_ref_id) {
+    alert("该条目缺少关联人员，无法自动办理。");
+    return;
+  }
   if (
     !confirm(
       "按预分床位为「" +
@@ -414,10 +440,24 @@ async function handleRoomingQueueCheckin(queueId, eventId) {
     return;
   }
   try {
-    if (roomingQueueAssignAlreadyDone(item)) {
-      await markRoomingQueueItemStatus(queueId, "已办理");
+    if (typeof useRemoteWriteApi === "function" && useRemoteWriteApi()) {
+      await apiRoomingPlanAction("process_queue", {
+        event_id: eventId,
+        queue_id: queueId,
+      });
+      if (typeof refreshAfterWrite === "function") {
+        var remoteRefresh = refreshAfterWrite();
+        if (remoteRefresh && typeof remoteRefresh.then === "function") {
+          await remoteRefresh;
+        }
+      }
       showToast("已办理：" + item.member_name);
       await renderRoomingCheckinQueue(eventId);
+      return;
+    }
+
+    if (roomingQueueAssignAlreadyDone(item)) {
+      await completeRoomingQueueCheckin(queueId, eventId, item);
       return;
     }
     var ok =
@@ -425,18 +465,34 @@ async function handleRoomingQueueCheckin(queueId, eventId) {
         ? await assignExistingLodgerToBed(
             item.member_ref_id,
             item.suggested_bed_id,
-            { quiet: true },
+            { quiet: true, awaitRefresh: true },
           )
         : await assignReservationToBed(
             item.member_ref_id,
             item.suggested_bed_id,
-            { quiet: true },
+            { quiet: true, awaitRefresh: true },
           );
-    if (!ok) return;
-    await markRoomingQueueItemStatus(queueId, "已办理");
-    showToast("已办理：" + item.member_name);
-    await renderRoomingCheckinQueue(eventId);
+    if (!ok) {
+      if (roomingQueueAssignAlreadyDone(item)) {
+        await completeRoomingQueueCheckin(queueId, eventId, item);
+        return;
+      }
+      alert(
+        "办理未完成：床位状态与预分不一致，请核对后手动标记「已办理」或「跳过」。",
+      );
+      return;
+    }
+    await completeRoomingQueueCheckin(queueId, eventId, item);
   } catch (err) {
+    if (roomingQueueAssignAlreadyDone(item)) {
+      try {
+        await completeRoomingQueueCheckin(queueId, eventId, item);
+        return;
+      } catch (markErr) {
+        alert("办理失败：" + (markErr.message || markErr));
+        return;
+      }
+    }
     alert("办理失败：" + (err.message || err));
   }
 }
@@ -452,7 +508,14 @@ async function handleRoomingQueueSkip(queueId, eventId) {
   try {
     await markRoomingQueueItemStatus(queueId, "已跳过");
     if (typeof logRoomingQueueSkipAdjustment === "function") {
-      await logRoomingQueueSkipAdjustment(item, eventId);
+      try {
+        await logRoomingQueueSkipAdjustment(item, eventId);
+      } catch (logErr) {
+        console.error(logErr);
+        showToast("已跳过，但调整记录写入失败");
+        await renderRoomingCheckinQueue(eventId);
+        return;
+      }
     }
     showToast("已跳过");
     await renderRoomingCheckinQueue(eventId);
