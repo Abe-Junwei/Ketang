@@ -957,7 +957,7 @@ async function importBatchCSV(input) {
         ${failedRows.length ? "<details><summary>失败明细</summary><pre>" + escapeHtml(failedRows.join("\n")) + "</pre></details>" : ""}
       `;
         showToast(`批量导入完成：成功 ${success} 条`);
-        refreshAfterWrite(result);
+        refreshAfterWrite(result, { fullRefresh: true });
         return;
       }
 
@@ -1065,7 +1065,7 @@ async function importBatchCSV(input) {
         ${failedRows.length ? "<details><summary>失败明细</summary><pre>" + escapeHtml(failedRows.join("\n")) + "</pre></details>" : ""}
       `;
       showToast(`批量导入完成：成功 ${success} 条`);
-      refreshAfterWrite();
+      refreshAfterWrite(writeResult, { fullRefresh: true });
     } catch (err) {
       resultDiv.innerHTML =
         '<p style="color:var(--color-danger)">导入出错：' +

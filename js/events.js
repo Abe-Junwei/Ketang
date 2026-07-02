@@ -7,6 +7,13 @@ const EVENT_TYPE_OPTIONS = ["禅营", "禅七", "法会", "修道班", "其他"]
 const EVENT_GENDER_OPTIONS = ["男众", "女众", "混合"];
 const EVENT_STATUS_OPTIONS = ["筹备中", "招生中", "进行中", "已结束", "已取消"];
 
+function eventWriteRefreshOptions() {
+  if (document.getElementById("view-info")?.classList.contains("active")) {
+    return { infoOnly: true, infoTab: "events" };
+  }
+  return null;
+}
+
 // 营期列表（用于基础设置页）
 function renderEventList() {
   const f = infoGetFilters("events");
@@ -308,7 +315,7 @@ async function batchCancelEventMembers() {
     return;
   }
   showToast(`已取消 ${selected.length} 人`);
-  refreshAfterWrite(writeResult);
+  refreshAfterWrite(writeResult, eventWriteRefreshOptions());
   if (eventId) renderEventMembers(eventId);
   else renderEventList();
 }
@@ -363,7 +370,7 @@ async function batchNoShowEventMembers() {
     return;
   }
   showToast(`已标记 ${resvOnly.length} 人为 No-show`);
-  refreshAfterWrite(writeResult);
+  refreshAfterWrite(writeResult, eventWriteRefreshOptions());
   if (eventId) renderEventMembers(eventId);
   else renderEventList();
 }
@@ -557,11 +564,12 @@ async function submitEvent(e) {
   if (!useRemoteWriteApi()) await saveDB();
   closeEventModal();
   showToast("营期保存成功");
-  var refreshTask = refreshAfterWrite(writeResult);
+  var eventRefreshOpts = eventWriteRefreshOptions();
+  var refreshTask = refreshAfterWrite(writeResult, eventRefreshOpts);
   if (refreshTask && typeof refreshTask.then === "function") {
     await refreshTask;
   }
-  renderEventList();
+  if (!eventRefreshOpts) renderEventList();
 }
 
 async function deleteEvent(id) {
@@ -589,11 +597,12 @@ async function deleteEvent(id) {
       await saveDB();
     }
     showToast("营期已删除");
-    var refreshTask = refreshAfterWrite(deleteResult);
+    var eventRefreshOpts = eventWriteRefreshOptions();
+    var refreshTask = refreshAfterWrite(deleteResult, eventRefreshOpts);
     if (refreshTask && typeof refreshTask.then === "function") {
       await refreshTask;
     }
-    renderEventList();
+    if (!eventRefreshOpts) renderEventList();
   } catch (e) {
     console.error(e);
     alert("删除营期失败：" + e.message);

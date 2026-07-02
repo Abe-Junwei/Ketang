@@ -123,11 +123,16 @@ function getCapacityBedTotals(includeSpare) {
     " FROM beds b JOIN rooms r ON r.id=b.room_id WHERE b.status!='维修' AND b.status!='备用' AND " +
     spareSql;
   return {
-    male: query("SELECT COUNT(*) as c" + base + " AND r.dorm_type='男寮'")[0].c,
-    female: query("SELECT COUNT(*) as c" + base + " AND r.dorm_type='女寮'")[0]
-      .c,
-    flex: query("SELECT COUNT(*) as c" + base + " AND r.dorm_type='不限'")[0].c,
-    total: query("SELECT COUNT(*) as c" + base)[0].c,
+    male:
+      query("SELECT COUNT(*) as c" + base + " AND r.dorm_type='男寮'")[0]?.c ||
+      0,
+    female:
+      query("SELECT COUNT(*) as c" + base + " AND r.dorm_type='女寮'")[0]?.c ||
+      0,
+    flex:
+      query("SELECT COUNT(*) as c" + base + " AND r.dorm_type='不限'")[0]?.c ||
+      0,
+    total: query("SELECT COUNT(*) as c" + base)[0]?.c || 0,
   };
 }
 

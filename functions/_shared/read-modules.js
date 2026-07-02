@@ -22,6 +22,7 @@ export const READ_MODULE_TABLES = {
   settings_rooms: ["rooms"],
   settings_beds: ["rooms", "beds"],
   settings_guests: ["guests"],
+  lodgers_records: ["lodgers", "beds"],
 };
 
 const MODULE_PERMISSIONS = {
@@ -34,6 +35,7 @@ const MODULE_PERMISSIONS = {
   settings_rooms: ["settings.read"],
   settings_beds: ["settings.read"],
   settings_guests: ["settings.read"],
+  lodgers_records: ["lodging.read"],
 };
 
 function assertModuleKey(moduleKey) {

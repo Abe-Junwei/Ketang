@@ -572,22 +572,25 @@ function renderBoardCharts() {
 
   renderBoardRingChart("board-occ", "chart-board-occ", "board-occ-pct", stats);
 
-  var expArrive = query(
-    "SELECT COUNT(*) as c FROM (SELECT id FROM reservations WHERE expected_check_in = ? AND status IN ('预约','已确认') UNION ALL SELECT id FROM lodgers WHERE check_in_date = ? AND status = '在住')",
-    [today, today],
-  )[0].c;
-  var expDepart = query(
-    "SELECT COUNT(*) as c FROM lodgers WHERE expected_check_out = ? AND status = '在住'",
-    [today],
-  )[0].c;
-  var actArrive = query(
-    "SELECT COUNT(*) as c FROM lodgers WHERE check_in_date = ? AND status = '在住'",
-    [today],
-  )[0].c;
-  var actDepart = query(
-    "SELECT COUNT(*) as c FROM lodgers WHERE actual_check_out = ?",
-    [today],
-  )[0].c;
+  var expArrive =
+    query(
+      "SELECT COUNT(*) as c FROM (SELECT id FROM reservations WHERE expected_check_in = ? AND status IN ('预约','已确认') UNION ALL SELECT id FROM lodgers WHERE check_in_date = ? AND status = '在住')",
+      [today, today],
+    )[0]?.c || 0;
+  var expDepart =
+    query(
+      "SELECT COUNT(*) as c FROM lodgers WHERE expected_check_out = ? AND status = '在住'",
+      [today],
+    )[0]?.c || 0;
+  var actArrive =
+    query(
+      "SELECT COUNT(*) as c FROM lodgers WHERE check_in_date = ? AND status = '在住'",
+      [today],
+    )[0]?.c || 0;
+  var actDepart =
+    query("SELECT COUNT(*) as c FROM lodgers WHERE actual_check_out = ?", [
+      today,
+    ])[0]?.c || 0;
 
   createKetangChart("board-flow", "chart-board-flow", {
     type: "bar",
@@ -883,6 +886,16 @@ function handleBoardSearch(q) {
     card.classList.toggle("search-hidden", !match);
     card.classList.toggle("search-match", match);
   });
+}
+
+var _lodgerSearchTimer = null;
+
+/** 在住列表搜索防抖 | Lodger search debounce (200ms) */
+function handleLodgerSearchDebounced(q) {
+  clearTimeout(_lodgerSearchTimer);
+  _lodgerSearchTimer = setTimeout(function () {
+    handleLodgerSearch(q);
+  }, 200);
 }
 
 function handleLodgerSearch(q) {
@@ -1469,24 +1482,27 @@ function renderOpsNotice() {
   const today = todayStr();
 
   // 今日到离预报
-  const arrivals = query(
-    `
+  const arrivals =
+    query(
+      `
     SELECT COUNT(*) as c FROM (
       SELECT id FROM reservations WHERE expected_check_in = ? AND status IN ('预约','已确认')
       UNION ALL
       SELECT id FROM lodgers WHERE check_in_date = ? AND status = '在住'
     )
   `,
-    [today, today],
-  )[0].c;
-  const departures = query(
-    "SELECT COUNT(*) as c FROM lodgers WHERE expected_check_out = ? AND status = '在住'",
-    [today],
-  )[0].c;
+      [today, today],
+    )[0]?.c || 0;
+  const departures =
+    query(
+      "SELECT COUNT(*) as c FROM lodgers WHERE expected_check_out = ? AND status = '在住'",
+      [today],
+    )[0]?.c || 0;
 
   if (arrivals > 0 || departures > 0) {
-    const changeRooms = query(
-      `
+    const changeRooms =
+      query(
+        `
       SELECT COUNT(*) as c FROM (
         SELECT DISTINCT b.room_id FROM reservations res
         LEFT JOIN beds b ON b.id = (
@@ -1500,8 +1516,8 @@ function renderOpsNotice() {
         WHERE l.expected_check_out = ? AND l.status = '在住'
       )
     `,
-      [today, today],
-    )[0].c;
+        [today, today],
+      )[0]?.c || 0;
     el.innerHTML = `<strong>今日预报：</strong>预计到达 <strong>${arrivals}</strong> 人，预计离开 <strong>${departures}</strong> 人，涉及约 <strong>${changeRooms}</strong> 个房间变动。
       <a href="javascript:void(0)" onclick="showView('forecast'); renderForecastTab('today')" style="margin-left:var(--space-2);text-decoration:underline;color:var(--color-primary)">查看详情</a>`;
     return;

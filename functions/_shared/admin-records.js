@@ -375,7 +375,7 @@ async function upsertGuest(env, session, body) {
       { name: person.name, phone },
       session,
     );
-    return finishWrite(env, { guest_id: id }, ["lodging"]);
+    return finishWrite(env, { guest_id: id }, ["settings"]);
   }
 
   const meta = await runD1(
@@ -403,7 +403,7 @@ async function upsertGuest(env, session, body) {
     { name: person.name, phone },
     session,
   );
-  return finishWrite(env, { guest_id: meta.last_row_id }, ["lodging"]);
+  return finishWrite(env, { guest_id: meta.last_row_id }, ["settings"]);
 }
 
 async function deleteGuest(env, session, body) {
@@ -432,7 +432,7 @@ async function deleteGuest(env, session, body) {
       ),
     ],
     {},
-    ["lodging"],
+    ["settings"],
     { table_name: "guests", row_id: id },
   );
 }

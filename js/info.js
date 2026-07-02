@@ -4,6 +4,7 @@
    ============================================================ */
 
 let infoCurrentTab = "rooms";
+var _infoFilterTimer = null;
 const infoFilters = {
   rooms: { q: "", location: "", dorm: "" },
   beds: { q: "", roomId: "", status: "" },
@@ -56,7 +57,18 @@ function infoGetFilters(tab) {
 
 function infoOnFilter(tab, key, value) {
   infoGetFilters(tab)[key] = value;
-  renderInfo(tab);
+  clearTimeout(_infoFilterTimer);
+  _infoFilterTimer = setTimeout(function () {
+    renderInfo(tab);
+  }, 200);
+}
+
+/** 信息管理写后轻量刷新 | Info tab scoped sync (no full renderAll) */
+function infoRefreshAfterWrite(writeResult, tab) {
+  return refreshAfterWrite(writeResult, {
+    infoOnly: true,
+    infoTab: tab || infoCurrentTab,
+  });
 }
 
 function infoTextIncludes(haystack, needle) {
@@ -373,8 +385,7 @@ async function submitRoom(id) {
     }
     closeModal();
     infoToast(id ? "房间已更新" : "房间已新增");
-    renderInfo("rooms");
-    refreshAfterWrite(writeResult);
+    await infoRefreshAfterWrite(writeResult, "rooms");
   } catch (e) {
     console.error(e);
     infoToast("保存失败：" + e.message);
@@ -404,8 +415,7 @@ async function deleteRoom(id) {
       await saveDB();
     }
     infoToast("房间已删除");
-    renderInfo("rooms");
-    refreshAfterWrite(writeResult);
+    await infoRefreshAfterWrite(writeResult, "rooms");
   } catch (e) {
     console.error(e);
     infoToast("删除失败：" + e.message);
@@ -637,8 +647,7 @@ async function submitBed(id) {
     }
     closeModal();
     infoToast(id ? "床位已更新" : "床位已新增");
-    renderInfo("beds");
-    refreshAfterWrite(writeResult);
+    await infoRefreshAfterWrite(writeResult, "beds");
   } catch (e) {
     console.error(e);
     infoToast("保存失败：" + e.message);
@@ -681,8 +690,7 @@ async function deleteBed(id) {
       await saveDB();
     }
     infoToast("床位已删除");
-    renderInfo("beds");
-    refreshAfterWrite(writeResult);
+    await infoRefreshAfterWrite(writeResult, "beds");
   } catch (e) {
     console.error(e);
     infoToast("删除失败：" + e.message);
@@ -927,8 +935,7 @@ async function submitGuest(id) {
     }
     closeModal();
     infoToast(id ? "住客档案已更新" : "住客档案已新增");
-    renderInfo("guests");
-    refreshAfterWrite(writeResult);
+    await infoRefreshAfterWrite(writeResult, "guests");
   } catch (e) {
     console.error(e);
     infoToast("保存失败：" + e.message);
@@ -962,8 +969,7 @@ async function deleteGuest(id) {
       await saveDB();
     }
     infoToast("住客档案已删除");
-    renderInfo("guests");
-    refreshAfterWrite(writeResult);
+    await infoRefreshAfterWrite(writeResult, "guests");
   } catch (e) {
     console.error(e);
     infoToast("删除失败：" + e.message);
@@ -1311,8 +1317,7 @@ async function submitLodger(id) {
     }
     closeModal();
     infoToast("挂单记录已更新");
-    renderInfo("lodgers");
-    refreshAfterWrite(writeResult);
+    await infoRefreshAfterWrite(writeResult, "lodgers");
   } catch (e) {
     console.error(e);
     infoToast("保存失败：" + e.message);
@@ -1350,8 +1355,7 @@ async function deleteInfoLodger(id) {
       await saveDB();
     }
     infoToast("已删除");
-    renderInfo("lodgers");
-    refreshAfterWrite(writeResult);
+    await infoRefreshAfterWrite(writeResult, "lodgers");
   } catch (e) {
     console.error(e);
     infoToast("删除失败：" + e.message);

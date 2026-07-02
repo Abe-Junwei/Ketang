@@ -235,22 +235,26 @@ function renderDailyReport() {
     return;
   }
 
-  const checkins = query(
-    "SELECT COUNT(*) as c FROM lodgers WHERE check_in_date = ? AND status IN ('在住','已退')",
-    [date],
-  )[0].c;
-  const checkouts = query(
-    "SELECT COUNT(*) as c FROM lodgers WHERE actual_check_out = ? AND status IN ('在住','已退')",
-    [date],
-  )[0].c;
-  const inHouse = query(
-    "SELECT COUNT(*) as c FROM lodgers WHERE check_in_date <= ? AND status = '在住' AND (expected_check_out IS NULL OR expected_check_out > ?)",
-    [date, date],
-  )[0].c;
-  const expectedCheckout = query(
-    "SELECT COUNT(*) as c FROM lodgers WHERE status = '在住' AND expected_check_out = ?",
-    [date],
-  )[0].c;
+  const checkins =
+    query(
+      "SELECT COUNT(*) as c FROM lodgers WHERE check_in_date = ? AND status IN ('在住','已退')",
+      [date],
+    )[0]?.c || 0;
+  const checkouts =
+    query(
+      "SELECT COUNT(*) as c FROM lodgers WHERE actual_check_out = ? AND status IN ('在住','已退')",
+      [date],
+    )[0]?.c || 0;
+  const inHouse =
+    query(
+      "SELECT COUNT(*) as c FROM lodgers WHERE check_in_date <= ? AND status = '在住' AND (expected_check_out IS NULL OR expected_check_out > ?)",
+      [date, date],
+    )[0]?.c || 0;
+  const expectedCheckout =
+    query(
+      "SELECT COUNT(*) as c FROM lodgers WHERE status = '在住' AND expected_check_out = ?",
+      [date],
+    )[0]?.c || 0;
 
   const payments = query(
     `
@@ -486,14 +490,16 @@ function renderMonthlyReport() {
     return;
   }
 
-  const checkins = query(
-    "SELECT COUNT(*) as c FROM lodgers WHERE check_in_date LIKE ? AND status IN ('在住','已退')",
-    [month + "%"],
-  )[0].c;
-  const checkouts = query(
-    "SELECT COUNT(*) as c FROM lodgers WHERE actual_check_out LIKE ? AND status IN ('在住','已退')",
-    [month + "%"],
-  )[0].c;
+  const checkins =
+    query(
+      "SELECT COUNT(*) as c FROM lodgers WHERE check_in_date LIKE ? AND status IN ('在住','已退')",
+      [month + "%"],
+    )[0]?.c || 0;
+  const checkouts =
+    query(
+      "SELECT COUNT(*) as c FROM lodgers WHERE actual_check_out LIKE ? AND status IN ('在住','已退')",
+      [month + "%"],
+    )[0]?.c || 0;
   const payments = query(
     `
     SELECT p.type, COALESCE(SUM(p.amount), 0) as total

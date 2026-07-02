@@ -147,10 +147,11 @@ async function setHkAndRender(bedId, status) {
         if (status === "维修")
           run("UPDATE beds SET status='维修' WHERE id=?", [bedId]);
         else if (status === "净房" || status === "可用") {
-          const occ = query(
-            "SELECT COUNT(*) as c FROM lodgers WHERE bed_id=? AND status='在住'",
-            [bedId],
-          )[0].c;
+          const occ =
+            query(
+              "SELECT COUNT(*) as c FROM lodgers WHERE bed_id=? AND status='在住'",
+              [bedId],
+            )[0]?.c || 0;
           if (occ === 0)
             run("UPDATE beds SET status='可用' WHERE id=?", [bedId]);
         }

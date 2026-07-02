@@ -12,6 +12,102 @@ var SYNC_DOMAIN_MODULES = {
   settings: "settings",
 };
 
+var INFO_TAB_MODULES = {
+  rooms: "settings_rooms",
+  beds: "settings_beds",
+  guests: "settings_guests",
+  lodgers: "lodgers_records",
+  events: "events",
+};
+
+/** 视图写后同步/刷新范围 | View-scoped sync + render (industry: minimal refresh) */
+var VIEW_SYNC_SCOPES = {
+  board: {
+    module: "board",
+    refresh: function () {
+      if (typeof renderRooms === "function") renderRooms();
+      if (typeof renderBoard === "function") renderBoard();
+    },
+  },
+  lodgers: {
+    module: "lodgers_records",
+    refresh: function () {
+      if (typeof renderLodgersPage === "function") renderLodgersPage();
+    },
+  },
+  lodging: {
+    module: "board",
+    refresh: function () {
+      if (typeof renderLodging === "function") renderLodging();
+    },
+  },
+  stay: {
+    module: "board",
+    refresh: function () {
+      if (typeof renderBedOptions === "function") renderBedOptions();
+      var mode =
+        typeof _pendingStayMode !== "undefined" ? _pendingStayMode : "checkin";
+      if (typeof setStayMode === "function") setStayMode(mode);
+    },
+  },
+  housekeeping: {
+    module: "board",
+    refresh: function () {
+      if (typeof renderHousekeeping === "function") renderHousekeeping();
+    },
+  },
+  reports: {
+    refresh: function () {
+      if (
+        !document.getElementById("view-reports")?.classList.contains("active")
+      )
+        return;
+      if (typeof renderMealReport === "function") renderMealReport();
+      if (typeof renderDailyReport === "function") renderDailyReport();
+      if (typeof renderMonthlyReport === "function") renderMonthlyReport();
+      if (typeof renderEventReport === "function") renderEventReport();
+    },
+  },
+  forecast: {
+    refresh: function () {
+      if (
+        !document.getElementById("view-forecast")?.classList.contains("active")
+      )
+        return;
+      var tab =
+        document.querySelector(".forecast-tab-btn.active")?.dataset.tab ||
+        "today";
+      if (typeof renderForecastTab === "function") renderForecastTab(tab);
+    },
+  },
+  history: {
+    module: "lodgers_records",
+    refresh: function () {
+      if (typeof renderHistory === "function") renderHistory();
+    },
+  },
+  info: {
+    refresh: function () {
+      if (typeof renderInfo === "function") {
+        renderInfo(
+          typeof infoCurrentTab !== "undefined" ? infoCurrentTab : "rooms",
+        );
+      }
+    },
+  },
+  backup: {
+    refresh: function () {
+      if (typeof renderOperationalSettingsPanel === "function") {
+        renderOperationalSettingsPanel();
+      }
+      if (typeof renderRolePermissionsPanel === "function") {
+        renderRolePermissionsPanel();
+      }
+      if (typeof renderUserList === "function") renderUserList();
+    },
+  },
+};
+
 var _viewRefreshHandlers = {};
 var _boardEventSource = null;
 var _boardSseVersion = null;
@@ -49,12 +145,91 @@ function registerViewRefresh(viewId, fn) {
   _viewRefreshHandlers[viewId] = fn;
 }
 
-function domainsToModules(domains) {
+function getActiveViewId() {
+  var active = document.querySelector(".view.active");
+  if (!active || !active.id) return null;
+  return active.id.replace(/^view-/, "");
+}
+
+function resolveScopeModuleKey(options) {
+  var infoTab = options && options.infoTab;
+  if (infoTab && INFO_TAB_MODULES[infoTab]) return INFO_TAB_MODULES[infoTab];
+  var scope = options && options.scope;
+  if (scope && VIEW_SYNC_SCOPES[scope] && VIEW_SYNC_SCOPES[scope].module) {
+    return VIEW_SYNC_SCOPES[scope].module;
+  }
+  var active = getActiveViewId();
+  if (active && VIEW_SYNC_SCOPES[active] && VIEW_SYNC_SCOPES[active].module) {
+    return VIEW_SYNC_SCOPES[active].module;
+  }
+  return null;
+}
+
+function refreshViewForScope(scopeKey, options) {
+  var key = scopeKey || getActiveViewId();
+  if (!key) return;
+  if (options && options.infoOnly) {
+    if (typeof renderInfo === "function") {
+      renderInfo(
+        options.infoTab ||
+          (typeof infoCurrentTab !== "undefined" ? infoCurrentTab : "rooms"),
+      );
+    }
+    return;
+  }
+  var scope = VIEW_SYNC_SCOPES[key];
+  if (scope && typeof scope.refresh === "function") {
+    scope.refresh(options);
+    return;
+  }
+  if (_viewRefreshHandlers[key]) {
+    _viewRefreshHandlers[key](options);
+  }
+}
+
+function lodgingModuleForView(active) {
+  if (active === "lodgers" || active === "history") return "lodgers_records";
+  if (
+    active === "board" ||
+    active === "lodging" ||
+    active === "housekeeping" ||
+    active === "stay"
+  ) {
+    return "board";
+  }
+  if (active === "info" && typeof infoCurrentTab !== "undefined") {
+    return INFO_TAB_MODULES[infoCurrentTab] === "lodgers_records"
+      ? "lodgers_records"
+      : null;
+  }
+  return "lodgers";
+}
+
+function domainsToModules(domains, options) {
+  var scoped = resolveScopeModuleKey(options);
+  if (scoped) return [scoped];
+
   var keys = [];
+  var active = getActiveViewId();
   (domains || []).forEach(function (domain) {
+    if (domain === "housekeeping" && keys.indexOf("board") !== -1) return;
+    if (domain === "lodging") {
+      var lodgingMod = lodgingModuleForView(active);
+      if (lodgingMod && keys.indexOf(lodgingMod) === -1) keys.push(lodgingMod);
+      return;
+    }
+    if (domain === "board") {
+      if (keys.indexOf("board") === -1) keys.push("board");
+      return;
+    }
     var mod = SYNC_DOMAIN_MODULES[domain];
     if (mod && keys.indexOf(mod) === -1) keys.push(mod);
   });
+  if (keys.indexOf("board") !== -1) {
+    return keys.filter(function (k) {
+      return k !== "lodgers_records" && k !== "lodgers";
+    });
+  }
   return keys;
 }
 
@@ -79,14 +254,7 @@ function notifyViewsForDomains(domains) {
 }
 
 function refreshActiveViewsAfterSync() {
-  if (
-    document.getElementById("view-info")?.classList.contains("active") &&
-    typeof renderInfo === "function"
-  ) {
-    renderInfo(
-      typeof infoCurrentTab !== "undefined" ? infoCurrentTab : "events",
-    );
-  }
+  refreshViewForScope(getActiveViewId());
 }
 
 async function fetchAndApplyModule(moduleKey) {
@@ -105,8 +273,8 @@ async function fetchAndApplyModule(moduleKey) {
   return { module: moduleKey, skipped: false };
 }
 
-async function syncRemoteByDomains(domains) {
-  var modules = domainsToModules(domains);
+async function syncRemoteByDomains(domains, options) {
+  var modules = domainsToModules(domains, options);
   if (!modules.length) return false;
   setRemoteSyncStatus("loading");
   try {
@@ -152,9 +320,11 @@ async function syncRemoteDeltaSince(sinceVersion) {
 }
 
 /** 写操作后按需同步 | Sync after write */
-async function syncAfterRemoteWrite(writeResult) {
+async function syncAfterRemoteWrite(writeResult, options) {
   if (typeof isRemoteDB !== "function" || !isRemoteDB()) return;
   if (typeof isLoggedIn === "function" && !isLoggedIn()) return;
+
+  var scopedModule = resolveScopeModuleKey(options);
 
   var writeVersion = parseBoardVersion(
     writeResult && writeResult.board_version,
@@ -164,7 +334,8 @@ async function syncAfterRemoteWrite(writeResult) {
   if (
     writeVersion != null &&
     localVersion != null &&
-    writeVersion === localVersion
+    writeVersion === localVersion &&
+    !scopedModule
   ) {
     notifyViewsForDomains(writeResult && writeResult.changed_domains);
     return;
@@ -176,12 +347,26 @@ async function syncAfterRemoteWrite(writeResult) {
     return;
   }
 
+  if (scopedModule) {
+    setRemoteSyncStatus("loading");
+    try {
+      await fetchAndApplyModule(scopedModule);
+      remoteReadModelReady = true;
+      lastRemoteSyncAt = Date.now();
+      setRemoteSyncStatus("ready");
+    } catch (e) {
+      setRemoteSyncStatus("error", e.message || "数据同步失败");
+      throw e;
+    }
+    return;
+  }
+
   var domains =
     writeResult && Array.isArray(writeResult.changed_domains)
       ? writeResult.changed_domains
       : null;
   if (domains && domains.length) {
-    await syncRemoteByDomains(domains);
+    await syncRemoteByDomains(domains, options);
     return;
   }
 
@@ -215,9 +400,7 @@ async function syncRemoteIfStale() {
   var remoteVersion = parseBoardVersion(board.version);
   if (remoteVersion == null || remoteVersion === localVersion) return;
   await syncRemoteDeltaSince(localVersion);
-  if (typeof renderAll === "function") {
-    await renderAll({ skipSync: true });
-  }
+  refreshViewForScope(getActiveViewId());
 }
 
 function stopBoardStream(cancelRetry) {

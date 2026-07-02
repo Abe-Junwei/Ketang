@@ -206,6 +206,31 @@ def main() -> int:
             return 1
     results["board_version_ms"] = summarize_samples(board_samples)
 
+    module_samples: list[int] = []
+    for _ in range(sample_n):
+        status, body, ms, _ = request_json(
+            f"{base}/api/v1/read/lodgers_records{timing_q}",
+        )
+        module_samples.append(ms)
+        if status != 200 or not body.get("tables"):
+            print(f"FAIL read/lodgers_records status={status} body={body}")
+            return 1
+    results["read_lodgers_records_ms"] = summarize_samples(module_samples)
+    results["read_lodgers_records_timing"] = body.get("_timing")
+
+    delta_samples: list[int] = []
+    version = body.get("board_version")
+    for _ in range(sample_n):
+        status, payload, ms, _ = request_json(
+            f"{base}/api/v1/sync/delta{timing_q}",
+            headers={"If-None-Match": str(version or 0)},
+        )
+        delta_samples.append(ms)
+        if status not in (200, 304):
+            print(f"FAIL sync/delta status={status} body={payload}")
+            return 1
+    results["sync_delta_ms"] = summarize_samples(delta_samples)
+
     print(json.dumps(results, ensure_ascii=False, indent=2))
 
     if args.write_report:

@@ -273,10 +273,11 @@ async function submitChangeBed(lodgerId, gender) {
     alert("该床位所在房间寮类型不符");
     return;
   }
-  const occ = query(
-    "SELECT COUNT(*) as c FROM lodgers WHERE bed_id=? AND status='在住'",
-    [bedId],
-  )[0].c;
+  const occ =
+    query(
+      "SELECT COUNT(*) as c FROM lodgers WHERE bed_id=? AND status='在住'",
+      [bedId],
+    )[0]?.c || 0;
   if (occ > 0) {
     alert("该床位已有人");
     return;

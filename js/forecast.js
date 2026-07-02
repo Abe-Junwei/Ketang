@@ -94,18 +94,21 @@ function renderTodayForecast() {
   );
 
   // 实际已入住 / 已退房（以 actual_check_out 为空判断）
-  const actualCheckins = query(
-    "SELECT COUNT(*) as c FROM lodgers WHERE check_in_date = ? AND status = '在住'",
-    [date],
-  )[0].c;
-  const actualCheckouts = query(
-    "SELECT COUNT(*) as c FROM lodgers WHERE actual_check_out = ? AND status IN ('在住','已退')",
-    [date],
-  )[0].c;
-  const inHouse = query(
-    "SELECT COUNT(*) as c FROM lodgers WHERE status='在住' AND check_in_date <= ? AND (expected_check_out IS NULL OR expected_check_out > ?)",
-    [date, date],
-  )[0].c;
+  const actualCheckins =
+    query(
+      "SELECT COUNT(*) as c FROM lodgers WHERE check_in_date = ? AND status = '在住'",
+      [date],
+    )[0]?.c || 0;
+  const actualCheckouts =
+    query(
+      "SELECT COUNT(*) as c FROM lodgers WHERE actual_check_out = ? AND status IN ('在住','已退')",
+      [date],
+    )[0]?.c || 0;
+  const inHouse =
+    query(
+      "SELECT COUNT(*) as c FROM lodgers WHERE status='在住' AND check_in_date <= ? AND (expected_check_out IS NULL OR expected_check_out > ?)",
+      [date, date],
+    )[0]?.c || 0;
 
   // 按营期汇总
   const byEvent = {};
@@ -476,15 +479,18 @@ function renderFlowForecast() {
   }
 
   // 总床位
-  const totalMaleBeds = query(
-    "SELECT COUNT(*) as c FROM beds b JOIN rooms r ON r.id=b.room_id WHERE r.dorm_type='男寮' AND b.status!='维修' AND b.status!='备用'",
-  )[0].c;
-  const totalFemaleBeds = query(
-    "SELECT COUNT(*) as c FROM beds b JOIN rooms r ON r.id=b.room_id WHERE r.dorm_type='女寮' AND b.status!='维修' AND b.status!='备用'",
-  )[0].c;
-  const totalFlexBeds = query(
-    "SELECT COUNT(*) as c FROM beds b JOIN rooms r ON r.id=b.room_id WHERE r.dorm_type='不限' AND b.status!='维修' AND b.status!='备用'",
-  )[0].c;
+  const totalMaleBeds =
+    query(
+      "SELECT COUNT(*) as c FROM beds b JOIN rooms r ON r.id=b.room_id WHERE r.dorm_type='男寮' AND b.status!='维修' AND b.status!='备用'",
+    )[0]?.c || 0;
+  const totalFemaleBeds =
+    query(
+      "SELECT COUNT(*) as c FROM beds b JOIN rooms r ON r.id=b.room_id WHERE r.dorm_type='女寮' AND b.status!='维修' AND b.status!='备用'",
+    )[0]?.c || 0;
+  const totalFlexBeds =
+    query(
+      "SELECT COUNT(*) as c FROM beds b JOIN rooms r ON r.id=b.room_id WHERE r.dorm_type='不限' AND b.status!='维修' AND b.status!='备用'",
+    )[0]?.c || 0;
 
   // 可用于调剂的不限房间（当前空床）
   const flexRooms = query(`

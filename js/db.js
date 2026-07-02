@@ -115,19 +115,46 @@ function isRemoteDataUnavailable() {
   );
 }
 
-function refreshAfterWrite(writeResult) {
-  if (typeof renderAll !== "function") return;
+function refreshAfterWrite(writeResult, options) {
+  if (
+    typeof renderAll !== "function" &&
+    typeof refreshViewForScope !== "function"
+  ) {
+    return;
+  }
   const task = (async function () {
     if (isRemoteDB()) {
       if (typeof syncAfterRemoteWrite === "function") {
-        await syncAfterRemoteWrite(writeResult);
+        await syncAfterRemoteWrite(writeResult, options);
       } else {
         await syncRemoteReadModel({ force: true });
       }
-      await renderAll({ skipSync: true });
-      if (typeof refreshActiveViewsAfterSync === "function") {
-        refreshActiveViewsAfterSync();
+      if (options && options.fullRefresh) {
+        await renderAll({ skipSync: true });
+        return;
       }
+      if (typeof refreshViewForScope === "function") {
+        refreshViewForScope((options && options.scope) || null, options);
+      } else if (
+        options &&
+        options.infoOnly &&
+        typeof renderInfo === "function"
+      ) {
+        renderInfo(
+          options.infoTab ||
+            (typeof infoCurrentTab !== "undefined" ? infoCurrentTab : "rooms"),
+        );
+      } else {
+        await renderAll({ skipSync: true });
+      }
+      return;
+    }
+    if (options && options.fullRefresh) {
+      await renderAll({ skipSync: true });
+      return;
+    }
+    if (typeof refreshViewForScope === "function") {
+      refreshViewForScope((options && options.scope) || null, options);
       return;
     }
     await renderAll({ skipSync: true });
@@ -304,6 +331,15 @@ function applyRemoteSnapshot(payload) {
 function applyModuleTables(tables) {
   if (!tables || typeof tables !== "object") return;
   ensureRemoteLocalSchema();
+  _remoteHydrating = true;
+  try {
+    applyModuleTablesInner(tables);
+  } finally {
+    _remoteHydrating = false;
+  }
+}
+
+function applyModuleTablesInner(tables) {
   Object.keys(tables).forEach(function (table) {
     if (!REMOTE_SNAPSHOT_TABLE_RE.test(table)) return;
     const rows = tables[table];
@@ -333,24 +369,32 @@ function applyModuleTables(tables) {
 function applyRemoteDelta(delta) {
   if (!delta || typeof delta !== "object") return;
   ensureRemoteLocalSchema();
-  const modules = delta.modules || {};
-  Object.keys(modules).forEach(function (key) {
-    const mod = modules[key];
-    if (mod && mod.tables) applyModuleTables(mod.tables);
-  });
-  const deletions = delta.deletions || [];
-  deletions.forEach(function (item) {
-    const table = item.table_name;
-    const rowId = item.row_id;
-    if (!table || !rowId || !REMOTE_SNAPSHOT_TABLE_RE.test(table)) return;
-    run(`DELETE FROM ${table} WHERE id = ?`, [rowId]);
-  });
-  if (delta.board_version != null && typeof lastBoardVersion !== "undefined") {
-    lastBoardVersion = delta.board_version;
+  _remoteHydrating = true;
+  try {
+    const modules = delta.modules || {};
+    Object.keys(modules).forEach(function (key) {
+      const mod = modules[key];
+      if (mod && mod.tables) applyModuleTablesInner(mod.tables);
+    });
+    const deletions = delta.deletions || [];
+    deletions.forEach(function (item) {
+      const table = item.table_name;
+      const rowId = item.row_id;
+      if (!table || !rowId || !REMOTE_SNAPSHOT_TABLE_RE.test(table)) return;
+      run(`DELETE FROM ${table} WHERE id = ?`, [rowId]);
+    });
+    if (
+      delta.board_version != null &&
+      typeof lastBoardVersion !== "undefined"
+    ) {
+      lastBoardVersion = delta.board_version;
+    }
+    remoteReadModelReady = true;
+    lastRemoteSyncAt = Date.now();
+    setRemoteSyncStatus("ready");
+  } finally {
+    _remoteHydrating = false;
   }
-  remoteReadModelReady = true;
-  lastRemoteSyncAt = Date.now();
-  setRemoteSyncStatus("ready");
 }
 
 function resetRemoteReadModelState() {
