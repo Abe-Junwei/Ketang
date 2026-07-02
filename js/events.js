@@ -61,6 +61,9 @@ function renderEventList() {
     return;
   }
 
+  const canRoomingPlan =
+    typeof hasPermission === "function" && hasPermission("settings.read");
+
   html += `<div class="event-grid">`;
   filtered.forEach((e) => {
     const registered = (e.reserved || 0) + (e.checked_in || 0);
@@ -108,6 +111,7 @@ function renderEventList() {
         <div class="event-card-actions">
           <button class="btn btn-sm btn-default" onclick="openEventModal(${e.id})">编辑</button>
           <button class="btn btn-sm btn-primary" onclick="renderEventMembers(${e.id})">成员 / 批量取消</button>
+          ${canRoomingPlan ? `<button class="btn btn-sm btn-warning" onclick="renderRoomingPlan(${e.id})">预分房</button>` : ""}
           <button class="btn btn-sm btn-success" onclick="openRoomingSuggestion(${e.id})">排房建议</button>
           <button class="btn btn-sm btn-danger" onclick="deleteEvent(${e.id})">删除</button>
         </div>
@@ -641,13 +645,13 @@ function openRoomingSuggestion(eventId) {
   // 男众方案
   if (suggestion.malePlan.length > 0) {
     bodyHtml += `<h4 class="rooming-section-title">男众分配方案（${suggestion.registeredMale + (suggestion.maleGap > 0 ? suggestion.maleGap : 0)} 人）</h4>`;
-    bodyHtml += renderRoomingPlanTable(suggestion.malePlan, suggestion.maleGap);
+    bodyHtml += renderRoomingSuggestionTable(suggestion.malePlan, suggestion.maleGap);
   }
 
   // 女众方案
   if (suggestion.femalePlan.length > 0) {
     bodyHtml += `<h4 class="rooming-section-title">女众分配方案（${suggestion.registeredFemale + (suggestion.femaleGap > 0 ? suggestion.femaleGap : 0)} 人）</h4>`;
-    bodyHtml += renderRoomingPlanTable(
+    bodyHtml += renderRoomingSuggestionTable(
       suggestion.femalePlan,
       suggestion.femaleGap,
     );
@@ -810,7 +814,7 @@ function allocateRooms(needed, rooms) {
   return plan;
 }
 
-function renderRoomingPlanTable(plan, gap) {
+function renderRoomingSuggestionTable(plan, gap) {
   if (plan.length === 0) return '<p class="empty-tip">无可用房间。</p>';
   let html = `<div class="table-wrap"><table><thead><tr><th>房间</th><th>位置</th><th>类型</th><th>可用床</th><th>分配人数</th></tr></thead><tbody>`;
   plan.forEach((p) => {

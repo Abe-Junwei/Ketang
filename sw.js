@@ -1,5 +1,5 @@
 /* 客堂静态资源 Service Worker | Offline shell cache (no API/data) */
-var CACHE_VERSION = "ketang-shell-v3";
+var CACHE_VERSION = "ketang-shell-v6";
 var PRECACHE = [
   "./",
   "./index.html",
@@ -46,6 +46,9 @@ var PRECACHE = [
   "./js/picker.js",
   "./js/mobile-ui.js",
   "./js/rooming-tags.js",
+  "./js/rooming-capacity.js",
+  "./js/rooming-conflicts.js",
+  "./js/rooming-plans.js",
   "./js/app.js",
 ];
 

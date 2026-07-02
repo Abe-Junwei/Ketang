@@ -12,7 +12,7 @@
     <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
     <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png" />
     <link rel="stylesheet" href="fonts/fonts.css?v=1" />
-    <link rel="stylesheet" href="styles.css?v=63" />
+    <link rel="stylesheet" href="styles.css?v=66" />
     <title>客堂管理系统</title>
   </head>
   <body>
@@ -390,6 +390,47 @@
               </div>
             </article>
           </div>
+
+          <section
+            class="board-capacity panel-card"
+            id="board-capacity-panel"
+            aria-label="夏季容量预测"
+          >
+            <header class="board-capacity-head">
+              <div>
+                <h3 class="board-capacity-title">夏季容量预测</h3>
+                <p class="panel-card-desc">
+                  已报名 + 营期预计人数，提前发现高峰与床位缺口
+                </p>
+              </div>
+              <button
+                type="button"
+                class="btn btn-default btn-sm"
+                id="board-capacity-toggle"
+                aria-expanded="true"
+                onclick="toggleBoardCapacityPanel()"
+              >
+                收起
+              </button>
+            </header>
+            <div class="board-capacity-body" id="board-capacity-body">
+              <div class="board-capacity-controls">
+                <label class="board-cap-control">
+                  起始日期
+                  <input type="date" id="board-cap-start" onchange="renderBoardCapacityForecast()" />
+                </label>
+                <label class="board-cap-control">
+                  预测天数
+                  <select id="board-cap-days" onchange="renderBoardCapacityForecast()">
+                    <option value="7">7 天</option>
+                    <option value="14" selected>14 天</option>
+                    <option value="30">30 天</option>
+                  </select>
+                </label>
+              </div>
+              <div id="board-capacity-result"></div>
+            </div>
+          </section>
 
           <hr class="board-divider" />
 
@@ -1730,12 +1771,15 @@
     <script src="./js/reports.js?v=11"></script>
     <script src="./js/rooming-tags.js?v=3"></script>
     <script src="./js/events.js?v=12"></script>
+    <script src="./js/rooming-capacity.js?v=1"></script>
+    <script src="./js/rooming-conflicts.js?v=1"></script>
+    <script src="./js/rooming-plans.js?v=2"></script>
     <script src="./js/info.js?v=13"></script>
     <script src="./js/permissions.js?v=4"></script>
     <script src="./js/auth.js?v=24"></script>
     <script src="./js/icons.js?v=8"></script>
     <script src="./js/picker.js?v=4"></script>
     <script src="./js/mobile-ui.js?v=1"></script>
-    <script src="./js/app.js?v=53"></script>
+    <script src="./js/app.js?v=54"></script>
   </body>
 </html>

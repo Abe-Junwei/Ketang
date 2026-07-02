@@ -218,6 +218,7 @@ async function ensureRoomingSchemaColumnsIfTablesExist(env) {
   );
   if (!roomsTable.length) return;
   await ensureRoomingSchemaColumns(env);
+  await ensureRoomingPlanTables(env);
 }
 
 async function ensureRoomingSchemaColumns(env) {
@@ -288,6 +289,40 @@ async function ensureRoomingSchemaColumns(env) {
     await addRemoteColumnIfMissing(env, "lodgers", column, definition);
     await addRemoteColumnIfMissing(env, "reservations", column, definition);
   }
+}
+
+const ROOMING_PLAN_TABLES_SQL = `
+CREATE TABLE IF NOT EXISTS rooming_plans (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  event_id INTEGER NOT NULL UNIQUE REFERENCES events(id) ON DELETE CASCADE,
+  name TEXT,
+  status TEXT DEFAULT '未确认' CHECK(status IN ('未确认','待调整','已确认')),
+  notes TEXT,
+  created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+);
+CREATE TABLE IF NOT EXISTS rooming_assignments (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  plan_id INTEGER NOT NULL REFERENCES rooming_plans(id) ON DELETE CASCADE,
+  member_kind TEXT NOT NULL CHECK(member_kind IN ('lodger','reservation','forecast')),
+  member_ref_id INTEGER,
+  member_name TEXT NOT NULL,
+  member_gender TEXT,
+  participant_identity TEXT,
+  age_group TEXT,
+  special_needs TEXT,
+  bed_id INTEGER REFERENCES beds(id),
+  item_status TEXT DEFAULT '未确认' CHECK(item_status IN ('未确认','待调整','已确认')),
+  notes TEXT,
+  sort_order INTEGER DEFAULT 0,
+  created_at TEXT DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_rooming_plans_event ON rooming_plans(event_id);
+CREATE INDEX IF NOT EXISTS idx_rooming_assignments_plan ON rooming_assignments(plan_id);
+`;
+
+async function ensureRoomingPlanTables(env) {
+  await runD1(env, ROOMING_PLAN_TABLES_SQL, []);
 }
 
 async function ensureEventColumns(env) {

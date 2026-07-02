@@ -21,7 +21,7 @@ const DEFAULT_ADMIN_PASSWORD_HASH =
   "sha256$ketang_default_salt$8d62959035f9b60a02e709f9826f3f996d07a09a4f5091e2884642fa01adf8a3";
 const DEFAULT_ZHIKE_PASSWORD_HASH =
   "sha256$ketang_default_salt$fc286955fb12bec3fb16b4f2619f9b675337b1240537bc21d830b5f495121565";
-const CURRENT_SCHEMA_VERSION = 17;
+const CURRENT_SCHEMA_VERSION = 18;
 const IMPORT_BATCH_SIZE = 80;
 const USERS_IMPORT_COLUMNS = [
   "id",
@@ -174,6 +174,31 @@ const TABLE_IMPORT_COLUMNS = {
     "paid_at",
     "created_at",
   ],
+  rooming_plans: [
+    "id",
+    "event_id",
+    "name",
+    "status",
+    "notes",
+    "created_at",
+    "updated_at",
+  ],
+  rooming_assignments: [
+    "id",
+    "plan_id",
+    "member_kind",
+    "member_ref_id",
+    "member_name",
+    "member_gender",
+    "participant_identity",
+    "age_group",
+    "special_needs",
+    "bed_id",
+    "item_status",
+    "notes",
+    "sort_order",
+    "created_at",
+  ],
   housekeeping: ["id", "bed_id", "status", "operator", "changed_at", "notes"],
   audit_logs: [
     "id",
@@ -193,6 +218,8 @@ const EXPORT_TABLES = [
   "beds",
   "guests",
   "events",
+  "rooming_plans",
+  "rooming_assignments",
   "lodgers",
   "reservations",
   "meals",
@@ -207,6 +234,8 @@ const DELETE_ORDER = [
   "housekeeping",
   "payments",
   "meals",
+  "rooming_assignments",
+  "rooming_plans",
   "reservations",
   "lodgers",
   "events",

@@ -5318,6 +5318,241 @@ form .field {
   font-weight: var(--font-weight-semibold);
 }
 
+.rooming-plan-shell {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.rooming-plan-title {
+  margin: 0;
+  font-size: var(--font-size-lg);
+}
+
+.rooming-plan-hint {
+  margin: 0;
+  color: var(--color-muted);
+  font-size: var(--font-size-sm);
+}
+
+.rooming-plan-status-select,
+.rooming-bed-select,
+.rooming-item-status-select {
+  min-width: 140px;
+  max-width: 100%;
+}
+
+.rooming-plan-table-wrap .rooming-tag {
+  display: inline-block;
+  margin-left: var(--space-1);
+  padding: 0 var(--space-1);
+  border-radius: var(--radius-xs);
+  background: color-mix(in srgb, var(--color-warning) 18%, transparent);
+  color: var(--color-warning-foreground, var(--color-foreground));
+  font-size: var(--font-size-xs);
+}
+
+.rooming-plan-notes {
+  margin: 0;
+  color: var(--color-muted);
+  font-size: var(--font-size-sm);
+}
+
+.rooming-conflicts {
+  background: color-mix(in srgb, var(--color-background) 92%, var(--color-border));
+  border-radius: var(--radius-sm);
+  padding: var(--space-3);
+}
+
+.rooming-conflicts-ok {
+  border: 1px solid color-mix(in srgb, var(--color-success) 35%, transparent);
+}
+
+.rooming-conflict-ok-tip {
+  margin: 0;
+  color: var(--color-muted);
+  font-size: var(--font-size-sm);
+}
+
+.rooming-conflict-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-bottom: var(--space-2);
+}
+
+.rooming-conflict-stat {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-xs);
+}
+
+.rooming-conflict-stat-error {
+  background: var(--color-danger-muted);
+  color: var(--color-danger);
+}
+
+.rooming-conflict-stat-warning {
+  background: color-mix(in srgb, var(--color-warning) 20%, transparent);
+  color: var(--color-foreground);
+}
+
+.rooming-conflict-group-title {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  margin-bottom: var(--space-1);
+}
+
+.rooming-conflict-list {
+  margin: 0 0 var(--space-3) 0;
+  padding-left: var(--space-4);
+}
+
+.rooming-conflict-item {
+  margin-bottom: var(--space-1);
+  font-size: var(--font-size-sm);
+  line-height: 1.45;
+}
+
+.rooming-conflict-tag {
+  display: inline-block;
+  font-size: var(--font-size-xs);
+  padding: 0 var(--space-1);
+  border-radius: var(--radius-xs);
+  background: color-mix(in srgb, var(--color-border) 50%, transparent);
+  margin-right: var(--space-1);
+}
+
+/* Phase 9.2 看板容量预测 | Board capacity forecast */
+.board-capacity {
+  margin-top: var(--space-4);
+}
+
+.board-capacity-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-bottom: var(--space-3);
+}
+
+.board-capacity-title {
+  margin: 0;
+  font-size: var(--font-size-lg);
+}
+
+.board-capacity.is-collapsed .board-capacity-body {
+  display: none;
+}
+
+.board-capacity-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  margin-bottom: var(--space-3);
+}
+
+.board-cap-control {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  font-size: var(--font-size-sm);
+  color: var(--color-muted);
+}
+
+.board-cap-control input,
+.board-cap-control select {
+  min-width: 10rem;
+}
+
+.board-cap-summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: var(--space-3);
+  margin-bottom: var(--space-3);
+}
+
+.board-cap-stat {
+  background: var(--color-background);
+  border-radius: var(--radius-md);
+  padding: var(--space-3);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.board-cap-stat-num {
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-weight-bold);
+  color: var(--color-primary);
+}
+
+.board-cap-stat-label {
+  font-size: var(--font-size-sm);
+  color: var(--color-muted);
+}
+
+.board-cap-stat-sub {
+  font-size: 11px;
+  color: var(--color-muted);
+}
+
+.board-cap-chart-wrap {
+  height: 220px;
+  margin-bottom: var(--space-3);
+}
+
+.board-cap-table-wrap {
+  max-height: 360px;
+  overflow: auto;
+}
+
+.board-cap-table th,
+.board-cap-table td {
+  text-align: center;
+  font-size: var(--font-size-sm);
+  white-space: nowrap;
+}
+
+.board-cap-table td:first-child,
+.board-cap-table th:first-child {
+  text-align: left;
+  position: sticky;
+  left: 0;
+  background: var(--color-surface);
+  z-index: 1;
+}
+
+.board-cap-gap-row td {
+  background: color-mix(
+    in srgb,
+    var(--color-danger-muted) 25%,
+    var(--color-surface)
+  );
+}
+
+.board-cap-spare-hint {
+  display: block;
+  font-size: 10px;
+  color: var(--color-muted);
+}
+
+.board-cap-hint {
+  margin-top: var(--space-2);
+  font-size: var(--font-size-sm);
+}
+
+@media (max-width: 768px) {
+  .board-capacity {
+    margin-top: var(--space-3);
+  }
+
+  .board-cap-chart-wrap {
+    height: 180px;
+  }
+}
+
 /* ============================================================
    角色权限矩阵 | Role permission matrix
    ============================================================ */

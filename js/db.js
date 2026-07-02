@@ -32,6 +32,8 @@ const REMOTE_SNAPSHOT_INSERT_ORDER = [
   "beds",
   "guests",
   "events",
+  "rooming_plans",
+  "rooming_assignments",
   "lodgers",
   "reservations",
   "meals",
@@ -187,6 +189,7 @@ function initLocalSchemaAndMigrations() {
   migrateV14toV15();
   migrateV15toV16();
   migrateV16toV17();
+  migrateV17toV18();
   createIndexes();
 }
 
@@ -604,6 +607,31 @@ function initSchema() {
       meal_lunch INTEGER DEFAULT 1 CHECK(meal_lunch IN (0,1)),
       meal_dinner INTEGER DEFAULT 1 CHECK(meal_dinner IN (0,1)),
       notes TEXT,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE TABLE IF NOT EXISTS rooming_plans (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      event_id INTEGER NOT NULL UNIQUE REFERENCES events(id) ON DELETE CASCADE,
+      name TEXT,
+      status TEXT DEFAULT '未确认' CHECK(status IN ('未确认','待调整','已确认')),
+      notes TEXT,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE TABLE IF NOT EXISTS rooming_assignments (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      plan_id INTEGER NOT NULL REFERENCES rooming_plans(id) ON DELETE CASCADE,
+      member_kind TEXT NOT NULL CHECK(member_kind IN ('lodger','reservation','forecast')),
+      member_ref_id INTEGER,
+      member_name TEXT NOT NULL,
+      member_gender TEXT,
+      participant_identity TEXT,
+      age_group TEXT,
+      special_needs TEXT,
+      bed_id INTEGER REFERENCES beds(id),
+      item_status TEXT DEFAULT '未确认' CHECK(item_status IN ('未确认','待调整','已确认')),
+      notes TEXT,
+      sort_order INTEGER DEFAULT 0,
       created_at TEXT DEFAULT CURRENT_TIMESTAMP
     );
     CREATE TABLE IF NOT EXISTS housekeeping (
@@ -1917,12 +1945,66 @@ function migrateV16toV17() {
   }
 }
 
+function ensureLocalRoomingPlanTables() {
+  db.run(`
+    CREATE TABLE IF NOT EXISTS rooming_plans (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      event_id INTEGER NOT NULL UNIQUE REFERENCES events(id) ON DELETE CASCADE,
+      name TEXT,
+      status TEXT DEFAULT '未确认' CHECK(status IN ('未确认','待调整','已确认')),
+      notes TEXT,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE TABLE IF NOT EXISTS rooming_assignments (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      plan_id INTEGER NOT NULL REFERENCES rooming_plans(id) ON DELETE CASCADE,
+      member_kind TEXT NOT NULL CHECK(member_kind IN ('lodger','reservation','forecast')),
+      member_ref_id INTEGER,
+      member_name TEXT NOT NULL,
+      member_gender TEXT,
+      participant_identity TEXT,
+      age_group TEXT,
+      special_needs TEXT,
+      bed_id INTEGER REFERENCES beds(id),
+      item_status TEXT DEFAULT '未确认' CHECK(item_status IN ('未确认','待调整','已确认')),
+      notes TEXT,
+      sort_order INTEGER DEFAULT 0,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    );
+  `);
+}
+
+function migrateV17toV18() {
+  const version =
+    db.exec("SELECT MIN(version) as v FROM schema_version")[0]?.values[0][0] ||
+    0;
+  db.run("BEGIN TRANSACTION;");
+  try {
+    ensureLocalRoomingPlanTables();
+    if (version < 18) {
+      db.run("DELETE FROM schema_version WHERE version < 18");
+      db.run("INSERT OR REPLACE INTO schema_version (version) VALUES (18)");
+    }
+    db.run("COMMIT;");
+  } catch (e) {
+    try {
+      db.run("ROLLBACK;");
+    } catch (rollbackErr) {
+      /* ignore */
+    }
+    throw new Error("migrateV17toV18 failed: " + e.message);
+  }
+}
+
 function createIndexes() {
   db.run(`
     CREATE INDEX IF NOT EXISTS idx_events_name ON events(name);
     CREATE INDEX IF NOT EXISTS idx_users_role ON users(role);
     CREATE INDEX IF NOT EXISTS idx_lodgers_guest_id ON lodgers(guest_id);
     CREATE INDEX IF NOT EXISTS idx_lodgers_event_id ON lodgers(event_id);
+    CREATE INDEX IF NOT EXISTS idx_rooming_plans_event ON rooming_plans(event_id);
+    CREATE INDEX IF NOT EXISTS idx_rooming_assignments_plan ON rooming_assignments(plan_id);
     CREATE INDEX IF NOT EXISTS idx_lodgers_bed_id ON lodgers(bed_id);
     CREATE INDEX IF NOT EXISTS idx_lodgers_status ON lodgers(status);
     CREATE INDEX IF NOT EXISTS idx_lodgers_dates ON lodgers(check_in_date, expected_check_out, actual_check_out);
@@ -2127,6 +2209,7 @@ async function importDB(input) {
       migrateV14toV15();
       migrateV15toV16();
       migrateV16toV17();
+      migrateV17toV18();
       createIndexes();
       await seedRooms();
       await saveDB();

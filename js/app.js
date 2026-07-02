@@ -39,6 +39,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       migrateV14toV15();
       migrateV15toV16();
       migrateV16toV17();
+      migrateV17toV18();
       createIndexes();
       await seedRooms();
       if (typeof finishLocalAuth === "function") finishLocalAuth();
@@ -465,6 +466,9 @@ function renderBoard() {
   renderStats();
   if (typeof renderMobileBoardHero === "function") renderMobileBoardHero();
   renderBoardCharts();
+  if (typeof renderBoardCapacityForecast === "function") {
+    renderBoardCapacityForecast();
+  }
   renderTodayMealsPanel();
   renderBedOptions();
   refreshBoardSearch();

@@ -343,6 +343,13 @@ async function apiImportJsonBackup(tables) {
   });
 }
 
+async function apiRoomingPlanAction(action, payload) {
+  return apiFetch("/api/v1/admin/rooming-plans", {
+    method: "POST",
+    body: Object.assign({ action: action }, payload || {}),
+  });
+}
+
 async function apiBatchCheckIn(payload) {
   return apiFetch("/api/v1/batch-check-in", {
     method: "POST",
