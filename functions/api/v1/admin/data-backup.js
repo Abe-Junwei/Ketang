@@ -480,22 +480,11 @@ async function runChunkWithFallback(env, chunk) {
   }
 }
 
-async function runImportInTransaction(env, statements) {
+async function runImportBatched(env, statements) {
   await initRemoteDatabase(env);
-  await runD1(env, "BEGIN IMMEDIATE", []);
-  try {
-    for (let i = 0; i < statements.length; i += IMPORT_BATCH_SIZE) {
-      const chunk = statements.slice(i, i + IMPORT_BATCH_SIZE);
-      await runChunkWithFallback(env, chunk);
-    }
-    await runD1(env, "COMMIT", []);
-  } catch (error) {
-    try {
-      await runD1(env, "ROLLBACK", []);
-    } catch (_rollbackError) {
-      /* ignore rollback failure */
-    }
-    throw error;
+  for (let i = 0; i < statements.length; i += IMPORT_BATCH_SIZE) {
+    const chunk = statements.slice(i, i + IMPORT_BATCH_SIZE);
+    await runChunkWithFallback(env, chunk);
   }
 }
 
@@ -547,7 +536,7 @@ export async function onRequestPost({ request, env }) {
       return json({ error: "请设置 confirm: true 确认覆盖导入" }, 400);
 
     const statements = buildImportStatements(body.tables);
-    await runImportInTransaction(env, statements);
+    await runImportBatched(env, statements);
     const summary = await summarizeImport(env);
     return json({
       ok: true,

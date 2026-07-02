@@ -242,8 +242,11 @@ def test_anonymous_users_action_does_not_enumerate_accounts():
 
 def test_data_backup_import_hardening():
     backup = read('functions/api/v1/admin/data-backup.js')
-    if 'batchD1' not in backup or 'BEGIN IMMEDIATE' not in backup:
-        print('FAIL data-backup.js must import in D1 transaction with batch writes')
+    if 'batchD1' not in backup:
+        print('FAIL data-backup.js must import with D1 batch writes')
+        sys.exit(1)
+    if 'BEGIN IMMEDIATE' in backup:
+        print('FAIL data-backup.js must not use explicit SQL transactions on D1')
         sys.exit(1)
     if 'validateForeignKeys' not in backup or 'validateBackupCompleteness' not in backup:
         print('FAIL data-backup.js missing import pre-validation helpers')
