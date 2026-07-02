@@ -187,12 +187,12 @@ function roomingQueueAssignAlreadyDone(item) {
 
 async function markRoomingQueueItemStatus(queueId, status) {
   if (typeof useRemoteWriteApi === "function" && useRemoteWriteApi()) {
-    await apiRoomingPlanAction("update_queue", {
+    var writeResult = await apiRoomingPlanAction("update_queue", {
       queue_id: queueId,
       queue_status: status,
     });
     if (typeof refreshAfterWrite === "function") {
-      var refreshTask = refreshAfterWrite();
+      var refreshTask = refreshAfterWrite(writeResult);
       if (refreshTask && typeof refreshTask.then === "function") {
         await refreshTask;
       }
@@ -358,9 +358,9 @@ async function handlePublishRoomingPlan(eventId) {
   }
   try {
     if (typeof useRemoteWriteApi === "function" && useRemoteWriteApi()) {
-      await apiRoomingPlanAction("publish", { event_id: eventId });
+      var publishResult = await apiRoomingPlanAction("publish", { event_id: eventId });
       if (typeof refreshAfterWrite === "function") {
-        var publishRefresh = refreshAfterWrite();
+        var publishRefresh = refreshAfterWrite(publishResult);
         if (publishRefresh && typeof publishRefresh.then === "function") {
           await publishRefresh;
         }
@@ -389,12 +389,12 @@ async function handleRepublishRoomingPlan(eventId) {
   }
   try {
     if (typeof useRemoteWriteApi === "function" && useRemoteWriteApi()) {
-      await apiRoomingPlanAction("republish", {
+      var republishResult = await apiRoomingPlanAction("republish", {
         event_id: eventId,
         confirm_republish: true,
       });
       if (typeof refreshAfterWrite === "function") {
-        var republishRefresh = refreshAfterWrite();
+        var republishRefresh = refreshAfterWrite(republishResult);
         if (republishRefresh && typeof republishRefresh.then === "function") {
           await republishRefresh;
         }
@@ -441,12 +441,12 @@ async function handleRoomingQueueCheckin(queueId, eventId) {
   }
   try {
     if (typeof useRemoteWriteApi === "function" && useRemoteWriteApi()) {
-      await apiRoomingPlanAction("process_queue", {
+      var queueResult = await apiRoomingPlanAction("process_queue", {
         event_id: eventId,
         queue_id: queueId,
       });
       if (typeof refreshAfterWrite === "function") {
-        var remoteRefresh = refreshAfterWrite();
+        var remoteRefresh = refreshAfterWrite(queueResult);
         if (remoteRefresh && typeof remoteRefresh.then === "function") {
           await remoteRefresh;
         }

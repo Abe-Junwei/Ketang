@@ -351,8 +351,9 @@ async function assignExistingLodgerToBed(lodgerId, bedId, opts) {
     return false;
   }
   try {
+    var writeResult = null;
     if (useRemoteWriteApi()) {
-      await apiAssignBed({ lodger_id: lodgerId, bed_id: parseInt(bedId, 10) });
+      writeResult = await apiAssignBed({ lodger_id: lodgerId, bed_id: parseInt(bedId, 10) });
     } else {
       await withTransaction(async () => {
         run("UPDATE lodgers SET bed_id=? WHERE id=? AND status='在住'", [
@@ -374,7 +375,7 @@ async function assignExistingLodgerToBed(lodgerId, bedId, opts) {
       closeModal();
       showToast("已分配床位");
     }
-    var refreshTask = refreshAfterWrite();
+    var refreshTask = refreshAfterWrite(writeResult);
     if (opts && opts.awaitRefresh && refreshTask && typeof refreshTask.then === "function") {
       await refreshTask;
     }
@@ -413,8 +414,9 @@ async function assignReservationToBed(resvId, bedId, opts) {
     return false;
   }
   try {
+    var writeResult = null;
     if (useRemoteWriteApi()) {
-      await apiAssignBed({
+      writeResult = await apiAssignBed({
         reservation_id: parseInt(resvId, 10),
         bed_id: parseInt(bedId, 10),
       });
@@ -482,7 +484,7 @@ async function assignReservationToBed(resvId, bedId, opts) {
       closeModal();
       showToast("已分配床位");
     }
-    var refreshTask = refreshAfterWrite();
+    var refreshTask = refreshAfterWrite(writeResult);
     if (opts && opts.awaitRefresh && refreshTask && typeof refreshTask.then === "function") {
       await refreshTask;
     }
@@ -596,8 +598,9 @@ document
     }
 
     try {
+      var writeResult = null;
       if (useRemoteWriteApi()) {
-        await apiCheckIn({
+        writeResult = await apiCheckIn({
           bed_id: parseInt(bedId, 10),
           name: name,
           gender: gender || null,
@@ -748,7 +751,7 @@ document
       showToast("入住登记成功");
       resetCheckin();
       showView("board");
-      refreshAfterWrite();
+      refreshAfterWrite(writeResult);
     } catch (err) {
       console.error(err);
       alert("入住登记失败：" + err.message);
@@ -943,7 +946,7 @@ async function importBatchCSV(input) {
         ${failedRows.length ? "<details><summary>失败明细</summary><pre>" + escapeHtml(failedRows.join("\n")) + "</pre></details>" : ""}
       `;
         showToast(`批量导入完成：成功 ${success} 条`);
-        refreshAfterWrite();
+        refreshAfterWrite(result);
         return;
       }
 

@@ -1584,6 +1584,15 @@
               >
                 从文件恢复数据
               </button>
+              <button
+                type="button"
+                class="btn btn-default"
+                id="force-remote-sync-btn"
+                hidden
+                onclick="forceFullRemoteSync()"
+              >
+                强制同步云端数据
+              </button>
               <input
                 type="file"
                 id="import-file"
@@ -1754,8 +1763,9 @@
 
     <script src="./lib/sql-wasm.js?v=2"></script>
     <script src="./js/utils.js?v=7"></script>
-    <script src="./js/db.js?v=24"></script>
-    <script src="./js/api-client.js?v=9"></script>
+    <script src="./js/db.js?v=26"></script>
+    <script src="./js/api-client.js?v=10"></script>
+    <script src="./js/sync-coordinator.js?v=2"></script>
     <script src="./js/guests.js?v=3"></script>
     <script src="./js/audit.js?v=3"></script>
     <script src="./js/housekeeping.js?v=7"></script>
@@ -1770,7 +1780,7 @@
     <script src="./js/forecast.js?v=6"></script>
     <script src="./js/reports.js?v=11"></script>
     <script src="./js/rooming-tags.js?v=5"></script>
-    <script src="./js/events.js?v=13"></script>
+    <script src="./js/events.js?v=14"></script>
     <script src="./js/rooming-capacity.js?v=1"></script>
     <script src="./js/rooming-conflicts.js?v=1"></script>
     <script src="./js/rooming-plans.js?v=5"></script>
@@ -1782,6 +1792,6 @@
     <script src="./js/icons.js?v=8"></script>
     <script src="./js/picker.js?v=4"></script>
     <script src="./js/mobile-ui.js?v=1"></script>
-    <script src="./js/app.js?v=54"></script>
+    <script src="./js/app.js?v=56"></script>
   </body>
 </html>

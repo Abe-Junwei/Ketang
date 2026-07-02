@@ -134,8 +134,9 @@ async function setHkAndRender(bedId, status) {
     return;
   }
   try {
+    var writeResult = null;
     if (useRemoteWriteApi()) {
-      await apiSetHouseStatus({
+      writeResult = await apiSetHouseStatus({
         bed_id: bedId,
         status: status,
         notes: `手动设置${status}`,
@@ -158,7 +159,7 @@ async function setHkAndRender(bedId, status) {
       await saveDB();
     }
     renderHousekeeping();
-    refreshAfterWrite();
+    refreshAfterWrite(writeResult);
   } catch (e) {
     console.error(e);
     alert("房务状态变更失败：" + e.message);
@@ -207,10 +208,15 @@ async function saveOperationalSettings() {
   const requireInspect = !!document.getElementById("hk-require-inspect")
     ?.checked;
   try {
+    var writeResult = null;
     if (typeof useRemoteWriteApi === "function" && useRemoteWriteApi()) {
-      await apiAdminSaveOperationalSettings({
+      writeResult = await apiAdminSaveOperationalSettings({
         housekeeping_require_inspect: requireInspect,
       });
+      setAppMetaValue(
+        APP_META_HK_REQUIRE_INSPECT,
+        requireInspect ? "1" : "0",
+      );
     } else {
       setAppMetaValue(
         APP_META_HK_REQUIRE_INSPECT,
@@ -220,6 +226,9 @@ async function saveOperationalSettings() {
     }
     showToast("运营配置已保存");
     renderOperationalSettingsPanel();
+    if (typeof refreshAfterWrite === "function") {
+      await refreshAfterWrite(writeResult);
+    }
     if (
       document.getElementById("view-housekeeping")?.classList.contains("active")
     )

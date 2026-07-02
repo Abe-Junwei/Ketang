@@ -52,7 +52,7 @@
 - 业务写操作走 `/api/v1/*` 接口（入住/退房/换床/续住/分床/编辑删除挂单/用斋/房务/预约/营期批量操作），D1 `batch()` 保证原子性。
 - `/api/db` 网关：知客师仅允许 `SELECT`/`PRAGMA` 与 `INSERT audit_logs`；管理员可管理用户与房间设置。
 - 管理员可在「系统设置」导出/导入 JSON 备份（含 `users` 表，`/api/v1/admin/data-backup`）。
-- 房态看板在云端模式每 8 秒轮询 `board-version` 自动刷新（全视图 + 切回前台时也会检查）。
+- 房态看板在云端模式每 **3** 秒轮询 `board-version` 自动刷新（全视图 + 切回前台时也会检查；后台标签页暂停轮询）。
 - 登录前不再阻塞远程 `init`；身份下拉在 HTML 中静态列出，页面打开即可选。
 - 已有数据的 D1 库登录走 `ensureDatabaseForAuth` 快速路径，跳过全量 schema 重放。
 - 公开预约：`POST /api/public/reservations`（IP 限流；可用 `KETANG_PUBLIC_RESERVATIONS=false` 关闭）。
@@ -78,7 +78,12 @@
 | `POST /api/v1/reservation-status`    | 更新预约状态                          |
 | `POST /api/v1/batch-event-members`   | 营期批量取消/No-show                  |
 | `POST /api/v1/batch-check-in`        | CSV 批量入住（最多 100 条）           |
-| `GET /api/v1/read-model`             | 登录后读模型快照（按角色裁表，ETag）  |
+| `GET /api/v1/read-model`             | 登录后全量读模型（冷启动/强制同步，ETag） |
+| `GET /api/v1/read/:module`           | 按模块读（board/events/lodgers/…）        |
+| `GET /api/v1/read/settings/:resource`| 信息管理子模块（rooms/beds/guests）       |
+| `GET /api/v1/read/event/:id`         | 单营期排房读模型                          |
+| `GET /api/v1/sync/delta?since=`      | 按域增量同步                              |
+| `GET /api/v1/stream/board`           | 看板版本 SSE 推送                         |
 | `GET /api/v1/board-version`          | 看板版本号                            |
 | `GET /api/v1/session`                | 校验当前登录会话                      |
 | `GET/POST /api/v1/admin/users`       | 用户列表 / 增改停用 / 重置密码 / 启用 |

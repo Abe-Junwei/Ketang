@@ -1,10 +1,10 @@
 import {
   batchD1,
-  bumpBoardVersion,
   insertAudit,
   queryD1,
   runD1,
 } from "./d1.js";
+import { finishWrite } from "./write-response.js";
 import { apiAssignBed, apiAssignReservationToBed } from "./lodgers.js";
 import { requirePermission } from "./permissions.js";
 import { checkRoomingPlanConflicts } from "./rooming-plans.js";
@@ -135,7 +135,6 @@ export async function publishRoomingPlan(env, session, eventId) {
       params: [publishedAt, plan.id],
     },
   ]);
-  await bumpBoardVersion(env);
   await insertAudit(
     env,
     "发布预分房待入住清单",
@@ -145,11 +144,13 @@ export async function publishRoomingPlan(env, session, eventId) {
     session,
   );
 
-  return {
+  const payload = {
     plan: { ...plan, published_at: publishedAt },
     queue: await getRoomingCheckinQueue(env, eventId),
     published_count: assignments.length,
   };
+  const writeMeta = await finishWrite(env, {}, ["events", "lodging"]);
+  return { ...payload, ...writeMeta };
 }
 
 export async function republishRoomingPlan(env, session, eventId, body) {
@@ -211,7 +212,6 @@ export async function republishRoomingPlan(env, session, eventId, body) {
       params: [plan.id],
     },
   ]);
-  await bumpBoardVersion(env);
   await insertAudit(
     env,
     "重新发布预分房待入住清单",
@@ -221,11 +221,13 @@ export async function republishRoomingPlan(env, session, eventId, body) {
     session,
   );
 
-  return {
+  const payload = {
     plan: plan,
     queue: await getRoomingCheckinQueue(env, eventId),
     published_count: pendingAssignments.length,
   };
+  const writeMeta = await finishWrite(env, {}, ["events", "lodging"]);
+  return { ...payload, ...writeMeta };
 }
 
 export async function updateRoomingQueueItem(env, session, body) {
@@ -248,7 +250,6 @@ export async function updateRoomingQueueItem(env, session, body) {
     "UPDATE rooming_checkin_queue SET queue_status = ?, processed_at = ? WHERE id = ?",
     [status, processedAt, queueId],
   );
-  await bumpBoardVersion(env);
   await insertAudit(
     env,
     "更新待入住清单",
@@ -257,7 +258,8 @@ export async function updateRoomingQueueItem(env, session, body) {
     { queue_status: status },
     session,
   );
-  return rows[0];
+  const writeMeta = await finishWrite(env, {}, ["events"]);
+  return { ...rows[0], ...writeMeta };
 }
 
 async function roomingQueueAssignAlreadyDoneServer(env, item) {
@@ -279,14 +281,13 @@ async function roomingQueueAssignAlreadyDoneServer(env, item) {
   return false;
 }
 
-async function markRoomingQueueDone(env, session, queueId) {
+async function markRoomingQueueDone(env, session, queueId, options) {
   const processedAt = roomingQueueProcessedAt();
   await runD1(
     env,
     "UPDATE rooming_checkin_queue SET queue_status = ?, processed_at = ? WHERE id = ?",
     ["已办理", processedAt, queueId],
   );
-  await bumpBoardVersion(env);
   await insertAudit(
     env,
     "更新待入住清单",
@@ -295,6 +296,10 @@ async function markRoomingQueueDone(env, session, queueId) {
     { queue_status: "已办理" },
     session,
   );
+  if (options && options.deferFinishWrite) {
+    return { ok: true, deferred: true };
+  }
+  return finishWrite(env, {}, ["events", "lodging", "board"]);
 }
 
 export async function processRoomingQueueCheckin(env, session, body) {
@@ -312,18 +317,29 @@ export async function processRoomingQueueCheckin(env, session, body) {
   if (!item.member_ref_id) throw new Error("该条目缺少关联人员");
 
   let assigned = await roomingQueueAssignAlreadyDoneServer(env, item);
+  const deferOpts = { deferFinishWrite: true };
   if (!assigned) {
     try {
       if (item.member_kind === "lodger") {
-        await apiAssignBed(env, session, {
-          lodger_id: item.member_ref_id,
-          bed_id: item.suggested_bed_id,
-        });
+        await apiAssignBed(
+          env,
+          session,
+          {
+            lodger_id: item.member_ref_id,
+            bed_id: item.suggested_bed_id,
+          },
+          deferOpts,
+        );
       } else {
-        await apiAssignReservationToBed(env, session, {
-          reservation_id: item.member_ref_id,
-          bed_id: item.suggested_bed_id,
-        });
+        await apiAssignReservationToBed(
+          env,
+          session,
+          {
+            reservation_id: item.member_ref_id,
+            bed_id: item.suggested_bed_id,
+          },
+          deferOpts,
+        );
       }
       assigned = true;
     } catch (err) {
@@ -343,12 +359,19 @@ export async function processRoomingQueueCheckin(env, session, body) {
     }
   }
 
-  await markRoomingQueueDone(env, session, queueId);
-  return {
-    ok: true,
-    member_name: item.member_name,
-    queue_id: queueId,
-  };
+  await markRoomingQueueDone(env, session, queueId, deferOpts);
+  const changedDomains =
+    item.member_kind === "reservation"
+      ? ["events", "lodging", "board", "reservations", "meals"]
+      : ["events", "lodging", "board", "meals"];
+  return finishWrite(
+    env,
+    {
+      member_name: item.member_name,
+      queue_id: queueId,
+    },
+    changedDomains,
+  );
 }
 
 export async function logRoomingAdjustment(env, session, body) {
@@ -388,7 +411,6 @@ export async function logRoomingAdjustment(env, session, body) {
       operator,
     ],
   );
-  await bumpBoardVersion(env);
   await insertAudit(
     env,
     "记录排房调整",
@@ -397,7 +419,7 @@ export async function logRoomingAdjustment(env, session, body) {
     { adjustment_kind: kind, member_name: text(body.member_name) },
     session,
   );
-  return { ok: true };
+  return finishWrite(env, {}, ["events"]);
 }
 
 export async function getRoomingRetrospective(env, session, eventId) {

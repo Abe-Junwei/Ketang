@@ -141,8 +141,9 @@ async function submitExtend(id) {
     return;
   }
   try {
+    var writeResult = null;
     if (useRemoteWriteApi()) {
-      await apiExtendStay({ lodger_id: id, expected_check_out: date });
+      writeResult = await apiExtendStay({ lodger_id: id, expected_check_out: date });
     } else {
       await withTransaction(async () => {
         run(
@@ -181,7 +182,7 @@ async function submitExtend(id) {
     }
     closeModal();
     showToast("续住成功");
-    refreshAfterWrite();
+    refreshAfterWrite(writeResult);
   } catch (e) {
     console.error(e);
     alert("续住失败：" + e.message);
@@ -282,12 +283,13 @@ async function submitChangeBed(lodgerId, gender) {
     return;
   }
   try {
+    var writeResult = null;
     if (useRemoteWriteApi()) {
       const old = query(
         "SELECT bed_id, guest_id, name, event_id FROM lodgers WHERE id=?",
         [lodgerId],
       )[0];
-      await apiChangeBed({ lodger_id: lodgerId, bed_id: parseInt(bedId, 10) });
+      writeResult = await apiChangeBed({ lodger_id: lodgerId, bed_id: parseInt(bedId, 10) });
       if (old && typeof maybeLogRoomingChangeBed === "function") {
         await maybeLogRoomingChangeBed(lodgerId, old.bed_id, bedId);
       }
@@ -322,7 +324,7 @@ async function submitChangeBed(lodgerId, gender) {
     }
     closeModal();
     showToast("换床成功");
-    refreshAfterWrite();
+    refreshAfterWrite(writeResult);
   } catch (e) {
     console.error(e);
     alert("换床失败：" + e.message);
@@ -472,8 +474,9 @@ async function submitEditLodger(id) {
   }
 
   try {
+    var writeResult = null;
     if (useRemoteWriteApi()) {
-      await apiEditLodger({
+      writeResult = await apiEditLodger({
         lodger_id: id,
         name: name,
         gender: gender || null,
@@ -568,7 +571,7 @@ async function submitEditLodger(id) {
     }
     closeModal();
     showToast("修改成功");
-    refreshAfterWrite();
+    refreshAfterWrite(writeResult);
   } catch (e) {
     console.error(e);
     alert("保存修改失败：" + e.message);
@@ -587,8 +590,9 @@ async function deleteLodger(id) {
   });
   if (!ok) return;
   try {
+    var writeResult = null;
     if (useRemoteWriteApi()) {
-      await apiDeleteLodger({ lodger_id: id });
+      writeResult = await apiDeleteLodger({ lodger_id: id });
     } else {
       await withTransaction(async () => {
         run("DELETE FROM meals WHERE lodger_id=?", [id]);
@@ -606,7 +610,7 @@ async function deleteLodger(id) {
       await saveDB();
     }
     showToast("已删除");
-    refreshAfterWrite();
+    refreshAfterWrite(writeResult);
   } catch (e) {
     console.error(e);
     alert("删除失败：" + e.message);
@@ -684,8 +688,9 @@ async function submitCheckout(id) {
   ])[0];
   const today = new Date().toISOString().slice(0, 10);
   try {
+    var writeResult = null;
     if (useRemoteWriteApi()) {
-      await apiCheckout({
+      writeResult = await apiCheckout({
         lodger_id: id,
         refund: refund,
         refund_method: method,
@@ -730,7 +735,7 @@ async function submitCheckout(id) {
     }
     closeModal();
     showToast("退房成功");
-    refreshAfterWrite();
+    refreshAfterWrite(writeResult);
   } catch (e) {
     console.error(e);
     alert("退房失败：" + e.message);

@@ -33,6 +33,11 @@ function renderEventList() {
     return true;
   });
 
+  const canSettingsWrite =
+    typeof hasPermission === "function" && hasPermission("settings.write");
+  const canRoomingPlan =
+    typeof hasPermission === "function" && hasPermission("settings.read");
+
   const toolbar = infoToolbarHtml(
     `${infoSearchBox("events", "搜索营期名称…")}
      ${infoFilterSelect(
@@ -42,7 +47,9 @@ function renderEventList() {
        EVENT_TYPE_OPTIONS.map((t) => [t, t]),
        "类型筛选",
      )}`,
-    `<button type="button" class="btn btn-primary" onclick="openEventModal()">+ 新增营期</button>`,
+    canSettingsWrite
+      ? `<button type="button" class="btn btn-primary" onclick="openEventModal()">+ 新增营期</button>`
+      : "",
   );
 
   let html = `
@@ -60,9 +67,6 @@ function renderEventList() {
     renderEventProgressChart(events);
     return;
   }
-
-  const canRoomingPlan =
-    typeof hasPermission === "function" && hasPermission("settings.read");
 
   html += `<div class="event-grid">`;
   filtered.forEach((e) => {
@@ -109,11 +113,11 @@ function renderEventList() {
         <div class="event-progress"><div class="event-progress-bar" style="width:${pct}%"></div></div>
         ${alertHtml}
         <div class="event-card-actions">
-          <button class="btn btn-sm btn-default" onclick="openEventModal(${e.id})">编辑</button>
+          ${canSettingsWrite ? `<button class="btn btn-sm btn-default" onclick="openEventModal(${e.id})">编辑</button>` : ""}
           <button class="btn btn-sm btn-primary" onclick="renderEventMembers(${e.id})">成员 / 批量取消</button>
           ${canRoomingPlan ? `<button class="btn btn-sm btn-warning" onclick="renderRoomingPlan(${e.id})">预分房</button>` : ""}
           <button class="btn btn-sm btn-success" onclick="openRoomingSuggestion(${e.id})">排房建议</button>
-          <button class="btn btn-sm btn-danger" onclick="deleteEvent(${e.id})">删除</button>
+          ${canSettingsWrite ? `<button class="btn btn-sm btn-danger" onclick="deleteEvent(${e.id})">删除</button>` : ""}
         </div>
       </div>
     `;
@@ -253,8 +257,9 @@ async function batchCancelEventMembers() {
   }
 
   try {
+    var writeResult = null;
     if (useRemoteWriteApi()) {
-      await apiBatchEventMembers({
+      writeResult = await apiBatchEventMembers({
         action: "cancel",
         items: selected,
         event_id: eventId,
@@ -303,7 +308,7 @@ async function batchCancelEventMembers() {
     return;
   }
   showToast(`已取消 ${selected.length} 人`);
-  refreshAfterWrite();
+  refreshAfterWrite(writeResult);
   if (eventId) renderEventMembers(eventId);
   else renderEventList();
 }
@@ -327,8 +332,9 @@ async function batchNoShowEventMembers() {
   eventId = r0 ? r0.event_id : null;
 
   try {
+    var writeResult = null;
     if (useRemoteWriteApi()) {
-      await apiBatchEventMembers({
+      writeResult = await apiBatchEventMembers({
         action: "noshow",
         items: resvOnly,
         event_id: eventId,
@@ -357,13 +363,17 @@ async function batchNoShowEventMembers() {
     return;
   }
   showToast(`已标记 ${resvOnly.length} 人为 No-show`);
-  refreshAfterWrite();
+  refreshAfterWrite(writeResult);
   if (eventId) renderEventMembers(eventId);
   else renderEventList();
 }
 
 // 营期编辑弹窗
 function openEventModal(id) {
+  if (typeof hasPermission === "function" && !hasPermission("settings.write")) {
+    alert("需要信息管理编辑权限");
+    return;
+  }
   const isEdit = !!id;
   const e = isEdit ? query("SELECT * FROM events WHERE id = ?", [id])[0] : null;
 
@@ -442,8 +452,9 @@ async function submitEvent(e) {
   }
 
   try {
+    var writeResult = null;
     if (useRemoteWriteApi()) {
-      await apiAdminRecord("event", id ? "update" : "create", {
+      writeResult = await apiAdminRecord("event", id ? "update" : "create", {
         event_id: id,
         name: name,
         event_type: eventType,
@@ -545,8 +556,11 @@ async function submitEvent(e) {
   if (!useRemoteWriteApi()) await saveDB();
   closeEventModal();
   showToast("营期保存成功");
+  var refreshTask = refreshAfterWrite(writeResult);
+  if (refreshTask && typeof refreshTask.then === "function") {
+    await refreshTask;
+  }
   renderEventList();
-  refreshAfterWrite();
 }
 
 async function deleteEvent(id) {
@@ -563,8 +577,9 @@ async function deleteEvent(id) {
   }
   if (!confirm(`确定删除营期「${e.name}」吗？`)) return;
   try {
+    var deleteResult = null;
     if (useRemoteWriteApi()) {
-      await apiAdminRecord("event", "delete", { event_id: id });
+      deleteResult = await apiAdminRecord("event", "delete", { event_id: id });
     } else {
       await withTransaction(async () => {
         run("DELETE FROM events WHERE id = ?", [id]);
@@ -573,8 +588,11 @@ async function deleteEvent(id) {
       await saveDB();
     }
     showToast("营期已删除");
+    var refreshTask = refreshAfterWrite(deleteResult);
+    if (refreshTask && typeof refreshTask.then === "function") {
+      await refreshTask;
+    }
     renderEventList();
-    refreshAfterWrite();
   } catch (e) {
     console.error(e);
     alert("删除营期失败：" + e.message);

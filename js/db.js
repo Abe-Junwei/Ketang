@@ -115,11 +115,23 @@ function isRemoteDataUnavailable() {
   );
 }
 
-function refreshAfterWrite() {
+function refreshAfterWrite(writeResult) {
   if (typeof renderAll !== "function") return;
-  const task = isRemoteDB()
-    ? renderAll({ forceSync: true })
-    : renderAll({ skipSync: true });
+  const task = (async function () {
+    if (isRemoteDB()) {
+      if (typeof syncAfterRemoteWrite === "function") {
+        await syncAfterRemoteWrite(writeResult);
+      } else {
+        await syncRemoteReadModel({ force: true });
+      }
+      await renderAll({ skipSync: true });
+      if (typeof refreshActiveViewsAfterSync === "function") {
+        refreshActiveViewsAfterSync();
+      }
+      return;
+    }
+    await renderAll({ skipSync: true });
+  })();
   if (task && typeof task.catch === "function") {
     task.catch(function (e) {
       if (typeof showToast === "function") {
@@ -286,6 +298,59 @@ function applyRemoteSnapshot(payload) {
   } finally {
     _remoteHydrating = false;
   }
+}
+
+/** 模块表局部灌库 | Patch sql.js tables from read-module payload */
+function applyModuleTables(tables) {
+  if (!tables || typeof tables !== "object") return;
+  ensureRemoteLocalSchema();
+  Object.keys(tables).forEach(function (table) {
+    if (!REMOTE_SNAPSHOT_TABLE_RE.test(table)) return;
+    const rows = tables[table];
+    if (!Array.isArray(rows)) return;
+    if (table === "app_meta") {
+      rows.forEach(function (row) {
+        if (!row || row.key == null) return;
+        run("INSERT OR REPLACE INTO app_meta (key, value) VALUES (?, ?)", [
+          row.key,
+          row.value,
+        ]);
+      });
+      return;
+    }
+    try {
+      db.run(`DELETE FROM ${table}`);
+    } catch (e) {
+      /* ignore */
+    }
+    rows.forEach(function (row) {
+      insertSnapshotRow(table, row);
+    });
+  });
+}
+
+/** 增量同步灌库 | Apply delta sync payload into sql.js */
+function applyRemoteDelta(delta) {
+  if (!delta || typeof delta !== "object") return;
+  ensureRemoteLocalSchema();
+  const modules = delta.modules || {};
+  Object.keys(modules).forEach(function (key) {
+    const mod = modules[key];
+    if (mod && mod.tables) applyModuleTables(mod.tables);
+  });
+  const deletions = delta.deletions || [];
+  deletions.forEach(function (item) {
+    const table = item.table_name;
+    const rowId = item.row_id;
+    if (!table || !rowId || !REMOTE_SNAPSHOT_TABLE_RE.test(table)) return;
+    run(`DELETE FROM ${table} WHERE id = ?`, [rowId]);
+  });
+  if (delta.board_version != null && typeof lastBoardVersion !== "undefined") {
+    lastBoardVersion = delta.board_version;
+  }
+  remoteReadModelReady = true;
+  lastRemoteSyncAt = Date.now();
+  setRemoteSyncStatus("ready");
 }
 
 function resetRemoteReadModelState() {

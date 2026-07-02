@@ -5,6 +5,7 @@ import {
   DEFAULT_USER_INSERTS,
 } from "./schema.js";
 import { ensureRefreshSessionsTable } from "./refresh-sessions.js";
+import { ensureSyncMetaSchema } from "./sync-meta.js";
 
 export const normalizeParams = (params) =>
   Array.isArray(params)
@@ -183,6 +184,7 @@ export async function initRemoteDatabase(env) {
 /** 登录前轻量探测：已有业务数据则跳过全量 schema 重放 | Fast path before login */
 export async function ensureDatabaseForAuth(env) {
   await ensureRoomingSchemaColumnsIfTablesExist(env);
+  await ensureSyncMetaSchema(env);
   if (remoteInitReady) return false;
   const roomsTable = await queryD1(
     env,

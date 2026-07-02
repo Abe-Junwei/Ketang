@@ -317,6 +317,66 @@ async function apiAdminSaveOperationalSettings(settings) {
   });
 }
 
+async function apiFetchEtag(path, ifNoneMatch) {
+  const headers = apiAuthHeaders();
+  if (ifNoneMatch != null && ifNoneMatch !== "") {
+    headers["If-None-Match"] = String(ifNoneMatch);
+  }
+  let response = await fetch(path, {
+    method: "GET",
+    headers: headers,
+    credentials: "include",
+  });
+  if (response.status === 401) {
+    const refreshed = await tryRefreshAccessToken();
+    if (refreshed) {
+      const headers2 = apiAuthHeaders();
+      if (ifNoneMatch != null && ifNoneMatch !== "") {
+        headers2["If-None-Match"] = String(ifNoneMatch);
+      }
+      response = await fetch(path, {
+        method: "GET",
+        headers: headers2,
+        credentials: "include",
+      });
+    }
+  }
+  if (response.status === 401) {
+    handleApiUnauthorized();
+    throw new Error("登录已过期，请重新登录");
+  }
+  if (response.status === 304) {
+    const etag = response.headers.get("ETag");
+    return {
+      notModified: true,
+      board_version:
+        etag != null ? parseInt(etag, 10) : parseInt(ifNoneMatch, 10),
+    };
+  }
+  const data = await parseJsonResponse(response);
+  if (!response.ok) throw new Error(data.error || "请求失败");
+  return data;
+}
+
+async function apiReadModule(moduleName, ifNoneMatch) {
+  return apiFetchEtag(
+    "/api/v1/read/" + encodeURIComponent(moduleName),
+    ifNoneMatch,
+  );
+}
+
+async function apiReadSettingsModule(resource, ifNoneMatch) {
+  return apiFetchEtag(
+    "/api/v1/read/settings/" + encodeURIComponent(resource),
+    ifNoneMatch,
+  );
+}
+
+async function apiSyncDelta(sinceVersion, ifNoneMatch) {
+  const since = parseInt(sinceVersion, 10) || 0;
+  return apiFetchEtag("/api/v1/sync/delta?since=" + since, ifNoneMatch);
+}
+
 async function apiAdminRecord(resource, action, payload) {
   return apiFetch("/api/v1/admin/records", {
     method: "POST",

@@ -1,10 +1,9 @@
+import { batchD1, insertAudit, queryD1, runD1 } from "./d1.js";
 import {
-  batchD1,
-  bumpBoardVersion,
-  insertAudit,
-  queryD1,
-  runD1,
-} from "./d1.js";
+  atomicWriteBatch,
+  auditLogStatement,
+  finishWrite,
+} from "./write-response.js";
 import { parsePersonNameInput } from "./person.js";
 import { housekeepingRequiresInspect } from "./operational-settings.js";
 import { requirePermission } from "./permissions.js";
@@ -111,8 +110,7 @@ async function upsertRoom(env, session, body) {
       ],
     );
     await insertAudit(env, "更新房间", "room", id, { name }, session);
-    await bumpBoardVersion(env);
-    return { room_id: id };
+    return finishWrite(env, { room_id: id }, ["settings"]);
   }
 
   const tags = parseRoomTagFields(body);
@@ -140,8 +138,7 @@ async function upsertRoom(env, session, body) {
     { name },
     session,
   );
-  await bumpBoardVersion(env);
-  return { room_id: meta.last_row_id };
+  return finishWrite(env, { room_id: meta.last_row_id }, ["settings"]);
 }
 
 async function deleteRoom(env, session, body) {
@@ -162,10 +159,22 @@ async function deleteRoom(env, session, body) {
     throw new Error(
       `该房间下还有 ${beds[0].c} 张床位，请先删除床位后再删除房间`,
     );
-  await runD1(env, "DELETE FROM rooms WHERE id = ?", [id]);
-  await insertAudit(env, "删除房间", "room", id, { name: room.name }, session);
-  await bumpBoardVersion(env);
-  return { ok: true };
+  return atomicWriteBatch(
+    env,
+    [
+      { sql: "DELETE FROM rooms WHERE id = ?", params: [id] },
+      auditLogStatement(
+        "删除房间",
+        "room",
+        id,
+        { name: room.name },
+        session,
+      ),
+    ],
+    {},
+    ["settings"],
+    { table_name: "rooms", row_id: id },
+  );
 }
 
 async function upsertBed(env, session, body) {
@@ -242,8 +251,7 @@ async function upsertBed(env, session, body) {
       { room_id: roomId, bed_number: bedNumber, status },
       session,
     );
-    await bumpBoardVersion(env);
-    return { bed_id: id };
+    return finishWrite(env, { bed_id: id }, ["settings"]);
   }
 
   const meta = await runD1(
@@ -272,8 +280,7 @@ async function upsertBed(env, session, body) {
     { room_id: roomId, bed_number: bedNumber, status },
     session,
   );
-  await bumpBoardVersion(env);
-  return { bed_id: meta.last_row_id };
+  return finishWrite(env, { bed_id: meta.last_row_id }, ["settings"]);
 }
 
 async function deleteBed(env, session, body) {
@@ -289,20 +296,23 @@ async function deleteBed(env, session, body) {
   if (!bed) throw new Error("床位不存在");
   if ((bed.occupant_count || 0) > 0)
     throw new Error("该床位当前有在住住客，无法删除");
-  await batchD1(env, [
-    { sql: "DELETE FROM housekeeping WHERE bed_id = ?", params: [id] },
-    { sql: "DELETE FROM beds WHERE id = ?", params: [id] },
-  ]);
-  await insertAudit(
+  return atomicWriteBatch(
     env,
-    "删除床位",
-    "bed",
-    id,
-    { room_id: bed.room_id, bed_number: bed.bed_number },
-    session,
+    [
+      { sql: "DELETE FROM housekeeping WHERE bed_id = ?", params: [id] },
+      { sql: "DELETE FROM beds WHERE id = ?", params: [id] },
+      auditLogStatement(
+        "删除床位",
+        "bed",
+        id,
+        { room_id: bed.room_id, bed_number: bed.bed_number },
+        session,
+      ),
+    ],
+    {},
+    ["settings"],
+    { table_name: "beds", row_id: id },
   );
-  await bumpBoardVersion(env);
-  return { ok: true };
 }
 
 async function upsertGuest(env, session, body) {
@@ -371,8 +381,7 @@ async function upsertGuest(env, session, body) {
       { name: person.name, phone },
       session,
     );
-    await bumpBoardVersion(env);
-    return { guest_id: id };
+    return finishWrite(env, { guest_id: id }, ["lodging"]);
   }
 
   const meta = await runD1(
@@ -400,8 +409,7 @@ async function upsertGuest(env, session, body) {
     { name: person.name, phone },
     session,
   );
-  await bumpBoardVersion(env);
-  return { guest_id: meta.last_row_id };
+  return finishWrite(env, { guest_id: meta.last_row_id }, ["lodging"]);
 }
 
 async function deleteGuest(env, session, body) {
@@ -417,17 +425,22 @@ async function deleteGuest(env, session, body) {
   );
   if ((refs[0]?.c || 0) > 0)
     throw new Error(`该档案已被 ${refs[0].c} 条挂单记录引用，无法删除`);
-  await runD1(env, "DELETE FROM guests WHERE id = ?", [id]);
-  await insertAudit(
+  return atomicWriteBatch(
     env,
-    "删除住客档案",
-    "guest",
-    id,
-    { name: guest.name },
-    session,
+    [
+      { sql: "DELETE FROM guests WHERE id = ?", params: [id] },
+      auditLogStatement(
+        "删除住客档案",
+        "guest",
+        id,
+        { name: guest.name },
+        session,
+      ),
+    ],
+    {},
+    ["lodging"],
+    { table_name: "guests", row_id: id },
   );
-  await bumpBoardVersion(env);
-  return { ok: true };
 }
 
 async function upsertEvent(env, session, body) {
@@ -527,8 +540,7 @@ async function upsertEvent(env, session, body) {
     }
     await batchD1(env, statements);
     await insertAudit(env, "更新营期", "event", id, { name }, session);
-    await bumpBoardVersion(env);
-    return { event_id: id };
+    return finishWrite(env, { event_id: id }, ["events"]);
   }
 
   const meta = await runD1(
@@ -555,8 +567,7 @@ async function upsertEvent(env, session, body) {
     { name },
     session,
   );
-  await bumpBoardVersion(env);
-  return { event_id: meta.last_row_id };
+  return finishWrite(env, { event_id: meta.last_row_id }, ["events"]);
 }
 
 async function deleteEvent(env, session, body) {
@@ -574,17 +585,22 @@ async function deleteEvent(env, session, body) {
     throw new Error(
       `该营期下还有 ${refs[0].c} 条记录，无法删除。请先取消或转移这些记录。`,
     );
-  await runD1(env, "DELETE FROM events WHERE id = ?", [id]);
-  await insertAudit(
+  return atomicWriteBatch(
     env,
-    "删除营期",
-    "event",
-    id,
-    { name: event.name },
-    session,
+    [
+      { sql: "DELETE FROM events WHERE id = ?", params: [id] },
+      auditLogStatement(
+        "删除营期",
+        "event",
+        id,
+        { name: event.name },
+        session,
+      ),
+    ],
+    {},
+    ["events"],
+    { table_name: "events", row_id: id },
   );
-  await bumpBoardVersion(env);
-  return { ok: true };
 }
 
 async function updateLodgerRecord(env, session, body) {
@@ -765,8 +781,7 @@ async function updateLodgerRecord(env, session, body) {
     { name: person.name, bed_id: finalBedId, status },
     session,
   );
-  await bumpBoardVersion(env);
-  return { ok: true };
+  return finishWrite(env, {}, ["lodging"]);
 }
 
 export async function handleAdminRecord(env, session, body) {

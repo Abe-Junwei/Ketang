@@ -1,10 +1,10 @@
 import {
   batchD1,
-  bumpBoardVersion,
   insertAudit,
   queryD1,
   runD1,
 } from "./d1.js";
+import { finishWrite } from "./write-response.js";
 import { parsePersonNameInput } from "./person.js";
 import {
   assertGuestIdentityFields,
@@ -146,8 +146,7 @@ export async function apiUpsertReservation(env, session, body) {
       { guest_id: guestId, name: person.name },
       session,
     );
-    await bumpBoardVersion(env);
-    return { reservation_id: resvId };
+    return finishWrite(env, { reservation_id: resvId }, ["reservations"]);
   }
 
   const meta = await runD1(
@@ -184,8 +183,9 @@ export async function apiUpsertReservation(env, session, body) {
     { guest_id: guestId, name: person.name },
     session,
   );
-  await bumpBoardVersion(env);
-  return { reservation_id: meta.last_row_id };
+  return finishWrite(env, { reservation_id: meta.last_row_id }, [
+    "reservations",
+  ]);
 }
 
 export async function apiUpdateReservationStatus(env, session, body) {
@@ -205,8 +205,7 @@ export async function apiUpdateReservationStatus(env, session, body) {
     { name: r.name, from: r.status, to: status },
     session,
   );
-  await bumpBoardVersion(env);
-  return { ok: true };
+  return finishWrite(env, {}, ["reservations"]);
 }
 
 export async function apiBatchEventMembers(env, session, body) {
@@ -269,6 +268,5 @@ export async function apiBatchEventMembers(env, session, body) {
     { count: items.length },
     session,
   );
-  await bumpBoardVersion(env);
-  return { ok: true, count: items.length };
+  return finishWrite(env, { count: items.length }, ["reservations", "lodging"]);
 }

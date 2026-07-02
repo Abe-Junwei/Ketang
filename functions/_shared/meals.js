@@ -1,10 +1,10 @@
 import {
   batchD1,
-  bumpBoardVersion,
   insertAudit,
   queryD1,
   runD1,
 } from "./d1.js";
+import { finishWrite } from "./write-response.js";
 
 function stayDateRange(startDate, endDate) {
   if (!startDate) return [];
@@ -70,6 +70,5 @@ export async function apiSaveMeals(env, session, body) {
     { name: l.name, defaults, affected_dates: Object.keys(map).length },
     session,
   );
-  await bumpBoardVersion(env);
-  return { ok: true };
+  return finishWrite(env, {}, ["meals"]);
 }

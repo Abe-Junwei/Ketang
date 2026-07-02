@@ -8,6 +8,9 @@
     "session_ms": 8000,
     "read_model_ms": 25000,
     "read_model_304_ms": 5000,
+    "read_board_ms": 3000,
+    "read_events_ms": 2000,
+    "sync_delta_ms": 2000,
     "board_version_ms": 5000
   }
 }

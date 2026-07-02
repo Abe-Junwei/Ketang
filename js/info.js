@@ -306,8 +306,9 @@ async function submitRoom(id) {
   }
 
   try {
+    var writeResult = null;
     if (useRemoteWriteApi()) {
-      await apiAdminRecord("room", id ? "update" : "create", {
+      writeResult = await apiAdminRecord("room", id ? "update" : "create", {
         room_id: id,
         name: name,
         location: location,
@@ -361,7 +362,7 @@ async function submitRoom(id) {
     closeModal();
     infoToast(id ? "房间已更新" : "房间已新增");
     renderInfo("rooms");
-    refreshAfterWrite();
+    refreshAfterWrite(writeResult);
   } catch (e) {
     console.error(e);
     infoToast("保存失败：" + e.message);
@@ -380,8 +381,9 @@ async function deleteRoom(id) {
   }
   if (!infoConfirm(`确定删除房间「${r.name}」吗？此操作不可恢复。`)) return;
   try {
+    var writeResult = null;
     if (useRemoteWriteApi()) {
-      await apiAdminRecord("room", "delete", { room_id: id });
+      writeResult = await apiAdminRecord("room", "delete", { room_id: id });
     } else {
       await withTransaction(async () => {
         run("DELETE FROM rooms WHERE id = ?", [id]);
@@ -391,7 +393,7 @@ async function deleteRoom(id) {
     }
     infoToast("房间已删除");
     renderInfo("rooms");
-    refreshAfterWrite();
+    refreshAfterWrite(writeResult);
   } catch (e) {
     console.error(e);
     infoToast("删除失败：" + e.message);
@@ -562,8 +564,9 @@ async function submitBed(id) {
   }
 
   try {
+    var writeResult = null;
     if (useRemoteWriteApi()) {
-      await apiAdminRecord("bed", id ? "update" : "create", {
+      writeResult = await apiAdminRecord("bed", id ? "update" : "create", {
         bed_id: id,
         room_id: roomId,
         bed_number: number,
@@ -623,7 +626,7 @@ async function submitBed(id) {
     closeModal();
     infoToast(id ? "床位已更新" : "床位已新增");
     renderInfo("beds");
-    refreshAfterWrite();
+    refreshAfterWrite(writeResult);
   } catch (e) {
     console.error(e);
     infoToast("保存失败：" + e.message);
@@ -651,8 +654,9 @@ async function deleteBed(id) {
   )
     return;
   try {
+    var writeResult = null;
     if (useRemoteWriteApi()) {
-      await apiAdminRecord("bed", "delete", { bed_id: id });
+      writeResult = await apiAdminRecord("bed", "delete", { bed_id: id });
     } else {
       await withTransaction(async () => {
         run("DELETE FROM housekeeping WHERE bed_id = ?", [id]);
@@ -666,7 +670,7 @@ async function deleteBed(id) {
     }
     infoToast("床位已删除");
     renderInfo("beds");
-    refreshAfterWrite();
+    refreshAfterWrite(writeResult);
   } catch (e) {
     console.error(e);
     infoToast("删除失败：" + e.message);
@@ -840,8 +844,9 @@ async function submitGuest(id) {
 
   const now = new Date().toISOString();
   try {
+    var writeResult = null;
     if (useRemoteWriteApi()) {
-      await apiAdminRecord("guest", id ? "update" : "create", {
+      writeResult = await apiAdminRecord("guest", id ? "update" : "create", {
         guest_id: id,
         name: name,
         gender: gender,
@@ -905,7 +910,7 @@ async function submitGuest(id) {
     closeModal();
     infoToast(id ? "住客档案已更新" : "住客档案已新增");
     renderInfo("guests");
-    refreshAfterWrite();
+    refreshAfterWrite(writeResult);
   } catch (e) {
     console.error(e);
     infoToast("保存失败：" + e.message);
@@ -928,8 +933,9 @@ async function deleteGuest(id) {
   )
     return;
   try {
+    var writeResult = null;
     if (useRemoteWriteApi()) {
-      await apiAdminRecord("guest", "delete", { guest_id: id });
+      writeResult = await apiAdminRecord("guest", "delete", { guest_id: id });
     } else {
       await withTransaction(async () => {
         run("DELETE FROM guests WHERE id = ?", [id]);
@@ -939,7 +945,7 @@ async function deleteGuest(id) {
     }
     infoToast("住客档案已删除");
     renderInfo("guests");
-    refreshAfterWrite();
+    refreshAfterWrite(writeResult);
   } catch (e) {
     console.error(e);
     infoToast("删除失败：" + e.message);
@@ -1194,8 +1200,9 @@ async function submitLodger(id) {
   }
 
   try {
+    var writeResult = null;
     if (useRemoteWriteApi()) {
-      await apiAdminRecord("lodger", "update", {
+      writeResult = await apiAdminRecord("lodger", "update", {
         lodger_id: id,
         name: name,
         gender: gender,
@@ -1282,7 +1289,7 @@ async function submitLodger(id) {
     closeModal();
     infoToast("挂单记录已更新");
     renderInfo("lodgers");
-    refreshAfterWrite();
+    refreshAfterWrite(writeResult);
   } catch (e) {
     console.error(e);
     infoToast("保存失败：" + e.message);
@@ -1295,8 +1302,9 @@ async function deleteInfoLodger(id) {
   const info = personDisplayName(l) + (l.phone ? " · " + l.phone : "");
   if (!infoConfirm(`确定删除挂单记录？\n${info}\n删除后不可恢复。`)) return;
   try {
+    var writeResult = null;
     if (useRemoteWriteApi()) {
-      await apiDeleteLodger({ lodger_id: id });
+      writeResult = await apiDeleteLodger({ lodger_id: id });
     } else {
       await withTransaction(async () => {
         run("DELETE FROM meals WHERE lodger_id = ?", [id]);
@@ -1320,7 +1328,7 @@ async function deleteInfoLodger(id) {
     }
     infoToast("已删除");
     renderInfo("lodgers");
-    refreshAfterWrite();
+    refreshAfterWrite(writeResult);
   } catch (e) {
     console.error(e);
     infoToast("删除失败：" + e.message);

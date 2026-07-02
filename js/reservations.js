@@ -66,8 +66,9 @@ document.getElementById("resv-form").addEventListener("submit", async (e) => {
 
   const resvId = document.getElementById("resv-id").value;
   try {
+    var writeResult = null;
     if (useRemoteWriteApi()) {
-      await apiUpsertReservation({
+      writeResult = await apiUpsertReservation({
         reservation_id: resvId ? parseInt(resvId, 10) : null,
         name: name,
         gender: gender || null,
@@ -196,7 +197,7 @@ document.getElementById("resv-form").addEventListener("submit", async (e) => {
   showToast(resvId ? "预约更新成功" : "预约添加成功");
   resetResvForm();
   renderReservations("全部");
-  refreshAfterWrite();
+  refreshAfterWrite(writeResult);
 });
 
 function resetResvForm() {
@@ -317,8 +318,9 @@ async function updateResvStatus(id, status) {
   if (!r) return;
   const oldStatus = r.status;
   try {
+    var writeResult = null;
     if (useRemoteWriteApi()) {
-      await apiUpdateReservationStatus({ reservation_id: id, status: status });
+      writeResult = await apiUpdateReservationStatus({ reservation_id: id, status: status });
     } else {
       await withTransaction(async () => {
         run("UPDATE reservations SET status=? WHERE id=?", [status, id]);
@@ -332,7 +334,7 @@ async function updateResvStatus(id, status) {
     }
     showToast(`预约已标记为「${status}」`);
     renderReservations("全部");
-    refreshAfterWrite();
+    refreshAfterWrite(writeResult);
   } catch (e) {
     console.error(e);
     alert("更新预约状态失败：" + e.message);

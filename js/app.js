@@ -459,6 +459,17 @@ function showView(name) {
     renderRolePermissionsPanel();
     renderUserList();
   }
+  if (typeof onBoardViewVisibilityChange === "function") {
+    onBoardViewVisibilityChange();
+  }
+  if (
+    typeof useRemoteWriteApi === "function" &&
+    useRemoteWriteApi() &&
+    boardPollTimer
+  ) {
+    stopBoardPolling();
+    startBoardPolling();
+  }
 }
 
 function renderBoard() {
@@ -744,6 +755,16 @@ async function renderAll(options) {
   ) {
     renderHousekeeping();
   }
+  if (document.getElementById("view-info")?.classList.contains("active")) {
+    if (typeof renderInfo === "function") {
+      renderInfo(
+        typeof infoCurrentTab !== "undefined" ? infoCurrentTab : "rooms",
+      );
+    }
+  }
+  if (typeof refreshActiveViewsAfterSync === "function") {
+    refreshActiveViewsAfterSync();
+  }
 }
 
 function checkBackupReminder() {
@@ -762,17 +783,32 @@ let boardPollTimer = null;
 let lastBoardVersion = null;
 let boardPollVisibilityBound = false;
 
+var _lastIdleBoardPollAt = 0;
+
 async function pollRemoteBoardVersion() {
   if (!isLoggedIn || (typeof isLoggedIn === "function" && !isLoggedIn()))
     return;
+  if (document.visibilityState === "hidden") return;
+  if (
+    typeof isBoardViewActive === "function" &&
+    !isBoardViewActive()
+  ) {
+    var now = Date.now();
+    var idleMs =
+      typeof BOARD_POLL_IDLE_INTERVAL_MS === "number"
+        ? BOARD_POLL_IDLE_INTERVAL_MS
+        : 20000;
+    if (now - _lastIdleBoardPollAt < idleMs) return;
+    _lastIdleBoardPollAt = now;
+  }
   try {
-    const result = await apiBoardVersion();
-    if (lastBoardVersion != null && result.version !== lastBoardVersion) {
-      await renderAll({ forceSync: true });
+    if (typeof syncRemoteIfStale === "function") {
+      await syncRemoteIfStale();
+    } else {
+      await renderAll({ skipSync: false });
     }
-    lastBoardVersion = result.version;
   } catch (e) {
-    /* 轮询失败不推进版本号 | Do not bump version on poll failure */
+    /* 轮询失败静默 | Poll failure is non-fatal */
   }
 }
 
@@ -784,10 +820,15 @@ function onVisibilityChangeRemoteSync() {
 function startBoardPolling() {
   if (typeof useRemoteWriteApi !== "function" || !useRemoteWriteApi()) return;
   stopBoardPolling();
-  boardPollTimer = setInterval(pollRemoteBoardVersion, 8000);
+  var pollMs =
+    typeof BOARD_POLL_INTERVAL_MS === "number" ? BOARD_POLL_INTERVAL_MS : 3000;
+  boardPollTimer = setInterval(pollRemoteBoardVersion, pollMs);
   if (!boardPollVisibilityBound) {
     document.addEventListener("visibilitychange", onVisibilityChangeRemoteSync);
     boardPollVisibilityBound = true;
+  }
+  if (typeof onBoardViewVisibilityChange === "function") {
+    onBoardViewVisibilityChange();
   }
 }
 
@@ -796,6 +837,7 @@ function stopBoardPolling() {
     clearInterval(boardPollTimer);
     boardPollTimer = null;
   }
+  if (typeof stopBoardStream === "function") stopBoardStream();
   if (boardPollVisibilityBound) {
     document.removeEventListener(
       "visibilitychange",
@@ -813,7 +855,9 @@ function applyDeploymentModeUI() {
   if (isRemote) {
     if (backupDesc)
       backupDesc.textContent =
-        "数据保存在 Cloudflare D1 云端。管理员可在系统设置导出 JSON 备份。";
+        "数据保存在 Cloudflare D1 云端。管理员可在系统设置导出 JSON 备份；日常写操作后自动增量同步，全量同步请使用下方按钮。";
+    const forceSyncBtn = document.getElementById("force-remote-sync-btn");
+    if (forceSyncBtn) forceSyncBtn.hidden = false;
     if (backupSteps)
       backupSteps.innerHTML =
         "<li>点击「导出数据库」，保存 JSON 备份到 U 盘或桌面。</li><li>如需恢复：使用「从文件恢复数据」导入 JSON 备份（仅管理员）。</li><li>也可在 Cloudflare D1 控制台执行数据库级备份。</li>";

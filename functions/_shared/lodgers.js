@@ -1,10 +1,10 @@
 import {
   batchD1,
-  bumpBoardVersion,
   insertAudit,
   queryD1,
   runD1,
 } from "./d1.js";
+import { finishWrite, recordSyncDeletion } from "./write-response.js";
 import { parsePersonNameInput, mergePersonNameFields } from "./person.js";
 import {
   assertGuestIdentityFields,
@@ -335,8 +335,7 @@ export async function apiCheckIn(env, session, body) {
       { lodger_id: finalLodgerId },
       session,
     );
-  await bumpBoardVersion(env);
-  return { lodger_id: finalLodgerId };
+  return finishWrite(env, { lodger_id: finalLodgerId }, ["lodging", "board"]);
 }
 
 export async function apiCheckout(env, session, body) {
@@ -410,8 +409,7 @@ export async function apiCheckout(env, session, body) {
       },
       session,
     );
-  await bumpBoardVersion(env);
-  return { ok: true };
+  return finishWrite(env, {}, ["lodging", "board", "housekeeping"]);
 }
 
 export async function apiChangeBed(env, session, body) {
@@ -467,8 +465,7 @@ export async function apiChangeBed(env, session, body) {
     },
     session,
   );
-  await bumpBoardVersion(env);
-  return { ok: true };
+  return finishWrite(env, {}, ["lodging", "board", "housekeeping"]);
 }
 
 export async function apiExtendStay(env, session, body) {
@@ -521,11 +518,10 @@ export async function apiExtendStay(env, session, body) {
     { guest_id: l.guest_id, name: l.name, new_check_out: date },
     session,
   );
-  await bumpBoardVersion(env);
-  return { ok: true };
+  return finishWrite(env, {}, ["lodging", "board", "housekeeping"]);
 }
 
-export async function apiAssignBed(env, session, body) {
+export async function apiAssignBed(env, session, body, options) {
   const lodgerId = parseInt(body.lodger_id, 10);
   const bedId = parseInt(body.bed_id, 10);
   const rows = await queryD1(
@@ -573,11 +569,13 @@ export async function apiAssignBed(env, session, body) {
     { guest_id: l.guest_id, bed_id: bedId, name: l.name },
     session,
   );
-  await bumpBoardVersion(env);
-  return { ok: true };
+  if (options && options.deferFinishWrite) {
+    return { ok: true, deferred: true };
+  }
+  return finishWrite(env, {}, ["lodging", "board", "housekeeping"]);
 }
 
-export async function apiAssignReservationToBed(env, session, body) {
+export async function apiAssignReservationToBed(env, session, body, options) {
   const resvId = parseInt(body.reservation_id, 10);
   const bedId = parseInt(body.bed_id, 10);
   const rRows = await queryD1(env, "SELECT * FROM reservations WHERE id=?", [
@@ -667,8 +665,10 @@ export async function apiAssignReservationToBed(env, session, body) {
     { lodger_id: lodgerId },
     session,
   );
-  await bumpBoardVersion(env);
-  return { lodger_id: lodgerId };
+  if (options && options.deferFinishWrite) {
+    return { ok: true, deferred: true, lodger_id: lodgerId };
+  }
+  return finishWrite(env, { lodger_id: lodgerId }, ["lodging", "board"]);
 }
 
 export async function apiEditLodger(env, session, body) {
@@ -768,8 +768,7 @@ export async function apiEditLodger(env, session, body) {
     { guest_id: l.guest_id, name: person.name },
     session,
   );
-  await bumpBoardVersion(env);
-  return { ok: true };
+  return finishWrite(env, {}, ["lodging", "board", "housekeeping"]);
 }
 
 export async function apiDeleteLodger(env, session, body) {
@@ -801,8 +800,9 @@ export async function apiDeleteLodger(env, session, body) {
     { guest_id: l.guest_id, name: l.name },
     session,
   );
-  await bumpBoardVersion(env);
-  return { ok: true };
+  const result = await finishWrite(env, {}, ["lodging", "board"]);
+  await recordSyncDeletion(env, "lodgers", id, result.board_version);
+  return result;
 }
 
 export async function apiPublicReservation(env, body) {
@@ -858,8 +858,9 @@ export async function apiPublicReservation(env, body) {
       body.notes || null,
     ],
   );
-  await bumpBoardVersion(env);
-  return { reservation_id: meta.last_row_id };
+  return finishWrite(env, { reservation_id: meta.last_row_id }, [
+    "reservations",
+  ]);
 }
 
 async function findEventByName(env, name) {
@@ -1040,6 +1041,11 @@ export async function apiBatchCheckIn(env, session, body) {
       });
     }
   }
-  if (success > 0) await bumpBoardVersion(env);
-  return { success: success, fail: failed.length, failed: failed };
+  if (success > 0) {
+    return finishWrite(env, { success: success, fail: failed.length, failed }, [
+      "lodging",
+      "board",
+    ]);
+  }
+  return { ok: true, success: 0, fail: failed.length, failed };
 }

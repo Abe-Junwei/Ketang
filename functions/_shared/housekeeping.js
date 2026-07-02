@@ -1,4 +1,5 @@
-import { batchD1, bumpBoardVersion, insertAudit, queryD1 } from "./d1.js";
+import { batchD1, insertAudit, queryD1 } from "./d1.js";
+import { finishWrite } from "./write-response.js";
 import {
   housekeepingRequiresInspect,
   isHousekeepingTransitionAllowed,
@@ -67,6 +68,5 @@ export async function apiSetHouseStatus(env, session, body) {
   }
   await batchD1(env, statements);
   await insertAudit(env, "房务状态变更", "bed", bedId, { status }, session);
-  await bumpBoardVersion(env);
-  return { ok: true };
+  return finishWrite(env, {}, ["board", "housekeeping"]);
 }

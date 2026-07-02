@@ -1,10 +1,10 @@
 import {
   batchD1,
-  bumpBoardVersion,
   insertAudit,
   queryD1,
   runD1,
 } from "./d1.js";
+import { finishWrite } from "./write-response.js";
 import { housekeepingRequiresInspect } from "./operational-settings.js";
 import { requirePermission } from "./permissions.js";
 import { evaluateRoomingConflicts, dateRangesOverlap } from "./rooming-conflicts.js";
@@ -340,7 +340,6 @@ export async function generateRoomingPlanAssignments(env, session, eventId) {
     "UPDATE rooming_plans SET status = '未确认', updated_at = CURRENT_TIMESTAMP WHERE id = ?",
     [plan.id],
   );
-  await bumpBoardVersion(env);
   await insertAudit(
     env,
     "自动生成预分房",
@@ -349,7 +348,9 @@ export async function generateRoomingPlanAssignments(env, session, eventId) {
     { count: draft.length },
     session,
   );
-  return getRoomingPlanBundle(env, eventId);
+  const bundle = await getRoomingPlanBundle(env, eventId);
+  const writeMeta = await finishWrite(env, {}, ["events"]);
+  return { ...bundle, ...writeMeta };
 }
 
 export async function saveRoomingPlan(env, session, body) {
@@ -411,7 +412,6 @@ export async function saveRoomingPlan(env, session, body) {
     "UPDATE rooming_plans SET status = ?, notes = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
     [status, notes, planId],
   );
-  await bumpBoardVersion(env);
   await insertAudit(
     env,
     "保存预分房草稿",
@@ -420,7 +420,9 @@ export async function saveRoomingPlan(env, session, body) {
     { status: status },
     session,
   );
-  return getRoomingPlanBundle(env, plan.event_id);
+  const bundle = await getRoomingPlanBundle(env, plan.event_id);
+  const writeMeta = await finishWrite(env, {}, ["events"]);
+  return { ...bundle, ...writeMeta };
 }
 
 async function enrichAssignmentsForConflict(env, assignments) {

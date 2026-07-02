@@ -918,6 +918,7 @@ async function submitMeals(lodgerId) {
     };
   });
   try {
+    var writeResult = null;
     if (useRemoteWriteApi()) {
       const days = {};
       document.querySelectorAll(".meal-skip-cb").forEach(function (cb) {
@@ -934,7 +935,7 @@ async function submitMeals(lodgerId) {
           dinner: defaults.dinner ? 1 : 0,
         };
       });
-      await apiSaveMeals({
+      writeResult = await apiSaveMeals({
         lodger_id: lodgerId,
         defaults: defaults,
         days: days,
@@ -959,7 +960,7 @@ async function submitMeals(lodgerId) {
     }
     closeModal();
     showToast("用斋设置已保存");
-    refreshAfterWrite();
+    refreshAfterWrite(writeResult);
   } catch (e) {
     console.error(e);
     alert("保存用斋设置失败：" + e.message);

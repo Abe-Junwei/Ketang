@@ -27,6 +27,9 @@
 | Phase 9  | 夏季活动排房     | 活动排房计划、预分房、冲突检查        | Phase 5/7/8   | **当前主线** |
 | Phase 10 | AI 辅助排房      | AI 生成可解释建议，人工最终确认       | Phase 9       | 暂缓     |
 | Phase 11 | 运维与发布工程化 | 白名单发布、巡检、日志、E2E、性能预算 | Phase 1/2/3/5 | 基本完成 |
+| Phase 12 | 同步与读模型 v2 | 写契约、模块读、增量 delta、SSE 看板推送 | Phase 9 | **已完成** |
+
+> Phase 12 详细方案见 [docs/architecture/sync-read-model-v2.md](architecture/sync-read-model-v2.md)。建议 Phase 9 验收后优先 12.1–12.2，Phase 4 公开预约前完成 12.3。
 
 ## 3. Phase 0：冻结在线架构（已完成）
 
@@ -737,7 +740,8 @@ bash scripts/run_p1_checklist.sh https://wulingkt.net https://<pages-preview>.ke
 ### 19.5 后置优先级（按新排期）
 
 - **当前执行：Phase 9 夏季活动排房**（活动标签 → 容量预测 → 预分房草稿 → 冲突检查 → 发布交接）。
-- **Phase 4 公开预约**：Phase 9 核心流程可用后再开放；企业微信通知随公开预约一并接入。
+- **Phase 12 同步与读模型 v2**（对齐业内成熟标准）：12.1 写契约与热修复 → 12.2 视图注册 → 12.3 模块读 API → 12.4 增量同步 → 12.5 看板推送（可选）。详见 [architecture/sync-read-model-v2.md](architecture/sync-read-model-v2.md)。
+- **Phase 4 公开预约**：建议 Phase 12.1 完成、推荐 12.3 完成后再开放；企业微信通知随公开预约一并接入。
 - **最终总验收**：Phase 4 收尾后、正式对外大规模使用前一次性执行（见 §19.6）。
 - AI 辅助排房：等规则引擎、脱敏策略和活动排房数据稳定后再评估。
 

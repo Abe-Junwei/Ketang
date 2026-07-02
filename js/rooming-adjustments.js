@@ -52,8 +52,8 @@ async function logRoomingAdjustment(payload) {
     operator: payload.operator || roomingAdjustmentOperator(),
   };
   if (typeof useRemoteWriteApi === "function" && useRemoteWriteApi()) {
-    await apiRoomingPlanAction("log_adjustment", body);
-    if (typeof refreshAfterWrite === "function") refreshAfterWrite();
+    var writeResult = await apiRoomingPlanAction("log_adjustment", body);
+    if (typeof refreshAfterWrite === "function") refreshAfterWrite(writeResult);
     return;
   }
   run(
