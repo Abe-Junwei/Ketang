@@ -411,6 +411,60 @@ def test_batch_csv_class_name_binding():
         sys.exit(1)
 
 
+def test_role_permissions_admin_api():
+    api = read('functions/api/v1/admin/role-permissions.js')
+    perms = read('functions/_shared/permissions.js')
+    auth = read('js/auth.js')
+    if 'getRolePermissionsConfig' not in perms or 'saveRolePermissions' not in perms:
+        print('FAIL permissions.js missing role config helpers')
+        sys.exit(1)
+    if 'users.write' not in api or 'requirePermission' not in api:
+        print('FAIL role-permissions.js must guard with users.write')
+        sys.exit(1)
+    if 'renderRolePermissionsPanel' not in auth or 'saveRolePermissionsConfig' not in auth:
+        print('FAIL auth.js missing role permissions UI')
+        sys.exit(1)
+    if 'ADVANCED_ZHIKE_EXTRA' not in perms:
+        print('FAIL permissions.js missing advanced zhike merge')
+        sys.exit(1)
+
+
+def test_role_permissions_defaults_snapshot():
+    import json
+    defaults_path = ROOT / 'role-permissions.defaults.json'
+    expected = json.loads(defaults_path.read_text(encoding='utf-8'))
+    perms_js = read('functions/_shared/permissions.js')
+    for role in ('admin', 'zhike', 'kitchen', 'housekeeping', 'viewer'):
+        if role not in expected:
+            print(f'FAIL defaults missing role {role}')
+            sys.exit(1)
+    admin_codes = set(expected['admin'])
+    for role, codes in expected.items():
+        for code in codes:
+            if code not in admin_codes:
+                print(f'FAIL {role} permission {code} not in admin ALL_PERMISSIONS list')
+                sys.exit(1)
+    if 'sanitizeRolePermissionMap' not in perms_js:
+        print('FAIL permissions.js must validate saved role permission map')
+        sys.exit(1)
+
+
+def test_api_permission_guards_snapshot():
+    guards = [
+        ('functions/api/v1/check-in.js', 'lodging.checkin'),
+        ('functions/api/v1/checkout.js', 'lodging.checkout'),
+        ('functions/api/v1/edit-lodger.js', 'lodging.edit'),
+        ('functions/api/v1/admin/data-backup.js', 'backup.read'),
+        ('functions/api/v1/admin/role-permissions.js', 'users.write'),
+        ('functions/api/v1/set-house-status.js', 'housekeeping.write'),
+    ]
+    for path, code in guards:
+        src = read(path)
+        if 'requirePermission' not in src or code not in src:
+            print(f'FAIL {path} missing requirePermission({code})')
+            sys.exit(1)
+
+
 def test_dynamic_modals_use_shared_backdrop():
     for path in ('js/events.js', 'js/auth.js'):
         src = read(path)
@@ -443,6 +497,9 @@ TESTS = [
     test_users_action_skips_init,
     test_login_action_has_timing,
     test_role_permissions_defaults_sync,
+    test_role_permissions_admin_api,
+    test_role_permissions_defaults_snapshot,
+    test_api_permission_guards_snapshot,
     test_permissions_cache_helpers,
     test_remote_init_marks_ready_after_existing_db,
     test_permissions_layer_exists,

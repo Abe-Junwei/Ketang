@@ -4494,6 +4494,51 @@ form .field {
 }
 
 /* ============================================================
+   角色权限矩阵 | Role permission matrix
+   ============================================================ */
+.role-perm-matrix {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: var(--space-4);
+}
+
+.role-perm-column {
+  background: color-mix(in srgb, var(--color-card) 88%, #fff1ea);
+  border-radius: var(--radius-sm);
+  padding: var(--space-3);
+}
+
+.role-perm-role-title {
+  margin: 0 0 var(--space-3);
+  font-size: var(--font-size-base);
+  font-family: var(--font-serif);
+}
+
+.role-perm-group + .role-perm-group {
+  margin-top: var(--space-3);
+}
+
+.role-perm-group-title {
+  font-size: var(--font-size-xs);
+  color: var(--color-muted);
+  margin-bottom: var(--space-1);
+  font-weight: var(--font-weight-semibold);
+}
+
+.role-perm-item {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  font-size: var(--font-size-sm);
+  margin-bottom: 4px;
+  cursor: pointer;
+}
+
+.role-perm-item input {
+  margin-top: 3px;
+}
+
+/* ============================================================
    登录覆盖层 | Login Overlay
    ============================================================ */
 .login-overlay {

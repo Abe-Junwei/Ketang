@@ -42,6 +42,7 @@ function sessionUserPayload(user) {
     username: user.username,
     display_name: user.display_name,
     role: user.role,
+    is_advanced: !!user.is_advanced,
     auth_version: user.auth_version || 1,
   };
 }
@@ -73,6 +74,7 @@ async function buildLoginSuccess(env, request, freshUser, timer) {
     role: freshUser.role,
     id: freshUser.id,
     sub: freshUser.id,
+    is_advanced: !!freshUser.is_advanced,
   };
   const permissions = await getSessionPermissions(env, session);
   const body = {

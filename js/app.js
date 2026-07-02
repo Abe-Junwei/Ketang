@@ -235,7 +235,10 @@ function showView(name) {
   if (name === "housekeeping") renderHousekeeping();
   if (name === "reports") initReportDates();
   if (name === "info") renderInfo("rooms");
-  if (name === "backup") renderUserList();
+  if (name === "backup") {
+    renderRolePermissionsPanel();
+    renderUserList();
+  }
 }
 
 function renderBoard() {

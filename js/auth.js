@@ -18,7 +18,7 @@ function applySessionRefresh(result) {
     currentUser = result.user;
     if (result.permissions) setSessionPermissions(result.permissions);
     else if (currentUser.role) {
-      setSessionPermissions(getSessionPermissionsForRole(currentUser.role));
+      setSessionPermissions(getSessionPermissionsForRole(currentUser.role, currentUser));
     }
     localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(currentUser));
     updateAuthUI();
@@ -90,7 +90,7 @@ function initAuth() {
         } else if (currentUser.permissions) {
           setSessionPermissions(currentUser.permissions);
         } else if (currentUser.role) {
-          setSessionPermissions(getSessionPermissionsForRole(currentUser.role));
+          setSessionPermissions(getSessionPermissionsForRole(currentUser.role, currentUser));
         }
       }
     } catch (e) {
@@ -160,7 +160,7 @@ async function restoreRemoteSession() {
     currentUser = data.user;
     if (data.permissions) setSessionPermissions(data.permissions);
     else if (currentUser.role) {
-      setSessionPermissions(getSessionPermissionsForRole(currentUser.role));
+      setSessionPermissions(getSessionPermissionsForRole(currentUser.role, currentUser));
     }
     localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(currentUser));
     updateAuthUI();
@@ -201,7 +201,7 @@ async function login(username, password) {
     currentUser = result.user;
     if (result.permissions) setSessionPermissions(result.permissions);
     else if (result.user.role) {
-      setSessionPermissions(getSessionPermissionsForRole(result.user.role));
+      setSessionPermissions(getSessionPermissionsForRole(result.user.role, result.user));
     }
     localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(currentUser));
     logAudit("用户登录", "user", result.user.id, {
@@ -231,7 +231,7 @@ async function login(username, password) {
     role: fresh.role,
     auth_version: fresh.auth_version || 1,
   };
-  setSessionPermissions(getSessionPermissionsForRole(currentUser.role));
+  setSessionPermissions(getSessionPermissionsForRole(currentUser.role, currentUser));
   localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(currentUser));
   logAudit("用户登录", "user", user.id, {
     username: user.username,
@@ -261,7 +261,7 @@ async function loginByRole(role, password) {
     setRemoteSessionToken(result.token);
     currentUser = result.user;
     if (result.permissions) setSessionPermissions(result.permissions);
-    else setSessionPermissions(getSessionPermissionsForRole(result.user.role));
+    else setSessionPermissions(getSessionPermissionsForRole(result.user.role, result.user));
     localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(currentUser));
     logAudit("用户登录", "user", result.user.id, {
       username: result.user.username,
@@ -291,7 +291,7 @@ async function loginByRole(role, password) {
       role: fresh.role,
       auth_version: fresh.auth_version || 1,
     };
-    setSessionPermissions(getSessionPermissionsForRole(currentUser.role));
+    setSessionPermissions(getSessionPermissionsForRole(currentUser.role, currentUser));
     localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(currentUser));
     logAudit("用户登录", "user", user.id, {
       username: user.username,
@@ -483,6 +483,151 @@ function requireAdmin() {
   return true;
 }
 
+let rolePermissionsDraft = null;
+
+function permissionCodeLabel(code) {
+  return typeof getPermissionLabel === "function"
+    ? getPermissionLabel(code)
+    : code;
+}
+
+async function loadRolePermissionsConfig() {
+  await initRolePermissionDefaults();
+  if (typeof useRemoteWriteApi === "function" && useRemoteWriteApi()) {
+    return apiAdminGetRolePermissions();
+  }
+  return getRolePermissionsConfigLocal();
+}
+
+function renderRolePermissionsPanel() {
+  const panel = document.getElementById("role-permissions-panel");
+  if (!panel) return;
+  if (!requireAdmin()) {
+    panel.innerHTML = '<p class="empty-tip">需要 users.write 权限。</p>';
+    return;
+  }
+  panel.innerHTML = '<p class="empty-tip">加载中…</p>';
+  loadRolePermissionsConfig()
+    .then(function (data) {
+      rolePermissionsDraft = {};
+      USER_ROLE_OPTIONS.forEach(function (opt) {
+        const role = opt[0];
+        rolePermissionsDraft[role] = (data.effective[role] || []).slice();
+      });
+      paintRolePermissionsPanel(panel, data);
+    })
+    .catch(function (e) {
+      panel.innerHTML =
+        '<p class="empty-tip">加载失败：' + escapeHtml(e.message) + "</p>";
+    });
+}
+
+function paintRolePermissionsPanel(panel, data) {
+  const groups = getPermissionGroups();
+  let html =
+    '<div class="role-perm-toolbar btn-bar" style="margin-bottom: var(--space-3);">' +
+    '<button type="button" class="btn btn-default" onclick="resetRolePermissionsDraft()">恢复默认模板</button>' +
+    '<button type="button" class="btn btn-primary" onclick="saveRolePermissionsConfig()">保存角色权限</button>' +
+    "</div>" +
+    '<div class="role-perm-matrix">';
+  USER_ROLE_OPTIONS.forEach(function (opt) {
+    const role = opt[0];
+    const label = opt[1];
+    html +=
+      '<div class="role-perm-column" data-role="' +
+      escapeHtml(role) +
+      '">' +
+      '<h3 class="role-perm-role-title">' +
+      escapeHtml(label) +
+      "</h3>";
+    groups.forEach(function (group) {
+      html +=
+        '<div class="role-perm-group"><div class="role-perm-group-title">' +
+        escapeHtml(group.label) +
+        "</div>";
+      group.codes.forEach(function (code) {
+        const checked = (rolePermissionsDraft[role] || []).includes(code);
+        html +=
+          '<label class="role-perm-item">' +
+          '<input type="checkbox" data-role="' +
+          escapeHtml(role) +
+          '" data-code="' +
+          escapeHtml(code) +
+          '" ' +
+          (checked ? "checked" : "") +
+          " onchange=\"toggleRolePermissionDraft('" +
+          escapeHtml(role) +
+          "','" +
+          escapeHtml(code) +
+          "', this.checked)\">" +
+          "<span>" +
+          escapeHtml(permissionCodeLabel(code)) +
+          "</span></label>";
+      });
+      html += "</div>";
+    });
+    html += "</div>";
+  });
+  html += "</div>";
+  if (data.custom) {
+    html +=
+      '<p class="field-hint" style="margin-top: var(--space-3);">当前已使用自定义配置（非全部默认模板）。</p>';
+  }
+  panel.innerHTML = html;
+}
+
+function toggleRolePermissionDraft(role, code, enabled) {
+  if (!rolePermissionsDraft[role]) rolePermissionsDraft[role] = [];
+  const set = new Set(rolePermissionsDraft[role]);
+  if (enabled) set.add(code);
+  else set.delete(code);
+  rolePermissionsDraft[role] = [...set];
+}
+
+function resetRolePermissionsDraft() {
+  if (!confirm("确定将所有角色权限恢复为系统默认模板吗？")) return;
+  initRolePermissionDefaults().then(function () {
+    const defaults = getDefaultRolePermissions();
+    rolePermissionsDraft = {};
+    USER_ROLE_OPTIONS.forEach(function (opt) {
+      rolePermissionsDraft[opt[0]] = (defaults[opt[0]] || []).slice();
+    });
+    renderRolePermissionsPanel();
+    showToast("已恢复默认模板（尚未保存）");
+  });
+}
+
+async function saveRolePermissionsConfig() {
+  if (!requireAdmin()) return;
+  try {
+    const sanitized = sanitizeRolePermissionPayload(rolePermissionsDraft);
+    if (typeof useRemoteWriteApi === "function" && useRemoteWriteApi()) {
+      await apiAdminSaveRolePermissions(sanitized);
+    } else {
+      saveLocalRolePermissions(sanitized);
+      await saveDB();
+    }
+    showToast("角色权限已保存，请相关账号重新登录后生效");
+    renderRolePermissionsPanel();
+  } catch (e) {
+    alert("保存失败：" + e.message);
+  }
+}
+
+function updateUserAdvancedFieldVisibility() {
+  const roleEl = document.getElementById("user-role");
+  const wrap = document.getElementById("user-advanced-wrap");
+  if (!roleEl || !wrap) return;
+  wrap.style.display = roleEl.value === "zhike" ? "" : "none";
+}
+
+function bindUserRoleAdvancedToggle() {
+  const roleEl = document.getElementById("user-role");
+  if (!roleEl || roleEl.dataset.advancedBound === "1") return;
+  roleEl.dataset.advancedBound = "1";
+  roleEl.addEventListener("change", updateUserAdvancedFieldVisibility);
+}
+
 function requireBackupRead() {
   if (!hasPermission("backup.read")) {
     alert("需要备份读取权限");
@@ -549,6 +694,10 @@ function paintUserList(container, users) {
   users.forEach((u) => {
     const roleLabel =
       USER_ROLE_OPTIONS.find((opt) => opt[0] === u.role)?.[1] || u.role;
+    const advancedTag =
+      u.role === "zhike" && u.is_advanced
+        ? ' <span class="room-tag" style="background:#fff3e0;color:#e65100">高级</span>'
+        : "";
     const isCurrent = currentUser && currentUser.id === u.id;
     const activeLabel =
       u.is_active === 0
@@ -557,7 +706,7 @@ function paintUserList(container, users) {
     html += `<tr>
       <td>${escapeHtml(u.username)} ${isCurrent ? '<span class="room-tag" style="background:#e3f2fd;color:#1565c0">当前</span>' : ""} ${activeLabel}</td>
       <td>${escapeHtml(u.display_name || "-")}</td>
-      <td>${roleLabel}</td>
+      <td>${roleLabel}${advancedTag}</td>
       <td>${escapeHtml(u.created_at) || "-"}</td>
       <td>
         <button class="btn btn-sm btn-default" onclick="openUserModal(${u.id})">编辑</button>
@@ -610,6 +759,9 @@ function mountUserModal(u, isEdit) {
                   ${USER_ROLE_OPTIONS.map((opt) => `<option value="${opt[0]}" ${isEdit && u.role === opt[0] ? "selected" : ""}>${opt[1]}</option>`).join("")}
                 </select>
               </div>
+              <div class="field" id="user-advanced-wrap" style="${isEdit && u.role === "zhike" ? "" : "display:none"}">
+                <label><input type="checkbox" id="user-advanced" ${isEdit && u.is_advanced ? "checked" : ""}> 高级知客（额外开放备份/用户/基础设置等权限）</label>
+              </div>
               <div class="field"><label>密码${isEdit ? "（留空则不修改）" : " *"}</label><input type="password" id="user-password" ${isEdit ? "" : "required"}></div>
             </div>
             <div class="btn-bar">
@@ -619,6 +771,8 @@ function mountUserModal(u, isEdit) {
           </form>
   `);
   document.getElementById("modal").classList.add("active");
+  bindUserRoleAdvancedToggle();
+  updateUserAdvancedFieldVisibility();
 }
 
 function closeUserModal() {
@@ -635,6 +789,9 @@ async function submitUser(e) {
     document.getElementById("user-display").value.trim() || null;
   const role = document.getElementById("user-role").value;
   const password = document.getElementById("user-password").value;
+  const advancedEl = document.getElementById("user-advanced");
+  const isAdvanced =
+    role === "zhike" && advancedEl && advancedEl.checked ? 1 : 0;
 
   if (!username) {
     alert("请输入账号");
@@ -686,6 +843,7 @@ async function submitUser(e) {
           user_id: parseInt(id, 10),
           display_name: displayName,
           role: role,
+          is_advanced: isAdvanced,
           password: password || undefined,
         });
         applySessionRefresh(result);
@@ -694,6 +852,7 @@ async function submitUser(e) {
           username: username,
           display_name: displayName,
           role: role,
+          is_advanced: isAdvanced,
           password: password,
         });
       }
@@ -706,13 +865,14 @@ async function submitUser(e) {
       if (password) {
         bumpLocalAuthVersion(id);
         run(
-          "UPDATE users SET display_name=?, role=?, password=?, must_change_password=0 WHERE id=?",
-          [displayName, role, await hashPasswordAsync(password), id],
+          "UPDATE users SET display_name=?, role=?, is_advanced=?, password=?, must_change_password=0 WHERE id=?",
+          [displayName, role, isAdvanced, await hashPasswordAsync(password), id],
         );
       } else {
-        run("UPDATE users SET display_name=?, role=? WHERE id=?", [
+        run("UPDATE users SET display_name=?, role=?, is_advanced=? WHERE id=?", [
           displayName,
           role,
+          isAdvanced,
           id,
         ]);
       }
@@ -720,6 +880,8 @@ async function submitUser(e) {
       if (currentUser && currentUser.id == id) {
         currentUser.display_name = displayName;
         currentUser.role = role;
+        currentUser.is_advanced = isAdvanced;
+        setSessionPermissions(getSessionPermissionsForRole(role, currentUser));
         if (password)
           currentUser.auth_version =
             query("SELECT auth_version FROM users WHERE id = ?", [id])[0]
@@ -730,8 +892,8 @@ async function submitUser(e) {
       }
     } else {
       const result = run(
-        "INSERT INTO users (username, display_name, role, password, auth_version, must_change_password) VALUES (?, ?, ?, ?, 1, 0)",
-        [username, displayName, role, await hashPasswordAsync(password)],
+        "INSERT INTO users (username, display_name, role, is_advanced, password, auth_version, must_change_password) VALUES (?, ?, ?, ?, ?, 1, 0)",
+        [username, displayName, role, isAdvanced, await hashPasswordAsync(password)],
       );
       logAudit("新增用户", "user", result.lastInsertId, { username, role });
     }

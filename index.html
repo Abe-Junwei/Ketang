@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <link rel="stylesheet" href="fonts/fonts.css?v=1" />
-    <link rel="stylesheet" href="styles.css?v=50" />
+    <link rel="stylesheet" href="styles.css?v=51" />
     <title>客堂住宿系统</title>
   </head>
   <body class="auth-login-required">
@@ -1278,6 +1278,16 @@
           </div>
 
           <div class="card">
+            <h2 class="section-title">角色权限配置</h2>
+            <p class="field-hint" style="margin-bottom: var(--space-3);">
+              按角色勾选可见菜单与 API 权限；保存后<strong>新登录</strong>会话生效。知客师账号勾选「高级知客」可额外获得备份/用户管理等权限（见用户编辑）。
+            </p>
+            <div id="role-permissions-panel">
+              <p class="empty-tip">加载中…</p>
+            </div>
+          </div>
+
+          <div class="card">
             <h2 class="section-title">用户管理</h2>
             <div class="btn-bar" style="margin-bottom: var(--space-4)">
               <button class="btn btn-primary" onclick="openUserModal()">
@@ -1306,7 +1316,7 @@
     <script src="./lib/sql-wasm.js?v=2"></script>
     <script src="./js/utils.js?v=6"></script>
     <script src="./js/db.js?v=18"></script>
-    <script src="./js/api-client.js?v=3"></script>
+    <script src="./js/api-client.js?v=4"></script>
     <script src="./js/guests.js?v=3"></script>
     <script src="./js/audit.js?v=3"></script>
     <script src="./js/housekeeping.js?v=6"></script>
@@ -1322,10 +1332,10 @@
     <script src="./js/reports.js?v=10"></script>
     <script src="./js/events.js?v=8"></script>
     <script src="./js/info.js?v=10"></script>
-    <script src="./js/permissions.js?v=2"></script>
-    <script src="./js/auth.js?v=15"></script>
+    <script src="./js/permissions.js?v=3"></script>
+    <script src="./js/auth.js?v=16"></script>
     <script src="./js/icons.js?v=6"></script>
     <script src="./js/picker.js?v=4"></script>
-    <script src="./js/app.js?v=44"></script>
+    <script src="./js/app.js?v=45"></script>
   </body>
 </html>

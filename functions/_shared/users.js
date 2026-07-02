@@ -70,7 +70,7 @@ export async function getSessionUser(env, request, queryD1) {
   if (!session) return null;
   const rows = await queryD1(
     env,
-    "SELECT id, username, display_name, role FROM users WHERE id = ? AND (is_active IS NULL OR is_active = 1) LIMIT 1",
+    "SELECT id, username, display_name, role, is_advanced FROM users WHERE id = ? AND (is_active IS NULL OR is_active = 1) LIMIT 1",
     [session.id || session.sub],
   );
   const user = rows[0];
@@ -79,6 +79,7 @@ export async function getSessionUser(env, request, queryD1) {
     role: user.role,
     id: user.id,
     sub: user.id,
+    is_advanced: !!user.is_advanced,
   };
   const permissions = await getSessionPermissions(env, sessionShape);
   return {
@@ -87,6 +88,7 @@ export async function getSessionUser(env, request, queryD1) {
       username: user.username,
       display_name: user.display_name,
       role: user.role,
+      is_advanced: !!user.is_advanced,
       auth_version: session.auth_version || user.auth_version || 1,
     },
     permissions,
@@ -95,9 +97,9 @@ export async function getSessionUser(env, request, queryD1) {
 
 export async function listUsers(env, session) {
   await requirePermission(env, session, "users.read");
-  return queryD1(
+  const rows = await queryD1(
     env,
-    "SELECT id, username, display_name, role, is_active, created_at FROM users ORDER BY role, username",
+    "SELECT id, username, display_name, role, is_advanced, is_active, created_at FROM users ORDER BY role, username",
     [],
   );
 }
@@ -108,6 +110,10 @@ export async function createUser(env, session, body) {
   const password = validateNewPassword(body.password);
   const displayName = String(body.display_name || "").trim() || null;
   const role = validateRole(body.role);
+  const isAdvanced =
+    role === "zhike" && (body.is_advanced === 1 || body.is_advanced === true)
+      ? 1
+      : 0;
   const existing = await queryD1(
     env,
     "SELECT id FROM users WHERE username = ? LIMIT 1",
@@ -117,8 +123,8 @@ export async function createUser(env, session, body) {
   const hash = await hashPasswordPlain(password);
   const meta = await runD1(
     env,
-    "INSERT INTO users (username, display_name, role, password, auth_version, must_change_password) VALUES (?, ?, ?, ?, 1, 0)",
-    [username, displayName, role, hash],
+    "INSERT INTO users (username, display_name, role, is_advanced, password, auth_version, must_change_password) VALUES (?, ?, ?, ?, ?, 1, 0)",
+    [username, displayName, role, isAdvanced, hash],
   );
   await insertAudit(
     env,
@@ -142,6 +148,10 @@ export async function updateUser(env, session, body) {
   if (!existing) throw new Error("用户不存在");
   const displayName = String(body.display_name || "").trim() || null;
   const role = validateRole(body.role);
+  const isAdvanced =
+    role === "zhike" && (body.is_advanced === 1 || body.is_advanced === true)
+      ? 1
+      : 0;
   if (existing.role === "admin" && role !== "admin") {
     const admins = await countActiveAdmins(env, id);
     if (admins === 0) throw new Error("不能移除最后一名管理员");
@@ -154,15 +164,15 @@ export async function updateUser(env, session, body) {
   if (hash) {
     await runD1(
       env,
-      "UPDATE users SET display_name=?, role=?, password=?, auth_version = COALESCE(auth_version, 1) + 1, must_change_password = 0 WHERE id=?",
-      [displayName, role, hash, id],
+      "UPDATE users SET display_name=?, role=?, is_advanced=?, password=?, auth_version = COALESCE(auth_version, 1) + 1, must_change_password = 0 WHERE id=?",
+      [displayName, role, isAdvanced, hash, id],
     );
   } else {
-    await runD1(env, "UPDATE users SET display_name=?, role=? WHERE id=?", [
-      displayName,
-      role,
-      id,
-    ]);
+    await runD1(
+      env,
+      "UPDATE users SET display_name=?, role=?, is_advanced=? WHERE id=?",
+      [displayName, role, isAdvanced, id],
+    );
   }
   await insertAudit(
     env,

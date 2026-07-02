@@ -180,6 +180,17 @@ async function apiAdminResetUserPassword(userId, password) {
   });
 }
 
+async function apiAdminGetRolePermissions() {
+  return apiFetch("/api/v1/admin/role-permissions");
+}
+
+async function apiAdminSaveRolePermissions(roles) {
+  return apiFetch("/api/v1/admin/role-permissions", {
+    method: "POST",
+    body: { roles: roles },
+  });
+}
+
 async function apiAdminRecord(resource, action, payload) {
   return apiFetch("/api/v1/admin/records", {
     method: "POST",

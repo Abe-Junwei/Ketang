@@ -44,6 +44,7 @@ REQUIRED = [
     'functions/_shared/reservations.js',
     'functions/api/v1/session.js',
     'functions/api/v1/admin/users.js',
+    'functions/api/v1/admin/role-permissions.js',
     'functions/api/v1/admin/records.js',
     'functions/api/public/reservations.js',
     'js/api-client.js',
