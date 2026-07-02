@@ -99,6 +99,7 @@ export async function listUsers(env, session) {
     "SELECT id, username, display_name, role, is_advanced, is_active, created_at FROM users ORDER BY role, username",
     [],
   );
+  return rows;
 }
 
 export async function createUser(env, session, body) {
@@ -181,7 +182,7 @@ export async function updateUser(env, session, body) {
   );
   const updated = await queryD1(
     env,
-    "SELECT id, username, display_name, role, auth_version FROM users WHERE id = ? LIMIT 1",
+    "SELECT id, username, display_name, role, is_advanced, auth_version FROM users WHERE id = ? LIMIT 1",
     [id],
   );
   const row = updated[0];
@@ -301,7 +302,7 @@ export async function changeUserPassword(
   );
   const updated = await queryD1(
     env,
-    "SELECT id, username, display_name, role, auth_version FROM users WHERE id = ? LIMIT 1",
+    "SELECT id, username, display_name, role, is_advanced, auth_version FROM users WHERE id = ? LIMIT 1",
     [userId],
   );
   return { ok: true, user: updated[0], auth_version: authVersion };

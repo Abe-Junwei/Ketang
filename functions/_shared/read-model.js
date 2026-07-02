@@ -25,12 +25,27 @@ const READ_MODEL_SYNC_PERMISSIONS = [
   "housekeeping.read",
 ];
 
-/** 各角色可读表 | Role-specific table allowlist (no app_meta for non-admin) */
+/** 权限码 → 可读表 | Permission-driven table allowlist */
+const PERMISSION_TABLE_INCLUDES = {
+  "board.read": ["rooms", "beds"],
+  "lodging.read": [
+    "rooms",
+    "beds",
+    "guests",
+    "events",
+    "lodgers",
+    "payments",
+  ],
+  "reservation.read": ["reservations"],
+  "meals.read": ["meals", "rooms", "beds", "guests", "lodgers"],
+  "housekeeping.read": ["housekeeping", "rooms", "beds", "lodgers"],
+  "settings.read": ["schema_version", "app_meta"],
+};
+
+/** 各角色可读表（脱敏/测试回退）| Role fallback for row sanitization */
 const ROLE_READ_TABLES = {
   admin: READ_MODEL_TABLES,
-  zhike: READ_MODEL_TABLES.filter(
-    (name) => name !== "audit_logs" && name !== "payments",
-  ),
+  zhike: READ_MODEL_TABLES.filter((name) => name !== "audit_logs"),
   kitchen: ["rooms", "beds", "guests", "lodgers", "meals"],
   housekeeping: ["rooms", "beds", "lodgers", "housekeeping"],
   viewer: [
@@ -53,7 +68,23 @@ const GUEST_SENSITIVE_FIELDS = [
 const LODGER_SENSITIVE_FIELDS = ["id_card", "phone"];
 const USER_NEVER_FIELDS = ["password"];
 
-/** 按角色返回表清单 | Resolve table list for role */
+/** 按权限返回表清单 | Resolve tables from session permissions */
+export function tablesForPermissions(permissions) {
+  if (!Array.isArray(permissions)) return [];
+  const selected = new Set();
+  Object.entries(PERMISSION_TABLE_INCLUDES).forEach(function ([perm, tables]) {
+    if (permissions.includes(perm)) {
+      tables.forEach(function (table) {
+        selected.add(table);
+      });
+    }
+  });
+  return READ_MODEL_TABLES.filter(function (name) {
+    return selected.has(name);
+  });
+}
+
+/** 按角色返回表清单 | Role fallback (tests / legacy) */
 export function tablesForRole(role) {
   return (ROLE_READ_TABLES[role] || ROLE_READ_TABLES.viewer).slice();
 }
@@ -99,7 +130,7 @@ export async function buildReadModel(env, session, options) {
   if (!canSyncReadModel(permissions)) {
     throw new Error("权限不足");
   }
-  const tables = tablesForRole(session.role);
+  const tables = tablesForPermissions(permissions);
   const data = {};
   await Promise.all(
     tables.map(async function (table) {

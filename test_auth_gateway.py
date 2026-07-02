@@ -130,8 +130,21 @@ def test_read_model_role_tables():
         if not kitchen_block or 'payments' in kitchen_block.group(1):
             print('FAIL kitchen read-model must not include payments')
             sys.exit(1)
-    if 'name !== "payments"' not in model or 'zhike:' not in model:
-        print('FAIL zhike read-model must exclude payments table')
+    zhike_block = re.search(r'zhike:\s*READ_MODEL_TABLES\.filter\([\s\S]*?\),', model)
+    if not zhike_block:
+        print('FAIL zhike read-model filter missing')
+        sys.exit(1)
+    if '!== "payments"' in zhike_block.group(0) or "!== 'payments'" in zhike_block.group(0):
+        print('FAIL zhike read-model must not exclude payments')
+        sys.exit(1)
+    if 'PERMISSION_TABLE_INCLUDES' not in model or 'tablesForPermissions' not in model:
+        print('FAIL read-model.js missing permission-driven table filtering')
+        sys.exit(1)
+    if 'tablesForPermissions(permissions)' not in model:
+        print('FAIL buildReadModel must use tablesForPermissions')
+        sys.exit(1)
+    if '"payments"' not in model.split('PERMISSION_TABLE_INCLUDES', 1)[1].split('lodging.read', 1)[1][:300]:
+        print('FAIL lodging.read must include payments table')
         sys.exit(1)
     for role in ('kitchen', 'housekeeping', 'viewer'):
         block = re.search(rf"{role}:\s*\[([\s\S]*?)\],", model)
@@ -143,6 +156,24 @@ def test_read_model_role_tables():
         sys.exit(1)
     if 'tablesForRole' not in model:
         print('FAIL read-model.js missing tablesForRole export')
+        sys.exit(1)
+
+
+def test_users_list_and_is_advanced():
+    users_shared = read('functions/_shared/users.js')
+    db_api = read('functions/api/db.js')
+    auth = read('js/auth.js')
+    if 'return rows;' not in users_shared.split('export async function listUsers', 1)[1].split('export async function createUser', 1)[0]:
+        print('FAIL listUsers must return rows')
+        sys.exit(1)
+    if 'is_advanced, auth_version FROM users WHERE id = ? LIMIT 1' not in users_shared:
+        print('FAIL users.js must select is_advanced when returning updated user')
+        sys.exit(1)
+    if 'is_advanced: !!result.user.is_advanced' not in db_api:
+        print('FAIL db.js change_password must preserve is_advanced in session refresh')
+        sys.exit(1)
+    if 'is_advanced: fresh.is_advanced ? 1 : 0' not in auth:
+        print('FAIL auth.js local login must set currentUser.is_advanced')
         sys.exit(1)
 
 
@@ -525,6 +556,7 @@ TESTS = [
     test_remote_init_marks_ready_after_existing_db,
     test_permissions_layer_exists,
     test_read_model_role_tables,
+    test_users_list_and_is_advanced,
     test_read_model_parallel_and_no_audit_logs,
     test_read_model_etag_and_client_304,
     test_batch_check_in_api,

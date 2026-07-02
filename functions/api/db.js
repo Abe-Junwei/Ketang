@@ -222,6 +222,7 @@ export async function onRequestPost({ request, env }) {
         role: result.user.role,
         id: result.user.id,
         sub: result.user.id,
+        is_advanced: !!result.user.is_advanced,
       };
       const permissions = await getSessionPermissions(env, refreshed);
       return json({
@@ -232,6 +233,7 @@ export async function onRequestPost({ request, env }) {
           username: result.user.username,
           display_name: result.user.display_name,
           role: result.user.role,
+          is_advanced: !!result.user.is_advanced,
           auth_version: result.user.auth_version || 1,
         },
         permissions,
