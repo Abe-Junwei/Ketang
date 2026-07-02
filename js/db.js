@@ -124,6 +124,33 @@ function refreshAfterWrite(writeResult, options) {
   }
   const task = (async function () {
     if (isRemoteDB()) {
+      if (options && options.deferSyncRender) {
+        var deferOpts = Object.assign({}, options, { skipViewRefresh: true });
+        var bgSync =
+          typeof syncAfterRemoteWrite === "function"
+            ? syncAfterRemoteWrite(writeResult, deferOpts)
+            : syncRemoteReadModel({ force: true });
+        if (bgSync && typeof bgSync.then === "function") {
+          bgSync
+            .then(function () {
+              if (options && options.fullRefresh) {
+                return renderAll({ skipSync: true });
+              }
+              if (typeof refreshViewForScope === "function") {
+                refreshViewForScope(
+                  (options && options.scope) || null,
+                  options,
+                );
+              }
+            })
+            .catch(function (e) {
+              if (typeof showToast === "function") {
+                showToast("后台同步失败：" + (e.message || "未知错误"));
+              }
+            });
+        }
+        return bgSync;
+      }
       if (typeof syncAfterRemoteWrite === "function") {
         await syncAfterRemoteWrite(writeResult, options);
       } else {
@@ -332,14 +359,40 @@ function applyRemoteSnapshot(payload) {
 }
 
 /** 模块表局部灌库 | Patch sql.js tables from read-module payload */
-function applyModuleTables(tables) {
+function applyModuleTables(tables, options) {
   if (!tables || typeof tables !== "object") return;
   ensureRemoteLocalSchema();
   _remoteHydrating = true;
   try {
-    applyModuleTablesInner(tables);
+    applyModuleTablesInner(tables, options);
   } finally {
     _remoteHydrating = false;
+  }
+}
+
+/** 远程模式乐观本地补丁 | Optimistic local patch during remote write (main thread) */
+function applyRemoteLocalPatch(patchFn) {
+  if (typeof patchFn !== "function") return;
+  if (!isRemoteDB()) {
+    patchFn();
+    return;
+  }
+  ensureRemoteLocalSchema();
+  _remoteHydrating = true;
+  try {
+    patchFn();
+  } finally {
+    _remoteHydrating = false;
+  }
+}
+
+function touchBoardVersionFromWrite(writeResult) {
+  if (
+    writeResult &&
+    writeResult.board_version != null &&
+    typeof lastBoardVersion !== "undefined"
+  ) {
+    lastBoardVersion = writeResult.board_version;
   }
 }
 

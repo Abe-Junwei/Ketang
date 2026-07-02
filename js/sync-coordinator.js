@@ -280,7 +280,7 @@ function refreshActiveViewsAfterSync() {
   refreshViewForScope(getActiveViewId());
 }
 
-async function fetchAndApplyModule(moduleKey) {
+async function fetchAndApplyModule(moduleKey, options) {
   var payload = await apiReadModule(moduleKey, getLocalBoardVersion());
   if (payload && payload.notModified) {
     if (payload.board_version != null)
@@ -288,7 +288,9 @@ async function fetchAndApplyModule(moduleKey) {
     return { module: moduleKey, skipped: true };
   }
   if (payload && payload.tables) {
-    applyModuleTables(payload.tables);
+    applyModuleTables(payload.tables, {
+      upsertOnly: !!(options && options.upsertOnly),
+    });
   }
   if (payload && payload.board_version != null) {
     setLocalBoardVersion(payload.board_version);
@@ -391,13 +393,17 @@ async function syncAfterRemoteWrite(writeResult, options) {
   }
 
   if (scopedModule) {
-    setRemoteSyncStatus("loading");
+    if (!options || !options.quietSync) setRemoteSyncStatus("loading");
     try {
-      await fetchAndApplyModule(scopedModule);
+      await fetchAndApplyModule(scopedModule, {
+        upsertOnly: !!(options && options.upsertModuleSync),
+      });
       remoteReadModelReady = true;
       lastRemoteSyncAt = Date.now();
-      setRemoteSyncStatus("ready");
-      refreshViewForScope(getActiveViewId(), options);
+      if (!options || !options.quietSync) setRemoteSyncStatus("ready");
+      if (!options || !options.skipViewRefresh) {
+        refreshViewForScope(getActiveViewId(), options);
+      }
     } catch (e) {
       setRemoteSyncStatus("error", e.message || "数据同步失败");
       throw e;

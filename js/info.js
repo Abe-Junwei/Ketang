@@ -5,6 +5,7 @@
 
 let infoCurrentTab = "rooms";
 var _infoFilterTimer = null;
+var _infoLastToolbarHash = {};
 const infoFilters = {
   rooms: { q: "", location: "", dorm: "" },
   beds: { q: "", roomId: "", status: "" },
@@ -20,6 +21,9 @@ const INFO_LODGER_STATUS_OPTIONS = ["在住", "已退"];
 const INFO_SOURCE_OPTIONS = ["现场", "电话", "微信", "法会预约"];
 
 function renderInfo(tab) {
+  if (tab && tab !== infoCurrentTab) {
+    _infoLastToolbarHash = {};
+  }
   infoCurrentTab = tab || infoCurrentTab;
   const tabs = document.getElementById("info-tabs");
   if (tabs) {
@@ -62,16 +66,13 @@ function infoOnFilter(tab, key, value) {
   infoGetFilters(tab)[key] = value;
   clearTimeout(_infoFilterTimer);
   _infoFilterTimer = setTimeout(function () {
+    _infoLastToolbarHash[tab] = "";
     renderInfo(tab);
   }, 200);
 }
 
-/** 信息管理写后轻量刷新 | Info tab scoped sync (no full renderAll) */
-function infoRefreshAfterWrite(writeResult, tab) {
-  return refreshAfterWrite(writeResult, {
-    infoOnly: true,
-    infoTab: tab || infoCurrentTab,
-  });
+function infoToast(msg) {
+  showToast(msg);
 }
 
 function infoTextIncludes(haystack, needle) {
@@ -134,8 +135,52 @@ function infoSetHtml(html) {
   infoContent().innerHTML = html;
 }
 
-function infoToast(msg) {
-  showToast(msg);
+function infoToolbarHash(tab, toolbarHtml) {
+  return tab + "|" + (toolbarHtml || "");
+}
+
+/** 仅替换 tbody，避免整页 innerHTML 重建 | Patch table body only */
+function infoTryPatchTableBody(rowsHtml) {
+  var tbody = infoContent().querySelector(".table-wrap table tbody");
+  if (!tbody || rowsHtml == null) return false;
+  tbody.innerHTML = rowsHtml;
+  return true;
+}
+
+function infoFinishListRender(tab, toolbar, tableHtml, rowsHtml, emptyHtml) {
+  var hash = infoToolbarHash(tab, toolbar);
+  if (
+    rowsHtml &&
+    _infoLastToolbarHash[tab] === hash &&
+    infoTryPatchTableBody(rowsHtml)
+  ) {
+    return;
+  }
+  _infoLastToolbarHash[tab] = hash;
+  infoPageShell(toolbar, rowsHtml ? tableHtml : emptyHtml);
+}
+
+/** 信息管理写后：乐观本地 + 立即渲染 + 后台 upsert 同步 | Optimistic info refresh */
+function infoRefreshAfterWrite(writeResult, tab, optimisticFn) {
+  tab = tab || infoCurrentTab;
+  if (typeof touchBoardVersionFromWrite === "function") {
+    touchBoardVersionFromWrite(writeResult);
+  }
+  if (!isRemoteDB()) {
+    renderInfo(tab);
+    return Promise.resolve();
+  }
+  if (typeof applyRemoteLocalPatch === "function" && typeof optimisticFn === "function") {
+    applyRemoteLocalPatch(optimisticFn);
+  }
+  renderInfo(tab);
+  return refreshAfterWrite(writeResult, {
+    infoOnly: true,
+    infoTab: tab,
+    upsertModuleSync: true,
+    deferSyncRender: true,
+    quietSync: true,
+  });
 }
 
 function infoConfirm(msg) {
@@ -244,6 +289,7 @@ function renderRoomList() {
   );
 
   if (!filtered.length) {
+    _infoLastToolbarHash.rooms = infoToolbarHash("rooms", toolbar);
     infoPageShell(
       toolbar,
       infoEmptyTable(
@@ -253,12 +299,9 @@ function renderRoomList() {
     return;
   }
 
-  let html = `<div class="table-wrap"><table>
-    <thead><tr>
-      <th>房间名</th><th>位置</th><th>楼层</th><th>寮房类型</th><th>备注</th><th>床位</th><th>操作</th>
-    </tr></thead><tbody>`;
+  let rowsHtml = "";
   filtered.forEach((r) => {
-    html += `<tr>
+    rowsHtml += `<tr>
       <td>${infoEscape(r.name)}</td>
       <td>${infoEscape(r.location)}</td>
       <td>${r.floor}</td>
@@ -268,8 +311,11 @@ function renderRoomList() {
       <td>${infoActionLinks(`openRoomModal(${r.id})`, `deleteRoom(${r.id})`)}</td>
     </tr>`;
   });
-  html += "</tbody></table></div>";
-  infoPageShell(toolbar, html);
+  const tableHtml = `<div class="table-wrap"><table>
+    <thead><tr>
+      <th>房间名</th><th>位置</th><th>楼层</th><th>寮房类型</th><th>备注</th><th>床位</th><th>操作</th>
+    </tr></thead><tbody>${rowsHtml}</tbody></table></div>`;
+  infoFinishListRender("rooms", toolbar, tableHtml, rowsHtml, "");
 }
 
 function openRoomModal(id) {
@@ -388,7 +434,26 @@ async function submitRoom(id) {
     }
     closeModal();
     infoToast(id ? "房间已更新" : "房间已新增");
-    await infoRefreshAfterWrite(writeResult, "rooms");
+    await infoRefreshAfterWrite(writeResult, "rooms", function () {
+      var rid = (writeResult && writeResult.room_id) || id;
+      if (!rid) return;
+      run(
+        "INSERT OR REPLACE INTO rooms (id, name, location, floor, dorm_type, notes, room_type, suitable_elder, suitable_child, near_zen_hall, flexible_use, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))",
+        [
+          rid,
+          name,
+          location,
+          floor || 1,
+          dorm,
+          notes,
+          roomTags.room_type,
+          roomTags.suitable_elder,
+          roomTags.suitable_child,
+          roomTags.near_zen_hall,
+          roomTags.flexible_use,
+        ],
+      );
+    });
   } catch (e) {
     console.error(e);
     infoToast("保存失败：" + e.message);
@@ -418,7 +483,9 @@ async function deleteRoom(id) {
       await saveDB();
     }
     infoToast("房间已删除");
-    await infoRefreshAfterWrite(writeResult, "rooms");
+    await infoRefreshAfterWrite(writeResult, "rooms", function () {
+      run("DELETE FROM rooms WHERE id = ?", [id]);
+    });
   } catch (e) {
     console.error(e);
     infoToast("删除失败：" + e.message);
@@ -474,6 +541,7 @@ function renderBedList() {
   );
 
   if (!filtered.length) {
+    _infoLastToolbarHash.beds = infoToolbarHash("beds", toolbar);
     infoPageShell(
       toolbar,
       infoEmptyTable(
@@ -483,13 +551,10 @@ function renderBedList() {
     return;
   }
 
-  let html = `<div class="table-wrap"><table>
-    <thead><tr>
-      <th>房间</th><th>床位号</th><th>床位类型</th><th>寮房类型</th><th>状态</th><th>备注</th><th>操作</th>
-    </tr></thead><tbody>`;
+  let rowsHtml = "";
   filtered.forEach((b) => {
     const statusLabel = b.occupant_count > 0 ? "占用" : b.status;
-    html += `<tr>
+    rowsHtml += `<tr>
       <td>${infoEscape(b.room_name)}</td>
       <td>${infoEscape(b.bed_number)}</td>
       <td>${infoEscape(b.bed_type || "单床")}</td>
@@ -499,8 +564,11 @@ function renderBedList() {
       <td>${infoActionLinks(`openBedModal(${b.id})`, `deleteBed(${b.id})`)}</td>
     </tr>`;
   });
-  html += "</tbody></table></div>";
-  infoPageShell(toolbar, html);
+  const tableHtml = `<div class="table-wrap"><table>
+    <thead><tr>
+      <th>房间</th><th>床位号</th><th>床位类型</th><th>寮房类型</th><th>状态</th><th>备注</th><th>操作</th>
+    </tr></thead><tbody>${rowsHtml}</tbody></table></div>`;
+  infoFinishListRender("beds", toolbar, tableHtml, rowsHtml, "");
 }
 
 function openBedModal(id) {
@@ -650,7 +718,23 @@ async function submitBed(id) {
     }
     closeModal();
     infoToast(id ? "床位已更新" : "床位已新增");
-    await infoRefreshAfterWrite(writeResult, "beds");
+    await infoRefreshAfterWrite(writeResult, "beds", function () {
+      var bid = (writeResult && writeResult.bed_id) || id;
+      if (!bid) return;
+      run(
+        "INSERT OR REPLACE INTO beds (id, room_id, bed_number, status, notes, bed_type, suitable_elder, is_flexible, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))",
+        [
+          bid,
+          roomId,
+          number,
+          status,
+          notes,
+          bedTags.bed_type,
+          bedTags.suitable_elder,
+          bedTags.is_flexible,
+        ],
+      );
+    });
   } catch (e) {
     console.error(e);
     infoToast("保存失败：" + e.message);
@@ -693,7 +777,10 @@ async function deleteBed(id) {
       await saveDB();
     }
     infoToast("床位已删除");
-    await infoRefreshAfterWrite(writeResult, "beds");
+    await infoRefreshAfterWrite(writeResult, "beds", function () {
+      run("DELETE FROM housekeeping WHERE bed_id = ?", [id]);
+      run("DELETE FROM beds WHERE id = ?", [id]);
+    });
   } catch (e) {
     console.error(e);
     infoToast("删除失败：" + e.message);
@@ -739,6 +826,7 @@ function renderGuestList() {
   );
 
   if (!filtered.length) {
+    _infoLastToolbarHash.guests = infoToolbarHash("guests", toolbar);
     infoPageShell(
       toolbar,
       infoEmptyTable(
@@ -748,13 +836,9 @@ function renderGuestList() {
     return;
   }
 
-  let html = `<div class="table-wrap"><table>
-    <thead><tr>
-      <th>姓名 / 法名</th><th>性别</th><th>手机号</th><th>身份证</th>
-      <th>紧急联系人</th><th>到访次数</th><th>最近到访</th><th>操作</th>
-    </tr></thead><tbody>`;
+  let rowsHtml = "";
   filtered.forEach((g) => {
-    html += `<tr>
+    rowsHtml += `<tr>
       <td>${infoEscape(personDisplayName(g))}</td>
       <td>${infoEscape(g.gender)}</td>
       <td>${infoEscape(g.phone)}</td>
@@ -765,8 +849,12 @@ function renderGuestList() {
       <td>${infoActionLinks(`openGuestModal(${g.id})`, `deleteGuest(${g.id})`)}</td>
     </tr>`;
   });
-  html += "</tbody></table></div>";
-  infoPageShell(toolbar, html);
+  const tableHtml = `<div class="table-wrap"><table>
+    <thead><tr>
+      <th>姓名 / 法名</th><th>性别</th><th>手机号</th><th>身份证</th>
+      <th>紧急联系人</th><th>到访次数</th><th>最近到访</th><th>操作</th>
+    </tr></thead><tbody>${rowsHtml}</tbody></table></div>`;
+  infoFinishListRender("guests", toolbar, tableHtml, rowsHtml, "");
 }
 
 function openGuestModal(id) {
@@ -938,7 +1026,26 @@ async function submitGuest(id) {
     }
     closeModal();
     infoToast(id ? "住客档案已更新" : "住客档案已新增");
-    await infoRefreshAfterWrite(writeResult, "guests");
+    await infoRefreshAfterWrite(writeResult, "guests", function () {
+      var gid = (writeResult && writeResult.guest_id) || id;
+      if (!gid) return;
+      var ts = new Date().toISOString().slice(0, 19).replace("T", " ");
+      run(
+        "INSERT OR REPLACE INTO guests (id, name, dharma_name, gender, phone, id_card, emergency_contact, emergency_phone, notes, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        [
+          gid,
+          name,
+          person.dharma_name,
+          gender,
+          contact.phone,
+          contact.idCard,
+          contact.emergencyName,
+          contact.emergencyPhone,
+          notes,
+          ts,
+        ],
+      );
+    });
   } catch (e) {
     console.error(e);
     infoToast("保存失败：" + e.message);
@@ -972,7 +1079,9 @@ async function deleteGuest(id) {
       await saveDB();
     }
     infoToast("住客档案已删除");
-    await infoRefreshAfterWrite(writeResult, "guests");
+    await infoRefreshAfterWrite(writeResult, "guests", function () {
+      run("DELETE FROM guests WHERE id = ?", [id]);
+    });
   } catch (e) {
     console.error(e);
     infoToast("删除失败：" + e.message);
@@ -1032,6 +1141,7 @@ function renderLodgerList() {
   );
 
   if (!filtered.length) {
+    _infoLastToolbarHash.lodgers = infoToolbarHash("lodgers", toolbar);
     infoPageShell(
       toolbar,
       infoEmptyTable(
@@ -1041,16 +1151,12 @@ function renderLodgerList() {
     return;
   }
 
-  let html = `<div class="table-wrap"><table>
-    <thead><tr>
-      <th>姓名 / 法名</th><th>性别</th><th>手机号</th><th>房间/床位</th>
-      <th>入住日</th><th>预离日</th><th>状态</th><th>来源</th><th>备注</th><th>操作</th>
-    </tr></thead><tbody>`;
+  let rowsHtml = "";
   filtered.forEach((l) => {
     const roomBed =
       (l.room_name ? infoEscape(l.room_name) : "-") +
       (l.bed_number ? " / " + infoEscape(l.bed_number) : "");
-    html += `<tr>
+    rowsHtml += `<tr>
       <td>${infoEscape(personDisplayName(l))}</td>
       <td>${infoEscape(l.gender)}</td>
       <td>${infoEscape(l.phone)}</td>
@@ -1063,8 +1169,12 @@ function renderLodgerList() {
       <td>${infoActionLinks(`openLodgerModal(${l.id})`, `deleteInfoLodger(${l.id})`)}</td>
     </tr>`;
   });
-  html += "</tbody></table></div>";
-  infoPageShell(toolbar, html);
+  const tableHtml = `<div class="table-wrap"><table>
+    <thead><tr>
+      <th>姓名 / 法名</th><th>性别</th><th>手机号</th><th>房间/床位</th>
+      <th>入住日</th><th>预离日</th><th>状态</th><th>来源</th><th>备注</th><th>操作</th>
+    </tr></thead><tbody>${rowsHtml}</tbody></table></div>`;
+  infoFinishListRender("lodgers", toolbar, tableHtml, rowsHtml, "");
 }
 
 function openLodgerModal(id) {
@@ -1320,7 +1430,26 @@ async function submitLodger(id) {
     }
     closeModal();
     infoToast("挂单记录已更新");
-    await infoRefreshAfterWrite(writeResult, "lodgers");
+    await infoRefreshAfterWrite(writeResult, "lodgers", function () {
+      run(
+        "UPDATE lodgers SET name=?, dharma_name=?, gender=?, phone=?, id_card=?, check_in_date=?, expected_check_out=?, actual_check_out=?, status=?, source=?, bed_id=?, notes=?, updated_at=datetime('now') WHERE id=?",
+        [
+          name,
+          person.dharma_name,
+          gender,
+          contact.phone,
+          contact.idCard,
+          checkIn,
+          expectedOut,
+          actualOut,
+          status,
+          source,
+          finalBedId,
+          notes,
+          id,
+        ],
+      );
+    });
   } catch (e) {
     console.error(e);
     infoToast("保存失败：" + e.message);
@@ -1358,7 +1487,11 @@ async function deleteInfoLodger(id) {
       await saveDB();
     }
     infoToast("已删除");
-    await infoRefreshAfterWrite(writeResult, "lodgers");
+    await infoRefreshAfterWrite(writeResult, "lodgers", function () {
+      run("DELETE FROM meals WHERE lodger_id = ?", [id]);
+      run("DELETE FROM payments WHERE lodger_id = ?", [id]);
+      run("DELETE FROM lodgers WHERE id = ?", [id]);
+    });
   } catch (e) {
     console.error(e);
     infoToast("删除失败：" + e.message);
