@@ -280,7 +280,13 @@ async function submitRoom(id) {
   const floor = infoGetInt("info-room-floor");
   const dorm = infoGetValue("info-room-dorm");
   const notes = infoGetValue("info-room-notes");
-  const roomTags = readRoomTagFieldsFromForm();
+  let roomTags;
+  try {
+    roomTags = readRoomTagFieldsFromForm();
+  } catch (err) {
+    alert(err.message || String(err));
+    return;
+  }
 
   if (!name) {
     infoShowFieldError("info-room-name", "房间名为必填");
@@ -513,7 +519,13 @@ async function submitBed(id) {
   const number = infoGetValue("info-bed-number");
   const status = infoGetValue("info-bed-status");
   const notes = infoGetValue("info-bed-notes");
-  const bedTags = readBedTagFieldsFromForm();
+  let bedTags;
+  try {
+    bedTags = readBedTagFieldsFromForm();
+  } catch (err) {
+    alert(err.message || String(err));
+    return;
+  }
 
   if (!roomId) {
     infoShowFieldError("info-bed-room", "请选择所属房间");

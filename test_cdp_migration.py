@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""CDP test: import a V3 DB and verify V10 migration applied."""
+"""CDP test: import a V3 DB and verify migration chain through V17."""
 import subprocess
 import sys
 import time
@@ -69,6 +69,8 @@ def main():
                 migrateV12toV13();
                 migrateV13toV14();
                 migrateV14toV15();
+                migrateV15toV16();
+                migrateV16toV17();
                 createIndexes();
                 seedRooms();
                 await saveDB();
@@ -77,6 +79,11 @@ def main():
                 const advancedCol = db.exec("PRAGMA table_info(users)")[0].values.some(c => c[1] === 'is_advanced');
                 const permissionsCol = db.exec("PRAGMA table_info(users)")[0].values.some(c => c[1] === 'permissions');
                 const dormCol = db.exec("PRAGMA table_info(rooms)")[0].values.some(c => c[1] === 'dorm_type');
+                const roomTypeCol = db.exec("PRAGMA table_info(rooms)")[0].values.some(c => c[1] === 'room_type');
+                const bedTypeCol = db.exec("PRAGMA table_info(beds)")[0].values.some(c => c[1] === 'bed_type');
+                const eventRoomingCol = db.exec("PRAGMA table_info(events)")[0].values.some(c => c[1] === 'activity_target');
+                const includeSpareCol = db.exec("PRAGMA table_info(events)")[0].values.some(c => c[1] === 'include_spare_beds');
+                const participantCol = db.exec("PRAGMA table_info(lodgers)")[0].values.some(c => c[1] === 'participant_identity');
                 const mealCol = db.exec("PRAGMA table_info(reservations)")[0].values.some(c => c[1] === 'meal_breakfast');
                 const lodgerMealCol = db.exec("PRAGMA table_info(lodgers)")[0].values.some(c => c[1] === 'meal_default_breakfast');
                 const eventsExists = db.exec("SELECT name FROM sqlite_master WHERE type='table' AND name='events'").length > 0;
@@ -86,7 +93,12 @@ def main():
                 const guests = db.exec('SELECT COUNT(*) FROM guests')[0].values[0][0];
                 const lodgers = db.exec('SELECT COUNT(*) FROM lodgers WHERE guest_id IS NOT NULL')[0].values[0][0];
                 const hk = db.exec('SELECT COUNT(*) FROM housekeeping')[0].values[0][0];
-                return { version, roleCheck, advancedCol, permissionsCol, dormCol, mealCol, lodgerMealCol, eventsExists, usersExists, users, eventCount, guests, lodgers, hk };
+                return {
+                    version, roleCheck, advancedCol, permissionsCol, dormCol, roomTypeCol,
+                    bedTypeCol, eventRoomingCol, includeSpareCol, participantCol,
+                    mealCol, lodgerMealCol, eventsExists, usersExists, users,
+                    eventCount, guests, lodgers, hk
+                };
             })()
         """
         ws.send(json.dumps({'id': 3, 'method': 'Runtime.evaluate', 'params': {'expression': import_expr, 'awaitPromise': True, 'returnByValue': True}}))
@@ -95,8 +107,8 @@ def main():
         if result.get('type') == 'object' and 'value' in result:
             values = result['value']
             print('Migration result:', values)
-            if values.get('version') != 15:
-                print("FAIL: schema version not migrated to 15")
+            if values.get('version') != 17:
+                print("FAIL: schema version not migrated to 17")
                 sys.exit(1)
             if not values.get('advancedCol'):
                 print("FAIL: users.is_advanced column missing after V14→V15 migration")
@@ -109,6 +121,21 @@ def main():
                 sys.exit(1)
             if not values.get('dormCol'):
                 print("FAIL: rooms.dorm_type column missing after migration")
+                sys.exit(1)
+            if not values.get('roomTypeCol'):
+                print("FAIL: rooms.room_type column missing after V16→V17 migration")
+                sys.exit(1)
+            if not values.get('bedTypeCol'):
+                print("FAIL: beds.bed_type column missing after V16→V17 migration")
+                sys.exit(1)
+            if not values.get('eventRoomingCol'):
+                print("FAIL: events.activity_target column missing after V16→V17 migration")
+                sys.exit(1)
+            if not values.get('includeSpareCol'):
+                print("FAIL: events.include_spare_beds column missing after V15→V16 migration")
+                sys.exit(1)
+            if not values.get('participantCol'):
+                print("FAIL: lodgers.participant_identity column missing after V16→V17 migration")
                 sys.exit(1)
             if not values.get('mealCol'):
                 print("FAIL: reservations.meal_breakfast column missing after V10→V11 migration")
@@ -128,7 +155,7 @@ def main():
             if values.get('lodgers', 0) < 1:
                 print("FAIL: lodgers not linked to guests")
                 sys.exit(1)
-            print("PASS: V3→V15 migration via app succeeded")
+            print("PASS: V3→V17 migration via app succeeded")
         else:
             print("FAIL: unexpected result", resp)
             sys.exit(1)

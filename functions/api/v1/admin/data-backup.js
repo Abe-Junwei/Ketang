@@ -8,6 +8,14 @@ import {
   safeErrorMessage,
 } from "../../../_shared/d1.js";
 import { requirePermission } from "../../../_shared/permissions.js";
+import { EVENT_ROOMING_COLUMN_SQL } from "../../../_shared/rooming-tags.js";
+
+function eventRoomingImportColumns() {
+  return EVENT_ROOMING_COLUMN_SQL.replace(/\s+/g, " ")
+    .split(",")
+    .map((col) => col.trim())
+    .filter(Boolean);
+}
 
 const DEFAULT_ADMIN_PASSWORD_HASH =
   "sha256$ketang_default_salt$8d62959035f9b60a02e709f9826f3f996d07a09a4f5091e2884642fa01adf8a3";
@@ -54,10 +62,25 @@ const TABLE_IMPORT_COLUMNS = {
     "location",
     "floor",
     "dorm_type",
+    "room_type",
+    "suitable_elder",
+    "suitable_child",
+    "near_zen_hall",
+    "flexible_use",
     "notes",
     "created_at",
   ],
-  beds: ["id", "room_id", "bed_number", "status", "notes", "created_at"],
+  beds: [
+    "id",
+    "room_id",
+    "bed_number",
+    "status",
+    "bed_type",
+    "suitable_elder",
+    "is_flexible",
+    "notes",
+    "created_at",
+  ],
   guests: [
     "id",
     "name",
@@ -84,6 +107,8 @@ const TABLE_IMPORT_COLUMNS = {
     "end_date",
     "status",
     "notes",
+    "include_spare_beds",
+    ...eventRoomingImportColumns(),
     "created_at",
   ],
   lodgers: [
@@ -101,6 +126,9 @@ const TABLE_IMPORT_COLUMNS = {
     "bed_id",
     "role",
     "class_name",
+    "participant_identity",
+    "age_group",
+    "special_needs",
     "status",
     "source",
     "notes",
@@ -120,6 +148,9 @@ const TABLE_IMPORT_COLUMNS = {
     "id_card",
     "role",
     "class_name",
+    "participant_identity",
+    "age_group",
+    "special_needs",
     "expected_check_in",
     "expected_check_out",
     "room_preference",

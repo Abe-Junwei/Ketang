@@ -126,7 +126,7 @@ function renderEventMembers(eventId) {
 
   const lodgers = query(
     `
-    SELECT l.id, l.name, l.dharma_name, l.gender, l.check_in_date, l.expected_check_out, l.role, l.class_name, l.status, r.name as room_name, b.bed_number, 'lodger' as kind
+    SELECT l.id, l.name, l.dharma_name, l.gender, l.check_in_date, l.expected_check_out, l.role, l.class_name, l.participant_identity, l.age_group, l.status, r.name as room_name, b.bed_number, 'lodger' as kind
     FROM lodgers l
     LEFT JOIN beds b ON b.id = l.bed_id
     LEFT JOIN rooms r ON r.id = b.room_id
@@ -138,7 +138,7 @@ function renderEventMembers(eventId) {
 
   const reservations = query(
     `
-    SELECT r.id, r.name, r.dharma_name, r.gender, r.expected_check_in, r.expected_check_out, r.role, r.class_name, r.status, r.room_preference, 'reservation' as kind
+    SELECT r.id, r.name, r.dharma_name, r.gender, r.expected_check_in, r.expected_check_out, r.role, r.class_name, r.participant_identity, r.age_group, r.status, r.room_preference, 'reservation' as kind
     FROM reservations r
     WHERE r.event_id = ? AND r.status IN ('预约', '已确认')
     ORDER BY r.expected_check_in, r.name
@@ -410,8 +410,15 @@ async function submitEvent(e) {
   const includeSpareBeds = document.getElementById("event-include-spare")?.checked
     ? 1
     : 0;
-  const rooming = readEventRoomingFromForm();
-  const roomingValues = eventRoomingDbValues(rooming);
+  let rooming;
+  let roomingValues;
+  try {
+    rooming = readEventRoomingFromForm();
+    roomingValues = eventRoomingDbValues(rooming);
+  } catch (err) {
+    alert(err.message || String(err));
+    return;
+  }
 
   if (!name) {
     alert("请输入营期名称");
@@ -948,7 +955,7 @@ function exportEventMembersCSV(eventId) {
 
   const lodgers = query(
     `
-    SELECT l.name, l.dharma_name, l.gender, l.phone, l.check_in_date, l.expected_check_out, l.role, l.class_name, l.status, r.name as room_name, b.bed_number, '在住' as kind
+    SELECT l.name, l.dharma_name, l.gender, l.phone, l.check_in_date, l.expected_check_out, l.role, l.class_name, l.participant_identity, l.age_group, l.special_needs, l.status, r.name as room_name, b.bed_number, '在住' as kind
     FROM lodgers l
     LEFT JOIN beds b ON b.id = l.bed_id
     LEFT JOIN rooms r ON r.id = b.room_id
@@ -960,7 +967,7 @@ function exportEventMembersCSV(eventId) {
 
   const reservations = query(
     `
-    SELECT r.name, r.dharma_name, r.gender, r.phone, r.expected_check_in, r.expected_check_out, r.role, r.class_name, r.status, '' as room_name, '' as bed_number, '预约' as kind
+    SELECT r.name, r.dharma_name, r.gender, r.phone, r.expected_check_in, r.expected_check_out, r.role, r.class_name, r.participant_identity, r.age_group, r.special_needs, r.status, '' as room_name, '' as bed_number, '预约' as kind
     FROM reservations r
     WHERE r.event_id = ?
     ORDER BY r.status, r.name
@@ -974,6 +981,9 @@ function exportEventMembersCSV(eventId) {
     "性别",
     "手机号",
     "身份",
+    "排房身份",
+    "年龄段",
+    "特殊需求（排房）",
     "班级",
     "类型",
     "状态",
@@ -990,6 +1000,9 @@ function exportEventMembersCSV(eventId) {
         m.gender || "",
         m.phone || "",
         m.role || "",
+        m.participant_identity || "",
+        m.age_group || "",
+        m.special_needs || "",
         m.class_name || "",
         m.kind,
         m.status,

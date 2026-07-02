@@ -56,6 +56,14 @@ document.getElementById("resv-form").addEventListener("submit", async (e) => {
   const meal = readMealNeedPicker("resv-meal-need");
   if (!validateMealNeedPicker("resv-meal-need")) return;
 
+  let participantTags;
+  try {
+    participantTags = readParticipantTagsFromForm("resv");
+  } catch (err) {
+    alert(err.message || String(err));
+    return;
+  }
+
   const resvId = document.getElementById("resv-id").value;
   try {
     if (useRemoteWriteApi()) {
@@ -70,7 +78,7 @@ document.getElementById("resv-form").addEventListener("submit", async (e) => {
         event_id: eventId,
         role: readLodgerRoleInput("resv-role"),
         class_name: document.getElementById("resv-class").value.trim() || null,
-        ...readParticipantTagsFromForm("resv"),
+        ...participantTags,
         expected_check_in: checkIn,
         expected_check_out: checkOut,
         room_preference:
@@ -128,7 +136,7 @@ document.getElementById("resv-form").addEventListener("submit", async (e) => {
               contact.idCard,
               readLodgerRoleInput("resv-role"),
               document.getElementById("resv-class").value.trim() || null,
-              ...Object.values(readParticipantTagsFromForm("resv")),
+              ...Object.values(participantTags),
               checkIn,
               checkOut,
               document.getElementById("resv-room").value.trim() || null,
@@ -160,7 +168,7 @@ document.getElementById("resv-form").addEventListener("submit", async (e) => {
               contact.idCard,
               readLodgerRoleInput("resv-role"),
               document.getElementById("resv-class").value.trim() || null,
-              ...Object.values(readParticipantTagsFromForm("resv")),
+              ...Object.values(participantTags),
               checkIn,
               checkOut,
               document.getElementById("resv-room").value.trim() || null,

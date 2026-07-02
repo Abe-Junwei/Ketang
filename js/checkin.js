@@ -571,6 +571,14 @@ document
       }
     }
 
+    let participantTags;
+    try {
+      participantTags = readParticipantTagsFromForm("ci");
+    } catch (err) {
+      alert(err.message || String(err));
+      return;
+    }
+
     try {
       if (useRemoteWriteApi()) {
         await apiCheckIn({
@@ -584,7 +592,7 @@ document
           event_id: document.getElementById("ci-event").value || null,
           role: readLodgerRoleInput("ci-role"),
           class_name: document.getElementById("ci-class").value.trim() || null,
-          ...readParticipantTagsFromForm("ci"),
+          ...participantTags,
           source: document.getElementById("ci-source").value || null,
           notes: document.getElementById("ci-notes").value.trim() || null,
           emergency_name:
@@ -647,7 +655,7 @@ document
               bedId,
               readLodgerRoleInput("ci-role"),
               document.getElementById("ci-class").value.trim() || null,
-              ...Object.values(readParticipantTagsFromForm("ci")),
+              ...Object.values(participantTags),
               document.getElementById("ci-source").value || null,
               document.getElementById("ci-notes").value.trim() || null,
             ],

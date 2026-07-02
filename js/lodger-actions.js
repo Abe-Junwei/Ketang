@@ -384,6 +384,10 @@ function openEditLodgerModal(id) {
     </div>
   `);
   populateEventSelect("edit-event", l.event_id || null);
+  ["edit-participant-identity", "edit-age-group"].forEach(function (id) {
+    var el = document.getElementById(id);
+    if (el && typeof rebuildSelectPicker === "function") rebuildSelectPicker(el);
+  });
   modal.classList.add("active");
 }
 
@@ -450,6 +454,14 @@ async function submitEditLodger(id) {
       return;
   }
 
+  let participantTags;
+  try {
+    participantTags = readParticipantTagsFromForm("edit");
+  } catch (err) {
+    alert(err.message || String(err));
+    return;
+  }
+
   try {
     if (useRemoteWriteApi()) {
       await apiEditLodger({
@@ -464,7 +476,7 @@ async function submitEditLodger(id) {
         expected_check_out: checkOut,
         role: readLodgerRoleInput("edit-role"),
         class_name: document.getElementById("edit-class").value.trim() || null,
-        ...readParticipantTagsFromForm("edit"),
+        ...participantTags,
         event_id: document.getElementById("edit-event").value || null,
         notes: document.getElementById("edit-notes").value.trim() || null,
       });
@@ -485,7 +497,7 @@ async function submitEditLodger(id) {
             checkOut,
             readLodgerRoleInput("edit-role"),
             document.getElementById("edit-class").value.trim() || null,
-            ...Object.values(readParticipantTagsFromForm("edit")),
+            ...Object.values(participantTags),
             document.getElementById("edit-event").value || null,
             document.getElementById("edit-notes").value.trim() || null,
             id,

@@ -40,6 +40,13 @@ function roomingIntOrZero(value) {
   return isFinite(n) && n >= 0 ? n : 0;
 }
 
+function roomingOptionalInSet(value, options, label) {
+  var v = value == null ? "" : String(value).trim();
+  if (!v) return null;
+  if (options.indexOf(v) === -1) throw new Error(label + "无效");
+  return v;
+}
+
 function roomingFlag01(el) {
   return el && el.checked ? 1 : 0;
 }
@@ -80,7 +87,11 @@ function roomingCheckboxField(id, label, checked) {
 
 function readEventRoomingFromForm() {
   return {
-    activity_target: document.getElementById("event-activity-target")?.value || null,
+    activity_target: roomingOptionalInSet(
+      document.getElementById("event-activity-target")?.value,
+      ACTIVITY_TARGET_OPTIONS,
+      "活动对象",
+    ),
     arrival_date: document.getElementById("event-arrival-date")?.value || null,
     departure_date: document.getElementById("event-departure-date")?.value || null,
     confirmed_count: roomingIntOrZero(
@@ -280,9 +291,16 @@ function eventRoomingFormFieldsHtml(e) {
 
 function readParticipantTagsFromForm(prefix) {
   return {
-    participant_identity:
-      document.getElementById(prefix + "-participant-identity")?.value || null,
-    age_group: document.getElementById(prefix + "-age-group")?.value || null,
+    participant_identity: roomingOptionalInSet(
+      document.getElementById(prefix + "-participant-identity")?.value,
+      PARTICIPANT_IDENTITY_OPTIONS,
+      "排房身份",
+    ),
+    age_group: roomingOptionalInSet(
+      document.getElementById(prefix + "-age-group")?.value,
+      AGE_GROUP_OPTIONS,
+      "年龄段",
+    ),
     special_needs:
       document.getElementById(prefix + "-special-needs")?.value.trim() || null,
   };
@@ -353,7 +371,12 @@ function bedTagFieldsHtml(b) {
 
 function readRoomTagFieldsFromForm() {
   return {
-    room_type: document.getElementById("info-room-type")?.value || "学员房",
+    room_type:
+      roomingOptionalInSet(
+        document.getElementById("info-room-type")?.value,
+        ROOM_TYPE_OPTIONS,
+        "房间类型",
+      ) || "学员房",
     suitable_elder: roomingFlag01(document.getElementById("info-room-suitable-elder")),
     suitable_child: roomingFlag01(document.getElementById("info-room-suitable-child")),
     near_zen_hall: roomingFlag01(document.getElementById("info-room-near-zen")),
@@ -363,7 +386,12 @@ function readRoomTagFieldsFromForm() {
 
 function readBedTagFieldsFromForm() {
   return {
-    bed_type: document.getElementById("info-bed-type")?.value || "单床",
+    bed_type:
+      roomingOptionalInSet(
+        document.getElementById("info-bed-type")?.value,
+        BED_TYPE_OPTIONS,
+        "床位类型",
+      ) || "单床",
     suitable_elder: roomingFlag01(document.getElementById("info-bed-suitable-elder")),
     is_flexible: roomingFlag01(document.getElementById("info-bed-flexible")),
   };
@@ -372,6 +400,12 @@ function readBedTagFieldsFromForm() {
 function mountParticipantTagSelects() {
   populateParticipantTagSelects("ci");
   populateParticipantTagSelects("resv");
+  ["ci-participant-identity", "ci-age-group", "resv-participant-identity", "resv-age-group"].forEach(
+    function (id) {
+      var el = document.getElementById(id);
+      if (el && typeof rebuildSelectPicker === "function") rebuildSelectPicker(el);
+    },
+  );
 }
 
 function populateParticipantTagSelects(prefix, row) {
@@ -388,6 +422,10 @@ function populateParticipantTagSelects(prefix, row) {
   );
   var needs = document.getElementById(prefix + "-special-needs");
   if (needs) needs.value = row.special_needs || "";
+  [prefix + "-participant-identity", prefix + "-age-group"].forEach(function (id) {
+    var el = document.getElementById(id);
+    if (el && typeof refreshSelectPicker === "function") refreshSelectPicker(el);
+  });
 }
 
 function fillRoomingSelect(el, options, selected) {
@@ -404,8 +442,10 @@ function fillRoomingSelect(el, options, selected) {
       "</option>";
   });
   el.innerHTML = html;
+  if (typeof rebuildSelectPicker === "function") rebuildSelectPicker(el);
 }
 
+var EVENT_ROOMING_DB_COLUMNS =
   "activity_target, arrival_date, departure_date, confirmed_count, actual_arrival_count, expected_absent_count, male_count, female_count, child_count, elder_count, teacher_count, volunteer_count, special_needs_count, manager_name, manager_phone, backup_manager_name, needs_central_lodging, needs_quiet_zone, needs_near_zen_hall, needs_teacher_room";
 
 function eventRoomingDbValues(data) {
