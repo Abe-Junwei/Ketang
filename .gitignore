@@ -28,6 +28,7 @@ node_modules/
 ketang.db
 *.db-journal
 backup/
+.release/
 data/ketang-cloud-import.json
 
 # Chrome / test artifacts

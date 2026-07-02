@@ -90,6 +90,23 @@
 
 见根目录 `wrangler.toml`；部署前替换 D1 `database_id`，并设置 `KETANG_SESSION_SECRET`。
 
+### 白名单发布（推荐）
+
+不要直接 `wrangler pages deploy .`，应只发布运行必需文件：
+
+```bash
+bash scripts/build_pages_release.sh
+npx wrangler pages deploy .release --project-name ketang
+python3 scripts/post_deploy_check.py --base https://wulingkt.net
+```
+
+发布前迁移/恢复校验：
+
+```bash
+python3 scripts/verify_migration_json.py data/ketang-cloud-import.json
+python3 scripts/compare_backup_json.py baseline.json restored.json
+```
+
 ## 从本地 ketang.db 导入已有数据
 
 若寺院已在本地模式使用过客堂，可把 `ketang.db` 迁到云端 D1：
