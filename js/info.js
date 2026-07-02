@@ -160,6 +160,31 @@ function infoFinishListRender(tab, toolbar, tableHtml, rowsHtml, emptyHtml) {
   infoPageShell(toolbar, rowsHtml ? tableHtml : emptyHtml);
 }
 
+function infoRowExists(table, rowId) {
+  if (!rowId) return false;
+  return !!query("SELECT id FROM " + table + " WHERE id = ?", [rowId])[0];
+}
+
+function infoRoomExists(roomId) {
+  if (!roomId) return false;
+  return !!query("SELECT id FROM rooms WHERE id = ?", [roomId])[0];
+}
+
+function infoBedExists(bedId) {
+  if (!bedId) return true;
+  return !!query("SELECT id FROM beds WHERE id = ?", [bedId])[0];
+}
+
+/** 乐观 upsert：避免 INSERT OR REPLACE 触发 FK 删除 | Optimistic upsert without REPLACE */
+function infoOptimisticUpsert(table, rowId, updateSql, updateParams, insertSql, insertParams) {
+  if (!rowId) return;
+  if (infoRowExists(table, rowId)) {
+    run(updateSql, updateParams);
+  } else {
+    run(insertSql, insertParams);
+  }
+}
+
 /** 信息管理写后：乐观本地 + 立即渲染 + 后台 upsert 同步 | Optimistic info refresh */
 function infoRefreshAfterWrite(writeResult, tab, optimisticFn) {
   tab = tab || infoCurrentTab;
@@ -171,7 +196,11 @@ function infoRefreshAfterWrite(writeResult, tab, optimisticFn) {
     return Promise.resolve();
   }
   if (typeof applyRemoteLocalPatch === "function" && typeof optimisticFn === "function") {
-    applyRemoteLocalPatch(optimisticFn);
+    try {
+      applyRemoteLocalPatch(optimisticFn);
+    } catch (e) {
+      console.warn("info optimistic patch skipped:", e.message || e);
+    }
   }
   renderInfo(tab);
   return refreshAfterWrite(writeResult, {
@@ -437,8 +466,24 @@ async function submitRoom(id) {
     await infoRefreshAfterWrite(writeResult, "rooms", function () {
       var rid = (writeResult && writeResult.room_id) || id;
       if (!rid) return;
-      run(
-        "INSERT OR REPLACE INTO rooms (id, name, location, floor, dorm_type, notes, room_type, suitable_elder, suitable_child, near_zen_hall, flexible_use, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))",
+      infoOptimisticUpsert(
+        "rooms",
+        rid,
+        "UPDATE rooms SET name=?, location=?, floor=?, dorm_type=?, notes=?, room_type=?, suitable_elder=?, suitable_child=?, near_zen_hall=?, flexible_use=?, updated_at=datetime('now') WHERE id=?",
+        [
+          name,
+          location,
+          floor || 1,
+          dorm,
+          notes,
+          roomTags.room_type,
+          roomTags.suitable_elder,
+          roomTags.suitable_child,
+          roomTags.near_zen_hall,
+          roomTags.flexible_use,
+          rid,
+        ],
+        "INSERT INTO rooms (id, name, location, floor, dorm_type, notes, room_type, suitable_elder, suitable_child, near_zen_hall, flexible_use, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))",
         [
           rid,
           name,
@@ -720,9 +765,22 @@ async function submitBed(id) {
     infoToast(id ? "床位已更新" : "床位已新增");
     await infoRefreshAfterWrite(writeResult, "beds", function () {
       var bid = (writeResult && writeResult.bed_id) || id;
-      if (!bid) return;
-      run(
-        "INSERT OR REPLACE INTO beds (id, room_id, bed_number, status, notes, bed_type, suitable_elder, is_flexible, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))",
+      if (!bid || !infoRoomExists(roomId)) return;
+      infoOptimisticUpsert(
+        "beds",
+        bid,
+        "UPDATE beds SET room_id=?, bed_number=?, status=?, notes=?, bed_type=?, suitable_elder=?, is_flexible=?, updated_at=datetime('now') WHERE id=?",
+        [
+          roomId,
+          number,
+          status,
+          notes,
+          bedTags.bed_type,
+          bedTags.suitable_elder,
+          bedTags.is_flexible,
+          bid,
+        ],
+        "INSERT INTO beds (id, room_id, bed_number, status, notes, bed_type, suitable_elder, is_flexible, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))",
         [
           bid,
           roomId,
@@ -767,6 +825,7 @@ async function deleteBed(id) {
       writeResult = await apiAdminRecord("bed", "delete", { bed_id: id });
     } else {
       await withTransaction(async () => {
+        run("UPDATE rooming_assignments SET bed_id = NULL WHERE bed_id = ?", [id]);
         run("DELETE FROM housekeeping WHERE bed_id = ?", [id]);
         run("DELETE FROM beds WHERE id = ?", [id]);
         logAudit("删除床位", "bed", id, {
@@ -778,6 +837,7 @@ async function deleteBed(id) {
     }
     infoToast("床位已删除");
     await infoRefreshAfterWrite(writeResult, "beds", function () {
+      run("UPDATE rooming_assignments SET bed_id = NULL WHERE bed_id = ?", [id]);
       run("DELETE FROM housekeeping WHERE bed_id = ?", [id]);
       run("DELETE FROM beds WHERE id = ?", [id]);
     });
@@ -1030,8 +1090,23 @@ async function submitGuest(id) {
       var gid = (writeResult && writeResult.guest_id) || id;
       if (!gid) return;
       var ts = new Date().toISOString().slice(0, 19).replace("T", " ");
-      run(
-        "INSERT OR REPLACE INTO guests (id, name, dharma_name, gender, phone, id_card, emergency_contact, emergency_phone, notes, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+      infoOptimisticUpsert(
+        "guests",
+        gid,
+        "UPDATE guests SET name=?, dharma_name=?, gender=?, phone=?, id_card=?, emergency_contact=?, emergency_phone=?, notes=?, updated_at=? WHERE id=?",
+        [
+          name,
+          person.dharma_name,
+          gender,
+          contact.phone,
+          contact.idCard,
+          contact.emergencyName,
+          contact.emergencyPhone,
+          notes,
+          ts,
+          gid,
+        ],
+        "INSERT INTO guests (id, name, dharma_name, gender, phone, id_card, emergency_contact, emergency_phone, notes, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         [
           gid,
           name,
@@ -1431,24 +1506,46 @@ async function submitLodger(id) {
     closeModal();
     infoToast("挂单记录已更新");
     await infoRefreshAfterWrite(writeResult, "lodgers", function () {
-      run(
-        "UPDATE lodgers SET name=?, dharma_name=?, gender=?, phone=?, id_card=?, check_in_date=?, expected_check_out=?, actual_check_out=?, status=?, source=?, bed_id=?, notes=?, updated_at=datetime('now') WHERE id=?",
-        [
-          name,
-          person.dharma_name,
-          gender,
-          contact.phone,
-          contact.idCard,
-          checkIn,
-          expectedOut,
-          actualOut,
-          status,
-          source,
-          finalBedId,
-          notes,
-          id,
-        ],
-      );
+      if (!infoRowExists("lodgers", id)) return;
+      var bedOk = finalBedId == null || infoBedExists(finalBedId);
+      if (bedOk) {
+        run(
+          "UPDATE lodgers SET name=?, dharma_name=?, gender=?, phone=?, id_card=?, check_in_date=?, expected_check_out=?, actual_check_out=?, status=?, source=?, bed_id=?, notes=?, updated_at=datetime('now') WHERE id=?",
+          [
+            name,
+            person.dharma_name,
+            gender,
+            contact.phone,
+            contact.idCard,
+            checkIn,
+            expectedOut,
+            actualOut,
+            status,
+            source,
+            finalBedId,
+            notes,
+            id,
+          ],
+        );
+      } else {
+        run(
+          "UPDATE lodgers SET name=?, dharma_name=?, gender=?, phone=?, id_card=?, check_in_date=?, expected_check_out=?, actual_check_out=?, status=?, source=?, notes=?, updated_at=datetime('now') WHERE id=?",
+          [
+            name,
+            person.dharma_name,
+            gender,
+            contact.phone,
+            contact.idCard,
+            checkIn,
+            expectedOut,
+            actualOut,
+            status,
+            source,
+            notes,
+            id,
+          ],
+        );
+      }
     });
   } catch (e) {
     console.error(e);
