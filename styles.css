@@ -3329,6 +3329,24 @@ form .field {
   line-height: 1;
 }
 
+.remote-sync-banner {
+  margin: 0 var(--space-4) var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-sm);
+  font-size: var(--font-size-sm);
+  text-align: center;
+}
+
+.remote-sync-banner-loading {
+  background: color-mix(in srgb, var(--color-primary) 12%, transparent);
+  color: var(--color-primary);
+}
+
+.remote-sync-banner-error {
+  background: color-mix(in srgb, var(--color-danger) 12%, transparent);
+  color: var(--color-danger);
+}
+
 .toast {
   position: fixed;
   bottom: var(--space-5);

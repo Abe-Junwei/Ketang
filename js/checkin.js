@@ -371,7 +371,7 @@ async function assignExistingLodgerToBed(lodgerId, bedId) {
     }
     closeModal();
     showToast("已分配床位");
-    renderAll();
+    refreshAfterWrite();
   } catch (e) {
     console.error(e);
     alert("分配床位失败：" + e.message);
@@ -468,7 +468,7 @@ async function assignReservationToBed(resvId, bedId) {
     }
     closeModal();
     showToast("已分配床位");
-    renderAll();
+    refreshAfterWrite();
   } catch (e) {
     console.error(e);
     alert("分配床位失败：" + e.message);
@@ -696,7 +696,7 @@ document
       showToast("入住登记成功");
       resetCheckin();
       showView("board");
-      renderAll();
+      refreshAfterWrite();
     } catch (err) {
       console.error(err);
       alert("入住登记失败：" + err.message);
@@ -951,7 +951,7 @@ async function importBatchCSV(input) {
         ${failedRows.length ? "<details><summary>失败明细</summary><pre>" + escapeHtml(failedRows.join("\n")) + "</pre></details>" : ""}
       `;
       showToast(`批量导入完成：成功 ${success} 条`);
-      renderAll();
+      refreshAfterWrite();
     } catch (err) {
       resultDiv.innerHTML =
         '<p style="color:var(--color-danger)">导入出错：' +

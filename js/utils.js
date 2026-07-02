@@ -495,6 +495,19 @@ function validateNewPassword(password, oldPassword) {
 }
 
 function countActiveAdmins(excludeId) {
+  const excluded = parseInt(excludeId || 0, 10);
+  if (typeof useRemoteAdminUsers === "function" && useRemoteAdminUsers()) {
+    return (
+      (typeof cachedAdminUsers !== "undefined" ? cachedAdminUsers : [])
+        .filter(function (u) {
+          return (
+            u.role === "admin" &&
+            u.is_active !== 0 &&
+            u.id !== excluded
+          );
+        }).length || 0
+    );
+  }
   return (
     query(
       "SELECT COUNT(*) as c FROM users WHERE role='admin' AND (is_active IS NULL OR is_active = 1) AND id != ?",

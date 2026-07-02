@@ -181,7 +181,7 @@ async function submitExtend(id) {
     }
     closeModal();
     showToast("续住成功");
-    renderAll();
+    refreshAfterWrite();
   } catch (e) {
     console.error(e);
     alert("续住失败：" + e.message);
@@ -313,7 +313,7 @@ async function submitChangeBed(lodgerId, gender) {
     }
     closeModal();
     showToast("换床成功");
-    renderAll();
+    refreshAfterWrite();
   } catch (e) {
     console.error(e);
     alert("换床失败：" + e.message);
@@ -499,7 +499,7 @@ async function submitEditLodger(id) {
     }
     closeModal();
     showToast("修改成功");
-    renderAll();
+    refreshAfterWrite();
   } catch (e) {
     console.error(e);
     alert("保存修改失败：" + e.message);
@@ -537,7 +537,7 @@ async function deleteLodger(id) {
       await saveDB();
     }
     showToast("已删除");
-    renderAll();
+    refreshAfterWrite();
   } catch (e) {
     console.error(e);
     alert("删除失败：" + e.message);
@@ -661,7 +661,7 @@ async function submitCheckout(id) {
     }
     closeModal();
     showToast("退房成功");
-    renderAll();
+    refreshAfterWrite();
   } catch (e) {
     console.error(e);
     alert("退房失败：" + e.message);

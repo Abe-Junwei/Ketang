@@ -149,7 +149,7 @@ document.getElementById("resv-form").addEventListener("submit", async (e) => {
   showToast(resvId ? "预约更新成功" : "预约添加成功");
   resetResvForm();
   renderReservations("全部");
-  renderAll();
+  refreshAfterWrite();
 });
 
 function resetResvForm() {
@@ -265,7 +265,7 @@ async function updateResvStatus(id, status) {
     }
     showToast(`预约已标记为「${status}」`);
     renderReservations("全部");
-    renderAll();
+    refreshAfterWrite();
   } catch (e) {
     console.error(e);
     alert("更新预约状态失败：" + e.message);

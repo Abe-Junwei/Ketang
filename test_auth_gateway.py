@@ -121,6 +121,10 @@ def test_read_model_role_tables():
     if 'ROLE_READ_TABLES' not in model or 'sanitizeRowForRole' not in model:
         print('FAIL read-model.js missing role table/filter helpers')
         sys.exit(1)
+    tables_block = model.split('READ_MODEL_TABLES = [', 1)[1].split('];', 1)[0]
+    if '"users"' in tables_block:
+        print('FAIL read-model must not sync users table (password never shipped to client)')
+        sys.exit(1)
     if "'payments'" in model and 'kitchen:' in model:
         kitchen_block = re.search(r'kitchen:\s*\[([\s\S]*?)\],', model)
         if not kitchen_block or 'payments' in kitchen_block.group(1):
@@ -259,6 +263,59 @@ def test_data_backup_import_hardening():
         sys.exit(1)
 
 
+def test_remote_snapshot_user_password_placeholder():
+    db_js = read('js/db.js')
+    if 'remote_sync_placeholder' not in db_js:
+        print('FAIL db.js must placeholder users.password when applying read-model snapshot')
+        sys.exit(1)
+    if 'const nextDb = new SQL.Database()' not in db_js:
+        print('FAIL db.js applyRemoteSnapshot must build fresh DB before swap')
+        sys.exit(1)
+
+
+def test_login_waits_for_read_model():
+    auth = read('js/auth.js')
+    login_block = re.search(r'async function submitLogin\(\) \{([\s\S]*?)\n\}', auth)
+    if not login_block:
+        print('FAIL auth.js missing submitLogin')
+        sys.exit(1)
+    block = login_block.group(1)
+    hide_idx = block.find('hideLoginOverlay()')
+    render_idx = block.find('await renderAll()')
+    if hide_idx < 0 or render_idx < 0 or hide_idx < render_idx:
+        print('FAIL submitLogin must await renderAll before hideLoginOverlay')
+        sys.exit(1)
+
+
+def test_read_model_parallel_and_audit_limit():
+    model = read('functions/_shared/read-model.js')
+    block = model.split('export async function buildReadModel')[1].split('}', 1)[0]
+    if 'Promise.all' not in block:
+        print('FAIL buildReadModel must query tables in parallel')
+        sys.exit(1)
+    if 'audit_logs ORDER BY id DESC LIMIT 200' not in model:
+        print('FAIL buildReadModel must cap audit_logs rows')
+        sys.exit(1)
+
+
+def test_remote_sync_helpers():
+    db_js = read('js/db.js')
+    app_js = read('js/app.js')
+    index_html = read('index.html')
+    if 'function refreshAfterWrite' not in db_js:
+        print('FAIL db.js missing refreshAfterWrite helper')
+        sys.exit(1)
+    if 'function setRemoteSyncStatus' not in db_js:
+        print('FAIL db.js missing remote sync status helpers')
+        sys.exit(1)
+    if 'pollRemoteBoardVersion' not in app_js:
+        print('FAIL app.js missing global board version polling')
+        sys.exit(1)
+    if 'remote-sync-banner' not in index_html:
+        print('FAIL index.html missing remote sync banner')
+        sys.exit(1)
+
+
 def test_backup_permissions_on_frontend():
     db_js = read('js/db.js')
     auth = read('js/auth.js')
@@ -304,6 +361,8 @@ TESTS = [
     test_remote_init_marks_ready_after_existing_db,
     test_permissions_layer_exists,
     test_read_model_role_tables,
+    test_read_model_parallel_and_audit_limit,
+    test_remote_sync_helpers,
     test_admin_update_returns_token,
     test_frontend_unauthorized_handler,
     test_session_query_binding,
@@ -313,6 +372,8 @@ TESTS = [
     test_remote_init_cached_for_auth_latency,
     test_anonymous_users_action_does_not_enumerate_accounts,
     test_data_backup_import_hardening,
+    test_remote_snapshot_user_password_placeholder,
+    test_login_waits_for_read_model,
     test_backup_permissions_on_frontend,
     test_batch_csv_class_name_binding,
     test_export_script_reads_users_and_v15,

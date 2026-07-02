@@ -220,7 +220,7 @@ async function submitRoom(id) {
     closeModal();
     infoToast(id ? "房间已更新" : "房间已新增");
     renderInfo("rooms");
-    renderAll();
+    refreshAfterWrite();
   } catch (e) {
     console.error(e);
     infoToast("保存失败：" + e.message);
@@ -250,7 +250,7 @@ async function deleteRoom(id) {
     }
     infoToast("房间已删除");
     renderInfo("rooms");
-    renderAll();
+    refreshAfterWrite();
   } catch (e) {
     console.error(e);
     infoToast("删除失败：" + e.message);
@@ -420,7 +420,7 @@ async function submitBed(id) {
     closeModal();
     infoToast(id ? "床位已更新" : "床位已新增");
     renderInfo("beds");
-    renderAll();
+    refreshAfterWrite();
   } catch (e) {
     console.error(e);
     infoToast("保存失败：" + e.message);
@@ -463,7 +463,7 @@ async function deleteBed(id) {
     }
     infoToast("床位已删除");
     renderInfo("beds");
-    renderAll();
+    refreshAfterWrite();
   } catch (e) {
     console.error(e);
     infoToast("删除失败：" + e.message);
@@ -670,7 +670,7 @@ async function submitGuest(id) {
     closeModal();
     infoToast(id ? "住客档案已更新" : "住客档案已新增");
     renderInfo("guests");
-    renderAll();
+    refreshAfterWrite();
   } catch (e) {
     console.error(e);
     infoToast("保存失败：" + e.message);
@@ -704,7 +704,7 @@ async function deleteGuest(id) {
     }
     infoToast("住客档案已删除");
     renderInfo("guests");
-    renderAll();
+    refreshAfterWrite();
   } catch (e) {
     console.error(e);
     infoToast("删除失败：" + e.message);
@@ -1014,7 +1014,7 @@ async function submitLodger(id) {
     closeModal();
     infoToast("挂单记录已更新");
     renderInfo("lodgers");
-    renderAll();
+    refreshAfterWrite();
   } catch (e) {
     console.error(e);
     infoToast("保存失败：" + e.message);
@@ -1052,7 +1052,7 @@ async function deleteInfoLodger(id) {
     }
     infoToast("已删除");
     renderInfo("lodgers");
-    renderAll();
+    refreshAfterWrite();
   } catch (e) {
     console.error(e);
     infoToast("删除失败：" + e.message);

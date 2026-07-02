@@ -6,7 +6,9 @@
 
 - 前端仍由 Cloudflare Pages 托管 `index.html`、`styles.css`、`js/`。
 - HTTPS 线上访问会自动进入远程数据库模式。
-- 远程读写通过 `functions/api/db.js` 访问 Cloudflare D1。
+- **读**：登录后 `GET /api/v1/read-model` 拉取按角色裁剪的快照，灌入浏览器内存 sql.js 供页面渲染。
+- **写**：业务操作走 `/api/v1/*`，由 Worker 写入 D1。
+- **登录/改密/用户列表**：仍走 `POST /api/db` 与 `/api/v1/admin/users`。
 - 本地 `localhost`、`127.0.0.1`、`file://` 仍使用原 IndexedDB/sql.js 模式。
 
 ## Cloudflare 必填配置
@@ -50,7 +52,8 @@
 - 业务写操作走 `/api/v1/*` 接口（入住/退房/换床/续住/分床/编辑删除挂单/用斋/房务/预约/营期批量操作），D1 `batch()` 保证原子性。
 - `/api/db` 网关：知客师仅允许 `SELECT`/`PRAGMA` 与 `INSERT audit_logs`；管理员可管理用户与房间设置。
 - 管理员可在「系统设置」导出/导入 JSON 备份（含 `users` 表，`/api/v1/admin/data-backup`）。
-- 房态看板在云端模式每 8 秒轮询 `board-version` 自动刷新。
+- 房态看板在云端模式每 8 秒轮询 `board-version` 自动刷新（全视图 + 切回前台时也会检查）。
+- 同步进行中/失败时，顶栏下方会显示状态条；写操作成功后强制拉取读模型再渲染。
 - 公开预约：`POST /api/public/reservations`（IP 限流；可用 `KETANG_PUBLIC_RESERVATIONS=false` 关闭）。
 - `init` 在非空库时默认幂等；仅 `force: true` 且带 `x-ketang-bootstrap` 才允许强制 reseed。
 - 登录与公开预约均有限流。
@@ -73,6 +76,7 @@
 | `POST /api/v1/upsert-reservation`    | 新增/编辑预约                         |
 | `POST /api/v1/reservation-status`    | 更新预约状态                          |
 | `POST /api/v1/batch-event-members`   | 营期批量取消/No-show                  |
+| `GET /api/v1/read-model`             | 登录后读模型快照（按角色裁表）        |
 | `GET /api/v1/board-version`          | 看板版本号                            |
 | `GET /api/v1/session`                | 校验当前登录会话                      |
 | `GET/POST /api/v1/admin/users`       | 用户列表 / 增改停用 / 重置密码 / 启用 |

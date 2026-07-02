@@ -422,10 +422,11 @@ async function submitLogin() {
   if (errorEl) errorEl.textContent = "正在验证身份，请稍候…";
   try {
     if (await loginByRole(selectedRole, password)) {
-      if (errorEl) errorEl.textContent = "";
+      if (errorEl) errorEl.textContent = "正在同步数据，请稍候…";
       document.getElementById("login-password").value = "";
-      hideLoginOverlay();
       await renderAll();
+      if (errorEl) errorEl.textContent = "";
+      hideLoginOverlay();
       if (typeof startBoardPolling === "function") startBoardPolling();
     } else if (errorEl) {
       errorEl.textContent = "账号或密码错误";

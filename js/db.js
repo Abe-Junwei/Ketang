@@ -18,25 +18,11 @@ const REMOTE_DB_ENABLED = (() => {
 let remoteLastInsertId = 0;
 let remoteLocalSchemaReady = false;
 let remoteReadModelReady = false;
+let remoteSyncStatus = "idle";
+let remoteSyncError = "";
 let _remoteHydrating = false;
 let remoteSyncPromise = null;
 let lastRemoteSyncAt = 0;
-
-const REMOTE_SNAPSHOT_DELETE_ORDER = [
-  "audit_logs",
-  "housekeeping",
-  "payments",
-  "meals",
-  "reservations",
-  "lodgers",
-  "events",
-  "guests",
-  "beds",
-  "rooms",
-  "users",
-  "schema_version",
-  "app_meta",
-];
 
 const REMOTE_SNAPSHOT_INSERT_ORDER = [
   "users",
@@ -69,50 +55,59 @@ function setRemoteSessionToken(token) {
   else localStorage.removeItem(REMOTE_SESSION_KEY);
 }
 
-function remoteDBRequest(payload, options) {
-  const xhr = new XMLHttpRequest();
-  xhr.open("POST", "/api/db", false);
-  xhr.setRequestHeader("Content-Type", "application/json");
-  const token = getRemoteSessionToken();
-  if (token) xhr.setRequestHeader("Authorization", "Bearer " + token);
-  xhr.send(JSON.stringify(payload));
-  let body = {};
-  try {
-    body = JSON.parse(xhr.responseText || "{}");
-  } catch (e) {
-    body = {};
+function setRemoteSyncStatus(status, message) {
+  remoteSyncStatus = status || "idle";
+  remoteSyncError = message || "";
+  updateRemoteSyncBanner();
+}
+
+function updateRemoteSyncBanner() {
+  const el = document.getElementById("remote-sync-banner");
+  if (!el) return;
+  const loggedIn =
+    typeof isLoggedIn === "function" ? isLoggedIn() : false;
+  if (!isRemoteDB() || !loggedIn) {
+    el.hidden = true;
+    return;
   }
-  if (xhr.status < 200 || xhr.status >= 300) {
-    if (xhr.status === 401 && typeof handleApiUnauthorized === "function")
-      handleApiUnauthorized();
-    throw new Error(body.error || "云端数据库请求失败");
+  if (remoteSyncStatus === "loading") {
+    el.hidden = false;
+    el.className = "remote-sync-banner remote-sync-banner-loading";
+    el.textContent = "正在同步云端数据，请稍候…";
+    return;
   }
-  return body;
-}
-
-function remoteQuery(sql, params) {
-  return remoteDBRequest({ action: "query", sql, params }).rows || [];
-}
-
-function remoteRun(sql, params) {
-  const meta = remoteDBRequest({ action: "run", sql, params }).meta || {};
-  remoteLastInsertId = meta.last_row_id || meta.lastRowId || remoteLastInsertId;
-  return { lastInsertId: remoteLastInsertId, meta };
-}
-
-function remoteExec(sql) {
-  if (/last_insert_rowid\s*\(/i.test(sql)) {
-    return [{ columns: ["id"], values: [[remoteLastInsertId]] }];
+  if (remoteSyncStatus === "error") {
+    el.hidden = false;
+    el.className = "remote-sync-banner remote-sync-banner-error";
+    el.textContent =
+      remoteSyncError || "数据同步失败，请刷新页面或重新登录";
+    return;
   }
-  return remoteDBRequest({ action: "exec", sql }).result || [];
+  el.hidden = true;
 }
 
-function remoteLogin(username, password) {
-  const result = remoteDBRequest({ action: "login", username, password });
-  setRemoteSessionToken(result.token);
-  return {
-    user: result.user,
-  };
+function isRemoteDataUnavailable() {
+  return (
+    isRemoteDB() &&
+    !remoteReadModelReady &&
+    !_remoteHydrating &&
+    remoteSyncStatus !== "loading"
+  );
+}
+
+function refreshAfterWrite() {
+  if (typeof renderAll !== "function") return;
+  const task = isRemoteDB()
+    ? renderAll({ forceSync: true })
+    : renderAll({ skipSync: true });
+  if (task && typeof task.catch === "function") {
+    task.catch(function (e) {
+      if (typeof showToast === "function") {
+        showToast("刷新失败：" + (e.message || "未知错误"));
+      }
+    });
+  }
+  return task;
 }
 
 async function remoteLoginAsync(username, password) {
@@ -122,17 +117,11 @@ async function remoteLoginAsync(username, password) {
     password,
   });
   setRemoteSessionToken(result.token);
-  return {
-    user: result.user,
-  };
+  return { user: result.user };
 }
 
 function remoteLogout() {
   setRemoteSessionToken("");
-}
-
-function remoteListLoginUsers() {
-  return remoteDBRequest({ action: "users" }).rows || [];
 }
 
 async function initSqlite() {
@@ -192,12 +181,20 @@ function ensureRemoteLocalSchema() {
 }
 
 function insertSnapshotRow(table, row) {
-  const columns = Object.keys(row || {});
+  const data = { ...(row || {}) };
+  // 读模型永不下发 password；占位以满足 NOT NULL | Read-model never ships password
+  if (
+    table === "users" &&
+    (data.password === undefined || data.password === null || data.password === "")
+  ) {
+    data.password = "remote_sync_placeholder";
+  }
+  const columns = Object.keys(data);
   if (!columns.length) return;
   const placeholders = columns.map(() => "?").join(", ");
   const sql = `INSERT INTO ${table} (${columns.join(", ")}) VALUES (${placeholders})`;
   const values = columns.map((col) => {
-    const value = row[col];
+    const value = data[col];
     return value === undefined ? null : value;
   });
   run(sql, values);
@@ -205,10 +202,16 @@ function insertSnapshotRow(table, row) {
 
 function applyRemoteSnapshot(payload) {
   if (!payload || !payload.tables) throw new Error("读模型数据无效");
-  ensureRemoteLocalSchema();
+  if (!SQL) throw new Error("SQLite 引擎未加载");
+  const prevDb = db;
+  const wasReady = remoteReadModelReady;
+  const nextDb = new SQL.Database();
+  db = nextDb;
+  remoteLocalSchemaReady = false;
   _remoteHydrating = true;
   try {
-    REMOTE_SNAPSHOT_DELETE_ORDER.forEach(function (table) {
+    initLocalSchemaAndMigrations();
+    REMOTE_SNAPSHOT_INSERT_ORDER.forEach(function (table) {
       if (!REMOTE_SNAPSHOT_TABLE_RE.test(table)) return;
       try {
         db.run(`DELETE FROM ${table}`);
@@ -229,6 +232,30 @@ function applyRemoteSnapshot(payload) {
     if (typeof lastBoardVersion !== "undefined") {
       lastBoardVersion = payload.version != null ? payload.version : null;
     }
+    if (payload.permissions && typeof setSessionPermissions === "function") {
+      setSessionPermissions(payload.permissions);
+      if (typeof applyPermissions === "function") applyPermissions();
+    }
+    setRemoteSyncStatus("ready");
+    if (prevDb && prevDb !== nextDb && typeof prevDb.close === "function") {
+      try {
+        prevDb.close();
+      } catch (e) {
+        /* ignore */
+      }
+    }
+  } catch (err) {
+    remoteReadModelReady = wasReady;
+    if (prevDb && prevDb !== nextDb) {
+      db = prevDb;
+      remoteLocalSchemaReady = true;
+      try {
+        nextDb.close();
+      } catch (e) {
+        /* ignore */
+      }
+    }
+    throw err;
   } finally {
     _remoteHydrating = false;
   }
@@ -240,6 +267,7 @@ function resetRemoteReadModelState() {
   remoteLocalSchemaReady = false;
   remoteSyncPromise = null;
   lastRemoteSyncAt = 0;
+  setRemoteSyncStatus("idle");
   if (db && typeof db.close === "function") {
     try {
       db.close();
@@ -263,9 +291,13 @@ async function syncRemoteReadModel(options) {
     return;
   }
   remoteSyncPromise = (async function () {
+    setRemoteSyncStatus("loading");
     try {
       const payload = await apiReadModel();
       applyRemoteSnapshot(payload);
+    } catch (err) {
+      setRemoteSyncStatus("error", err.message || "数据同步失败");
+      throw err;
     } finally {
       remoteSyncPromise = null;
     }
@@ -280,8 +312,8 @@ async function loadDB() {
     } catch (e) {
       if (!/已初始化|403/.test(String(e.message))) throw e;
     }
-    ensureRemoteLocalSchema();
     remoteReadModelReady = false;
+    setRemoteSyncStatus("idle");
     return;
   }
   let idb;
@@ -535,6 +567,11 @@ function initSchema() {
     );
     -- 仅当表为空时才插入初始版本号 | Only insert initial version if table is empty
     INSERT INTO schema_version (version) SELECT 14 WHERE NOT EXISTS (SELECT 1 FROM schema_version);
+    CREATE TABLE IF NOT EXISTS app_meta (
+      key TEXT PRIMARY KEY,
+      value TEXT NOT NULL
+    );
+    INSERT OR IGNORE INTO app_meta (key, value) VALUES ('board_version', '0');
   `);
 }
 

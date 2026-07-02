@@ -102,7 +102,7 @@ async function setHkAndRender(bedId, status) {
       await saveDB();
     }
     renderHousekeeping();
-    renderAll();
+    refreshAfterWrite();
   } catch (e) {
     console.error(e);
     alert("房务状态变更失败：" + e.message);

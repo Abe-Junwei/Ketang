@@ -262,7 +262,7 @@ async function batchCancelEventMembers() {
     return;
   }
   showToast(`已取消 ${selected.length} 人`);
-  renderAll();
+  refreshAfterWrite();
   if (eventId) renderEventMembers(eventId);
   else renderEventList();
 }
@@ -316,7 +316,7 @@ async function batchNoShowEventMembers() {
     return;
   }
   showToast(`已标记 ${resvOnly.length} 人为 No-show`);
-  renderAll();
+  refreshAfterWrite();
   if (eventId) renderEventMembers(eventId);
   else renderEventList();
 }
@@ -491,7 +491,7 @@ async function submitEvent(e) {
   closeEventModal();
   showToast("营期保存成功");
   renderEventList();
-  renderAll();
+  refreshAfterWrite();
 }
 
 async function deleteEvent(id) {
@@ -519,7 +519,7 @@ async function deleteEvent(id) {
     }
     showToast("营期已删除");
     renderEventList();
-    renderAll();
+    refreshAfterWrite();
   } catch (e) {
     console.error(e);
     alert("删除营期失败：" + e.message);

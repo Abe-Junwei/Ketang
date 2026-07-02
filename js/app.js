@@ -466,20 +466,33 @@ async function renderAll(options) {
     !(options && options.skipSync)
   ) {
     const forceSync = !!(options && options.forceSync);
-    if (forceSync || !remoteReadModelReady) {
-      await syncRemoteReadModel({ force: true });
-    } else {
-      try {
-        const result = await apiBoardVersion();
-        if (lastBoardVersion == null || result.version !== lastBoardVersion) {
-          await syncRemoteReadModel({ force: true });
-        }
-        lastBoardVersion = result.version;
-      } catch (e) {
+    try {
+      if (forceSync || !remoteReadModelReady) {
         await syncRemoteReadModel({ force: true });
+      } else {
+        try {
+          const result = await apiBoardVersion();
+          if (
+            lastBoardVersion == null ||
+            result.version !== lastBoardVersion
+          ) {
+            await syncRemoteReadModel({ force: true });
+          }
+          lastBoardVersion = result.version;
+        } catch (e) {
+          await syncRemoteReadModel({ force: true });
+          const result = await apiBoardVersion();
+          lastBoardVersion = result.version;
+        }
       }
+    } catch (e) {
+      if (typeof showToast === "function") {
+        showToast("数据同步失败：" + (e.message || "请刷新后重试"));
+      }
+      throw e;
     }
   }
+  updateRemoteSyncBanner();
   renderRooms();
   renderBoard();
   renderLodgers();
@@ -525,30 +538,48 @@ function checkBackupReminder() {
 
 let boardPollTimer = null;
 let lastBoardVersion = null;
+let boardPollVisibilityBound = false;
+
+async function pollRemoteBoardVersion() {
+  if (!isLoggedIn || (typeof isLoggedIn === "function" && !isLoggedIn()))
+    return;
+  try {
+    const result = await apiBoardVersion();
+    if (lastBoardVersion != null && result.version !== lastBoardVersion) {
+      await renderAll({ forceSync: true });
+    }
+    lastBoardVersion = result.version;
+  } catch (e) {
+    /* 轮询失败不推进版本号 | Do not bump version on poll failure */
+  }
+}
+
+function onVisibilityChangeRemoteSync() {
+  if (document.visibilityState !== "visible") return;
+  pollRemoteBoardVersion();
+}
 
 function startBoardPolling() {
   if (typeof useRemoteWriteApi !== "function" || !useRemoteWriteApi()) return;
   stopBoardPolling();
-  boardPollTimer = setInterval(async function () {
-    if (!document.getElementById("view-board")?.classList.contains("active"))
-      return;
-    if (!isLoggedIn || (typeof isLoggedIn === "function" && !isLoggedIn()))
-      return;
-    try {
-      const result = await apiBoardVersion();
-      if (lastBoardVersion != null && result.version !== lastBoardVersion)
-        await renderAll({ forceSync: true });
-      lastBoardVersion = result.version;
-    } catch (e) {
-      /* 轮询失败静默 | ignore poll errors */
-    }
-  }, 8000);
+  boardPollTimer = setInterval(pollRemoteBoardVersion, 8000);
+  if (!boardPollVisibilityBound) {
+    document.addEventListener("visibilitychange", onVisibilityChangeRemoteSync);
+    boardPollVisibilityBound = true;
+  }
 }
 
 function stopBoardPolling() {
   if (boardPollTimer) {
     clearInterval(boardPollTimer);
     boardPollTimer = null;
+  }
+  if (boardPollVisibilityBound) {
+    document.removeEventListener(
+      "visibilitychange",
+      onVisibilityChangeRemoteSync,
+    );
+    boardPollVisibilityBound = false;
   }
 }
 
@@ -851,6 +882,18 @@ function renderRooms() {
   const grid = document.getElementById("room-grid");
   if (!grid) return;
   closeRoomDetail();
+  if (
+    typeof isRemoteDataUnavailable === "function" &&
+    isRemoteDataUnavailable()
+  ) {
+    const msg =
+      remoteSyncStatus === "error"
+        ? remoteSyncError || "数据同步失败，请刷新后重试"
+        : "正在加载房态数据…";
+    grid.innerHTML =
+      '<p class="empty-tip">' + escapeHtml(msg) + "</p>";
+    return;
+  }
   const rooms = query("SELECT * FROM rooms ORDER BY floor ASC, id");
 
   let groups = {};

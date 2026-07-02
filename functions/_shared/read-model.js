@@ -3,7 +3,6 @@ import { getSessionPermissions } from "./permissions.js";
 
 /** 云端读模型表清单 | Tables included in client read-model snapshot */
 export const READ_MODEL_TABLES = [
-  "users",
   "rooms",
   "beds",
   "guests",
@@ -31,7 +30,7 @@ const READ_MODEL_SYNC_PERMISSIONS = [
 const ROLE_READ_TABLES = {
   admin: READ_MODEL_TABLES,
   zhike: READ_MODEL_TABLES.filter(
-    (name) => name !== "users" && name !== "audit_logs" && name !== "payments",
+    (name) => name !== "audit_logs" && name !== "payments",
   ),
   kitchen: ["rooms", "beds", "guests", "lodgers", "meals"],
   housekeeping: ["rooms", "beds", "lodgers", "housekeeping"],
@@ -103,13 +102,19 @@ export async function buildReadModel(env, session, options) {
   }
   const tables = tablesForRole(session.role);
   const data = {};
-  for (const table of tables) {
-    if (!TABLE_NAME_RE.test(table)) throw new Error("无效的表名");
-    const rows = await queryD1(env, `SELECT * FROM ${table}`, []);
-    data[table] = rows.map((row) =>
-      sanitizeRowForRole(table, row, session.role),
-    );
-  }
+  await Promise.all(
+    tables.map(async function (table) {
+      if (!TABLE_NAME_RE.test(table)) throw new Error("无效的表名");
+      const sql =
+        table === "audit_logs"
+          ? "SELECT * FROM audit_logs ORDER BY id DESC LIMIT 200"
+          : `SELECT * FROM ${table}`;
+      const rows = await queryD1(env, sql, []);
+      data[table] = rows.map((row) =>
+        sanitizeRowForRole(table, row, session.role),
+      );
+    }),
+  );
   const version = await getBoardVersion(env);
   return {
     version,

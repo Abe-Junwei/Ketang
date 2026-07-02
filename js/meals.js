@@ -959,7 +959,7 @@ async function submitMeals(lodgerId) {
     }
     closeModal();
     showToast("用斋设置已保存");
-    renderAll();
+    refreshAfterWrite();
   } catch (e) {
     console.error(e);
     alert("保存用斋设置失败：" + e.message);
