@@ -1,11 +1,11 @@
-import { requireSession } from "../../../_shared/auth.js";
+import { requireSession } from "../../../../_shared/auth.js";
 import {
   getBoardVersion,
   queryD1,
   safeErrorMessage,
-} from "../../../_shared/d1.js";
-import { buildEventDetailModule } from "../../../_shared/read-modules.js";
-import { createRequestTimer } from "../../../_shared/timing.js";
+} from "../../../../_shared/d1.js";
+import { buildEventDetailModule } from "../../../../_shared/read-modules.js";
+import { createRequestTimer } from "../../../../_shared/timing.js";
 
 /** GET /api/v1/read/event/:id — 单营期排房读模型 */
 export async function onRequestGet({ request, env, params }) {

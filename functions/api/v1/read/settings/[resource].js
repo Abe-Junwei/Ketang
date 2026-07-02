@@ -1,11 +1,11 @@
-import { requireSession } from "../../../_shared/auth.js";
+import { requireSession } from "../../../../_shared/auth.js";
 import {
   getBoardVersion,
   queryD1,
   safeErrorMessage,
-} from "../../../_shared/d1.js";
-import { buildReadModule } from "../../../_shared/read-modules.js";
-import { createRequestTimer } from "../../../_shared/timing.js";
+} from "../../../../_shared/d1.js";
+import { buildReadModule } from "../../../../_shared/read-modules.js";
+import { createRequestTimer } from "../../../../_shared/timing.js";
 
 /** GET /api/v1/read/settings/:resource — 信息管理子模块 */
 export async function onRequestGet({ request, env, params }) {
