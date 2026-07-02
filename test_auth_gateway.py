@@ -411,6 +411,21 @@ def test_batch_csv_class_name_binding():
         sys.exit(1)
 
 
+def test_dynamic_modals_use_shared_backdrop():
+    for path in ('js/events.js', 'js/auth.js'):
+        src = read(path)
+        if 'modal-overlay' in src:
+            print(f'FAIL {path} must use shared #modal backdrop, not undefined modal-overlay')
+            sys.exit(1)
+        if 'insertAdjacentHTML("beforeend"' in src and 'modal-overlay' in src:
+            print(f'FAIL {path} must not inject standalone modal overlays')
+            sys.exit(1)
+    app = read('js/app.js')
+    if 'function setModalWide' not in app:
+        print('FAIL app.js missing setModalWide helper for wide modals')
+        sys.exit(1)
+
+
 def test_export_script_reads_users_and_v15():
     script = read('scripts/export_ketang_db_to_json.py')
     if 'export_users' not in script or "SCHEMA_VERSION = 15" not in script:
@@ -452,6 +467,7 @@ TESTS = [
     test_login_waits_for_read_model,
     test_backup_permissions_on_frontend,
     test_batch_csv_class_name_binding,
+    test_dynamic_modals_use_shared_backdrop,
     test_export_script_reads_users_and_v15,
 ]
 

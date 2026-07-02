@@ -1339,6 +1339,12 @@ function setModalBody(html) {
   if (typeof upgradeSelects === "function") upgradeSelects(body);
 }
 
+/** 宽弹窗（排房建议等）| Toggle wide modal layout on shared #modal */
+function setModalWide(wide) {
+  const inner = document.querySelector("#modal > .modal");
+  if (inner) inner.classList.toggle("modal-wide", !!wide);
+}
+
 let _confirmResolver = null;
 
 function dismissConfirm(result) {
@@ -1393,5 +1399,6 @@ function closeModal() {
     return;
   }
   document.getElementById("modal").classList.remove("active");
+  setModalWide(false);
   if (typeof closeAllSelectPickers === "function") closeAllSelectPickers();
 }

@@ -3018,6 +3018,11 @@ form .field {
   gap: var(--space-4);
 }
 
+/* 奇数个字段时末项占满行，避免半行空白 | Full-width last field when odd count */
+.form-grid > .field:last-child:nth-child(odd) {
+  grid-column: 1 / -1;
+}
+
 /* ============================================================
        Bed Picker | 床位选择器（二级折叠菜单）
        ============================================================ */

@@ -595,14 +595,11 @@ function openUserModal(id) {
 }
 
 function mountUserModal(u, isEdit) {
-  const html = `
-    <div class="modal-overlay" id="user-modal" onclick="if(event.target===this)closeUserModal()">
-      <div class="modal">
-        <div class="modal-header">
-          <h3>${isEdit ? "编辑用户" : "新增用户"}</h3>
-          <button type="button" class="modal-close" onclick="closeUserModal()">×</button>
-        </div>
-        <div class="modal-body">
+  document.getElementById("modal-title").textContent = isEdit
+    ? "编辑用户"
+    : "新增用户";
+  setModalWide(false);
+  setModalBody(`
           <form id="user-form" onsubmit="submitUser(event)">
             <input type="hidden" id="user-id" value="${isEdit ? u.id : ""}">
             <div class="form-grid">
@@ -617,23 +614,15 @@ function mountUserModal(u, isEdit) {
             </div>
             <div class="btn-bar">
               <button type="submit" class="btn btn-primary">保存</button>
-              <button type="button" class="btn" onclick="closeUserModal()">取消</button>
+              <button type="button" class="btn" onclick="closeModal()">取消</button>
             </div>
           </form>
-        </div>
-      </div>
-    </div>
-  `;
-  document.body.insertAdjacentHTML("beforeend", html);
-  if (typeof upgradeSelects === "function") {
-    const modalEl = document.getElementById("user-modal");
-    if (modalEl) upgradeSelects(modalEl);
-  }
+  `);
+  document.getElementById("modal").classList.add("active");
 }
 
 function closeUserModal() {
-  const el = document.getElementById("user-modal");
-  if (el) el.remove();
+  closeModal();
 }
 
 async function submitUser(e) {

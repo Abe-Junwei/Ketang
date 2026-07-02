@@ -326,14 +326,11 @@ function openEventModal(id) {
   const isEdit = !!id;
   const e = isEdit ? query("SELECT * FROM events WHERE id = ?", [id])[0] : null;
 
-  const html = `
-    <div class="modal-overlay" id="event-modal" onclick="if(event.target===this)closeEventModal()">
-      <div class="modal">
-        <div class="modal-header">
-          <h3>${isEdit ? "编辑营期" : "新增营期"}</h3>
-          <button type="button" class="modal-close" onclick="closeEventModal()">×</button>
-        </div>
-        <div class="modal-body">
+  document.getElementById("modal-title").textContent = isEdit
+    ? "编辑营期"
+    : "新增营期";
+  setModalWide(false);
+  setModalBody(`
           <form id="event-form" onsubmit="submitEvent(event)">
             <input type="hidden" id="event-id" value="${isEdit ? e.id : ""}">
             <div class="form-grid">
@@ -344,30 +341,19 @@ function openEventModal(id) {
               ${infoField("开始日期", `<input type="date" id="event-start" value="${isEdit ? infoEscape(e.start_date) : ""}">`, "event-start")}
               ${infoField("结束日期", `<input type="date" id="event-end" value="${isEdit ? infoEscape(e.end_date) : ""}">`, "event-end")}
               ${infoField("状态", infoSelectHtml("event-status", EVENT_STATUS_OPTIONS, isEdit ? e.status : "筹备中"), "event-status")}
-            </div>
-            <div class="field">
-              <label>备注</label>
-              <textarea id="event-notes" rows="2">${isEdit ? infoEscape(e.notes) : ""}</textarea>
+              ${infoField("备注", `<textarea id="event-notes" rows="2">${isEdit ? infoEscape(e.notes) : ""}</textarea>`, "event-notes")}
             </div>
             <div class="btn-bar">
               <button type="submit" class="btn btn-primary">保存</button>
-              <button type="button" class="btn" onclick="closeEventModal()">取消</button>
+              <button type="button" class="btn" onclick="closeModal()">取消</button>
             </div>
           </form>
-        </div>
-      </div>
-    </div>
-  `;
-  document.body.insertAdjacentHTML("beforeend", html);
-  if (typeof upgradeSelects === "function") {
-    const modalEl = document.getElementById("event-modal");
-    if (modalEl) upgradeSelects(modalEl);
-  }
+  `);
+  document.getElementById("modal").classList.add("active");
 }
 
 function closeEventModal() {
-  const el = document.getElementById("event-modal");
-  if (el) el.remove();
+  closeModal();
 }
 
 async function submitEvent(e) {
@@ -563,14 +549,11 @@ function openRoomingSuggestion(eventId) {
 
   const suggestion = generateRoomingSuggestion(eventId);
 
-  let html = `
-    <div class="modal-overlay" id="rooming-modal" onclick="if(event.target===this)closeRoomingModal()">
-      <div class="modal modal-wide">
-        <div class="modal-header">
-          <h3>排房建议 · ${infoEscape(evt.name)}</h3>
-          <button type="button" class="modal-close" onclick="closeRoomingModal()">×</button>
-        </div>
-        <div class="modal-body">
+  document.getElementById("modal-title").textContent =
+    "排房建议 · " + evt.name;
+  setModalWide(true);
+
+  let bodyHtml = `
           <div class="rooming-summary">
             <div class="rooming-summary-item">
               <span class="rooming-summary-label">营期类型</span>
@@ -593,54 +576,47 @@ function openRoomingSuggestion(eventId) {
 
   // 男众方案
   if (suggestion.malePlan.length > 0) {
-    html += `<h4 class="rooming-section-title">男众分配方案（${suggestion.registeredMale + (suggestion.maleGap > 0 ? suggestion.maleGap : 0)} 人）</h4>`;
-    html += renderRoomingPlanTable(suggestion.malePlan, suggestion.maleGap);
+    bodyHtml += `<h4 class="rooming-section-title">男众分配方案（${suggestion.registeredMale + (suggestion.maleGap > 0 ? suggestion.maleGap : 0)} 人）</h4>`;
+    bodyHtml += renderRoomingPlanTable(suggestion.malePlan, suggestion.maleGap);
   }
 
   // 女众方案
   if (suggestion.femalePlan.length > 0) {
-    html += `<h4 class="rooming-section-title">女众分配方案（${suggestion.registeredFemale + (suggestion.femaleGap > 0 ? suggestion.femaleGap : 0)} 人）</h4>`;
-    html += renderRoomingPlanTable(suggestion.femalePlan, suggestion.femaleGap);
+    bodyHtml += `<h4 class="rooming-section-title">女众分配方案（${suggestion.registeredFemale + (suggestion.femaleGap > 0 ? suggestion.femaleGap : 0)} 人）</h4>`;
+    bodyHtml += renderRoomingPlanTable(suggestion.femalePlan, suggestion.femaleGap);
   }
 
   // 调剂建议
   if (suggestion.flexRecommendations.length > 0) {
-    html += `<h4 class="rooming-section-title">房间调剂建议</h4>`;
-    html += `<div class="rooming-flex-list">`;
+    bodyHtml += `<h4 class="rooming-section-title">房间调剂建议</h4>`;
+    bodyHtml += `<div class="rooming-flex-list">`;
     suggestion.flexRecommendations.forEach((r) => {
-      html += `<div class="rooming-flex-item">
+      bodyHtml += `<div class="rooming-flex-item">
         <strong>${infoEscape(r.room.name)}</strong>（${infoEscape(r.room.location || "")}）
         <span class="room-tag" style="background:${r.toGender === "男众" ? "#e3f2fd;color:#1565c0" : "#fce4ec;color:#c2185b"}">改为${infoEscape(r.toGender)}</span>
         可提供 ${r.beds} 床
       </div>`;
     });
-    html += `</div>`;
+    bodyHtml += `</div>`;
   }
 
   if (suggestion.malePlan.length === 0 && suggestion.femalePlan.length === 0) {
-    html += `<p class="empty-tip">暂无排房需求。</p>`;
+    bodyHtml += `<p class="empty-tip">暂无排房需求。</p>`;
   }
 
-  html += `
+  bodyHtml += `
           <div class="btn-bar" style="margin-top: var(--space-4);">
             <button class="btn btn-default" onclick="exportRoomingSuggestionCSV(${eventId})">导出 CSV</button>
-            <button class="btn" onclick="closeRoomingModal()">关闭</button>
+            <button class="btn" onclick="closeModal()">关闭</button>
           </div>
-        </div>
-      </div>
-    </div>
   `;
 
-  document.body.insertAdjacentHTML("beforeend", html);
-  if (typeof upgradeSelects === "function") {
-    const modalEl = document.getElementById("rooming-modal");
-    if (modalEl) upgradeSelects(modalEl);
-  }
+  setModalBody(bodyHtml);
+  document.getElementById("modal").classList.add("active");
 }
 
 function closeRoomingModal() {
-  const el = document.getElementById("rooming-modal");
-  if (el) el.remove();
+  closeModal();
 }
 
 function generateRoomingSuggestion(eventId) {
