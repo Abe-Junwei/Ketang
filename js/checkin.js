@@ -324,30 +324,31 @@ function openAssignBedModal(bedId) {
   document.getElementById("modal").classList.add("active");
 }
 
-async function assignExistingLodgerToBed(lodgerId, bedId) {
+async function assignExistingLodgerToBed(lodgerId, bedId, opts) {
+  const quiet = opts && opts.quiet;
   const l = query("SELECT * FROM lodgers WHERE id=? AND status='在住'", [
     lodgerId,
   ])[0];
   if (!l) {
     alert("挂单不存在或已不在住");
-    return;
+    return false;
   }
   if (l.bed_id) {
     alert("该挂单已有床位");
-    return;
+    return false;
   }
   const bed = query(
     "SELECT b.*, r.dorm_type FROM beds b JOIN rooms r ON r.id=b.room_id WHERE b.id=?",
     [bedId],
   )[0];
-  if (!bed) return;
+  if (!bed) return false;
   if (!dormMatchGender(bed.dorm_type, l.gender)) {
     alert("该床位所在房间寮类型不符");
-    return;
+    return false;
   }
   if (!isBedAssignable(bedId)) {
     alert("该床位当前不可分配");
-    return;
+    return false;
   }
   try {
     if (useRemoteWriteApi()) {
@@ -369,39 +370,44 @@ async function assignExistingLodgerToBed(lodgerId, bedId) {
       });
       await saveDB();
     }
-    closeModal();
-    showToast("已分配床位");
+    if (!quiet) {
+      closeModal();
+      showToast("已分配床位");
+    }
     refreshAfterWrite();
+    return true;
   } catch (e) {
     console.error(e);
     alert("分配床位失败：" + e.message);
+    return false;
   }
 }
 
-async function assignReservationToBed(resvId, bedId) {
+async function assignReservationToBed(resvId, bedId, opts) {
+  const quiet = opts && opts.quiet;
   const r = query("SELECT * FROM reservations WHERE id=?", [resvId])[0];
   if (!r || (r.status !== "预约" && r.status !== "已确认")) {
     alert("该预约当前不可分配床位");
-    return;
+    return false;
   }
   const bed = query(
     "SELECT b.*, r.dorm_type FROM beds b JOIN rooms r ON r.id=b.room_id WHERE b.id=?",
     [bedId],
   )[0];
-  if (!bed) return;
+  if (!bed) return false;
   if (!dormMatchGender(bed.dorm_type, r.gender)) {
     alert("该床位所在房间寮类型不符");
-    return;
+    return false;
   }
   if (!isBedAssignable(bedId)) {
     alert("该床位当前不可分配");
-    return;
+    return false;
   }
   const checkIn = r.expected_check_in || todayStr();
   const checkOut = r.expected_check_out || null;
   if (checkOut && checkOut < checkIn) {
     alert("预约离院日期不能早于入住日期");
-    return;
+    return false;
   }
   try {
     if (useRemoteWriteApi()) {
@@ -469,12 +475,16 @@ async function assignReservationToBed(resvId, bedId) {
       });
       await saveDB();
     }
-    closeModal();
-    showToast("已分配床位");
+    if (!quiet) {
+      closeModal();
+      showToast("已分配床位");
+    }
     refreshAfterWrite();
+    return true;
   } catch (e) {
     console.error(e);
     alert("分配床位失败：" + e.message);
+    return false;
   }
 }
 

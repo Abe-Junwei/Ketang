@@ -5424,6 +5424,30 @@ form .field {
   margin-right: var(--space-1);
 }
 
+.rooming-published-badge {
+  display: inline-block;
+  margin-left: var(--space-2);
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-xs);
+  font-size: var(--font-size-xs);
+  background: color-mix(in srgb, var(--color-success) 20%, transparent);
+  color: var(--color-success);
+}
+
+.rooming-queue-shell {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.rooming-queue-actions {
+  white-space: nowrap;
+}
+
+.rooming-queue-actions .btn {
+  margin-right: var(--space-1);
+}
+
 /* Phase 9.2 看板容量预测 | Board capacity forecast */
 .board-capacity {
   margin-top: var(--space-4);

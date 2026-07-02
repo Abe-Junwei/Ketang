@@ -40,6 +40,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       migrateV15toV16();
       migrateV16toV17();
       migrateV17toV18();
+      migrateV18toV19();
       createIndexes();
       await seedRooms();
       if (typeof finishLocalAuth === "function") finishLocalAuth();

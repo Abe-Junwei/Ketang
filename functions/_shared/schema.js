@@ -166,6 +166,7 @@ CREATE TABLE IF NOT EXISTS rooming_plans (
   name TEXT,
   status TEXT DEFAULT '未确认' CHECK(status IN ('未确认','待调整','已确认')),
   notes TEXT,
+  published_at TEXT,
   created_at TEXT DEFAULT CURRENT_TIMESTAMP,
   updated_at TEXT DEFAULT CURRENT_TIMESTAMP
 );
@@ -181,6 +182,25 @@ CREATE TABLE IF NOT EXISTS rooming_assignments (
   special_needs TEXT,
   bed_id INTEGER REFERENCES beds(id),
   item_status TEXT DEFAULT '未确认' CHECK(item_status IN ('未确认','待调整','已确认')),
+  notes TEXT,
+  sort_order INTEGER DEFAULT 0,
+  created_at TEXT DEFAULT CURRENT_TIMESTAMP
+);
+CREATE TABLE IF NOT EXISTS rooming_checkin_queue (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  plan_id INTEGER NOT NULL REFERENCES rooming_plans(id) ON DELETE CASCADE,
+  assignment_id INTEGER REFERENCES rooming_assignments(id) ON DELETE SET NULL,
+  event_id INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+  member_kind TEXT NOT NULL CHECK(member_kind IN ('lodger','reservation')),
+  member_ref_id INTEGER,
+  member_name TEXT NOT NULL,
+  member_gender TEXT,
+  participant_identity TEXT,
+  age_group TEXT,
+  special_needs TEXT,
+  suggested_bed_id INTEGER REFERENCES beds(id),
+  queue_status TEXT DEFAULT '待办理' CHECK(queue_status IN ('待办理','已办理','已跳过')),
+  processed_at TEXT,
   notes TEXT,
   sort_order INTEGER DEFAULT 0,
   created_at TEXT DEFAULT CURRENT_TIMESTAMP
@@ -202,7 +222,7 @@ CREATE TABLE IF NOT EXISTS audit_logs (
   created_at TEXT DEFAULT CURRENT_TIMESTAMP
 );
 CREATE TABLE IF NOT EXISTS schema_version (version INTEGER PRIMARY KEY);
-INSERT INTO schema_version (version) SELECT 18 WHERE NOT EXISTS (SELECT 1 FROM schema_version);
+INSERT INTO schema_version (version) SELECT 19 WHERE NOT EXISTS (SELECT 1 FROM schema_version);
 CREATE TABLE IF NOT EXISTS app_meta (
   key TEXT PRIMARY KEY,
   value TEXT NOT NULL
@@ -219,6 +239,8 @@ CREATE INDEX IF NOT EXISTS idx_lodgers_guest_id ON lodgers(guest_id);
 CREATE INDEX IF NOT EXISTS idx_lodgers_event_id ON lodgers(event_id);
 CREATE INDEX IF NOT EXISTS idx_rooming_plans_event ON rooming_plans(event_id);
 CREATE INDEX IF NOT EXISTS idx_rooming_assignments_plan ON rooming_assignments(plan_id);
+CREATE INDEX IF NOT EXISTS idx_rooming_checkin_queue_event ON rooming_checkin_queue(event_id);
+CREATE INDEX IF NOT EXISTS idx_rooming_checkin_queue_plan ON rooming_checkin_queue(plan_id);
 CREATE INDEX IF NOT EXISTS idx_lodgers_bed_id ON lodgers(bed_id);
 CREATE INDEX IF NOT EXISTS idx_lodgers_status ON lodgers(status);
 CREATE INDEX IF NOT EXISTS idx_lodgers_dates ON lodgers(check_in_date, expected_check_out, actual_check_out);

@@ -6,8 +6,11 @@ import {
   safeErrorMessage,
 } from "../../../_shared/d1.js";
 import { handleRoomingPlanAction } from "../../../_shared/rooming-plans.js";
+import { handleRoomingPublishAction } from "../../../_shared/rooming-publish.js";
 
-/** POST /api/v1/admin/rooming-plans — 预分房草稿 | Rooming plan draft */
+const PUBLISH_ACTIONS = new Set(["publish", "republish", "queue", "update_queue"]);
+
+/** POST /api/v1/admin/rooming-plans — 预分房草稿与发布 | Rooming plan draft & publish */
 export async function onRequestPost({ request, env }) {
   if (!env.KETANG_DB) return json({ error: "缺少 D1 绑定 KETANG_DB" }, 500);
   try {
@@ -17,6 +20,9 @@ export async function onRequestPost({ request, env }) {
     await ensureDatabaseForAuth(env);
     const body = await readJson(request);
     if (!body) return json({ error: "请求格式错误" }, 400);
+    if (PUBLISH_ACTIONS.has(body.action)) {
+      return json(await handleRoomingPublishAction(env, session, body));
+    }
     return json(await handleRoomingPlanAction(env, session, body));
   } catch (error) {
     return json({ error: safeErrorMessage(error) }, apiErrorStatus(error));

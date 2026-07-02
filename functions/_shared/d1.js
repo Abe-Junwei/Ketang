@@ -321,8 +321,38 @@ CREATE INDEX IF NOT EXISTS idx_rooming_plans_event ON rooming_plans(event_id);
 CREATE INDEX IF NOT EXISTS idx_rooming_assignments_plan ON rooming_assignments(plan_id);
 `;
 
+const ROOMING_PUBLISH_SCHEMA_SQL = `
+CREATE TABLE IF NOT EXISTS rooming_checkin_queue (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  plan_id INTEGER NOT NULL REFERENCES rooming_plans(id) ON DELETE CASCADE,
+  assignment_id INTEGER REFERENCES rooming_assignments(id) ON DELETE SET NULL,
+  event_id INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+  member_kind TEXT NOT NULL CHECK(member_kind IN ('lodger','reservation')),
+  member_ref_id INTEGER,
+  member_name TEXT NOT NULL,
+  member_gender TEXT,
+  participant_identity TEXT,
+  age_group TEXT,
+  special_needs TEXT,
+  suggested_bed_id INTEGER REFERENCES beds(id),
+  queue_status TEXT DEFAULT '待办理' CHECK(queue_status IN ('待办理','已办理','已跳过')),
+  processed_at TEXT,
+  notes TEXT,
+  sort_order INTEGER DEFAULT 0,
+  created_at TEXT DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_rooming_checkin_queue_event ON rooming_checkin_queue(event_id);
+CREATE INDEX IF NOT EXISTS idx_rooming_checkin_queue_plan ON rooming_checkin_queue(plan_id);
+`;
+
+async function ensureRoomingPublishSchema(env) {
+  await addRemoteColumnIfMissing(env, "rooming_plans", "published_at", "TEXT");
+  await runD1(env, ROOMING_PUBLISH_SCHEMA_SQL, []);
+}
+
 async function ensureRoomingPlanTables(env) {
   await runD1(env, ROOMING_PLAN_TABLES_SQL, []);
+  await ensureRoomingPublishSchema(env);
 }
 
 async function ensureEventColumns(env) {

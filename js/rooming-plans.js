@@ -569,10 +569,24 @@ async function renderRoomingPlan(eventId, options) {
     plan ? plan.id : 0,
     checkAssignments,
   );
+  var isPublished = !!(plan && plan.published_at);
+  var canPublish =
+    canEdit &&
+    plan &&
+    plan.status === "已确认" &&
+    !isPublished &&
+    conflictReport.error_count === 0;
+
+  var canRepublish =
+    canEdit &&
+    isPublished &&
+    plan &&
+    plan.status === "已确认" &&
+    conflictReport.error_count === 0;
 
   var toolbar =
     '<button class="btn btn-default" onclick="renderInfo(\'events\')">← 返回营期</button>' +
-    (canEdit
+    (canEdit && !isPublished
       ? ' <button class="btn btn-primary" onclick="handleGenerateRoomingPlan(' +
         eventId +
         ')">自动生成</button>' +
@@ -582,10 +596,31 @@ async function renderRoomingPlan(eventId, options) {
         ' <button class="btn btn-success" onclick="handleSaveRoomingPlan(' +
         eventId +
         ')">保存草稿</button>'
+      : "") +
+    (canPublish
+      ? ' <button class="btn btn-warning" onclick="handlePublishRoomingPlan(' +
+        eventId +
+        ')">发布待入住清单</button>'
+      : "") +
+    (canRepublish
+      ? ' <button class="btn btn-warning" onclick="handleRepublishRoomingPlan(' +
+        eventId +
+        ')">重新发布清单</button>'
+      : "") +
+    (isPublished
+      ? ' <button class="btn btn-primary" onclick="renderRoomingCheckinQueue(' +
+        eventId +
+        ')">待入住清单</button>' +
+        ' <button class="btn btn-default" onclick="exportRoomingCheckinListCSV(' +
+        eventId +
+        ')">签到表 CSV</button>' +
+        ' <button class="btn btn-default" onclick="exportRoomingRoomTableCSV(' +
+        eventId +
+        ')">房间表 CSV</button>'
       : "");
 
   var statusSelect = "";
-  if (canEdit) {
+  if (canEdit && !isPublished) {
     statusSelect = '<select id="rooming-plan-status" class="rooming-plan-status-select">';
     ROOMING_PLAN_STATUSES.forEach(function (st) {
       statusSelect +=
@@ -600,6 +635,9 @@ async function renderRoomingPlan(eventId, options) {
     statusSelect += "</select>";
   } else {
     statusSelect = infoEscape((plan && plan.status) || "未确认");
+    if (isPublished) {
+      statusSelect += ' <span class="rooming-published-badge">已发布</span>';
+    }
   }
 
   var bodyHtml =
@@ -607,7 +645,7 @@ async function renderRoomingPlan(eventId, options) {
     '<h3 class="rooming-plan-title">' +
     infoEscape(evt.name) +
     " · 预分房草稿</h3>" +
-    '<p class="rooming-plan-hint">草稿仅用于排房规划，不会改动真实挂单或床位占用（发布功能见后续版本）。</p>' +
+    '<p class="rooming-plan-hint">草稿仅用于排房规划，不会改动真实挂单或床位占用；确认后可发布待入住清单供知客师逐条办理。</p>' +
     '<div class="rooming-summary">' +
     '<div class="rooming-summary-item"><span class="rooming-summary-label">方案状态</span><span class="rooming-summary-value">' +
     statusSelect +
@@ -629,7 +667,7 @@ async function renderRoomingPlan(eventId, options) {
     "</span></div>" +
     "</div>" +
     renderRoomingConflictsPanel(conflictReport) +
-    (canEdit
+    (canEdit && !isPublished
       ? '<div class="form-group"><label>调整说明</label><textarea id="rooming-plan-notes" rows="2" placeholder="排房调整说明、待办…">' +
         infoEscape(noteParts.adjust) +
         "</textarea></div>" +
@@ -643,7 +681,7 @@ async function renderRoomingPlan(eventId, options) {
       : plan && plan.notes
         ? '<p class="rooming-plan-notes">备注：' + infoEscape(plan.notes) + "</p>"
         : "") +
-    renderRoomingDraftTable(evt, assignments, canEdit) +
+    renderRoomingDraftTable(evt, assignments, canEdit && !isPublished) +
     "</div>";
 
   infoPageShell(toolbar, bodyHtml);

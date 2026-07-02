@@ -10,6 +10,7 @@ export const READ_MODEL_TABLES = [
   "events",
   "rooming_plans",
   "rooming_assignments",
+  "rooming_checkin_queue",
   "lodgers",
   "reservations",
   "meals",
@@ -38,6 +39,7 @@ const PERMISSION_TABLE_INCLUDES = {
     "events",
     "rooming_plans",
     "rooming_assignments",
+    "rooming_checkin_queue",
     "lodgers",
     "payments",
     "app_meta",
@@ -45,7 +47,7 @@ const PERMISSION_TABLE_INCLUDES = {
   "reservation.read": ["reservations"],
   "meals.read": ["meals", "rooms", "beds", "guests", "lodgers"],
   "housekeeping.read": ["housekeeping", "rooms", "beds", "lodgers"],
-  "settings.read": ["schema_version", "app_meta", "rooming_plans", "rooming_assignments"],
+  "settings.read": ["schema_version", "app_meta", "rooming_plans", "rooming_assignments", "rooming_checkin_queue"],
 };
 
 /** 各角色可读表（脱敏/测试回退）| Role fallback for row sanitization */
