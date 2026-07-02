@@ -6,7 +6,6 @@ import {
 } from "../_shared/http.js";
 import {
   verifyPassword,
-  signAccessToken,
   requireSession,
   checkLoginRateLimit,
   recordLoginFailure,
@@ -23,7 +22,6 @@ import {
   safeErrorMessage,
 } from "../_shared/d1.js";
 import { changeUserPassword } from "../_shared/users.js";
-import { getSessionPermissions } from "../_shared/permissions.js";
 import { createRequestTimer } from "../_shared/timing.js";
 import { buildDualAuthSuccess } from "../_shared/auth-response.js";
 
@@ -208,27 +206,12 @@ export async function onRequestPost({ request, env }) {
         payload.old_password,
         payload.new_password,
       );
-      const token = await signAccessToken(env, result.user);
-      const refreshed = {
-        role: result.user.role,
-        id: result.user.id,
-        sub: result.user.id,
-        is_advanced: !!result.user.is_advanced,
+      const meta = {
+        ip: clientIp(request),
+        userAgent: request.headers.get("user-agent") || "",
       };
-      const permissions = await getSessionPermissions(env, refreshed);
-      return json({
+      return await buildDualAuthSuccess(env, request, result.user, meta, {
         ok: true,
-        access_token: token,
-        token,
-        user: {
-          id: result.user.id,
-          username: result.user.username,
-          display_name: result.user.display_name,
-          role: result.user.role,
-          is_advanced: !!result.user.is_advanced,
-          auth_version: result.user.auth_version || 1,
-        },
-        permissions,
       });
     }
 

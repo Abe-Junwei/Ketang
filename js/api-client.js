@@ -28,6 +28,12 @@ async function parseJsonResponse(response) {
 
 async function tryRefreshAccessToken() {
   if (typeof isRemoteDB !== "function" || !isRemoteDB()) return false;
+  if (
+    typeof isRemoteRefreshBlocked === "function" &&
+    isRemoteRefreshBlocked()
+  ) {
+    return false;
+  }
   if (_refreshInFlight) return _refreshInFlight;
   _refreshInFlight = (async function () {
     try {
@@ -152,6 +158,12 @@ async function apiAuthLogin(body) {
 }
 
 async function apiAuthRefreshForRestore() {
+  if (
+    typeof isRemoteRefreshBlocked === "function" &&
+    isRemoteRefreshBlocked()
+  ) {
+    throw new Error("登录已过期，请重新登录");
+  }
   const response = await fetch("/api/v1/auth/refresh", {
     method: "POST",
     credentials: "include",
@@ -163,12 +175,13 @@ async function apiAuthRefreshForRestore() {
 
 async function apiAuthLogout() {
   try {
-    await fetch("/api/v1/auth/logout", {
+    const response = await fetch("/api/v1/auth/logout", {
       method: "POST",
       credentials: "include",
     });
+    return response.ok;
   } catch (e) {
-    /* ignore network errors on logout */
+    return false;
   }
 }
 

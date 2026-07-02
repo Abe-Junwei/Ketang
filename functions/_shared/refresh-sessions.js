@@ -106,6 +106,13 @@ export async function revokeAllRefreshSessionsForUser(env, userId) {
 
 export async function consumeRefreshToken(env, rawToken, meta) {
   await ensureRefreshSessionsTable(env);
+  if (Math.random() < 0.02) {
+    await runD1(
+      env,
+      "DELETE FROM refresh_sessions WHERE revoked = 1 OR expires_at < datetime('now')",
+      [],
+    );
+  }
   if (!rawToken) return null;
   const tokenHash = await hashRefreshToken(env, rawToken);
   const rows = await queryD1(
@@ -130,11 +137,13 @@ export async function consumeRefreshToken(env, rawToken, meta) {
     await revokeAllRefreshSessionsForUser(env, row.user_id);
     return null;
   }
-  await runD1(
+  const nowIso = new Date().toISOString();
+  const revokeMeta = await runD1(
     env,
-    "UPDATE refresh_sessions SET revoked = 1, last_used_at = ? WHERE id = ?",
-    [new Date().toISOString(), row.id],
+    "UPDATE refresh_sessions SET revoked = 1, last_used_at = ? WHERE id = ? AND revoked = 0",
+    [nowIso, row.id],
   );
+  if (!revokeMeta.changes) return null;
   const user = {
     id: row.user_id,
     username: row.username,

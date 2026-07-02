@@ -15,6 +15,7 @@ function applySessionRefresh(result) {
   var access = result.access_token || result.token;
   if (access && typeof setRemoteSessionToken === "function")
     setRemoteSessionToken(access);
+  if (typeof setRemoteRefreshBlocked === "function") setRemoteRefreshBlocked(false);
   if (result.user) {
     currentUser = result.user;
     if (result.permissions) setSessionPermissions(result.permissions);
@@ -90,6 +91,9 @@ function restoreCachedUserFromStorage(isRemote) {
 
 function initAuth() {
   const isRemote = typeof isRemoteDB === "function" && isRemoteDB();
+  if (isRemote && typeof purgeLegacyRemoteSessionToken === "function") {
+    purgeLegacyRemoteSessionToken();
+  }
   restoreCachedUserFromStorage(isRemote);
   if (!isRemote && currentUser && typeof query === "function") {
     try {
@@ -169,6 +173,14 @@ function clearAuthSession() {
 async function restoreRemoteSession() {
   if (typeof isRemoteDB !== "function" || !isRemoteDB()) {
     return !!currentUser;
+  }
+
+  if (
+    typeof isRemoteRefreshBlocked === "function" &&
+    isRemoteRefreshBlocked()
+  ) {
+    clearAuthSession();
+    return false;
   }
 
   if (getRemoteSessionToken()) {
@@ -341,15 +353,17 @@ async function loginByRole(role, password) {
   return false;
 }
 
-function logout() {
+async function logout() {
   closeProfileMenu();
   if (currentUser) {
     logAudit("用户登出", "user", currentUser.id, {
       username: currentUser.username,
     });
   }
-  if (typeof isRemoteDB === "function" && isRemoteDB() && typeof apiAuthLogout === "function") {
-    apiAuthLogout();
+  if (typeof isRemoteDB === "function" && isRemoteDB()) {
+    if (typeof setRemoteRefreshBlocked === "function")
+      setRemoteRefreshBlocked(true);
+    if (typeof apiAuthLogout === "function") await apiAuthLogout();
   }
   clearAuthSession();
   if (typeof remoteLogout === "function") remoteLogout();

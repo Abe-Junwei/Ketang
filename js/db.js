@@ -4,6 +4,7 @@ const STORE_NAME = "db";
 const KEY = "main";
 const REMOTE_SESSION_KEY = "ketang_remote_session_token";
 const ACCESS_TOKEN_KEY = "ketang_access_token";
+const REFRESH_BLOCK_KEY = "ketang_block_refresh";
 const REMOTE_DB_ENABLED = (() => {
   if (typeof window === "undefined" || !window.location) return false;
   if (window.KETANG_FORCE_LOCAL_DB === true) return false;
@@ -46,14 +47,20 @@ function isRemoteDB() {
   return REMOTE_DB_ENABLED;
 }
 
+function purgeLegacyRemoteSessionToken() {
+  try {
+    localStorage.removeItem(REMOTE_SESSION_KEY);
+  } catch (e) {
+    /* ignore */
+  }
+}
+
 function getRemoteSessionToken() {
   try {
-    var access = sessionStorage.getItem(ACCESS_TOKEN_KEY);
-    if (access) return access;
+    return sessionStorage.getItem(ACCESS_TOKEN_KEY) || "";
   } catch (e) {
-    /* sessionStorage unavailable */
+    return "";
   }
-  return localStorage.getItem(REMOTE_SESSION_KEY) || "";
 }
 
 function setRemoteSessionToken(token) {
@@ -63,8 +70,24 @@ function setRemoteSessionToken(token) {
   } catch (e) {
     /* ignore */
   }
-  if (token) localStorage.removeItem(REMOTE_SESSION_KEY);
-  else localStorage.removeItem(REMOTE_SESSION_KEY);
+  purgeLegacyRemoteSessionToken();
+}
+
+function isRemoteRefreshBlocked() {
+  try {
+    return sessionStorage.getItem(REFRESH_BLOCK_KEY) === "1";
+  } catch (e) {
+    return false;
+  }
+}
+
+function setRemoteRefreshBlocked(blocked) {
+  try {
+    if (blocked) sessionStorage.setItem(REFRESH_BLOCK_KEY, "1");
+    else sessionStorage.removeItem(REFRESH_BLOCK_KEY);
+  } catch (e) {
+    /* ignore */
+  }
 }
 
 function clearRemoteAccessToken() {

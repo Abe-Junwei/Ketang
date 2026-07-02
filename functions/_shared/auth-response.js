@@ -19,7 +19,7 @@ export function sessionUserPayload(user) {
 }
 
 /** 登录成功：短 access + HttpOnly refresh Cookie | Dual-token login response */
-export async function buildDualAuthSuccess(env, request, freshUser, meta) {
+export async function buildDualAuthSuccess(env, request, freshUser, meta, extraBody) {
   const sessionShape = {
     role: freshUser.role,
     id: freshUser.id,
@@ -35,6 +35,7 @@ export async function buildDualAuthSuccess(env, request, freshUser, meta) {
     expires_in: ACCESS_TTL_SEC,
     user: sessionUserPayload(freshUser),
     permissions,
+    ...(extraBody || {}),
   };
   return jsonWithCookies(body, 200, [
     refreshCookieHeader(refresh.token, REFRESH_TTL_SEC),

@@ -169,8 +169,11 @@ def test_users_list_and_is_advanced():
     if 'is_advanced, auth_version FROM users WHERE id = ? LIMIT 1' not in users_shared:
         print('FAIL users.js must select is_advanced when returning updated user')
         sys.exit(1)
-    if 'is_advanced: !!result.user.is_advanced' not in db_api:
-        print('FAIL db.js change_password must preserve is_advanced in session refresh')
+    if 'is_advanced: !!user.is_advanced' not in read('functions/_shared/auth-response.js'):
+        print('FAIL auth-response.js must preserve is_advanced in session user payload')
+        sys.exit(1)
+    if 'buildDualAuthSuccess(env, request, result.user, meta' not in db_api:
+        print('FAIL db.js change_password must issue dual-token session via buildDualAuthSuccess')
         sys.exit(1)
     if 'is_advanced: fresh.is_advanced ? 1 : 0' not in auth:
         print('FAIL auth.js local login must set currentUser.is_advanced')
@@ -229,6 +232,9 @@ def test_remote_session_persistence():
     if 'refresh_sessions' not in refresh_sessions or 'consumeRefreshToken' not in refresh_sessions:
         print('FAIL refresh-sessions.js missing refresh_sessions table helpers')
         sys.exit(1)
+    if 'revoked = 0' not in refresh_sessions or 'revokeMeta.changes' not in refresh_sessions:
+        print('FAIL refresh-sessions.js must atomically revoke refresh token on rotation')
+        sys.exit(1)
     if 'buildDualAuthSuccess' not in auth_response or 'buildRefreshSuccess' not in auth_response:
         print('FAIL auth-response.js missing dual-token response builders')
         sys.exit(1)
@@ -247,6 +253,12 @@ def test_remote_session_persistence():
         sys.exit(1)
     if 'ACCESS_TOKEN_KEY' not in db or 'sessionStorage' not in db:
         print('FAIL db.js must store access token in sessionStorage')
+        sys.exit(1)
+    if 'isRemoteRefreshBlocked' not in db or 'REFRESH_BLOCK_KEY' not in db:
+        print('FAIL db.js must block refresh after explicit logout')
+        sys.exit(1)
+    if 'localStorage.getItem(REMOTE_SESSION_KEY)' in db:
+        print('FAIL db.js must not fall back to legacy localStorage session token')
         sys.exit(1)
     if 'if (!result.access_token && !result.token)' not in db:
         print('FAIL db.js remoteLoginAsync must require access token')
