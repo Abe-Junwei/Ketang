@@ -6,6 +6,7 @@ import {
 } from "./schema.js";
 import { ensureRefreshSessionsTable } from "./refresh-sessions.js";
 import { ensureSyncMetaSchema } from "./sync-meta.js";
+import { ensureRowSyncSchema } from "./row-sync.js";
 
 export const normalizeParams = (params) =>
   Array.isArray(params)
@@ -185,6 +186,7 @@ export async function initRemoteDatabase(env) {
 export async function ensureDatabaseForAuth(env) {
   await ensureRoomingSchemaColumnsIfTablesExist(env);
   await ensureSyncMetaSchema(env);
+  await ensureRowSyncSchema(env);
   if (remoteInitReady) return false;
   const roomsTable = await queryD1(
     env,
@@ -198,6 +200,7 @@ export async function ensureDatabaseForAuth(env) {
       await ensureUserRoleColumns(env);
       await ensureRefreshSessionsTable(env);
       await ensureEventColumns(env);
+      await ensureRowSyncSchema(env);
       remoteInitReady = true;
       return false;
     }
@@ -401,6 +404,7 @@ async function initRemoteDatabaseOnce(env) {
       await ensureUserRoleColumns(env);
       await ensureRefreshSessionsTable(env);
       await ensureEventColumns(env);
+      await ensureRowSyncSchema(env);
       remoteInitReady = true;
       return false;
     }
@@ -420,6 +424,7 @@ async function initRemoteDatabaseOnce(env) {
   await ensureUserRoleColumns(env);
   await ensureRefreshSessionsTable(env);
   await ensureEventColumns(env);
+  await ensureRowSyncSchema(env);
   await ensureDefaultUsers(env);
   const count = await queryD1(env, "SELECT COUNT(*) AS c FROM rooms", []);
   if ((count[0]?.c || 0) > 0) {

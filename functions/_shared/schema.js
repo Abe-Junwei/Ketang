@@ -11,7 +11,8 @@ CREATE TABLE IF NOT EXISTS rooms (
   near_zen_hall INTEGER DEFAULT 0 CHECK(near_zen_hall IN (0,1)),
   flexible_use INTEGER DEFAULT 0 CHECK(flexible_use IN (0,1)),
   notes TEXT,
-  created_at TEXT DEFAULT CURRENT_TIMESTAMP
+  created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  updated_at TEXT DEFAULT CURRENT_TIMESTAMP
 );
 CREATE TABLE IF NOT EXISTS beds (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -22,7 +23,8 @@ CREATE TABLE IF NOT EXISTS beds (
   suitable_elder INTEGER DEFAULT 0 CHECK(suitable_elder IN (0,1)),
   is_flexible INTEGER DEFAULT 0 CHECK(is_flexible IN (0,1)),
   notes TEXT,
-  created_at TEXT DEFAULT CURRENT_TIMESTAMP
+  created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  updated_at TEXT DEFAULT CURRENT_TIMESTAMP
 );
 CREATE TABLE IF NOT EXISTS guests (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -71,7 +73,8 @@ CREATE TABLE IF NOT EXISTS events (
   needs_quiet_zone INTEGER DEFAULT 0 CHECK(needs_quiet_zone IN (0,1)),
   needs_near_zen_hall INTEGER DEFAULT 0 CHECK(needs_near_zen_hall IN (0,1)),
   needs_teacher_room INTEGER DEFAULT 0 CHECK(needs_teacher_room IN (0,1)),
-  created_at TEXT DEFAULT CURRENT_TIMESTAMP
+  created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  updated_at TEXT DEFAULT CURRENT_TIMESTAMP
 );
 CREATE TABLE IF NOT EXISTS users (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -112,7 +115,8 @@ CREATE TABLE IF NOT EXISTS lodgers (
   meal_default_breakfast INTEGER DEFAULT 1 CHECK(meal_default_breakfast IN (0,1)),
   meal_default_lunch INTEGER DEFAULT 1 CHECK(meal_default_lunch IN (0,1)),
   meal_default_dinner INTEGER DEFAULT 1 CHECK(meal_default_dinner IN (0,1)),
-  created_at TEXT DEFAULT CURRENT_TIMESTAMP
+  created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  updated_at TEXT DEFAULT CURRENT_TIMESTAMP
 );
 CREATE TABLE IF NOT EXISTS meals (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -122,6 +126,7 @@ CREATE TABLE IF NOT EXISTS meals (
   lunch INTEGER DEFAULT 0 CHECK(lunch IN (0,1)),
   dinner INTEGER DEFAULT 0 CHECK(dinner IN (0,1)),
   notes TEXT,
+  updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
   UNIQUE(lodger_id, date)
 );
 CREATE TABLE IF NOT EXISTS reservations (
@@ -147,7 +152,8 @@ CREATE TABLE IF NOT EXISTS reservations (
   meal_lunch INTEGER DEFAULT 1 CHECK(meal_lunch IN (0,1)),
   meal_dinner INTEGER DEFAULT 1 CHECK(meal_dinner IN (0,1)),
   notes TEXT,
-  created_at TEXT DEFAULT CURRENT_TIMESTAMP
+  created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  updated_at TEXT DEFAULT CURRENT_TIMESTAMP
 );
 CREATE TABLE IF NOT EXISTS payments (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -158,7 +164,8 @@ CREATE TABLE IF NOT EXISTS payments (
   method TEXT,
   remark TEXT,
   paid_at TEXT DEFAULT CURRENT_TIMESTAMP,
-  created_at TEXT DEFAULT CURRENT_TIMESTAMP
+  created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  updated_at TEXT DEFAULT CURRENT_TIMESTAMP
 );
 CREATE TABLE IF NOT EXISTS rooming_plans (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -184,7 +191,8 @@ CREATE TABLE IF NOT EXISTS rooming_assignments (
   item_status TEXT DEFAULT '未确认' CHECK(item_status IN ('未确认','待调整','已确认')),
   notes TEXT,
   sort_order INTEGER DEFAULT 0,
-  created_at TEXT DEFAULT CURRENT_TIMESTAMP
+  created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  updated_at TEXT DEFAULT CURRENT_TIMESTAMP
 );
 CREATE TABLE IF NOT EXISTS rooming_checkin_queue (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -203,7 +211,8 @@ CREATE TABLE IF NOT EXISTS rooming_checkin_queue (
   processed_at TEXT,
   notes TEXT,
   sort_order INTEGER DEFAULT 0,
-  created_at TEXT DEFAULT CURRENT_TIMESTAMP
+  created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  updated_at TEXT DEFAULT CURRENT_TIMESTAMP
 );
 CREATE TABLE IF NOT EXISTS rooming_adjustments (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -217,7 +226,8 @@ CREATE TABLE IF NOT EXISTS rooming_adjustments (
   to_bed_id INTEGER REFERENCES beds(id),
   reason TEXT,
   operator TEXT,
-  created_at TEXT DEFAULT CURRENT_TIMESTAMP
+  created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  updated_at TEXT DEFAULT CURRENT_TIMESTAMP
 );
 CREATE TABLE IF NOT EXISTS housekeeping (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -225,7 +235,8 @@ CREATE TABLE IF NOT EXISTS housekeeping (
   status TEXT NOT NULL CHECK(status IN ('脏房','净房','查房','可用','占用','维修')),
   operator TEXT,
   changed_at TEXT DEFAULT CURRENT_TIMESTAMP,
-  notes TEXT
+  notes TEXT,
+  updated_at TEXT DEFAULT CURRENT_TIMESTAMP
 );
 CREATE TABLE IF NOT EXISTS audit_logs (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -236,7 +247,7 @@ CREATE TABLE IF NOT EXISTS audit_logs (
   created_at TEXT DEFAULT CURRENT_TIMESTAMP
 );
 CREATE TABLE IF NOT EXISTS schema_version (version INTEGER PRIMARY KEY);
-INSERT INTO schema_version (version) SELECT 20 WHERE NOT EXISTS (SELECT 1 FROM schema_version);
+INSERT INTO schema_version (version) SELECT 21 WHERE NOT EXISTS (SELECT 1 FROM schema_version);
 CREATE TABLE IF NOT EXISTS app_meta (
   key TEXT PRIMARY KEY,
   value TEXT NOT NULL

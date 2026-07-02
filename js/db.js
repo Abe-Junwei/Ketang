@@ -233,6 +233,7 @@ function initLocalSchemaAndMigrations() {
   migrateV17toV18();
   migrateV18toV19();
   migrateV19toV20();
+  migrateV20toV21();
   createIndexes();
 }
 
@@ -244,7 +245,7 @@ function ensureRemoteLocalSchema() {
   remoteLocalSchemaReady = true;
 }
 
-function insertSnapshotRow(table, row) {
+function insertSnapshotRow(table, row, options) {
   const data = { ...(row || {}) };
   // 读模型永不下发 password；占位以满足 NOT NULL | Read-model never ships password
   if (
@@ -258,7 +259,9 @@ function insertSnapshotRow(table, row) {
   const columns = Object.keys(data);
   if (!columns.length) return;
   const placeholders = columns.map(() => "?").join(", ");
-  const sql = `INSERT INTO ${table} (${columns.join(", ")}) VALUES (${placeholders})`;
+  const verb =
+    options && options.upsertOnly ? "INSERT OR REPLACE INTO" : "INSERT INTO";
+  const sql = `${verb} ${table} (${columns.join(", ")}) VALUES (${placeholders})`;
   const values = columns.map((col) => {
     const value = data[col];
     return value === undefined ? null : value;
@@ -339,7 +342,8 @@ function applyModuleTables(tables) {
   }
 }
 
-function applyModuleTablesInner(tables) {
+function applyModuleTablesInner(tables, options) {
+  const upsertOnly = !!(options && options.upsertOnly);
   Object.keys(tables).forEach(function (table) {
     if (!REMOTE_SNAPSHOT_TABLE_RE.test(table)) return;
     const rows = tables[table];
@@ -354,13 +358,15 @@ function applyModuleTablesInner(tables) {
       });
       return;
     }
-    try {
-      db.run(`DELETE FROM ${table}`);
-    } catch (e) {
-      /* ignore */
+    if (!upsertOnly) {
+      try {
+        db.run(`DELETE FROM ${table}`);
+      } catch (e) {
+        /* ignore */
+      }
     }
     rows.forEach(function (row) {
-      insertSnapshotRow(table, row);
+      insertSnapshotRow(table, row, { upsertOnly: upsertOnly });
     });
   });
 }
@@ -371,11 +377,15 @@ function applyRemoteDelta(delta) {
   ensureRemoteLocalSchema();
   _remoteHydrating = true;
   try {
-    const modules = delta.modules || {};
-    Object.keys(modules).forEach(function (key) {
-      const mod = modules[key];
-      if (mod && mod.tables) applyModuleTablesInner(mod.tables);
-    });
+    if (delta.patch_mode && delta.patches) {
+      applyModuleTablesInner(delta.patches, { upsertOnly: true });
+    } else {
+      const modules = delta.modules || {};
+      Object.keys(modules).forEach(function (key) {
+        const mod = modules[key];
+        if (mod && mod.tables) applyModuleTablesInner(mod.tables);
+      });
+    }
     const deletions = delta.deletions || [];
     deletions.forEach(function (item) {
       const table = item.table_name;
@@ -2198,6 +2208,73 @@ function migrateV19toV20() {
   }
 }
 
+var ROW_SYNC_TOUCH_TABLES = [
+  "rooms",
+  "beds",
+  "guests",
+  "events",
+  "lodgers",
+  "meals",
+  "reservations",
+  "payments",
+  "housekeeping",
+  "rooming_plans",
+  "rooming_assignments",
+  "rooming_checkin_queue",
+  "rooming_adjustments",
+];
+
+function migrateV20toV21() {
+  const version =
+    db.exec("SELECT MIN(version) as v FROM schema_version")[0]?.values[0][0] ||
+    0;
+  if (version >= 21) return;
+  db.run("BEGIN TRANSACTION;");
+  try {
+    ROW_SYNC_TOUCH_TABLES.forEach(function (table) {
+      try {
+        db.run(`ALTER TABLE ${table} ADD COLUMN updated_at TEXT`);
+      } catch (e) {
+        /* column may exist */
+      }
+    });
+    db.run(
+      "UPDATE guests SET updated_at = COALESCE(updated_at, created_at, datetime('now')) WHERE updated_at IS NULL OR updated_at = ''",
+    );
+    db.run(
+      "UPDATE rooming_plans SET updated_at = COALESCE(updated_at, created_at, datetime('now')) WHERE updated_at IS NULL OR updated_at = ''",
+    );
+    ROW_SYNC_TOUCH_TABLES.forEach(function (table) {
+      if (table === "guests" || table === "rooming_plans") return;
+      var tsCol =
+        table === "housekeeping"
+          ? "COALESCE(changed_at, datetime('now'))"
+          : table === "meals"
+            ? "datetime('now')"
+            : "COALESCE(created_at, datetime('now'))";
+      db.run(
+        `UPDATE ${table} SET updated_at = ${tsCol} WHERE updated_at IS NULL OR updated_at = ''`,
+      );
+      db.run(
+        `CREATE INDEX IF NOT EXISTS idx_${table}_updated_at ON ${table}(updated_at)`,
+      );
+      db.run(
+        `CREATE TRIGGER IF NOT EXISTS touch_${table}_updated_at AFTER UPDATE ON ${table} FOR EACH ROW WHEN OLD.updated_at IS NEW.updated_at OR NEW.updated_at IS NULL BEGIN UPDATE ${table} SET updated_at = datetime('now') WHERE id = NEW.id; END`,
+      );
+    });
+    db.run("DELETE FROM schema_version WHERE version < 21");
+    db.run("INSERT OR REPLACE INTO schema_version (version) VALUES (21)");
+    db.run("COMMIT;");
+  } catch (e) {
+    try {
+      db.run("ROLLBACK;");
+    } catch (rollbackErr) {
+      /* ignore */
+    }
+    throw new Error("migrateV20toV21 failed: " + e.message);
+  }
+}
+
 function createIndexes() {
   db.run(`
     CREATE INDEX IF NOT EXISTS idx_events_name ON events(name);
@@ -2416,6 +2493,7 @@ async function importDB(input) {
       migrateV17toV18();
       migrateV18toV19();
       migrateV19toV20();
+      migrateV20toV21();
       createIndexes();
       await seedRooms();
       await saveDB();

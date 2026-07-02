@@ -5,6 +5,7 @@ import {
   domainsDirtySince,
   moduleKeysForDomains,
 } from "./sync-meta.js";
+import { ensureRowSyncSchema, tryBuildRowPatches } from "./row-sync.js";
 import { canSyncReadModel } from "./read-model.js";
 import { getSessionPermissions } from "./permissions.js";
 import { initRemoteDatabase } from "./d1.js";
@@ -50,6 +51,28 @@ export async function buildSyncDelta(env, session, sinceVersion, options) {
       domains: dirtyDomains,
     };
   }
+
+  await ensureRowSyncSchema(env);
+  const patchResult = await tryBuildRowPatches(
+    env,
+    session,
+    dirtyDomains,
+    since,
+  );
+  if (patchResult) {
+    const deletions = await deletionsSince(env, since);
+    return {
+      board_version: currentVersion,
+      since_version: since,
+      domains: dirtyDomains,
+      patch_mode: true,
+      patches: patchResult.patches,
+      row_count: patchResult.row_count,
+      deletions,
+      synced_at: new Date().toISOString(),
+    };
+  }
+
   const modules = {};
   for (const moduleKey of moduleKeys) {
     modules[moduleKey] = await buildReadModule(env, session, moduleKey, {
