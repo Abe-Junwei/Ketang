@@ -630,12 +630,16 @@ body::before {
   white-space: nowrap;
 }
 
-/* Icons | 通用图标尺寸（Material 24px 光学网格） */
+/* Icons | 通用图标尺寸（Lucide 24px 网格，描边型） */
 .icon {
   width: 1.25rem;
   height: 1.25rem;
   display: block;
-  fill: currentColor;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
   flex-shrink: 0;
   shape-rendering: geometricPrecision;
 }
@@ -643,11 +647,13 @@ body::before {
 .icon-sm {
   width: 1.125rem;
   height: 1.125rem;
+  stroke-width: 1.75;
 }
 
 .icon-xs {
   width: 1rem;
   height: 1rem;
+  stroke-width: 1.5;
 }
 
 .icon-inline {
