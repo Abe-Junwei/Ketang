@@ -33,7 +33,7 @@ const PERMISSION_GROUPS = [
   { id: "backup", label: "备份", codes: ["backup.read", "backup.write"] },
   {
     id: "settings",
-    label: "基础设置",
+    label: "信息管理",
     codes: ["settings.read", "settings.write"],
   },
 ];
@@ -67,7 +67,7 @@ const PERMISSION_LABELS = {
   "users.write": "管理用户/权限",
   "backup.read": "导出备份",
   "backup.write": "导入/恢复备份",
-  "settings.read": "查看基础设置",
+  "settings.read": "查看信息管理",
   "settings.write": "编辑房间/床位/营期",
 };
 

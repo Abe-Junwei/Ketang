@@ -760,7 +760,7 @@ function mountUserModal(u, isEdit) {
                 </select>
               </div>
               <div class="field" id="user-advanced-wrap" style="${isEdit && u.role === "zhike" ? "" : "display:none"}">
-                <label><input type="checkbox" id="user-advanced" ${isEdit && u.is_advanced ? "checked" : ""}> 高级知客（额外开放备份/用户/基础设置等权限）</label>
+                <label><input type="checkbox" id="user-advanced" ${isEdit && u.is_advanced ? "checked" : ""}> 高级知客（额外开放备份/用户/信息管理等权限）</label>
               </div>
               <div class="field"><label>密码${isEdit ? "（留空则不修改）" : " *"}</label><input type="password" id="user-password" ${isEdit ? "" : "required"}></div>
             </div>

@@ -97,7 +97,7 @@ const TOPBAR_TITLES = {
   housekeeping: "客房维护",
   reports: "账务报表",
   history: "历史查询",
-  info: "基础设置",
+  info: "信息管理",
   backup: "系统设置",
 };
 
@@ -113,7 +113,6 @@ function initShellIcons() {
     ".nav-icon-payments": "payments",
     ".nav-icon-cleaning": "cleaning",
     ".nav-icon-settings": "settings",
-    ".nav-icon-account": "account",
     ".nav-icon-tune": "tune",
     ".sidebar-zen-icon": "quote",
     ".topbar-search-icon": "search",
@@ -1060,7 +1059,7 @@ function renderRooms() {
   });
 
   grid.innerHTML =
-    html || '<p class="empty-tip">暂无房间数据，请先在基础设置中维护房号。</p>';
+    html || '<p class="empty-tip">暂无房间数据，请先在信息管理中维护房号。</p>';
 }
 
 function lodgerMealsToday(lodgerId) {
