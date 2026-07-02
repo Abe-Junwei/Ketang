@@ -1808,97 +1808,104 @@ function migrateV15toV16() {
   }
 }
 
+function tableHasColumn(table, column) {
+  const rows = db.exec(`PRAGMA table_info(${table})`)[0]?.values || [];
+  return rows.some((row) => row[1] === column);
+}
+
 function addColumnIfMissing(table, column, definition) {
-  try {
-    db.run(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
-  } catch (e) {
-    /* 已存在则忽略 | column may already exist */
-  }
+  if (tableHasColumn(table, column)) return;
+  db.run(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
+}
+
+function ensureLocalRoomingSchemaColumns() {
+  addColumnIfMissing("events", "activity_target", "TEXT");
+  addColumnIfMissing("events", "arrival_date", "TEXT");
+  addColumnIfMissing("events", "departure_date", "TEXT");
+  addColumnIfMissing("events", "confirmed_count", "INTEGER DEFAULT 0");
+  addColumnIfMissing("events", "actual_arrival_count", "INTEGER DEFAULT 0");
+  addColumnIfMissing("events", "expected_absent_count", "INTEGER DEFAULT 0");
+  addColumnIfMissing("events", "male_count", "INTEGER DEFAULT 0");
+  addColumnIfMissing("events", "female_count", "INTEGER DEFAULT 0");
+  addColumnIfMissing("events", "child_count", "INTEGER DEFAULT 0");
+  addColumnIfMissing("events", "elder_count", "INTEGER DEFAULT 0");
+  addColumnIfMissing("events", "teacher_count", "INTEGER DEFAULT 0");
+  addColumnIfMissing("events", "volunteer_count", "INTEGER DEFAULT 0");
+  addColumnIfMissing("events", "special_needs_count", "INTEGER DEFAULT 0");
+  addColumnIfMissing("events", "manager_name", "TEXT");
+  addColumnIfMissing("events", "manager_phone", "TEXT");
+  addColumnIfMissing("events", "backup_manager_name", "TEXT");
+  addColumnIfMissing(
+    "events",
+    "needs_central_lodging",
+    "INTEGER DEFAULT 0 CHECK(needs_central_lodging IN (0,1))",
+  );
+  addColumnIfMissing(
+    "events",
+    "needs_quiet_zone",
+    "INTEGER DEFAULT 0 CHECK(needs_quiet_zone IN (0,1))",
+  );
+  addColumnIfMissing(
+    "events",
+    "needs_near_zen_hall",
+    "INTEGER DEFAULT 0 CHECK(needs_near_zen_hall IN (0,1))",
+  );
+  addColumnIfMissing(
+    "events",
+    "needs_teacher_room",
+    "INTEGER DEFAULT 0 CHECK(needs_teacher_room IN (0,1))",
+  );
+  addColumnIfMissing("rooms", "room_type", "TEXT DEFAULT '学员房'");
+  addColumnIfMissing(
+    "rooms",
+    "suitable_elder",
+    "INTEGER DEFAULT 0 CHECK(suitable_elder IN (0,1))",
+  );
+  addColumnIfMissing(
+    "rooms",
+    "suitable_child",
+    "INTEGER DEFAULT 0 CHECK(suitable_child IN (0,1))",
+  );
+  addColumnIfMissing(
+    "rooms",
+    "near_zen_hall",
+    "INTEGER DEFAULT 0 CHECK(near_zen_hall IN (0,1))",
+  );
+  addColumnIfMissing(
+    "rooms",
+    "flexible_use",
+    "INTEGER DEFAULT 0 CHECK(flexible_use IN (0,1))",
+  );
+  addColumnIfMissing("beds", "bed_type", "TEXT DEFAULT '单床'");
+  addColumnIfMissing(
+    "beds",
+    "suitable_elder",
+    "INTEGER DEFAULT 0 CHECK(suitable_elder IN (0,1))",
+  );
+  addColumnIfMissing(
+    "beds",
+    "is_flexible",
+    "INTEGER DEFAULT 0 CHECK(is_flexible IN (0,1))",
+  );
+  addColumnIfMissing("lodgers", "participant_identity", "TEXT");
+  addColumnIfMissing("lodgers", "age_group", "TEXT");
+  addColumnIfMissing("lodgers", "special_needs", "TEXT");
+  addColumnIfMissing("reservations", "participant_identity", "TEXT");
+  addColumnIfMissing("reservations", "age_group", "TEXT");
+  addColumnIfMissing("reservations", "special_needs", "TEXT");
 }
 
 function migrateV16toV17() {
   const version =
     db.exec("SELECT MIN(version) as v FROM schema_version")[0]?.values[0][0] ||
     0;
-  if (version >= 17) return;
   db.run("BEGIN TRANSACTION;");
   try {
-    addColumnIfMissing("events", "activity_target", "TEXT");
-    addColumnIfMissing("events", "arrival_date", "TEXT");
-    addColumnIfMissing("events", "departure_date", "TEXT");
-    addColumnIfMissing("events", "confirmed_count", "INTEGER DEFAULT 0");
-    addColumnIfMissing("events", "actual_arrival_count", "INTEGER DEFAULT 0");
-    addColumnIfMissing("events", "expected_absent_count", "INTEGER DEFAULT 0");
-    addColumnIfMissing("events", "male_count", "INTEGER DEFAULT 0");
-    addColumnIfMissing("events", "female_count", "INTEGER DEFAULT 0");
-    addColumnIfMissing("events", "child_count", "INTEGER DEFAULT 0");
-    addColumnIfMissing("events", "elder_count", "INTEGER DEFAULT 0");
-    addColumnIfMissing("events", "teacher_count", "INTEGER DEFAULT 0");
-    addColumnIfMissing("events", "volunteer_count", "INTEGER DEFAULT 0");
-    addColumnIfMissing("events", "special_needs_count", "INTEGER DEFAULT 0");
-    addColumnIfMissing("events", "manager_name", "TEXT");
-    addColumnIfMissing("events", "manager_phone", "TEXT");
-    addColumnIfMissing("events", "backup_manager_name", "TEXT");
-    addColumnIfMissing(
-      "events",
-      "needs_central_lodging",
-      "INTEGER DEFAULT 0 CHECK(needs_central_lodging IN (0,1))",
-    );
-    addColumnIfMissing(
-      "events",
-      "needs_quiet_zone",
-      "INTEGER DEFAULT 0 CHECK(needs_quiet_zone IN (0,1))",
-    );
-    addColumnIfMissing(
-      "events",
-      "needs_near_zen_hall",
-      "INTEGER DEFAULT 0 CHECK(needs_near_zen_hall IN (0,1))",
-    );
-    addColumnIfMissing(
-      "events",
-      "needs_teacher_room",
-      "INTEGER DEFAULT 0 CHECK(needs_teacher_room IN (0,1))",
-    );
-    addColumnIfMissing("rooms", "room_type", "TEXT DEFAULT '学员房'");
-    addColumnIfMissing(
-      "rooms",
-      "suitable_elder",
-      "INTEGER DEFAULT 0 CHECK(suitable_elder IN (0,1))",
-    );
-    addColumnIfMissing(
-      "rooms",
-      "suitable_child",
-      "INTEGER DEFAULT 0 CHECK(suitable_child IN (0,1))",
-    );
-    addColumnIfMissing(
-      "rooms",
-      "near_zen_hall",
-      "INTEGER DEFAULT 0 CHECK(near_zen_hall IN (0,1))",
-    );
-    addColumnIfMissing(
-      "rooms",
-      "flexible_use",
-      "INTEGER DEFAULT 0 CHECK(flexible_use IN (0,1))",
-    );
-    addColumnIfMissing("beds", "bed_type", "TEXT DEFAULT '单床'");
-    addColumnIfMissing(
-      "beds",
-      "suitable_elder",
-      "INTEGER DEFAULT 0 CHECK(suitable_elder IN (0,1))",
-    );
-    addColumnIfMissing(
-      "beds",
-      "is_flexible",
-      "INTEGER DEFAULT 0 CHECK(is_flexible IN (0,1))",
-    );
-    addColumnIfMissing("lodgers", "participant_identity", "TEXT");
-    addColumnIfMissing("lodgers", "age_group", "TEXT");
-    addColumnIfMissing("lodgers", "special_needs", "TEXT");
-    addColumnIfMissing("reservations", "participant_identity", "TEXT");
-    addColumnIfMissing("reservations", "age_group", "TEXT");
-    addColumnIfMissing("reservations", "special_needs", "TEXT");
-    db.run("DELETE FROM schema_version WHERE version < 17");
-    db.run("INSERT OR REPLACE INTO schema_version (version) VALUES (17)");
+    ensureLocalRoomingSchemaColumns();
+    if (version < 17) {
+      db.run("DELETE FROM schema_version WHERE version < 17");
+      db.run("INSERT OR REPLACE INTO schema_version (version) VALUES (17)");
+    }
     db.run("COMMIT;");
   } catch (e) {
     try {

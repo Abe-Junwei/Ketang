@@ -171,6 +171,7 @@ async function ensureDefaultUsers(env) {
 }
 
 export async function initRemoteDatabase(env) {
+  await ensureRoomingSchemaColumnsIfTablesExist(env);
   if (remoteInitReady) return false;
   if (remoteInitPromise) return remoteInitPromise;
   remoteInitPromise = initRemoteDatabaseOnce(env).finally(() => {
@@ -181,6 +182,7 @@ export async function initRemoteDatabase(env) {
 
 /** 登录前轻量探测：已有业务数据则跳过全量 schema 重放 | Fast path before login */
 export async function ensureDatabaseForAuth(env) {
+  await ensureRoomingSchemaColumnsIfTablesExist(env);
   if (remoteInitReady) return false;
   const roomsTable = await queryD1(
     env,
@@ -206,6 +208,16 @@ async function addRemoteColumnIfMissing(env, table, column, definition) {
   if (!cols.length) return;
   if (cols.some((col) => col.name === column)) return;
   await runD1(env, `ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`, []);
+}
+
+async function ensureRoomingSchemaColumnsIfTablesExist(env) {
+  const roomsTable = await queryD1(
+    env,
+    "SELECT 1 AS ok FROM sqlite_master WHERE type='table' AND name='rooms' LIMIT 1",
+    [],
+  );
+  if (!roomsTable.length) return;
+  await ensureRoomingSchemaColumns(env);
 }
 
 async function ensureRoomingSchemaColumns(env) {
