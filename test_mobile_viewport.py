@@ -218,6 +218,49 @@ def main():
                 print(f"FAIL: mobile shell check: {shell.get('reason', shell)}")
                 sys.exit(1)
 
+            login_ov = evaluate(
+                ws,
+                """
+                (() => {
+                  const overlay = document.getElementById('login-overlay');
+                  const split = document.querySelector('.login-split');
+                  const hero = document.querySelector('.login-hero');
+                  const panel = document.querySelector('.login-panel');
+                  if (!overlay || !split || !hero || !panel) {
+                    return { ok: false, reason: 'missing login split layout' };
+                  }
+                  const doc = document.documentElement;
+                  const overflow = Math.max(
+                    doc.scrollWidth - doc.clientWidth,
+                    document.body.scrollWidth - document.body.clientWidth
+                  );
+                  const splitStyle = getComputedStyle(split);
+                  const heroRect = hero.getBoundingClientRect();
+                  const panelRect = panel.getBoundingClientRect();
+                  const vw = doc.clientWidth;
+                  if (overflow > 2) {
+                    return { ok: false, reason: 'login horizontal overflow', overflow, vw };
+                  }
+                  if (splitStyle.flexDirection !== 'column') {
+                    return { ok: false, reason: 'login should stack on mobile', flexDirection: splitStyle.flexDirection };
+                  }
+                  if (Math.abs(heroRect.width - vw) > 2 || Math.abs(panelRect.width - vw) > 2) {
+                    return {
+                      ok: false,
+                      reason: 'login panels not full width',
+                      vw,
+                      heroWidth: heroRect.width,
+                      panelWidth: panelRect.width
+                    };
+                  }
+                  return { ok: true, vw, heroWidth: heroRect.width, panelWidth: panelRect.width };
+                })()
+                """,
+            ).get("value") or {}
+            if not login_ov.get("ok"):
+                print(f"FAIL: login mobile layout: {login_ov.get('reason', login_ov)}")
+                sys.exit(1)
+
             login = evaluate(
                 ws,
                 "(async()=>{document.getElementById('login-username').value='admin';document.getElementById('login-password').value='admin';await submitLogin();return getCurrentUser()&&getCurrentUser().role;})()",
