@@ -1,5 +1,5 @@
 import { queryD1, runD1, insertAudit } from "./d1.js";
-import defaultRolePermissions from "../../role-permissions.defaults.json" assert { type: "json" };
+import defaultRolePermissions from "../../role-permissions.defaults.json";
 
 /** 权限码清单 | Permission codes (keep in sync with role-permissions.defaults.json) */
 export const ALL_PERMISSIONS = defaultRolePermissions.admin.slice();
