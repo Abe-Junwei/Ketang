@@ -1,11 +1,11 @@
 ---
-title: 客堂住宿系统项目级开发约束
+title: 客堂管理系统项目级开发约束
 doc_type: agent-instructions
 status: active
 applies_to: ["cursor", "github-copilot", "kimi-cli"]
 ---
 
-# 客堂住宿系统 — 项目级开发约束
+# 客堂管理系统 — 项目级开发约束
 
 ## 权威范围
 

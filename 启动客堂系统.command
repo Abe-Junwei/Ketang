@@ -1,5 +1,5 @@
 #!/bin/bash
-# 客堂住宿系统 - macOS 启动脚本
+# 客堂管理系统 - macOS 启动脚本
 # 用法：双击此文件，系统会用 Chrome/Edge 打开 index.html
 
 cd "$(dirname "$0")"

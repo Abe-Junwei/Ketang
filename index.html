@@ -5,76 +5,75 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta name="theme-color" content="#5c4a32" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-title" content="客堂" />
+    <meta name="apple-mobile-web-app-title" content="客堂管理" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <meta name="mobile-web-app-capable" content="yes" />
     <link rel="manifest" href="manifest.webmanifest" />
     <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
     <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png" />
     <link rel="stylesheet" href="fonts/fonts.css?v=1" />
-    <link rel="stylesheet" href="styles.css?v=58" />
-    <title>客堂住宿系统</title>
+    <link rel="stylesheet" href="styles.css?v=59" />
+    <title>客堂管理系统</title>
   </head>
   <body>
     <!-- 登录覆盖层 | Login overlay (shown only when unauthenticated) -->
     <div class="login-overlay" id="login-overlay">
-      <div
-        class="login-card login-restore-card"
-        id="login-restore-panel"
-        hidden
-        aria-live="polite"
-        aria-busy="true"
-      >
-        <div class="login-brand">
-          <span class="sidebar-logo" aria-hidden="true"></span>
-          <div>
-            <h1>客堂住宿系统</h1>
-            <p>正在恢复登录…</p>
+      <div class="login-split">
+        <div class="login-hero" aria-hidden="true"></div>
+        <div class="login-panel">
+          <div
+            class="login-card login-restore-card"
+            id="login-restore-panel"
+            hidden
+            aria-live="polite"
+            aria-busy="true"
+          >
+            <header class="login-brand">
+              <h1>客堂管理系统</h1>
+              <p>正在恢复登录…</p>
+            </header>
+            <p class="login-restore-hint">请稍候，正在校验云端会话</p>
+          </div>
+          <div class="login-card" id="login-form-panel">
+            <header class="login-brand">
+              <h1>客堂管理系统</h1>
+              <p>请选择身份登录</p>
+            </header>
+            <div class="field login-field">
+              <label for="login-username">身份</label>
+              <select id="login-username" data-no-picker>
+                <option value="">请选择身份</option>
+                <option value="admin">管理员</option>
+                <option value="zhike">知客师</option>
+                <option value="kitchen">厨房</option>
+                <option value="housekeeping">房务</option>
+                <option value="viewer">只读</option>
+              </select>
+            </div>
+            <div class="field login-field">
+              <label for="login-password">密码</label>
+              <input
+                type="password"
+                id="login-password"
+                placeholder="请输入密码"
+                autocomplete="current-password"
+                onkeydown="if (event.key === 'Enter') submitLogin();"
+              />
+            </div>
+            <div class="login-error" id="login-error" aria-live="polite"></div>
+            <button
+              type="button"
+              id="login-submit-btn"
+              class="btn btn-primary btn-block login-submit"
+              onclick="submitLogin()"
+            >
+              登录
+            </button>
+            <p class="login-hint" id="login-hint">
+              首次使用：进「管理员」密码 admin，选「知客师」密码 zhike。
+            </p>
           </div>
         </div>
-        <p class="login-restore-hint">请稍候，正在校验云端会话</p>
-      </div>
-      <div class="login-card" id="login-form-panel">
-        <div class="login-brand">
-          <span class="sidebar-logo" aria-hidden="true"></span>
-          <div>
-            <h1>客堂住宿系统</h1>
-            <p>请选择身份登录</p>
-          </div>
-        </div>
-        <div class="field login-field">
-          <label for="login-username">身份</label>
-          <select id="login-username" data-no-picker>
-            <option value="">请选择身份</option>
-            <option value="admin">管理员</option>
-            <option value="zhike">知客师</option>
-            <option value="kitchen">厨房</option>
-            <option value="housekeeping">房务</option>
-            <option value="viewer">只读</option>
-          </select>
-        </div>
-        <div class="field login-field">
-          <label for="login-password">密码</label>
-          <input
-            type="password"
-            id="login-password"
-            placeholder="请输入密码"
-            autocomplete="current-password"
-            onkeydown="if (event.key === 'Enter') submitLogin();"
-          />
-        </div>
-        <div class="login-error" id="login-error" aria-live="polite"></div>
-        <button
-          type="button"
-          id="login-submit-btn"
-          class="btn btn-primary btn-block login-submit"
-          onclick="submitLogin()"
-        >
-          登录
-        </button>
-        <p class="login-hint" id="login-hint">
-          选「管理员」密码 admin，选「知客师」密码 zhike（登录后请修改密码）
-        </p>
       </div>
     </div>
 
@@ -82,7 +81,7 @@
       <div class="sidebar-brand">
         <span class="sidebar-logo" aria-hidden="true"></span>
         <div class="sidebar-brand-text">
-          <h1>客堂住宿系统</h1>
+          <h1>客堂管理系统</h1>
           <p class="sidebar-tagline">静心之地 · 禅意居停</p>
         </div>
       </div>

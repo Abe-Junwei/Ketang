@@ -61,7 +61,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       if (sidebar) upgradeSelects(sidebar);
     }
     window.ketangReady = true;
-    console.log("客堂系统初始化完成");
+    console.log("客堂管理系统初始化完成");
   } catch (e) {
     console.error("初始化失败 | Init failed:", e);
     document
@@ -221,7 +221,7 @@ function initMobileMoreSheetSwipe() {
 }
 
 function updateTopbarTitle(name) {
-  var title = TOPBAR_TITLES[name] || "客堂住宿系统";
+  var title = TOPBAR_TITLES[name] || "客堂管理系统";
   var el = document.getElementById("topbar-title");
   if (el) el.textContent = title;
   var mobileTitle = document.getElementById("mobile-title-text");

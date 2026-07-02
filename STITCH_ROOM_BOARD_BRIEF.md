@@ -12,7 +12,7 @@
 
 ### 1.1 产品场景
 
-客堂住宿系统是**寺院本地 PMS**，知客师/义工在单屏上需要：
+客堂管理系统是**寺院本地 PMS**，知客师/义工在单屏上需要：
 
 1. **扫视**全寺房态（哪间空、哪间满、哪间脏）
 2. **定位**某位居士所在房间/床位
@@ -234,7 +234,7 @@ Stitch 主稿用 **8 列标准**；另附一帧 **6 列舒适** 对比。
 ### Step 0 — 先确认设计系统（若已有项目可跳过）
 
 ```
-Use existing 客堂住宿系统 design system: 宣纸墨韵 theme.
+Use existing 客堂管理系统 design system: 宣纸墨韵 theme.
 Colors: primary #a64b3f, background #fff8f0, surface #e3d9c6, text #3d3028, sidebar #3a4f52.
 Typography: Noto Serif SC titles, Source Serif 4 body, Source Sans 3 labels.
 Fixed sidebar 240px + top bar "客堂大盘" already designed — DO NOT redesign shell.

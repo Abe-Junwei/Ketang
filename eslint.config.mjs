@@ -19,7 +19,7 @@ export default [
       'backup/**',
       'data/**',
       'node_modules/**',
-      '客堂住宿系统.app/**'
+      '客堂管理系统.app/**'
     ]
   },
   {

@@ -1,10 +1,10 @@
 ---
-# 客堂住宿系统 设计规范 | Ketang Design System
+# 客堂管理系统 设计规范 | Ketang Design System
 # 视觉主题：宣纸墨韵 Xuan Paper & Ink
 name: 宣纸墨韵 (Xuan Paper & Ink)
 ---
 
-# 客堂住宿系统 — 设计规范
+# 客堂管理系统 — 设计规范
 
 ## 一、设计理念
 

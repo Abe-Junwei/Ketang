@@ -1,4 +1,4 @@
-# 客堂住宿系统 — Stitch 设计稿规范
+# 客堂管理系统 — Stitch 设计稿规范
 
 > **用法**：打开 [stitch.withgoogle.com](https://stitch.withgoogle.com) → 新建项目 → 先粘贴「Step 0 设计系统」→ 再逐屏粘贴 Step 1–9。
 > 模型建议：**Gemini 3.1**（布局更准）；设备选 **Desktop 1440×900**。
@@ -9,7 +9,7 @@
 ## Step 0 — 设计系统（整项目先跑这一条）
 
 ```
-Design system for "客堂住宿系统" — Chinese Buddhist temple guest house PMS.
+Design system for "客堂管理系统" — Chinese Buddhist temple guest house PMS.
 Theme: 宣纸墨韵 Xuan Paper & Ink. Solemn, warm, minimal. NOT a generic SaaS dashboard.
 
 COLORS (strict):
@@ -30,7 +30,7 @@ TYPOGRAPHY:
 
 LAYOUT SHELL (all screens):
 - Fixed left sidebar 240px, dai cyan #3a4f52 background
-- Sidebar: app title "客堂住宿系统" top, 8 nav items, theme toggle "明暗" bottom
+- Sidebar: app title "客堂管理系统" top, 8 nav items, theme toggle "明暗" bottom
 - Active nav: vermilion #a64b3f left border 3px, subtle red tint background
 - Main content: warm apricot #fff8f0 full bleed background
 - Cards: slightly lighter #fffcf7 on apricot, 1px border #d4c9b4, NO drop shadows
@@ -52,7 +52,7 @@ Language: Simplified Chinese labels throughout.
 
 ```
 Screen: 房态看板 — temple guest house room status dashboard.
-Use the 客堂住宿系统 design system above. Desktop 1440px.
+Use the 客堂管理系统 design system above. Desktop 1440px.
 
 LAYOUT REFACTOR:
 1. Top: horizontal KPI strip — 6 stat cards in one row (总床位24, 已住, 空床, 在住人数, 脏房, 今日预约). Sand #e3d9c6 cards, vermilion numbers.
@@ -210,7 +210,7 @@ Sidebar: "数据备份" active.
 ## Step 9 — 弹窗组件（Modals）
 
 ```
-Component sheet: 3 modal dialogs for 客堂住宿系统, design system 宣纸墨韵.
+Component sheet: 3 modal dialogs for 客堂管理系统, design system 宣纸墨韵.
 Centered modal on dimmed overlay rgba(61,48,40,0.42). Apricot card, wood border.
 
 MODAL A — 续住: title "续住 - 张三", current bed + date, date picker 新预计离院, button 确认续住

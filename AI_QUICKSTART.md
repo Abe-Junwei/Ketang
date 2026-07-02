@@ -1,10 +1,10 @@
 ---
-title: AI_QUICKSTART — 客堂住宿系统跨工具上手指引
+title: AI_QUICKSTART — 客堂管理系统跨工具上手指引
 status: active
 applies_to: ["cursor", "github-copilot", "kimi-cli"]
 ---
 
-# AI_QUICKSTART — 客堂住宿系统
+# AI_QUICKSTART — 客堂管理系统
 
 > 新会话第一份必读。≤ 150 行，signal-dense。
 
@@ -19,7 +19,7 @@ applies_to: ["cursor", "github-copilot", "kimi-cli"]
 ## 2. 项目结构
 
 ```
-客堂住宿系统/
+客堂管理系统/
 ├── index.html              # 入口页面（按顺序加载 css/js）
 ├── styles.css              # 全局样式
 ├── js/                     # 原生 JS 模块（普通 <script src>，非 ES Module）
@@ -46,7 +46,7 @@ applies_to: ["cursor", "github-copilot", "kimi-cli"]
 │   └── sql-wasm.wasm
 ├── 启动客堂系统.bat        # Windows
 ├── 启动客堂系统.command    # macOS
-├── 客堂住宿系统.app        # macOS 不弹 Terminal
+├── 客堂管理系统.app        # macOS 不弹 Terminal
 ├── 使用说明.txt            # 给客堂人员
 ├── README.md               # 技术说明
 ├── AGENTS.md               # 本文件

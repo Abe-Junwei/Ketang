@@ -731,7 +731,7 @@ function printVoucher(id) {
     "挂单凭证 - " + escapeHtml(personDisplayName(l));
   document.getElementById("modal-body").innerHTML = `
     <div class="voucher" id="print-voucher">
-      <h2>🏯 客堂住宿凭证</h2>
+      <h2>🏯 客堂管理凭证</h2>
       <div class="row"><span class="label">凭证号</span><span class="value">${l.id}</span></div>
       <div class="row"><span class="label">姓名</span><span class="value">${escapeHtml(personDisplayName(l))}</span></div>
       <div class="row"><span class="label">性别</span><span class="value">${escapeHtml(l.gender) || "-"}</span></div>

@@ -50,7 +50,7 @@ def main():
             print("FAIL: page reported init failure")
             print(combined[-2000:])
             sys.exit(1)
-        if "客堂系统初始化完成" in combined:
+        if "客堂管理系统初始化完成" in combined:
             print("PASS: page initialized successfully")
             return
         if proc.returncode == 0:

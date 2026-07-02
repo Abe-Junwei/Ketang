@@ -33,6 +33,7 @@ copy_file role-permissions.defaults.json role-permissions.defaults.json
 copy_tree js js
 copy_tree lib lib
 copy_tree fonts fonts
+copy_tree resources resources
 copy_tree functions functions
 
 if [[ -f "$ROOT/lib/sql-wasm.wasm" ]]; then

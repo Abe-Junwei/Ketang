@@ -70,7 +70,7 @@ def main():
     checks = []
 
     # 1. 基础 DOM 存在
-    checks.append(('title', '<title>客堂住宿系统</title>' in dom))
+    checks.append(('title', '<title>客堂管理系统</title>' in dom))
     checks.append(('view-board', 'id="view-board"' in dom))
     checks.append(('view-lodging', 'id="view-lodging"' in dom))
     checks.append(('view-stay', 'id="view-stay"' in dom))

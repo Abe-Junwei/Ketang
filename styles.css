@@ -5133,21 +5133,47 @@ form .field {
 }
 
 /* ============================================================
-   登录覆盖层 | Login Overlay
+   登录覆盖层 | Login Overlay — split hero + form panel
    ============================================================ */
 .login-overlay {
   position: fixed;
   inset: 0;
-  background: var(--color-background);
+  background: var(--color-card);
   z-index: 2000;
   display: none;
-  align-items: center;
-  justify-content: center;
-  padding: var(--space-4);
+  padding: 0;
 }
 
 .login-overlay.active {
+  display: block;
+}
+
+.login-split {
   display: flex;
+  width: 100%;
+  height: 100%;
+  min-height: 100vh;
+  min-height: 100dvh;
+}
+
+.login-hero {
+  flex: 1 1 50%;
+  background:
+    linear-gradient(
+      to right,
+      color-mix(in srgb, var(--color-wood) 8%, transparent),
+      transparent 40%
+    ),
+    url("resources/bg.jpg") center / cover no-repeat;
+}
+
+.login-panel {
+  flex: 1 1 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-6);
+  background: var(--color-card);
 }
 
 .login-restore-card {
@@ -5170,13 +5196,13 @@ body.auth-bootstrapping .login-overlay {
 }
 
 .login-card {
-  background: var(--color-card);
-  border: 1px solid color-mix(in srgb, var(--color-border) 40%, transparent);
-  border-radius: var(--radius-md);
-  padding: var(--space-6);
   width: 100%;
-  max-width: 380px;
-  box-shadow: var(--shadow-xl);
+  max-width: 22rem;
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
 }
 
 .login-card .login-field {
@@ -5188,16 +5214,23 @@ body.auth-bootstrapping .login-overlay {
   margin-bottom: var(--space-2);
   font-size: var(--font-size-sm);
   font-weight: var(--font-weight-medium);
+  color: var(--color-foreground);
 }
 
 .login-card select,
 .login-card input[type="password"] {
   width: 100%;
   box-sizing: border-box;
+  border-radius: var(--radius-md);
+  padding: 0.65rem 0.85rem;
 }
 
 .login-submit {
   margin-top: var(--space-2);
+  padding: 0.75rem 1rem;
+  border-radius: var(--radius-full);
+  font-size: var(--font-size-base);
+  font-weight: var(--font-weight-medium);
 }
 
 .login-submit[aria-busy="true"] {
@@ -5216,16 +5249,17 @@ body.auth-bootstrapping .login-overlay {
 }
 
 .login-brand {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-  margin-bottom: var(--space-5);
+  text-align: center;
+  margin-bottom: var(--space-6);
 }
 
 .login-brand h1 {
   font-family: var(--font-serif);
-  font-size: var(--font-size-xl);
-  margin: 0;
+  font-size: var(--font-size-2xl);
+  font-weight: var(--font-weight-bold);
+  color: var(--color-foreground);
+  margin: 0 0 var(--space-2);
+  line-height: var(--line-height-tight);
 }
 
 .login-brand p {
@@ -5239,14 +5273,41 @@ body.auth-bootstrapping .login-overlay {
   font-size: var(--font-size-xs);
   min-height: 20px;
   margin-bottom: var(--space-2);
+  text-align: center;
 }
 
 .login-hint {
   font-size: 11px;
   color: var(--color-muted);
   text-align: center;
-  margin-top: var(--space-3);
+  margin-top: var(--space-4);
   margin-bottom: 0;
+  line-height: var(--line-height-relaxed);
+}
+
+@media (max-width: 768px) {
+  .login-split {
+    flex-direction: column;
+  }
+
+  .login-hero {
+    flex: 0 0 min(38vh, 16rem);
+    min-height: 10rem;
+  }
+
+  .login-panel {
+    flex: 1 1 auto;
+    padding: var(--space-5) var(--space-4);
+    padding-bottom: calc(var(--space-5) + env(safe-area-inset-bottom, 0px));
+  }
+
+  .login-brand {
+    margin-bottom: var(--space-5);
+  }
+
+  .login-brand h1 {
+    font-size: var(--font-size-xl);
+  }
 }
 
 .btn-block {

@@ -1,10 +1,10 @@
 ---
-title: AGENTS.md — 客堂住宿系统 AI 开发基线
+title: AGENTS.md — 客堂管理系统 AI 开发基线
 status: active
 applies_to: ["cursor", "github-copilot", "kimi-cli"]
 ---
 
-# Agent instructions（客堂住宿系统）
+# Agent instructions（客堂管理系统）
 
 > **每次会话先读 [AI_QUICKSTART.md](AI_QUICKSTART.md)**，再继续本文。
 > 本文是跨工具（Cursor / GitHub Copilot / Kimi-cli）共同加载的权威基线。
