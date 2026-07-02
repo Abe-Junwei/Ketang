@@ -151,7 +151,12 @@ export async function publishRoomingPlan(env, session, eventId) {
     queue: await getRoomingCheckinQueue(env, eventId),
     published_count: assignments.length,
   };
-  const writeMeta = await finishWrite(env, {}, ["events", "lodging"]);
+  const writeMeta = await finishWrite(
+    env,
+    {},
+    ["events", "lodging"],
+    ["events", "board"],
+  );
   return { ...payload, ...writeMeta };
 }
 
@@ -228,7 +233,12 @@ export async function republishRoomingPlan(env, session, eventId, body) {
     queue: await getRoomingCheckinQueue(env, eventId),
     published_count: pendingAssignments.length,
   };
-  const writeMeta = await finishWrite(env, {}, ["events", "lodging"]);
+  const writeMeta = await finishWrite(
+    env,
+    {},
+    ["events", "lodging"],
+    ["events", "board"],
+  );
   return { ...payload, ...writeMeta };
 }
 
@@ -260,7 +270,7 @@ export async function updateRoomingQueueItem(env, session, body) {
     { queue_status: status },
     session,
   );
-  const writeMeta = await finishWrite(env, {}, ["events"]);
+  const writeMeta = await finishWrite(env, {}, ["events"], ["events"]);
   return { ...rows[0], ...writeMeta };
 }
 
@@ -303,7 +313,12 @@ async function markRoomingQueueDone(env, session, queueId, options) {
   if (options && options.deferFinishWrite) {
     return { ok: true, deferred: true };
   }
-  return finishWrite(env, {}, ["events", "lodging", "board"]);
+  return finishWrite(
+    env,
+    {},
+    ["events", "lodging", "board"],
+    ["events", "board"],
+  );
 }
 
 export async function processRoomingQueueCheckin(env, session, body) {
@@ -368,6 +383,10 @@ export async function processRoomingQueueCheckin(env, session, body) {
     item.member_kind === "reservation"
       ? ["events", "lodging", "board", "reservations", "meals"]
       : ["events", "lodging", "board", "meals"];
+  const changedModules =
+    item.member_kind === "reservation"
+      ? ["events", "board", "reservations", "meals"]
+      : ["events", "board", "meals"];
   return finishWrite(
     env,
     {
@@ -375,6 +394,7 @@ export async function processRoomingQueueCheckin(env, session, body) {
       queue_id: queueId,
     },
     changedDomains,
+    changedModules,
   );
 }
 
@@ -423,7 +443,7 @@ export async function logRoomingAdjustment(env, session, body) {
     { adjustment_kind: kind, member_name: text(body.member_name) },
     session,
   );
-  return finishWrite(env, {}, ["events"]);
+  return finishWrite(env, {}, ["events"], ["events"]);
 }
 
 export async function getRoomingRetrospective(env, session, eventId) {

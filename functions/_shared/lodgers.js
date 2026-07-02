@@ -5,6 +5,8 @@ import { assertGuestIdentityFields, normalizePhone } from "./validation.js";
 import { housekeepingRequiresInspect } from "./operational-settings.js";
 import { parseParticipantTagFields } from "./rooming-tags.js";
 
+const BOARD_SYNC_MODULES = ["board"];
+
 function participantTagValues(body) {
   const tags = parseParticipantTagFields(body);
   return [tags.participant_identity, tags.age_group, tags.special_needs];
@@ -327,7 +329,12 @@ export async function apiCheckIn(env, session, body) {
       { lodger_id: finalLodgerId },
       session,
     );
-  return finishWrite(env, { lodger_id: finalLodgerId }, ["lodging", "board"]);
+  return finishWrite(
+    env,
+    { lodger_id: finalLodgerId },
+    ["lodging", "board"],
+    BOARD_SYNC_MODULES,
+  );
 }
 
 export async function apiCheckout(env, session, body) {
@@ -401,7 +408,12 @@ export async function apiCheckout(env, session, body) {
       },
       session,
     );
-  return finishWrite(env, {}, ["lodging", "board", "housekeeping"]);
+  return finishWrite(
+    env,
+    {},
+    ["lodging", "board", "housekeeping"],
+    BOARD_SYNC_MODULES,
+  );
 }
 
 export async function apiChangeBed(env, session, body) {
@@ -457,7 +469,12 @@ export async function apiChangeBed(env, session, body) {
     },
     session,
   );
-  return finishWrite(env, {}, ["lodging", "board", "housekeeping"]);
+  return finishWrite(
+    env,
+    {},
+    ["lodging", "board", "housekeeping"],
+    BOARD_SYNC_MODULES,
+  );
 }
 
 export async function apiExtendStay(env, session, body) {
@@ -510,7 +527,12 @@ export async function apiExtendStay(env, session, body) {
     { guest_id: l.guest_id, name: l.name, new_check_out: date },
     session,
   );
-  return finishWrite(env, {}, ["lodging", "board", "housekeeping"]);
+  return finishWrite(
+    env,
+    {},
+    ["lodging", "board", "housekeeping"],
+    BOARD_SYNC_MODULES,
+  );
 }
 
 export async function apiAssignBed(env, session, body, options) {
@@ -564,7 +586,12 @@ export async function apiAssignBed(env, session, body, options) {
   if (options && options.deferFinishWrite) {
     return { ok: true, deferred: true };
   }
-  return finishWrite(env, {}, ["lodging", "board", "housekeeping"]);
+  return finishWrite(
+    env,
+    {},
+    ["lodging", "board", "housekeeping"],
+    BOARD_SYNC_MODULES,
+  );
 }
 
 export async function apiAssignReservationToBed(env, session, body, options) {
@@ -660,7 +687,12 @@ export async function apiAssignReservationToBed(env, session, body, options) {
   if (options && options.deferFinishWrite) {
     return { ok: true, deferred: true, lodger_id: lodgerId };
   }
-  return finishWrite(env, { lodger_id: lodgerId }, ["lodging", "board"]);
+  return finishWrite(
+    env,
+    { lodger_id: lodgerId },
+    ["lodging", "board"],
+    BOARD_SYNC_MODULES,
+  );
 }
 
 export async function apiEditLodger(env, session, body) {
@@ -760,7 +792,12 @@ export async function apiEditLodger(env, session, body) {
     { guest_id: l.guest_id, name: person.name },
     session,
   );
-  return finishWrite(env, {}, ["lodging", "board", "housekeeping"]);
+  return finishWrite(
+    env,
+    {},
+    ["lodging", "board", "housekeeping"],
+    BOARD_SYNC_MODULES,
+  );
 }
 
 export async function apiDeleteLodger(env, session, body) {
@@ -792,7 +829,12 @@ export async function apiDeleteLodger(env, session, body) {
     { guest_id: l.guest_id, name: l.name },
     session,
   );
-  const result = await finishWrite(env, {}, ["lodging", "board"]);
+  const result = await finishWrite(
+    env,
+    {},
+    ["lodging", "board"],
+    BOARD_SYNC_MODULES,
+  );
   await recordSyncDeletion(env, "lodgers", id, result.board_version);
   return result;
 }
@@ -850,9 +892,12 @@ export async function apiPublicReservation(env, body) {
       body.notes || null,
     ],
   );
-  return finishWrite(env, { reservation_id: meta.last_row_id }, [
-    "reservations",
-  ]);
+  return finishWrite(
+    env,
+    { reservation_id: meta.last_row_id },
+    ["reservations"],
+    ["reservations"],
+  );
 }
 
 async function findEventByName(env, name) {
@@ -1034,10 +1079,12 @@ export async function apiBatchCheckIn(env, session, body) {
     }
   }
   if (success > 0) {
-    return finishWrite(env, { success: success, fail: failed.length, failed }, [
-      "lodging",
-      "board",
-    ]);
+    return finishWrite(
+      env,
+      { success: success, fail: failed.length, failed },
+      ["lodging", "board"],
+      BOARD_SYNC_MODULES,
+    );
   }
   return { ok: true, success: 0, fail: failed.length, failed };
 }

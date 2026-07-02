@@ -138,7 +138,12 @@ export async function apiUpsertReservation(env, session, body) {
       { guest_id: guestId, name: person.name },
       session,
     );
-    return finishWrite(env, { reservation_id: resvId }, ["reservations"]);
+    return finishWrite(
+      env,
+      { reservation_id: resvId },
+      ["reservations"],
+      ["reservations"],
+    );
   }
 
   const meta = await runD1(
@@ -175,9 +180,12 @@ export async function apiUpsertReservation(env, session, body) {
     { guest_id: guestId, name: person.name },
     session,
   );
-  return finishWrite(env, { reservation_id: meta.last_row_id }, [
-    "reservations",
-  ]);
+  return finishWrite(
+    env,
+    { reservation_id: meta.last_row_id },
+    ["reservations"],
+    ["reservations"],
+  );
 }
 
 export async function apiUpdateReservationStatus(env, session, body) {
@@ -197,7 +205,7 @@ export async function apiUpdateReservationStatus(env, session, body) {
     { name: r.name, from: r.status, to: status },
     session,
   );
-  return finishWrite(env, {}, ["reservations"]);
+  return finishWrite(env, {}, ["reservations"], ["reservations"]);
 }
 
 export async function apiBatchEventMembers(env, session, body) {
@@ -260,5 +268,10 @@ export async function apiBatchEventMembers(env, session, body) {
     { count: items.length },
     session,
   );
-  return finishWrite(env, { count: items.length }, ["reservations", "lodging"]);
+  return finishWrite(
+    env,
+    { count: items.length },
+    ["reservations", "lodging"],
+    ["reservations", "board"],
+  );
 }

@@ -110,7 +110,7 @@ async function upsertRoom(env, session, body) {
       ],
     );
     await insertAudit(env, "更新房间", "room", id, { name }, session);
-    return finishWrite(env, { room_id: id }, ["settings"]);
+    return finishWrite(env, { room_id: id }, ["settings"], ["settings_rooms"]);
   }
 
   const tags = parseRoomTagFields(body);
@@ -138,7 +138,12 @@ async function upsertRoom(env, session, body) {
     { name },
     session,
   );
-  return finishWrite(env, { room_id: meta.last_row_id }, ["settings"]);
+  return finishWrite(
+    env,
+    { room_id: meta.last_row_id },
+    ["settings"],
+    ["settings_rooms"],
+  );
 }
 
 async function deleteRoom(env, session, body) {
@@ -168,6 +173,7 @@ async function deleteRoom(env, session, body) {
     {},
     ["settings"],
     { table_name: "rooms", row_id: id },
+    ["settings_rooms"],
   );
 }
 
@@ -245,7 +251,7 @@ async function upsertBed(env, session, body) {
       { room_id: roomId, bed_number: bedNumber, status },
       session,
     );
-    return finishWrite(env, { bed_id: id }, ["settings"]);
+    return finishWrite(env, { bed_id: id }, ["settings"], ["settings_beds"]);
   }
 
   const meta = await runD1(
@@ -274,7 +280,12 @@ async function upsertBed(env, session, body) {
     { room_id: roomId, bed_number: bedNumber, status },
     session,
   );
-  return finishWrite(env, { bed_id: meta.last_row_id }, ["settings"]);
+  return finishWrite(
+    env,
+    { bed_id: meta.last_row_id },
+    ["settings"],
+    ["settings_beds"],
+  );
 }
 
 async function deleteBed(env, session, body) {
@@ -306,6 +317,7 @@ async function deleteBed(env, session, body) {
     {},
     ["settings"],
     { table_name: "beds", row_id: id },
+    ["settings_beds"],
   );
 }
 
@@ -375,7 +387,12 @@ async function upsertGuest(env, session, body) {
       { name: person.name, phone },
       session,
     );
-    return finishWrite(env, { guest_id: id }, ["settings"]);
+    return finishWrite(
+      env,
+      { guest_id: id },
+      ["settings"],
+      ["settings_guests"],
+    );
   }
 
   const meta = await runD1(
@@ -403,7 +420,12 @@ async function upsertGuest(env, session, body) {
     { name: person.name, phone },
     session,
   );
-  return finishWrite(env, { guest_id: meta.last_row_id }, ["settings"]);
+  return finishWrite(
+    env,
+    { guest_id: meta.last_row_id },
+    ["settings"],
+    ["settings_guests"],
+  );
 }
 
 async function deleteGuest(env, session, body) {
@@ -434,6 +456,7 @@ async function deleteGuest(env, session, body) {
     {},
     ["settings"],
     { table_name: "guests", row_id: id },
+    ["settings_guests"],
   );
 }
 
@@ -534,7 +557,7 @@ async function upsertEvent(env, session, body) {
     }
     await batchD1(env, statements);
     await insertAudit(env, "更新营期", "event", id, { name }, session);
-    return finishWrite(env, { event_id: id }, ["events"]);
+    return finishWrite(env, { event_id: id }, ["events"], ["events"]);
   }
 
   const meta = await runD1(
@@ -561,7 +584,12 @@ async function upsertEvent(env, session, body) {
     { name },
     session,
   );
-  return finishWrite(env, { event_id: meta.last_row_id }, ["events"]);
+  return finishWrite(
+    env,
+    { event_id: meta.last_row_id },
+    ["events"],
+    ["events"],
+  );
 }
 
 async function deleteEvent(env, session, body) {
@@ -588,6 +616,7 @@ async function deleteEvent(env, session, body) {
     {},
     ["events"],
     { table_name: "events", row_id: id },
+    ["events"],
   );
 }
 
@@ -769,7 +798,7 @@ async function updateLodgerRecord(env, session, body) {
     { name: person.name, bed_id: finalBedId, status },
     session,
   );
-  return finishWrite(env, {}, ["lodging"]);
+  return finishWrite(env, {}, ["lodging"], ["lodgers_records"]);
 }
 
 export async function handleAdminRecord(env, session, body) {

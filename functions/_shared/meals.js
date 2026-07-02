@@ -65,5 +65,5 @@ export async function apiSaveMeals(env, session, body) {
     { name: l.name, defaults, affected_dates: Object.keys(map).length },
     session,
   );
-  return finishWrite(env, {}, ["meals"]);
+  return finishWrite(env, {}, ["meals"], ["meals"]);
 }

@@ -158,9 +158,11 @@ function resolveScopeModuleKey(options) {
   if (scope && VIEW_SYNC_SCOPES[scope] && VIEW_SYNC_SCOPES[scope].module) {
     return VIEW_SYNC_SCOPES[scope].module;
   }
-  var active = getActiveViewId();
-  if (active && VIEW_SYNC_SCOPES[active] && VIEW_SYNC_SCOPES[active].module) {
-    return VIEW_SYNC_SCOPES[active].module;
+  if (options && options.useActiveViewModule) {
+    var active = getActiveViewId();
+    if (active && VIEW_SYNC_SCOPES[active] && VIEW_SYNC_SCOPES[active].module) {
+      return VIEW_SYNC_SCOPES[active].module;
+    }
   }
   return null;
 }
@@ -207,7 +209,7 @@ function lodgingModuleForView(active) {
 
 function domainsToModules(domains, options) {
   var scoped = resolveScopeModuleKey(options);
-  if (scoped) return [scoped];
+  if (scoped && options && (options.scope || options.infoTab)) return [scoped];
 
   var keys = [];
   var active = getActiveViewId();
@@ -231,6 +233,27 @@ function domainsToModules(domains, options) {
     });
   }
   return keys;
+}
+
+function dedupeReadModules(modules) {
+  var keys = [];
+  (modules || []).forEach(function (mod) {
+    if (mod && keys.indexOf(mod) === -1) keys.push(mod);
+  });
+  if (keys.indexOf("board") !== -1) {
+    return keys.filter(function (k) {
+      return k !== "lodgers_records" && k !== "lodgers" && k !== "settings";
+    });
+  }
+  return keys;
+}
+
+function writeResultToModules(writeResult, options) {
+  var fromServer = writeResult && writeResult.changed_modules;
+  if (Array.isArray(fromServer) && fromServer.length) {
+    return dedupeReadModules(fromServer);
+  }
+  return domainsToModules(writeResult && writeResult.changed_domains, options);
 }
 
 function notifyViewsForDomains(domains) {
@@ -271,6 +294,24 @@ async function fetchAndApplyModule(moduleKey) {
     setLocalBoardVersion(payload.board_version);
   }
   return { module: moduleKey, skipped: false };
+}
+
+async function syncRemoteByModules(modules, domains) {
+  if (!modules || !modules.length) return false;
+  setRemoteSyncStatus("loading");
+  try {
+    for (var i = 0; i < modules.length; i++) {
+      await fetchAndApplyModule(modules[i]);
+    }
+    remoteReadModelReady = true;
+    lastRemoteSyncAt = Date.now();
+    setRemoteSyncStatus("ready");
+    notifyViewsForDomains(domains || []);
+    return true;
+  } catch (e) {
+    setRemoteSyncStatus("error", e.message || "数据同步失败");
+    throw e;
+  }
 }
 
 async function syncRemoteByDomains(domains, options) {
@@ -324,7 +365,9 @@ async function syncAfterRemoteWrite(writeResult, options) {
   if (typeof isRemoteDB !== "function" || !isRemoteDB()) return;
   if (typeof isLoggedIn === "function" && !isLoggedIn()) return;
 
-  var scopedModule = resolveScopeModuleKey(options);
+  var scopedModule = resolveScopeModuleKey(
+    Object.assign({ useActiveViewModule: true }, options || {}),
+  );
 
   var writeVersion = parseBoardVersion(
     writeResult && writeResult.board_version,
@@ -365,6 +408,12 @@ async function syncAfterRemoteWrite(writeResult, options) {
     writeResult && Array.isArray(writeResult.changed_domains)
       ? writeResult.changed_domains
       : null;
+  var modules = writeResultToModules(writeResult, options);
+  if (modules.length) {
+    await syncRemoteByModules(modules, domains);
+    return;
+  }
+
   if (domains && domains.length) {
     await syncRemoteByDomains(domains, options);
     return;

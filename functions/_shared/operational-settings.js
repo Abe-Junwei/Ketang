@@ -69,8 +69,10 @@ export async function saveOperationalSettings(env, session, body) {
     { housekeeping_require_inspect: requireInspect },
     session,
   );
-  return finishWrite(env, { housekeeping_require_inspect: requireInspect }, [
-    "settings",
-    "board",
-  ]);
+  return finishWrite(
+    env,
+    { housekeeping_require_inspect: requireInspect },
+    ["settings", "board"],
+    ["board"],
+  );
 }

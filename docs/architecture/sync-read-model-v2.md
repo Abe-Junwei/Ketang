@@ -302,10 +302,13 @@ syncRemoteReadModel(options)
 {
   "ok": true,
   "board_version": 1284,
-  "changed_domains": ["events"],
-  "data": {}
+  "changed_domains": ["settings"],
+  "changed_modules": ["settings_rooms"]
 }
 ```
+
+- `changed_domains`：审计 / delta / 兼容旧客户端
+- `changed_modules`：写后同步的**最小读模块**清单（优先于域→模块推断）；例：保存房间 → `settings_rooms` 而非全量 `settings`
 
 错误：
 

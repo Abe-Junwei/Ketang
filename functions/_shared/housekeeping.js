@@ -66,5 +66,5 @@ export async function apiSetHouseStatus(env, session, body) {
   }
   await batchD1(env, statements);
   await insertAudit(env, "房务状态变更", "bed", bedId, { status }, session);
-  return finishWrite(env, {}, ["board", "housekeeping"]);
+  return finishWrite(env, {}, ["board", "housekeeping"], ["board"]);
 }

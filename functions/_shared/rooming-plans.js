@@ -373,7 +373,7 @@ export async function generateRoomingPlanAssignments(env, session, eventId) {
     session,
   );
   const bundle = await getRoomingPlanBundle(env, eventId);
-  const writeMeta = await finishWrite(env, {}, ["events"]);
+  const writeMeta = await finishWrite(env, {}, ["events"], ["events"]);
   return { ...bundle, ...writeMeta };
 }
 
@@ -447,7 +447,7 @@ export async function saveRoomingPlan(env, session, body) {
     session,
   );
   const bundle = await getRoomingPlanBundle(env, plan.event_id);
-  const writeMeta = await finishWrite(env, {}, ["events"]);
+  const writeMeta = await finishWrite(env, {}, ["events"], ["events"]);
   return { ...bundle, ...writeMeta };
 }
 
