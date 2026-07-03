@@ -20,6 +20,8 @@ def main():
             index.find("api-client.js") < index.find("read-cache.js"),
         ),
         ("db sync uses rcEnsureAppData", "rcEnsureAppData" in db),
+        ("db forwards bootstrapOnly", "bootstrapOnly: bootstrapOnly" in db),
+        ("index db.js versioned", "js/db.js?v=" in index),
         ("rcEnsureAppData defined", "async function rcEnsureAppData" in rc),
         ("board module in bootstrap", '"board"' in rc and "RC_APP_MODULES" in rc),
         ("lodgers_lookup in deferred", '"lodgers_lookup"' in rc and "RC_DEFERRED_MODULES" in rc),

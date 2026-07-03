@@ -65,7 +65,9 @@ document.addEventListener("DOMContentLoaded", async () => {
       if (typeof mountParticipantTagSelects === "function") {
         mountParticipantTagSelects();
       }
-      await renderAll();
+      await renderAll({
+        loginBootstrap: typeof isRemoteDB === "function" && isRemoteDB(),
+      });
       document.getElementById("ci-in").valueAsDate = new Date();
       startBoardPolling();
     } else {

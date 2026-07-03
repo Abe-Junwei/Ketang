@@ -37,6 +37,7 @@ def main():
         ("idle deferred rooms", "scheduleIdleTask" in app),
         ("perf rum script", "perf-rum.js" in html),
         ("login bootstrap", "loginBootstrap" in app),
+        ("session restore bootstrap", "loginBootstrap: typeof isRemoteDB" in app),
         ("write refresh mark", 'ketangPerfMark("write-refresh:start")' in rc),
         ("delta mark", 'ketangPerfMark("delta:start")' in sync),
         ("delta measure", 'ketangPerfMeasure("delta"' in sync),
