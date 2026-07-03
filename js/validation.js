@@ -247,10 +247,9 @@ function checkDuplicate(phone, idCard, excludeId) {
   if (
     typeof readUseRc === "function" &&
     readUseRc() &&
-    typeof rcRows === "function"
+    typeof rcLookupLodgersInHouse === "function"
   ) {
-    const rows = rcRows("lodgers", "lodgers").filter(function (l) {
-      if (l.status !== "在住") return false;
+    const rows = rcLookupLodgersInHouse().filter(function (l) {
       if (excludeId && l.id == excludeId) return false;
       if (phone && l.phone === phone) return true;
       if (idCard && l.id_card === idCard) return true;

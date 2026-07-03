@@ -49,11 +49,28 @@ const BOARD_TABLE_FIELDS = {
 };
 
 const LODGERS_ACTIVE_BED_FIELDS = ["id", "room_id", "bed_number"];
+const LODGERS_ACTIVE_LODGER_FIELDS = [
+  "id",
+  "bed_id",
+  "guest_id",
+  "name",
+  "dharma_name",
+  "gender",
+  "phone",
+  "role",
+  "class_name",
+  "status",
+  "check_in_date",
+  "expected_check_out",
+  "actual_check_out",
+  "event_id",
+];
 const LODGERS_LOOKUP_FIELDS = [
   "id",
   "name",
   "dharma_name",
   "phone",
+  "id_card",
   "status",
   "bed_id",
   "guest_id",
@@ -155,7 +172,12 @@ async function fetchModuleTableRows(env, table, permissions, moduleKey) {
     (moduleKey === "lodgers_active" || moduleKey === "lodgers_records") &&
     table === "lodgers"
   ) {
-    return queryD1(env, "SELECT * FROM lodgers WHERE status = '在住'", []);
+    const cols = LODGERS_ACTIVE_LODGER_FIELDS.join(", ");
+    return queryD1(
+      env,
+      `SELECT ${cols} FROM lodgers WHERE status = '在住'`,
+      [],
+    );
   }
   if (
     (moduleKey === "lodgers_active" || moduleKey === "lodgers_records") &&
@@ -291,6 +313,12 @@ export async function buildReadModule(env, session, moduleKey, options) {
       data[table] = rows.map((row) => {
         const sanitized = sanitizeRowForRole(table, row, session.role);
         if (key === "board") return projectBoardRow(table, sanitized);
+        if (
+          (key === "lodgers_active" || key === "lodgers_records") &&
+          table === "lodgers"
+        ) {
+          return projectRowFields(LODGERS_ACTIVE_LODGER_FIELDS, sanitized);
+        }
         if (
           (key === "lodgers_active" || key === "lodgers_records") &&
           table === "beds"

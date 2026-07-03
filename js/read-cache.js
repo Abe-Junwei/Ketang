@@ -650,6 +650,19 @@ function rcLodgerById(id) {
   return null;
 }
 
+/** 在住索引（优先 lodgers_lookup，bootstrap 后即可查重）| In-house rows for duplicate checks */
+function rcLookupLodgersInHouse() {
+  var lookup = rcRows("lodgers_lookup", "lodgers");
+  if (lookup.length) {
+    return lookup.filter(function (l) {
+      return l.status === "在住";
+    });
+  }
+  return rcRows("lodgers", "lodgers").filter(function (l) {
+    return l.status === "在住";
+  });
+}
+
 function rcEnrichLodgerRow(l) {
   if (!l) return l;
   var events = rcEventsById();
