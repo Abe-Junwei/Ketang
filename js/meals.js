@@ -927,7 +927,14 @@ async function submitMeals(lodgerId) {
       defaults.dinner,
     );
   }
-  const l = query("SELECT * FROM lodgers WHERE id=?", [lodgerId])[0];
+  const l =
+    typeof rcReadReady === "function" && rcReadReady()
+      ? rcLodgerById(lodgerId)
+      : query("SELECT * FROM lodgers WHERE id=?", [lodgerId])[0];
+  if (!l) {
+    alert("找不到该挂单记录");
+    return;
+  }
   const map = {};
   document.querySelectorAll(".meal-skip-cb").forEach(function (cb) {
     const d = cb.dataset.date;

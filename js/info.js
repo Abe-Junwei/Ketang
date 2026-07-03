@@ -496,11 +496,26 @@ async function infoRefreshAfterWrite(writeResult, tab, syncOptions) {
     touchBoardVersionFromWrite(writeResult);
   }
   infoInvalidateForTab(tab);
+  if (typeof rcInvalidateForInfoTab === "function") {
+    rcInvalidateForInfoTab(tab);
+  }
   if (infoUseApiData()) {
     try {
       await infoEnsureTabData(tab, true);
     } catch (e) {
       console.warn("info refetch failed:", e.message || e);
+    }
+    var rcMods =
+      typeof rcModulesForInfoTab === "function" ? rcModulesForInfoTab(tab) : [];
+    if (rcMods.length && typeof rcFetchMany === "function") {
+      try {
+        await rcFetchMany(rcMods, true);
+        if (typeof rcHydrateLegacyQueries === "function") {
+          await rcHydrateLegacyQueries(rcMods, true);
+        }
+      } catch (e) {
+        console.warn("rc refetch failed:", e.message || e);
+      }
     }
   }
   renderInfo(tab);
@@ -512,6 +527,7 @@ async function infoRefreshAfterWrite(writeResult, tab, syncOptions) {
         infoOnly: true,
         infoTab: tab,
         quietSync: true,
+        skipModuleSync: true,
       },
       INFO_WRITE_SYNC,
       syncOptions || {},

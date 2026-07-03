@@ -554,7 +554,12 @@ function renderFlowForecast() {
   }
 
   // 可用于调剂的不限房间（当前空床）
-  const flexRooms = query(`
+  const flexRooms =
+    typeof rcReadReady === "function" &&
+    rcReadReady() &&
+    typeof rcFlexEmptyRooms === "function"
+      ? rcFlexEmptyRooms()
+      : query(`
     SELECT r.name, r.location, COUNT(b.id) as beds
     FROM rooms r
     JOIN beds b ON b.room_id = r.id

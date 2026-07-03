@@ -163,19 +163,44 @@ function getActiveViewId() {
 }
 
 function resolveScopeModuleKey(options) {
-  var infoTab = options && options.infoTab;
-  if (infoTab && INFO_TAB_MODULES[infoTab]) return INFO_TAB_MODULES[infoTab];
-  var scope = options && options.scope;
-  if (scope && VIEW_SYNC_SCOPES[scope] && VIEW_SYNC_SCOPES[scope].module) {
-    return VIEW_SYNC_SCOPES[scope].module;
+  var keys = resolveScopedModuleKeys(options);
+  return keys.length ? keys[0] : null;
+}
+
+/** 写后同步：视图/infoTab 对应的全部读模块 | All read modules for active scope */
+function resolveScopedModuleKeys(options) {
+  options = options || {};
+  if (options.infoTab && typeof rcModulesForInfoTab === "function") {
+    var infoMods = rcModulesForInfoTab(options.infoTab);
+    if (infoMods.length) return infoMods.slice();
   }
-  if (options && options.useActiveViewModule) {
+  if (options.useActiveViewModule) {
     var active = getActiveViewId();
-    if (active && VIEW_SYNC_SCOPES[active] && VIEW_SYNC_SCOPES[active].module) {
-      return VIEW_SYNC_SCOPES[active].module;
+    if (active === "info" && typeof infoCurrentTab !== "undefined") {
+      if (typeof rcModulesForInfoTab === "function") {
+        var tabMods = rcModulesForInfoTab(infoCurrentTab);
+        if (tabMods.length) return tabMods.slice();
+      }
+      if (INFO_TAB_MODULES[infoCurrentTab]) {
+        return [INFO_TAB_MODULES[infoCurrentTab]];
+      }
+    }
+    if (
+      active &&
+      VIEW_SYNC_SCOPES[active] &&
+      VIEW_SYNC_SCOPES[active].module
+    ) {
+      return [VIEW_SYNC_SCOPES[active].module];
     }
   }
-  return null;
+  var scope = options.scope;
+  if (scope && VIEW_SYNC_SCOPES[scope] && VIEW_SYNC_SCOPES[scope].module) {
+    return [VIEW_SYNC_SCOPES[scope].module];
+  }
+  if (options.infoTab && INFO_TAB_MODULES[options.infoTab]) {
+    return [INFO_TAB_MODULES[options.infoTab]];
+  }
+  return [];
 }
 
 function refreshViewForScope(scopeKey, options) {
@@ -219,9 +244,6 @@ function lodgingModuleForView(active) {
 }
 
 function domainsToModules(domains, options) {
-  var scoped = resolveScopeModuleKey(options);
-  if (scoped && options && (options.scope || options.infoTab)) return [scoped];
-
   var keys = [];
   var active = getActiveViewId();
   (domains || []).forEach(function (domain) {
@@ -385,7 +407,7 @@ async function syncAfterRemoteWrite(writeResult, options) {
   if (typeof isRemoteDB !== "function" || !isRemoteDB()) return;
   if (typeof isLoggedIn === "function" && !isLoggedIn()) return;
 
-  var scopedModule = resolveScopeModuleKey(
+  var scopedModules = resolveScopedModuleKeys(
     Object.assign({ useActiveViewModule: true }, options || {}),
   );
 
@@ -398,7 +420,7 @@ async function syncAfterRemoteWrite(writeResult, options) {
     writeVersion != null &&
     localVersion != null &&
     writeVersion === localVersion &&
-    !scopedModule
+    !scopedModules.length
   ) {
     notifyViewsForDomains(writeResult && writeResult.changed_domains);
     return;
@@ -429,15 +451,19 @@ async function syncAfterRemoteWrite(writeResult, options) {
     return;
   }
 
-  if (scopedModule) {
+  var domains =
+    writeResult && Array.isArray(writeResult.changed_domains)
+      ? writeResult.changed_domains
+      : null;
+  var modules = dedupeReadModules(
+    scopedModules.concat(writeResultToModules(writeResult, options)),
+  );
+
+  if (scopedModules.length) {
+    if (!modules.length) modules = scopedModules.slice();
     if (!options || !options.quietSync) setRemoteSyncStatus("loading");
     try {
-      await fetchAndApplyModule(scopedModule, {
-        upsertOnly: !!(options && options.upsertModuleSync),
-      });
-      remoteReadModelReady = true;
-      lastRemoteSyncAt = Date.now();
-      if (!options || !options.quietSync) setRemoteSyncStatus("ready");
+      await syncRemoteByModules(modules, domains);
       if (!options || !options.skipViewRefresh) {
         refreshViewForScope(getActiveViewId(), options);
       }
@@ -448,11 +474,7 @@ async function syncAfterRemoteWrite(writeResult, options) {
     return;
   }
 
-  var domains =
-    writeResult && Array.isArray(writeResult.changed_domains)
-      ? writeResult.changed_domains
-      : null;
-  var modules = writeResultToModules(writeResult, options);
+  modules = writeResultToModules(writeResult, options);
   if (modules.length) {
     await syncRemoteByModules(modules, domains);
     return;

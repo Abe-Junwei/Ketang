@@ -319,8 +319,8 @@ function rcActiveLodgersEnriched() {
 
 function boardReadCacheReady() {
   return (
-    typeof rcUseApiRead === "function" &&
-    rcUseApiRead() &&
+    typeof rcReadReady === "function" &&
+    rcReadReady() &&
     rcBoardRooms().length > 0
   );
 }
@@ -526,6 +526,108 @@ function rcEnrichReservationRow(r) {
   });
 }
 
+/** 信息管理 Tab → 需刷新的读模块 | Info tab → read modules to sync */
+var RC_INFO_TAB_MODULES = {
+  rooms: ["settings_rooms", "settings_beds", "board"],
+  beds: ["settings_beds", "lodgers", "board"],
+  guests: ["settings_guests"],
+  lodgers: ["lodgers", "lodgers_records", "board"],
+  events: ["events", "lodgers", "reservations", "board"],
+};
+
+function rcModulesForInfoTab(tab) {
+  var keys = RC_INFO_TAB_MODULES[tab];
+  return keys ? keys.slice() : [];
+}
+
+function rcInvalidateForInfoTab(tab) {
+  rcInvalidateMany(rcModulesForInfoTab(tab));
+}
+
+function rcEventById(id) {
+  if (!id) return null;
+  return (
+    rcRows("events", "events").find(function (e) {
+      return e.id == id;
+    }) || null
+  );
+}
+
+/** 营期成员（在住 + 预约）| Event members for member panel */
+function rcEventMembers(eventId) {
+  if (!eventId) return null;
+  var evt = rcEventById(eventId);
+  if (!evt) return null;
+  var lodgers = rcAllLodgersMerged()
+    .filter(function (l) {
+      return l.event_id == eventId && l.status === "在住";
+    })
+    .map(rcEnrichLodgerRow)
+    .map(function (l) {
+      return Object.assign({}, l, { kind: "lodger" });
+    })
+    .sort(function (a, b) {
+      return (a.name || "").localeCompare(b.name || "", "zh-CN");
+    });
+  var reservations = rcRows("reservations", "reservations")
+    .filter(function (r) {
+      return (
+        r.event_id == eventId &&
+        (r.status === "预约" || r.status === "已确认")
+      );
+    })
+    .map(function (r) {
+      return Object.assign({}, r, { kind: "reservation" });
+    })
+    .sort(function (a, b) {
+      var da = a.expected_check_in || "";
+      var db = b.expected_check_in || "";
+      if (da !== db) return da.localeCompare(db);
+      return (a.name || "").localeCompare(b.name || "", "zh-CN");
+    });
+  return {
+    evt: evt,
+    lodgers: lodgers,
+    reservations: reservations,
+    members: lodgers.concat(reservations),
+  };
+}
+
+/** 不限寮空床房间（流量预测调剂提示）| Flex dorm empty rooms */
+function rcFlexEmptyRooms() {
+  var byRoom = {};
+  rcBoardRooms().forEach(function (r) {
+    if (r.dorm_type !== "不限") return;
+    if (typeof isSpareRoom === "function" && isSpareRoom(r)) return;
+    byRoom[r.id] = { name: r.name, location: r.location, beds: 0 };
+  });
+  rcBoardBeds().forEach(function (b) {
+    if (b.status === "维修" || b.status === "备用") return;
+    var room = rcBoardRooms().find(function (r) {
+      return r.id == b.room_id;
+    });
+    if (!room || room.dorm_type !== "不限") return;
+    if (typeof isSpareRoom === "function" && isSpareRoom(room)) return;
+    if (rcLodgerOnBed(b.id)) return;
+    if (!byRoom[room.id]) {
+      byRoom[room.id] = {
+        name: room.name,
+        location: room.location,
+        beds: 0,
+      };
+    }
+    byRoom[room.id].beds++;
+  });
+  return Object.values(byRoom)
+    .filter(function (r) {
+      return r.beds > 0;
+    })
+    .sort(function (a, b) {
+      if (b.beds !== a.beds) return b.beds - a.beds;
+      return (a.name || "").localeCompare(b.name || "", "zh-CN");
+    });
+}
+
 /** 营期列表含统计 | Event list with enrollment stats */
 function rcEventListWithStats() {
   var lodgers = rcAllLodgersMerged();
@@ -590,7 +692,10 @@ function rcForecastTodayData(date) {
     return l.check_in_date === day && l.status === "在住";
   }).length;
   var actualCheckouts = lodgers.filter(function (l) {
-    return l.actual_check_out === day;
+    return (
+      l.actual_check_out === day &&
+      (l.status === "在住" || l.status === "已退")
+    );
   }).length;
   var inHouse = lodgers.filter(function (l) {
     return (

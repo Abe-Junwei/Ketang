@@ -14,6 +14,58 @@ function eventWriteRefreshOptions() {
   return null;
 }
 
+function eventReadReady() {
+  return typeof rcReadReady === "function" && rcReadReady();
+}
+
+function eventGetById(id) {
+  if (eventReadReady() && typeof rcEventById === "function") {
+    return rcEventById(id);
+  }
+  return query("SELECT * FROM events WHERE id = ?", [id])[0];
+}
+
+function eventMemberEventId(item) {
+  if (!item) return null;
+  if (item.kind === "reservation") {
+    if (eventReadReady()) {
+      var r = rcRows("reservations", "reservations").find(function (x) {
+        return x.id == item.id;
+      });
+      return r ? r.event_id : null;
+    }
+    var row = query("SELECT event_id FROM reservations WHERE id = ?", [
+      item.id,
+    ])[0];
+    return row ? row.event_id : null;
+  }
+  if (eventReadReady() && typeof rcLodgerById === "function") {
+    var lodger = rcLodgerById(item.id);
+    return lodger ? lodger.event_id : null;
+  }
+  var lrow = query("SELECT event_id FROM lodgers WHERE id = ?", [item.id])[0];
+  return lrow ? lrow.event_id : null;
+}
+
+function eventRelatedCount(eventId) {
+  if (eventReadReady()) {
+    var lodgers = rcAllLodgersMerged().filter(function (l) {
+      return l.event_id == eventId;
+    }).length;
+    var resvs = rcRows("reservations", "reservations").filter(function (r) {
+      return r.event_id == eventId;
+    }).length;
+    return lodgers + resvs;
+  }
+  return (
+    (query("SELECT COUNT(*) as c FROM lodgers WHERE event_id = ?", [eventId])[0]
+      ?.c || 0) +
+    (query("SELECT COUNT(*) as c FROM reservations WHERE event_id = ?", [
+      eventId,
+    ])[0]?.c || 0)
+  );
+}
+
 // 营期列表（用于基础设置页）
 function renderEventList() {
   if (typeof updateTopbarForInfoTab === "function") {
@@ -142,14 +194,20 @@ function renderEventList() {
 
 // 营期成员与批量操作
 function renderEventMembers(eventId) {
-  const evt = query("SELECT * FROM events WHERE id = ?", [eventId])[0];
+  var pack =
+    eventReadReady() && typeof rcEventMembers === "function"
+      ? rcEventMembers(eventId)
+      : null;
+  const evt = pack ? pack.evt : eventGetById(eventId);
   if (!evt) return;
   if (typeof updateTopbarTitle === "function") {
     updateTopbarTitle("info", (evt.name || "营期") + " · 成员");
   }
 
-  const lodgers = query(
-    `
+  const lodgers = pack
+    ? pack.lodgers
+    : query(
+        `
     SELECT l.id, l.name, l.dharma_name, l.gender, l.check_in_date, l.expected_check_out, l.role, l.class_name, l.participant_identity, l.age_group, l.status, r.name as room_name, b.bed_number, 'lodger' as kind
     FROM lodgers l
     LEFT JOIN beds b ON b.id = l.bed_id
@@ -157,18 +215,20 @@ function renderEventMembers(eventId) {
     WHERE l.event_id = ? AND l.status = '在住'
     ORDER BY l.status, l.name
   `,
-    [eventId],
-  );
+        [eventId],
+      );
 
-  const reservations = query(
-    `
+  const reservations = pack
+    ? pack.reservations
+    : query(
+        `
     SELECT r.id, r.name, r.dharma_name, r.gender, r.expected_check_in, r.expected_check_out, r.role, r.class_name, r.participant_identity, r.age_group, r.status, r.room_preference, 'reservation' as kind
     FROM reservations r
     WHERE r.event_id = ? AND r.status IN ('预约', '已确认')
     ORDER BY r.expected_check_in, r.name
   `,
-    [eventId],
-  );
+        [eventId],
+      );
 
   const members = [...lodgers, ...reservations];
 
@@ -262,15 +322,7 @@ async function batchCancelEventMembers() {
 
   let eventId = null;
   const first = selected[0];
-  if (first.kind === "reservation") {
-    const r = query("SELECT event_id FROM reservations WHERE id = ?", [
-      first.id,
-    ])[0];
-    eventId = r ? r.event_id : null;
-  } else {
-    const l = query("SELECT event_id FROM lodgers WHERE id = ?", [first.id])[0];
-    eventId = l ? l.event_id : null;
-  }
+  eventId = eventMemberEventId(first);
 
   try {
     var writeResult = null;
@@ -324,7 +376,10 @@ async function batchCancelEventMembers() {
     return;
   }
   showToast(`已取消 ${selected.length} 人`);
-  refreshAfterWrite(writeResult, eventWriteRefreshOptions());
+  var refreshTask = refreshAfterWrite(writeResult, eventWriteRefreshOptions());
+  if (refreshTask && typeof refreshTask.then === "function") {
+    await refreshTask;
+  }
   if (eventId) renderEventMembers(eventId);
   else renderEventList();
 }
@@ -342,10 +397,7 @@ async function batchNoShowEventMembers() {
 
   let eventId = null;
   const first = resvOnly[0];
-  const r0 = query("SELECT event_id FROM reservations WHERE id = ?", [
-    first.id,
-  ])[0];
-  eventId = r0 ? r0.event_id : null;
+  eventId = eventMemberEventId(first);
 
   try {
     var writeResult = null;
@@ -379,7 +431,10 @@ async function batchNoShowEventMembers() {
     return;
   }
   showToast(`已标记 ${resvOnly.length} 人为 No-show`);
-  refreshAfterWrite(writeResult, eventWriteRefreshOptions());
+  var refreshTask = refreshAfterWrite(writeResult, eventWriteRefreshOptions());
+  if (refreshTask && typeof refreshTask.then === "function") {
+    await refreshTask;
+  }
   if (eventId) renderEventMembers(eventId);
   else renderEventList();
 }
@@ -391,7 +446,7 @@ function openEventModal(id) {
     return;
   }
   const isEdit = !!id;
-  const e = isEdit ? query("SELECT * FROM events WHERE id = ?", [id])[0] : null;
+  const e = isEdit ? eventGetById(id) : null;
 
   document.getElementById("modal-title").textContent = isEdit
     ? "编辑营期"
@@ -582,13 +637,9 @@ async function submitEvent(e) {
 }
 
 async function deleteEvent(id) {
-  const e = query("SELECT * FROM events WHERE id = ?", [id])[0];
+  const e = eventGetById(id);
   if (!e) return;
-  const related =
-    (query("SELECT COUNT(*) as c FROM lodgers WHERE event_id = ?", [id])[0]
-      ?.c || 0) +
-    (query("SELECT COUNT(*) as c FROM reservations WHERE event_id = ?", [id])[0]
-      ?.c || 0);
+  const related = eventRelatedCount(id);
   if (related > 0) {
     alert(`该营期下还有 ${related} 条记录，无法删除。请先取消或转移这些记录。`);
     return;
@@ -604,7 +655,8 @@ async function deleteEvent(id) {
       await saveDB();
     } else {
       deleteResult = await apiAdminRecord("event", "delete", { event_id: id });
-    }    showToast("营期已删除");
+    }
+    showToast("营期已删除");
     var eventRefreshOpts = eventWriteRefreshOptions();
     var refreshTask = refreshAfterWrite(deleteResult, eventRefreshOpts);
     if (refreshTask && typeof refreshTask.then === "function") {
@@ -619,9 +671,12 @@ async function deleteEvent(id) {
 
 // 生成营期下拉选项 HTML（供登记、预约、批量导入表单使用）
 function getEventOptionsHtml(selectedId, allowEmpty) {
-  const events = query(
-    "SELECT id, name, event_type, status FROM events WHERE status != '已取消' ORDER BY start_date DESC, id DESC",
-  );
+  const events =
+    eventReadReady() && typeof rcEventsForSelect === "function"
+      ? rcEventsForSelect()
+      : query(
+          "SELECT id, name, event_type, status FROM events WHERE status != '已取消' ORDER BY start_date DESC, id DESC",
+        );
   let html = allowEmpty ? '<option value="">散客 / 不归属营期</option>' : "";
   events.forEach((e) => {
     const selected = e.id == selectedId ? "selected" : "";

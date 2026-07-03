@@ -35,6 +35,8 @@ def main():
         ("forecast rc flow", "rcForecastFlowWeeks" in read("js/forecast.js")),
         ("events rc list", "rcEventListWithStats" in read("js/events.js")),
         ("info events loader", "info_events" in read("js/info.js")),
+        ("rcModulesForInfoTab", "function rcModulesForInfoTab" in rc),
+        ("resolveScopedModuleKeys", "function resolveScopedModuleKeys" in read("js/sync-coordinator.js")),
     ]
     failed = [name for name, ok in checks if not ok]
     if failed:
