@@ -456,6 +456,321 @@ function rcOpsNoticeData(today) {
   };
 }
 
+/** 在线读模型已就绪 | Online read model ready for rc* paths */
+function rcReadReady() {
+  return (
+    typeof rcUseApiRead === "function" &&
+    rcUseApiRead() &&
+    typeof remoteReadModelReady !== "undefined" &&
+    remoteReadModelReady
+  );
+}
+
+function rcEventsById() {
+  var map = {};
+  rcRows("events", "events").forEach(function (e) {
+    map[e.id] = e;
+  });
+  return map;
+}
+
+function rcAllLodgersMerged() {
+  var byId = {};
+  rcBoardLodgers().forEach(function (l) {
+    byId[l.id] = l;
+  });
+  rcRows("lodgers", "lodgers").forEach(function (l) {
+    byId[l.id] = l;
+  });
+  return Object.values(byId);
+}
+
+function rcLodgerById(id) {
+  if (!id) return null;
+  return (
+    rcBoardLodgers().find(function (l) {
+      return l.id == id;
+    }) ||
+    rcRows("lodgers", "lodgers").find(function (l) {
+      return l.id == id;
+    }) ||
+    null
+  );
+}
+
+function rcEnrichLodgerRow(l) {
+  if (!l) return l;
+  var events = rcEventsById();
+  var bed = rcBoardBeds().find(function (b) {
+    return b.id == l.bed_id;
+  });
+  var room = bed
+    ? rcBoardRooms().find(function (r) {
+        return r.id == bed.room_id;
+      })
+    : null;
+  return Object.assign({}, l, {
+    event_name: l.event_id ? events[l.event_id]?.name || null : null,
+    room_name: room ? room.name : null,
+    bed_number: bed ? bed.bed_number : null,
+    location: room ? room.location : null,
+    dorm_type: room ? room.dorm_type : null,
+  });
+}
+
+function rcEnrichReservationRow(r) {
+  if (!r) return r;
+  var events = rcEventsById();
+  return Object.assign({}, r, {
+    event_name: r.event_id ? events[r.event_id]?.name || null : null,
+  });
+}
+
+/** 营期列表含统计 | Event list with enrollment stats */
+function rcEventListWithStats() {
+  var lodgers = rcAllLodgersMerged();
+  var resvs = rcRows("reservations", "reservations");
+  return rcRows("events", "events")
+    .map(function (e) {
+      var checked_in = 0;
+      var reserved = 0;
+      var total_lodgers = 0;
+      lodgers.forEach(function (l) {
+        if (l.event_id != e.id) return;
+        total_lodgers++;
+        if (l.status === "在住") checked_in++;
+      });
+      resvs.forEach(function (r) {
+        if (
+          r.event_id == e.id &&
+          (r.status === "预约" || r.status === "已确认")
+        )
+          reserved++;
+      });
+      return Object.assign({}, e, {
+        checked_in: checked_in,
+        reserved: reserved,
+        total_lodgers: total_lodgers,
+      });
+    })
+    .sort(function (a, b) {
+      var sa = a.start_date || "";
+      var sb = b.start_date || "";
+      if (sa !== sb) return sb.localeCompare(sa);
+      return (b.id || 0) - (a.id || 0);
+    });
+}
+
+/** 每日预报数据 | Today forecast payload for renderTodayForecast */
+function rcForecastTodayData(date) {
+  var day = date || (typeof todayStr === "function" ? todayStr() : "");
+  var arrivalsResv = rcRows("reservations", "reservations")
+    .filter(function (r) {
+      return (
+        r.expected_check_in === day &&
+        (r.status === "预约" || r.status === "已确认")
+      );
+    })
+    .map(rcEnrichReservationRow)
+    .sort(function (a, b) {
+      return (a.event_name || "").localeCompare(b.event_name || "", "zh-CN");
+    });
+  var arrivalsLodger = rcAllLodgersMerged()
+    .filter(function (l) {
+      return l.check_in_date === day && l.status === "在住";
+    })
+    .map(rcEnrichLodgerRow);
+  var departures = rcAllLodgersMerged()
+    .filter(function (l) {
+      return l.expected_check_out === day && l.status === "在住";
+    })
+    .map(rcEnrichLodgerRow);
+  var lodgers = rcAllLodgersMerged();
+  var actualCheckins = lodgers.filter(function (l) {
+    return l.check_in_date === day && l.status === "在住";
+  }).length;
+  var actualCheckouts = lodgers.filter(function (l) {
+    return l.actual_check_out === day;
+  }).length;
+  var inHouse = lodgers.filter(function (l) {
+    return (
+      l.status === "在住" &&
+      l.check_in_date <= day &&
+      (!l.expected_check_out || l.expected_check_out > day)
+    );
+  }).length;
+  var byEvent = {};
+  arrivalsResv.concat(arrivalsLodger).forEach(function (a) {
+    var key = a.event_name || "散客";
+    if (!byEvent[key])
+      byEvent[key] = { arrive: 0, depart: 0, male: 0, female: 0 };
+    byEvent[key].arrive++;
+    if (a.gender === "男") byEvent[key].male++;
+    if (a.gender === "女") byEvent[key].female++;
+  });
+  departures.forEach(function (d) {
+    var key = d.event_name || "散客";
+    if (!byEvent[key])
+      byEvent[key] = { arrive: 0, depart: 0, male: 0, female: 0 };
+    byEvent[key].depart++;
+  });
+  var arrivalRoomKeys = {};
+  var arrivalRooms = [];
+  arrivalsResv.forEach(function (res) {
+    rcBoardRooms().forEach(function (room) {
+      if (typeof isSpareRoom === "function" && isSpareRoom(room)) return;
+      var matchPref =
+        res.room_preference &&
+        room.name &&
+        String(res.room_preference).indexOf(room.name) !== -1;
+      var matchGender =
+        (res.gender === "男" && room.dorm_type === "男寮") ||
+        (res.gender === "女" && room.dorm_type === "女寮") ||
+        room.dorm_type === "不限";
+      if (!matchPref && !matchGender) return;
+      var rk = room.id;
+      if (!arrivalRoomKeys[rk]) {
+        arrivalRoomKeys[rk] = true;
+        arrivalRooms.push({
+          room_name: room.name,
+          location: room.location,
+          dorm_type: room.dorm_type,
+        });
+      }
+    });
+  });
+  arrivalRooms.sort(function (a, b) {
+    return (a.location || "").localeCompare(b.location || "", "zh-CN");
+  });
+  var departureRooms = [];
+  var depRoomKeys = {};
+  departures.forEach(function (l) {
+    if (!l.room_name || depRoomKeys[l.room_name]) return;
+    depRoomKeys[l.room_name] = true;
+    departureRooms.push({
+      room_name: l.room_name,
+      location: l.location,
+      dorm_type: l.dorm_type,
+    });
+  });
+  return {
+    date: day,
+    arrivalsResv: arrivalsResv,
+    arrivalsLodger: arrivalsLodger,
+    departures: departures,
+    actualCheckins: actualCheckins,
+    actualCheckouts: actualCheckouts,
+    inHouse: inHouse,
+    byEvent: byEvent,
+    arrivalRooms: arrivalRooms,
+    departureRooms: departureRooms,
+  };
+}
+
+function rcForecastRoleBucket(role) {
+  if (typeof FORECAST_ROLE_GROUPS === "undefined") return "special";
+  var g = FORECAST_ROLE_GROUPS[role];
+  if (g === "师") return "shi";
+  if (g === "师资") return "teacher";
+  if (g === "学员") return "student";
+  if (g === "义工") return "volunteer";
+  return "special";
+}
+
+function rcAccumulateRole(stats, role, count) {
+  var bucket = rcForecastRoleBucket(role);
+  stats[bucket] = (stats[bucket] || 0) + count;
+}
+
+/** 周流动预测数据 | Weekly flow forecast payload */
+function rcForecastFlowWeeks(startDate, weeks) {
+  var start = startDate || (typeof todayStr === "function" ? todayStr() : "");
+  var n = parseInt(weeks, 10) || 8;
+  var weekData = [];
+  var current = new Date(start + "T12:00:00");
+  if (isNaN(current.getTime())) current = new Date();
+  current.setDate(current.getDate() - current.getDay() + 1);
+  var lodgers = rcAllLodgersMerged();
+  var resvs = rcRows("reservations", "reservations");
+  for (var i = 0; i < n; i++) {
+    var monday =
+      typeof formatDateStr === "function"
+        ? formatDateStr(current)
+        : current.toISOString().slice(0, 10);
+    var sundayDate = new Date(current);
+    sundayDate.setDate(sundayDate.getDate() + 6);
+    var sunday =
+      typeof formatDateStr === "function"
+        ? formatDateStr(sundayDate)
+        : sundayDate.toISOString().slice(0, 10);
+    var stats = {
+      male: 0,
+      female: 0,
+      shi: 0,
+      teacher: 0,
+      student: 0,
+      volunteer: 0,
+      special: 0,
+      arrive: 0,
+      depart: 0,
+    };
+    lodgers.forEach(function (l) {
+      if (
+        l.status !== "在住" ||
+        l.check_in_date > sunday ||
+        (l.expected_check_out && l.expected_check_out <= sunday)
+      )
+        return;
+      if (l.gender === "男") stats.male++;
+      if (l.gender === "女") stats.female++;
+      rcAccumulateRole(stats, l.role, 1);
+    });
+    resvs.forEach(function (r) {
+      if (
+        r.expected_check_in >= monday &&
+        r.expected_check_in <= sunday &&
+        (r.status === "预约" || r.status === "已确认")
+      )
+        stats.arrive++;
+    });
+    lodgers.forEach(function (l) {
+      if (
+        l.status === "在住" &&
+        l.expected_check_out >= monday &&
+        l.expected_check_out <= sunday
+      )
+        stats.depart++;
+    });
+    lodgers.forEach(function (l) {
+      if (
+        l.status === "在住" &&
+        l.check_in_date >= monday &&
+        l.check_in_date <= sunday
+      )
+        stats.arrive++;
+    });
+    weekData.push({ label: monday + " ~ " + sunday, stats: stats });
+    current.setDate(current.getDate() + 7);
+  }
+  var dorm = rcGetDormBedStats();
+  var flexBeds = 0;
+  rcBoardBeds().forEach(function (b) {
+    if (b.status === "维修" || b.status === "备用") return;
+    var room = rcBoardRooms().find(function (r) {
+      return r.id == b.room_id;
+    });
+    if (!room || room.dorm_type !== "不限") return;
+    if (typeof isSpareRoom === "function" && isSpareRoom(room)) return;
+    flexBeds++;
+  });
+  return {
+    weekData: weekData,
+    totalMaleBeds: dorm.maleBeds,
+    totalFemaleBeds: dorm.femaleBeds,
+    totalFlexBeds: flexBeds,
+  };
+}
+
 /** 报表/历史：灌 sql.js 只读缓存（复杂 SQL 过渡） | Hydrate sql.js for legacy query() */
 async function rcHydrateLegacyQueries(moduleKeys, force) {
   if (!rcUseApiRead()) return;
@@ -504,6 +819,7 @@ var RC_VIEW_MODULES = {
   forecast: ["board", "reservations", "lodgers", "events"],
   housekeeping: ["board"],
   reports: ["meals", "lodgers", "events"],
+  info_events: ["events", "lodgers", "reservations"],
 };
 
 async function rcEnsureViewModules(viewName, force) {

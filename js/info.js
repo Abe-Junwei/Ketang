@@ -39,6 +39,20 @@ function renderInfo(tab) {
 
 async function infoLoadAndRenderCurrentTab() {
   if (infoCurrentTab === "events") {
+    if (typeof rcUseApiRead === "function" && rcUseApiRead()) {
+      infoSetToolbar("");
+      infoSetHtml('<div class="empty-tip">加载中…</div>');
+      try {
+        await rcEnsureViewModules("info_events", false);
+      } catch (e) {
+        infoSetHtml(
+          '<div class="empty-tip">加载失败：' +
+            infoEscape(e.message || "未知错误") +
+            "</div>",
+        );
+        return;
+      }
+    }
     renderEventList();
     return;
   }

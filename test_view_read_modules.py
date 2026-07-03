@@ -25,6 +25,16 @@ def main():
         ("app uses rc lodgers", "rcActiveLodgersEnriched" in read("js/app.js")),
         ("rcOpsNoticeData", "function rcOpsNoticeData" in rc),
         ("rcCheckoutReminders", "function rcCheckoutReminders" in rc),
+        ("rcReadReady", "function rcReadReady" in rc),
+        ("rcEventListWithStats", "function rcEventListWithStats" in rc),
+        ("rcForecastTodayData", "function rcForecastTodayData" in rc),
+        ("rcForecastFlowWeeks", "function rcForecastFlowWeeks" in rc),
+        ("info_events module", "info_events:" in rc),
+        ("meals rc read", "rcReadReady" in read("js/meals.js")),
+        ("forecast rc today", "rcForecastTodayData" in read("js/forecast.js")),
+        ("forecast rc flow", "rcForecastFlowWeeks" in read("js/forecast.js")),
+        ("events rc list", "rcEventListWithStats" in read("js/events.js")),
+        ("info events loader", "info_events" in read("js/info.js")),
     ]
     failed = [name for name, ok in checks if not ok]
     if failed:

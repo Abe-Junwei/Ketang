@@ -20,7 +20,10 @@ function renderEventList() {
     updateTopbarForInfoTab("events");
   }
   const f = infoGetFilters("events");
-  const events = query(`
+  const events =
+    typeof rcReadReady === "function" && rcReadReady()
+      ? rcEventListWithStats()
+      : query(`
     SELECT e.*,
       (SELECT COUNT(*) FROM lodgers l WHERE l.event_id = e.id AND l.status = '在住') as checked_in,
       (SELECT COUNT(*) FROM reservations r WHERE r.event_id = e.id AND r.status IN ('预约','已确认')) as reserved,

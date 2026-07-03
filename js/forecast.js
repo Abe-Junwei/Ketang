@@ -80,8 +80,30 @@ function renderTodayForecast() {
   const container = document.getElementById("today-forecast-result");
   if (!container) return;
 
+  var arrivalsResv;
+  var arrivalsLodger;
+  var departures;
+  var actualCheckins;
+  var actualCheckouts;
+  var inHouse;
+  var byEvent;
+  var arrivalRooms;
+  var departureRooms;
+
+  if (typeof rcReadReady === "function" && rcReadReady()) {
+    var fd = rcForecastTodayData(date);
+    arrivalsResv = fd.arrivalsResv;
+    arrivalsLodger = fd.arrivalsLodger;
+    departures = fd.departures;
+    actualCheckins = fd.actualCheckins;
+    actualCheckouts = fd.actualCheckouts;
+    inHouse = fd.inHouse;
+    byEvent = fd.byEvent;
+    arrivalRooms = fd.arrivalRooms;
+    departureRooms = fd.departureRooms;
+  } else {
   // 预计到达：预约/在住中 expected_check_in = date，且状态正常
-  const arrivalsResv = query(
+  arrivalsResv = query(
     `
     SELECT r.*, e.name as event_name
     FROM reservations r
@@ -91,7 +113,7 @@ function renderTodayForecast() {
   `,
     [date],
   );
-  const arrivalsLodger = query(
+  arrivalsLodger = query(
     `
     SELECT l.*, e.name as event_name, r.name as room_name, b.bed_number
     FROM lodgers l
@@ -105,7 +127,7 @@ function renderTodayForecast() {
   );
 
   // 预计离开：在住中 expected_check_out = date
-  const departures = query(
+  departures = query(
     `
     SELECT l.*, e.name as event_name, r.name as room_name, b.bed_number
     FROM lodgers l
@@ -119,24 +141,24 @@ function renderTodayForecast() {
   );
 
   // 实际已入住 / 已退房（以 actual_check_out 为空判断）
-  const actualCheckins =
+  actualCheckins =
     query(
       "SELECT COUNT(*) as c FROM lodgers WHERE check_in_date = ? AND status = '在住'",
       [date],
     )[0]?.c || 0;
-  const actualCheckouts =
+  actualCheckouts =
     query(
       "SELECT COUNT(*) as c FROM lodgers WHERE actual_check_out = ? AND status IN ('在住','已退')",
       [date],
     )[0]?.c || 0;
-  const inHouse =
+  inHouse =
     query(
       "SELECT COUNT(*) as c FROM lodgers WHERE status='在住' AND check_in_date <= ? AND (expected_check_out IS NULL OR expected_check_out > ?)",
       [date, date],
     )[0]?.c || 0;
 
   // 按营期汇总
-  const byEvent = {};
+  byEvent = {};
   [...arrivalsResv, ...arrivalsLodger].forEach((a) => {
     const key = a.event_name || "散客";
     if (!byEvent[key])
@@ -153,7 +175,7 @@ function renderTodayForecast() {
   });
 
   // 房间变动清单
-  const arrivalRooms = query(
+  arrivalRooms = query(
     `
     SELECT DISTINCT r.name as room_name, r.location, r.dorm_type
     FROM reservations res
@@ -164,7 +186,7 @@ function renderTodayForecast() {
   `,
     [date],
   );
-  const departureRooms = query(
+  departureRooms = query(
     `
     SELECT DISTINCT r.name as room_name, r.location, r.dorm_type
     FROM lodgers l
@@ -175,6 +197,7 @@ function renderTodayForecast() {
   `,
     [date],
   );
+  }
 
   const totalArrivals = arrivalsResv.length + arrivalsLodger.length;
   const totalDepartures = departures.length;
@@ -433,8 +456,20 @@ function renderFlowForecast() {
   const container = document.getElementById("flow-forecast-result");
   if (!container) return;
 
+  var weekData;
+  var totalMaleBeds;
+  var totalFemaleBeds;
+  var totalFlexBeds;
+
+  if (typeof rcReadReady === "function" && rcReadReady()) {
+    var flowPack = rcForecastFlowWeeks(startDate, weeks);
+    weekData = flowPack.weekData;
+    totalMaleBeds = flowPack.totalMaleBeds;
+    totalFemaleBeds = flowPack.totalFemaleBeds;
+    totalFlexBeds = flowPack.totalFlexBeds;
+  } else {
   // 计算每周的周一作为周标签
-  const weekData = [];
+  weekData = [];
   let current = new Date(startDate);
   current.setDate(current.getDate() - current.getDay() + 1); // 调整到周一
 
@@ -504,18 +539,19 @@ function renderFlowForecast() {
   }
 
   // 总床位
-  const totalMaleBeds =
+  totalMaleBeds =
     query(
       "SELECT COUNT(*) as c FROM beds b JOIN rooms r ON r.id=b.room_id WHERE r.dorm_type='男寮' AND b.status!='维修' AND b.status!='备用'",
     )[0]?.c || 0;
-  const totalFemaleBeds =
+  totalFemaleBeds =
     query(
       "SELECT COUNT(*) as c FROM beds b JOIN rooms r ON r.id=b.room_id WHERE r.dorm_type='女寮' AND b.status!='维修' AND b.status!='备用'",
     )[0]?.c || 0;
-  const totalFlexBeds =
+  totalFlexBeds =
     query(
       "SELECT COUNT(*) as c FROM beds b JOIN rooms r ON r.id=b.room_id WHERE r.dorm_type='不限' AND b.status!='维修' AND b.status!='备用'",
     )[0]?.c || 0;
+  }
 
   // 可用于调剂的不限房间（当前空床）
   const flexRooms = query(`

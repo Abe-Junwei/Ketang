@@ -256,17 +256,24 @@ function getLodgerMealDefaults(lodgerOrId) {
   const l =
     typeof lodgerOrId === "object"
       ? lodgerOrId
-      : query("SELECT * FROM lodgers WHERE id=?", [lodgerOrId])[0];
+      : typeof rcReadReady === "function" && rcReadReady()
+        ? rcLodgerById(lodgerOrId)
+        : query("SELECT * FROM lodgers WHERE id=?", [lodgerOrId])[0];
   if (!l) return { breakfast: 1, lunch: 1, dinner: 1 };
   if (
     l.meal_default_breakfast == null &&
     l.meal_default_lunch == null &&
     l.meal_default_dinner == null
   ) {
-    const row = query(
-      "SELECT breakfast, lunch, dinner FROM meals WHERE lodger_id=? ORDER BY date LIMIT 1",
-      [l.id],
-    )[0];
+    var row =
+      typeof rcReadReady === "function" && rcReadReady()
+        ? rcRows("meals", "meals").find(function (m) {
+            return m.lodger_id == l.id;
+          })
+        : query(
+            "SELECT breakfast, lunch, dinner FROM meals WHERE lodger_id=? ORDER BY date LIMIT 1",
+            [l.id],
+          )[0];
     if (row) {
       return {
         breakfast: row.breakfast ? 1 : 0,
@@ -292,10 +299,15 @@ function setLodgerMealDefaults(lodgerId, breakfast, lunch, dinner) {
 
 function getMealFlagsForDate(lodgerId, date) {
   const defaults = getLodgerMealDefaults(lodgerId);
-  const row = query(
-    "SELECT breakfast, lunch, dinner FROM meals WHERE lodger_id=? AND date=?",
-    [lodgerId, date],
-  )[0];
+  var row =
+    typeof rcReadReady === "function" && rcReadReady()
+      ? rcRows("meals", "meals").find(function (m) {
+          return m.lodger_id == lodgerId && m.date === date;
+        })
+      : query(
+          "SELECT breakfast, lunch, dinner FROM meals WHERE lodger_id=? AND date=?",
+          [lodgerId, date],
+        )[0];
   if (row)
     return { breakfast: row.breakfast, lunch: row.lunch, dinner: row.dinner };
   return {
@@ -377,14 +389,19 @@ function getMealDayDetail(date) {
     if (noEat) byRoleMap[key].noEat += 1;
   }
 
-  const inHouse = query(
-    `
+  const inHouse =
+    typeof rcReadReady === "function" && rcReadReady()
+      ? rcAllLodgersMerged().filter(function (l) {
+          return l.status === "在住" && l.check_in_date <= date;
+        })
+      : query(
+          `
     SELECT * FROM lodgers
     WHERE status = '在住' AND check_in_date <= ?
     ORDER BY role, name
   `,
-    [date],
-  );
+          [date],
+        );
   const skipped = [];
   let lodgerBf = 0;
   let lodgerLc = 0;
@@ -427,14 +444,23 @@ function getMealDayDetail(date) {
   let resvLc = 0;
   let resvDn = 0;
   let resvCount = 0;
-  query(
-    `
+  var dayReservations =
+    typeof rcReadReady === "function" && rcReadReady()
+      ? rcRows("reservations", "reservations").filter(function (r) {
+          return (
+            r.expected_check_in === date &&
+            (r.status === "预约" || r.status === "已确认")
+          );
+        })
+      : query(
+          `
     SELECT * FROM reservations
     WHERE expected_check_in = ? AND status IN ('预约', '已确认')
     ORDER BY role, name
   `,
-    [date],
-  ).forEach(function (r) {
+          [date],
+        );
+  dayReservations.forEach(function (r) {
     const mf = reservationMealFlags(r);
     const role = r.role || "未分类";
     const eatsAny = !!(mf.breakfast || mf.lunch || mf.dinner);
