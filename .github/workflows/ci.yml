@@ -51,13 +51,19 @@ jobs:
         run: npm run format:check
 
       - name: Check Python test syntax
-        run: python -m py_compile test_api_structure.py test_auth_gateway.py test_headless.py test_cdp.py test_cdp_migration.py test_file_protocol.py
+        run: python -m py_compile test_api_structure.py test_auth_gateway.py test_headless.py test_cdp.py test_cdp_migration.py test_file_protocol.py test_write_patches.py test_write_after_refresh.py
 
       - name: Verify online API structure
         run: python test_api_structure.py
 
       - name: Auth SQL gateway checks
         run: python test_auth_gateway.py
+
+      - name: Write patch contract
+        run: python test_write_patches.py
+
+      - name: Instant post-write refresh (online)
+        run: python test_write_after_refresh.py
 
       - name: Headless initialization smoke test
         run: python test_headless.py

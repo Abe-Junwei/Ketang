@@ -160,15 +160,6 @@ async function rcFetchMany(moduleKeys, force) {
   );
 }
 
-/** 写后刷新：invalidate + refetch | Post-write module refresh */
-async function rcRefreshAfterWrite(moduleKeys, writeResult) {
-  if (typeof touchBoardVersionFromWrite === "function") {
-    touchBoardVersionFromWrite(writeResult);
-  }
-  rcInvalidateMany(moduleKeys);
-  await rcFetchMany(moduleKeys, true);
-}
-
 /* ── board 模块派生 | Board module derivations ── */
 
 function rcBoardRooms() {

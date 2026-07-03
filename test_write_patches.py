@@ -26,6 +26,12 @@ def main():
         ("lodgers enrich", "lodgerFinishWrite" in read("functions/_shared/lodgers.js")),
         ("reservations batch patches", "patchRowIds" in read("functions/_shared/reservations.js")),
         ("rcRefreshAfterWrite", "function rcRefreshAfterWrite" in rc),
+        (
+            "rcRefreshAfterWrite single impl",
+            rc.count("function rcRefreshAfterWrite") == 1
+            and "rcApplyWriteResult(writeResult)" in rc
+            and "rcInvalidateMany(moduleKeys)" not in rc,
+        ),
         ("info lodger map", "infoLodgerOnBedMap" in info),
         ("delete bed rooming", "rooming_assignments SET bed_id = NULL" in read("functions/_shared/admin-records.js")),
     ]
