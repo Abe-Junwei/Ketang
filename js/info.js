@@ -231,7 +231,6 @@ const INFO_READ_MODULES = {
   events: "events",
 };
 
-
 function infoUseApiData() {
   return typeof isRemoteDB === "function" && isRemoteDB();
 }
@@ -943,9 +942,7 @@ async function submitBed(id) {
     return;
   }
   const dup = (infoModuleTables("settings_beds").beds || []).find(function (b) {
-    return (
-      b.room_id == roomId && b.bed_number === number && b.id != (id || 0)
-    );
+    return b.room_id == roomId && b.bed_number === number && b.id != (id || 0);
   });
   if (dup) {
     infoShowFieldError("info-bed-number", "该房间下已存在相同床位号");
@@ -1404,9 +1401,11 @@ async function submitLodger(id) {
 
   // 床位占用校验：新床位不能被其他在住住客占用
   if (bedId) {
-    const other = (infoModuleTables("lodgers").lodgers || []).find(function (row) {
-      return row.bed_id == bedId && row.status === "在住" && row.id != id;
-    });
+    const other = (infoModuleTables("lodgers").lodgers || []).find(
+      function (row) {
+        return row.bed_id == bedId && row.status === "在住" && row.id != id;
+      },
+    );
     if (other) {
       infoShowFieldError("info-lodger-bed", "该床位已被其他在住住客占用");
       return;

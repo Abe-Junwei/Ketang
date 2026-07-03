@@ -675,7 +675,13 @@ async function deleteEvent(env, session, body) {
       env,
       [
         { sql: "DELETE FROM events WHERE id = ?", params: [id] },
-        auditLogStatement("删除营期", "event", id, { name: event.name }, session),
+        auditLogStatement(
+          "删除营期",
+          "event",
+          id,
+          { name: event.name },
+          session,
+        ),
       ],
       {},
       ["events"],

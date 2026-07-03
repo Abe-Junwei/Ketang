@@ -15,7 +15,9 @@
     var checkIn = document.getElementById("rv-in").value;
     var checkOut = document.getElementById("rv-out").value || null;
     var role = document.getElementById("rv-role").value;
-    var emergencyName = document.getElementById("rv-emergency-name").value.trim();
+    var emergencyName = document
+      .getElementById("rv-emergency-name")
+      .value.trim();
     var emergencyPhone = document
       .getElementById("rv-emergency-phone")
       .value.trim();

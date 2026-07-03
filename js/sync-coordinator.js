@@ -185,11 +185,7 @@ function resolveScopedModuleKeys(options) {
         return [INFO_TAB_MODULES[infoCurrentTab]];
       }
     }
-    if (
-      active &&
-      VIEW_SYNC_SCOPES[active] &&
-      VIEW_SYNC_SCOPES[active].module
-    ) {
+    if (active && VIEW_SYNC_SCOPES[active] && VIEW_SYNC_SCOPES[active].module) {
       return [VIEW_SYNC_SCOPES[active].module];
     }
   }
@@ -492,7 +488,10 @@ async function syncAfterRemoteWrite(writeResult, options) {
       }
       return;
     } catch (e) {
-      console.warn("write delta sync failed, fallback modules:", e.message || e);
+      console.warn(
+        "write delta sync failed, fallback modules:",
+        e.message || e,
+      );
     }
   }
 
@@ -635,8 +634,7 @@ function onBoardViewVisibilityChange() {
 /** 设置页手动全量同步 | Full read-model sync (settings only) */
 async function forceFullRemoteSync() {
   if (typeof isRemoteDB !== "function" || !isRemoteDB()) {
-    if (typeof showToast === "function")
-      showToast("当前环境未启用云端读模型");
+    if (typeof showToast === "function") showToast("当前环境未启用云端读模型");
     return;
   }
   if (!confirm("将重新从云端拉取全部数据，可能需要十几秒。继续？")) return;

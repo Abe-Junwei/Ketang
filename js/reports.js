@@ -11,7 +11,9 @@ async function reportsInitAndLoad() {
   } catch (e) {
     if (eventSel) {
       eventSel.innerHTML =
-        '<option value="">加载失败：' + escapeHtml(e.message || "") + "</option>";
+        '<option value="">加载失败：' +
+        escapeHtml(e.message || "") +
+        "</option>";
     }
     return;
   }

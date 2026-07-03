@@ -52,7 +52,11 @@ function renderBedPicker(options) {
 
   rooms.forEach(function (r) {
     if (!useRc) {
-      if (spareRoomFilter && typeof isSpareRoom === "function" && isSpareRoom(r))
+      if (
+        spareRoomFilter &&
+        typeof isSpareRoom === "function" &&
+        isSpareRoom(r)
+      )
         return;
       if (gender === "男" && r.dorm_type === "女寮") return;
       if (gender === "女" && r.dorm_type === "男寮") return;
@@ -401,7 +405,8 @@ async function assignExistingLodgerToBed(lodgerId, bedId, opts) {
         lodger_id: lodgerId,
         bed_id: parseInt(bedId, 10),
       });
-    }    if (!quiet) {
+    }
+    if (!quiet) {
       closeModal();
       showToast("已分配床位");
     }
@@ -514,7 +519,8 @@ async function assignReservationToBed(resvId, bedId, opts) {
         reservation_id: parseInt(resvId, 10),
         bed_id: parseInt(bedId, 10),
       });
-    }    if (!quiet) {
+    }
+    if (!quiet) {
       closeModal();
       showToast("已分配床位");
     }
@@ -639,7 +645,7 @@ document
     try {
       var writeResult = null;
       if (isLocalForceDb()) {
-      await withTransaction(async () => {
+        await withTransaction(async () => {
           const person = parsePersonNameInput(name);
           const guestId = findOrCreateGuest(
             person.name,
@@ -755,8 +761,8 @@ document
           }
         });
         await saveDB();
-    } else {
-      writeResult = await apiCheckIn({
+      } else {
+        writeResult = await apiCheckIn({
           bed_id: parseInt(bedId, 10),
           name: name,
           gender: gender || null,
@@ -785,7 +791,8 @@ document
             document.getElementById("ci-pay-remark").value.trim() || null,
           reservation_id: resvId ? parseInt(resvId, 10) : null,
         });
-    }      document.getElementById("ci-resv-id").value = "";
+      }
+      document.getElementById("ci-resv-id").value = "";
       showToast("入住登记成功");
       resetCheckin();
       showView("board");

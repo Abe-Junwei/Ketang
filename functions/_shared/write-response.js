@@ -134,9 +134,11 @@ export async function enrichWriteResponse(env, response, options) {
         ),
       ];
       if (!ids.length) continue;
-      const placeholders = ids.map(function () {
-        return "?";
-      }).join(",");
+      const placeholders = ids
+        .map(function () {
+          return "?";
+        })
+        .join(",");
       const rows = await queryD1(
         env,
         `SELECT * FROM ${table} WHERE id IN (${placeholders})`,
@@ -145,9 +147,11 @@ export async function enrichWriteResponse(env, response, options) {
       if (!rows.length) continue;
       if (!patches[table]) patches[table] = [];
       rows.forEach(function (row) {
-        if (!patches[table].some(function (r) {
-          return r.id == row.id;
-        })) {
+        if (
+          !patches[table].some(function (r) {
+            return r.id == row.id;
+          })
+        ) {
           patches[table].push(row);
         }
       });

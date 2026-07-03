@@ -330,10 +330,8 @@ function roomingListAssignableBeds(event, excludeBedIds) {
       });
     });
     rows.sort(function (a, b) {
-      var da =
-        a.dorm_type === "男寮" ? 1 : a.dorm_type === "女寮" ? 2 : 3;
-      var db =
-        b.dorm_type === "男寮" ? 1 : b.dorm_type === "女寮" ? 2 : 3;
+      var da = a.dorm_type === "男寮" ? 1 : a.dorm_type === "女寮" ? 2 : 3;
+      var db = b.dorm_type === "男寮" ? 1 : b.dorm_type === "女寮" ? 2 : 3;
       if (da !== db) return da - db;
       var la = (a.location || "") + (a.room_name || "");
       var lb = (b.location || "") + (b.room_name || "");

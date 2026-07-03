@@ -5,10 +5,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   if (typeof initStayFormWizards === "function") initStayFormWizards();
   if (typeof bootAuthUI === "function") bootAuthUI();
 
-  if (
-    typeof isDeprecatedFileOpen === "function" &&
-    isDeprecatedFileOpen()
-  ) {
+  if (typeof isDeprecatedFileOpen === "function" && isDeprecatedFileOpen()) {
     showDeprecatedFileOpenScreen();
     return;
   }
@@ -258,8 +255,7 @@ function initMobileMoreSheetSwipe() {
 }
 
 function updateTopbarTitle(name, titleOverride) {
-  var title =
-    titleOverride || TOPBAR_TITLES[name] || "客堂管理系统";
+  var title = titleOverride || TOPBAR_TITLES[name] || "客堂管理系统";
   var el = document.getElementById("topbar-title");
   if (el) el.textContent = title;
   var mobileTitle = document.getElementById("mobile-title-text");
@@ -558,7 +554,10 @@ async function prefetchViewData(viewName) {
     ) {
       renderReservationList();
     }
-  } else if (viewName === "housekeeping" && typeof renderHousekeeping === "function") {
+  } else if (
+    viewName === "housekeeping" &&
+    typeof renderHousekeeping === "function"
+  ) {
     renderHousekeeping();
   }
 }
@@ -1080,7 +1079,8 @@ function updateLodgersPageMeta() {
   var total =
     typeof readActiveLodgerCount === "function"
       ? readActiveLodgerCount()
-      : query("SELECT COUNT(*) as c FROM lodgers WHERE status='在住'")[0]?.c || 0;
+      : query("SELECT COUNT(*) as c FROM lodgers WHERE status='在住'")[0]?.c ||
+        0;
   countEl.textContent = total ? "共 " + total + " 人在住" : "暂无在住挂单";
 }
 
@@ -1322,7 +1322,8 @@ function renderRooms() {
     grid.innerHTML = '<p class="empty-tip">' + escapeHtml(msg) + "</p>";
     return;
   }
-  var useRc = typeof boardReadCacheReady === "function" && boardReadCacheReady();
+  var useRc =
+    typeof boardReadCacheReady === "function" && boardReadCacheReady();
   const rooms = useRc
     ? rcBoardRooms()
     : query("SELECT * FROM rooms ORDER BY floor ASC, id");

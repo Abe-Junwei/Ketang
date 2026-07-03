@@ -450,7 +450,9 @@ async function fetchRoomingPlanBundle(eventId) {
 
 async function generateRoomingPlanDraft(eventId) {
   if (!isLocalForceDb()) {
-    var genResult = await apiRoomingPlanAction("generate", { event_id: eventId });
+    var genResult = await apiRoomingPlanAction("generate", {
+      event_id: eventId,
+    });
     await roomingRefreshAfterWrite(eventId, genResult);
     return genResult;
   }

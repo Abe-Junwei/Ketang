@@ -57,9 +57,10 @@ function readMealsForLodger(lodgerId) {
 function readPaidTotal(lodgerId) {
   if (readUseRc()) return rcPaidTotalForLodger(lodgerId);
   return (
-    query("SELECT COALESCE(SUM(amount),0) as total FROM payments WHERE lodger_id=?", [
-      lodgerId,
-    ])[0]?.total || 0
+    query(
+      "SELECT COALESCE(SUM(amount),0) as total FROM payments WHERE lodger_id=?",
+      [lodgerId],
+    )[0]?.total || 0
   );
 }
 
@@ -94,7 +95,9 @@ function readActiveLodgerCount() {
       return l.status === "在住";
     }).length;
   }
-  return query("SELECT COUNT(*) as c FROM lodgers WHERE status='在住'")[0]?.c || 0;
+  return (
+    query("SELECT COUNT(*) as c FROM lodgers WHERE status='在住'")[0]?.c || 0
+  );
 }
 
 function readPaymentSummary(lodgerId) {

@@ -325,7 +325,8 @@ async function updateResvStatus(id, status) {
         reservation_id: id,
         status: status,
       });
-    }    showToast(`预约已标记为「${status}」`);
+    }
+    showToast(`预约已标记为「${status}」`);
     renderReservations("全部");
     rcRefreshAfterWrite(writeResult);
   } catch (e) {

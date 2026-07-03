@@ -36,7 +36,8 @@ function isBedAssignable(bedId) {
     return hk === "净房" || hk === "可用";
   }
   var bedRow = query("SELECT * FROM beds WHERE id = ?", [bedId])[0];
-  if (!bedRow || bedRow.status === "维修" || bedRow.status === "备用") return false;
+  if (!bedRow || bedRow.status === "维修" || bedRow.status === "备用")
+    return false;
   const occ =
     query(
       "SELECT COUNT(*) as c FROM lodgers WHERE bed_id = ? AND status = '在住'",
@@ -108,7 +109,9 @@ function renderHousekeeping() {
     const bedWrap = group.querySelector(".hk-room-beds");
 
     beds.forEach((b) => {
-      const hk = useRc ? b.hk_status || getHouseStatus(b.id) : getHouseStatus(b.id);
+      const hk = useRc
+        ? b.hk_status || getHouseStatus(b.id)
+        : getHouseStatus(b.id);
       const occupied = !!b.lodger_id;
       const card = document.createElement("article");
       card.className =
@@ -163,9 +166,9 @@ async function setHkAndRender(bedId, status) {
       typeof boardReadCacheReady === "function" && boardReadCacheReady()
         ? !!rcLodgerOnBed(bedId)
         : (query(
-          "SELECT COUNT(*) as c FROM lodgers WHERE bed_id=? AND status='在住'",
-          [bedId],
-        )[0]?.c || 0) > 0;
+            "SELECT COUNT(*) as c FROM lodgers WHERE bed_id=? AND status='在住'",
+            [bedId],
+          )[0]?.c || 0) > 0;
     if (occupied) {
       alert("该床位当前有在住住客，不能设为维修");
       return;

@@ -68,7 +68,13 @@ function renderHistory() {
   sql += " ORDER BY l.check_in_date DESC, l.id DESC";
   const rows = isLocalForceDb()
     ? query(sql, params)
-    : rcHistorySearch({ start: start, end: end, kw: kw, room: room, role: role });
+    : rcHistorySearch({
+        start: start,
+        end: end,
+        kw: kw,
+        room: room,
+        role: role,
+      });
   rows.forEach((r) => {
     const meal = getMealSummary(r.id);
     const mealLabel = `早${meal.breakfast} 午${meal.lunch} 晚${meal.dinner}`;

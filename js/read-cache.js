@@ -172,12 +172,14 @@ async function rcRefreshAfterWrite(moduleKeys, writeResult) {
 /* ── board 模块派生 | Board module derivations ── */
 
 function rcBoardRooms() {
-  return rcRows("board", "rooms").slice().sort(function (a, b) {
-    var fa = a.floor || 0;
-    var fb = b.floor || 0;
-    if (fa !== fb) return fa - fb;
-    return (a.id || 0) - (b.id || 0);
-  });
+  return rcRows("board", "rooms")
+    .slice()
+    .sort(function (a, b) {
+      var fa = a.floor || 0;
+      var fb = b.floor || 0;
+      if (fa !== fb) return fa - fb;
+      return (a.id || 0) - (b.id || 0);
+    });
 }
 
 function rcBoardBeds() {
@@ -255,7 +257,11 @@ function rcBoardRoomsWithStats(excludeBedId, options) {
       return Object.assign({}, r, stats);
     })
     .filter(function (r) {
-      if (options.spareRoomFilter !== false && typeof isSpareRoom === "function" && isSpareRoom(r))
+      if (
+        options.spareRoomFilter !== false &&
+        typeof isSpareRoom === "function" &&
+        isSpareRoom(r)
+      )
         return false;
       if (gender === "男" && r.dorm_type === "女寮") return false;
       if (gender === "女" && r.dorm_type === "男寮") return false;
@@ -368,7 +374,8 @@ function rcGetDormBedStats() {
   rcBoardBeds().forEach(function (b) {
     if (b.status === "维修" || b.status === "备用") return;
     var room = roomsById[b.room_id];
-    if (!room || (typeof isSpareRoom === "function" && isSpareRoom(room))) return;
+    if (!room || (typeof isSpareRoom === "function" && isSpareRoom(room)))
+      return;
     if (room.dorm_type === "男寮") maleBeds++;
     else if (room.dorm_type === "女寮") femaleBeds++;
     if (rcLodgerOnBed(b.id)) {
@@ -750,10 +757,7 @@ function rcUnassignedLodgers() {
 function rcUnassignedReservations() {
   return rcRows("reservations", "reservations")
     .filter(function (r) {
-      return (
-        (r.status === "预约" || r.status === "已确认") &&
-        !r.bed_id
-      );
+      return (r.status === "预约" || r.status === "已确认") && !r.bed_id;
     })
     .map(rcEnrichReservationRow)
     .sort(function (a, b) {
@@ -880,8 +884,7 @@ function rcEventMembers(eventId) {
   var reservations = rcRows("reservations", "reservations")
     .filter(function (r) {
       return (
-        r.event_id == eventId &&
-        (r.status === "预约" || r.status === "已确认")
+        r.event_id == eventId && (r.status === "预约" || r.status === "已确认")
       );
     })
     .map(function (r) {
@@ -1001,8 +1004,7 @@ function rcForecastTodayData(date) {
   }).length;
   var actualCheckouts = lodgers.filter(function (l) {
     return (
-      l.actual_check_out === day &&
-      (l.status === "在住" || l.status === "已退")
+      l.actual_check_out === day && (l.status === "在住" || l.status === "已退")
     );
   }).length;
   var inHouse = lodgers.filter(function (l) {

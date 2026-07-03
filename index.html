@@ -1408,94 +1408,100 @@
         <!-- 报表 -->
         <div id="view-reports" class="view">
           <div class="page-shell">
-          <section class="card page-section">
-            <h3 class="page-section-title">厨房用斋汇总</h3>
-            <div class="filter-row">
-              <div class="field">
-                <label>日期</label>
-                <input type="date" id="r-meal-date" value="" />
+            <section class="card page-section">
+              <h3 class="page-section-title">厨房用斋汇总</h3>
+              <div class="filter-row">
+                <div class="field">
+                  <label>日期</label>
+                  <input type="date" id="r-meal-date" value="" />
+                </div>
               </div>
-            </div>
-            <div class="btn-bar">
-              <button class="btn btn-primary" onclick="renderMealReport()">
-                查询
-              </button>
-              <button class="btn btn-default" onclick="exportMealReportCSV()">
-                导出 CSV
-              </button>
-            </div>
-            <div id="meal-report-result"></div>
-          </section>
+              <div class="btn-bar">
+                <button class="btn btn-primary" onclick="renderMealReport()">
+                  查询
+                </button>
+                <button class="btn btn-default" onclick="exportMealReportCSV()">
+                  导出 CSV
+                </button>
+              </div>
+              <div id="meal-report-result"></div>
+            </section>
 
-          <section class="card page-section">
-            <h3 class="page-section-title">账务报表</h3>
-            <div class="filter-row">
-              <div class="field">
-                <label>日期</label>
-                <input type="date" id="r-daily-date" value="" />
+            <section class="card page-section">
+              <h3 class="page-section-title">账务报表</h3>
+              <div class="filter-row">
+                <div class="field">
+                  <label>日期</label>
+                  <input type="date" id="r-daily-date" value="" />
+                </div>
               </div>
-            </div>
-            <div class="btn-bar">
-              <button class="btn btn-primary" onclick="renderDailyReport()">
-                查询
-              </button>
-              <button class="btn btn-default" onclick="exportDailyReportCSV()">
-                导出 CSV
-              </button>
-            </div>
-            <div id="daily-report-result"></div>
-          </section>
+              <div class="btn-bar">
+                <button class="btn btn-primary" onclick="renderDailyReport()">
+                  查询
+                </button>
+                <button
+                  class="btn btn-default"
+                  onclick="exportDailyReportCSV()"
+                >
+                  导出 CSV
+                </button>
+              </div>
+              <div id="daily-report-result"></div>
+            </section>
 
-          <section class="card page-section">
-            <h3 class="page-section-title">月报</h3>
-            <div class="filter-row">
-              <div class="field">
-                <label>月份</label>
-                <input type="month" id="r-month" value="" />
+            <section class="card page-section">
+              <h3 class="page-section-title">月报</h3>
+              <div class="filter-row">
+                <div class="field">
+                  <label>月份</label>
+                  <input type="month" id="r-month" value="" />
+                </div>
               </div>
-            </div>
-            <div class="btn-bar">
-              <button class="btn btn-primary" onclick="renderMonthlyReport()">
-                查询
-              </button>
-              <button
-                class="btn btn-default"
-                onclick="exportMonthlyReportCSV()"
-              >
-                导出 CSV
-              </button>
-            </div>
-            <div id="monthly-report-result"></div>
-          </section>
+              <div class="btn-bar">
+                <button class="btn btn-primary" onclick="renderMonthlyReport()">
+                  查询
+                </button>
+                <button
+                  class="btn btn-default"
+                  onclick="exportMonthlyReportCSV()"
+                >
+                  导出 CSV
+                </button>
+              </div>
+              <div id="monthly-report-result"></div>
+            </section>
 
-          <section class="card page-section">
-            <h3 class="page-section-title">营期统计</h3>
-            <div class="filter-row">
-              <div class="field">
-                <label>营期</label>
-                <select id="r-event" onchange="renderEventReport()">
-                  <option value="">全部营期</option>
-                </select>
+            <section class="card page-section">
+              <h3 class="page-section-title">营期统计</h3>
+              <div class="filter-row">
+                <div class="field">
+                  <label>营期</label>
+                  <select id="r-event" onchange="renderEventReport()">
+                    <option value="">全部营期</option>
+                  </select>
+                </div>
+                <div class="field">
+                  <label>分组方式</label>
+                  <select id="r-event-group" onchange="renderEventReport()">
+                    <option value="role">按身份</option>
+                    <option value="class_name">按班级</option>
+                    <option value="gender">按性别</option>
+                  </select>
+                </div>
               </div>
-              <div class="field">
-                <label>分组方式</label>
-                <select id="r-event-group" onchange="renderEventReport()">
-                  <option value="role">按身份</option>
-                  <option value="class_name">按班级</option>
-                  <option value="gender">按性别</option>
-                </select>
+              <div class="btn-bar">
+                <button class="btn btn-primary" onclick="renderEventReport()">
+                  查询
+                </button>
+                <button
+                  class="btn btn-default"
+                  onclick="exportEventReportCSV()"
+                >
+                  导出 CSV
+                </button>
               </div>
-            </div>
-            <div class="btn-bar">
-              <button class="btn btn-primary" onclick="renderEventReport()">
-                查询
-              </button>
-              <button class="btn btn-default" onclick="exportEventReportCSV()">
-                导出 CSV
-              </button>
-            </div>
-            <div id="event-report-result"></div>
-          </section>
+              <div id="event-report-result"></div>
+            </section>
           </div>
         </div>
 
@@ -1612,91 +1618,92 @@
 
         <div id="view-backup" class="view">
           <div class="page-shell">
-          <section class="card page-section">
-            <p id="backup-mode-desc">
-              数据保存在 Cloudflare D1 云端。管理员可在系统设置导出 JSON
-              备份到 U 盘或电脑。
-            </p>
-            <div class="btn-bar">
-              <button class="btn btn-default" onclick="showView('history')">
-                历史查询
-              </button>
-              <button class="btn btn-default" onclick="toggleTheme()">
-                切换明暗主题
-              </button>
-            </div>
-            <div class="btn-bar">
-              <button class="btn btn-success" onclick="exportDB()">
-                导出数据库到 U 盘 / 电脑
-              </button>
-              <button class="btn btn-primary" onclick="exportCSV()">
-                导出 CSV 台账
-              </button>
-              <button
-                class="btn btn-warning"
-                onclick="document.getElementById('import-file').click()"
-              >
-                从文件恢复数据
-              </button>
-              <button
-                type="button"
-                class="btn btn-default"
-                id="force-remote-sync-btn"
-                hidden
-                onclick="forceFullRemoteSync()"
-              >
-                强制同步云端数据
-              </button>
-              <input
-                type="file"
-                id="import-file"
-                hidden
-                accept=".db,.json"
-                onchange="importDB(this)"
-              />
-            </div>
-            <div class="card card-info">
-              <h3>每日备份三步</h3>
-              <ol id="backup-mode-steps">
-                <li>点击「导出数据库」，保存 JSON 到 U 盘或桌面。</li>
-                <li>文件名建议带日期，复制多一份更安全。</li>
-                <li>
-                  如需恢复：点击「从文件恢复数据」，选择 JSON 备份（仅管理员）。
-                </li>
-              </ol>
-            </div>
-          </section>
+            <section class="card page-section">
+              <p id="backup-mode-desc">
+                数据保存在 Cloudflare D1 云端。管理员可在系统设置导出 JSON
+                备份到 U 盘或电脑。
+              </p>
+              <div class="btn-bar">
+                <button class="btn btn-default" onclick="showView('history')">
+                  历史查询
+                </button>
+                <button class="btn btn-default" onclick="toggleTheme()">
+                  切换明暗主题
+                </button>
+              </div>
+              <div class="btn-bar">
+                <button class="btn btn-success" onclick="exportDB()">
+                  导出数据库到 U 盘 / 电脑
+                </button>
+                <button class="btn btn-primary" onclick="exportCSV()">
+                  导出 CSV 台账
+                </button>
+                <button
+                  class="btn btn-warning"
+                  onclick="document.getElementById('import-file').click()"
+                >
+                  从文件恢复数据
+                </button>
+                <button
+                  type="button"
+                  class="btn btn-default"
+                  id="force-remote-sync-btn"
+                  hidden
+                  onclick="forceFullRemoteSync()"
+                >
+                  强制同步云端数据
+                </button>
+                <input
+                  type="file"
+                  id="import-file"
+                  hidden
+                  accept=".db,.json"
+                  onchange="importDB(this)"
+                />
+              </div>
+              <div class="card card-info">
+                <h3>每日备份三步</h3>
+                <ol id="backup-mode-steps">
+                  <li>点击「导出数据库」，保存 JSON 到 U 盘或桌面。</li>
+                  <li>文件名建议带日期，复制多一份更安全。</li>
+                  <li>
+                    如需恢复：点击「从文件恢复数据」，选择 JSON
+                    备份（仅管理员）。
+                  </li>
+                </ol>
+              </div>
+            </section>
 
-          <section class="card page-section">
-            <h3 class="page-section-title">运营配置</h3>
-            <p class="field-hint" style="margin-bottom: var(--space-3)">
-              房务流转与床位分配规则；保存后立即影响本机/云端。
-            </p>
-            <div id="operational-settings-panel">
-              <p class="empty-tip">加载中…</p>
-            </div>
-          </section>
+            <section class="card page-section">
+              <h3 class="page-section-title">运营配置</h3>
+              <p class="field-hint" style="margin-bottom: var(--space-3)">
+                房务流转与床位分配规则；保存后立即影响本机/云端。
+              </p>
+              <div id="operational-settings-panel">
+                <p class="empty-tip">加载中…</p>
+              </div>
+            </section>
 
-          <section class="card page-section">
-            <h3 class="page-section-title">角色权限配置</h3>
-            <p class="field-hint" style="margin-bottom: var(--space-3)">
-              按角色勾选可见菜单与 API
-              权限；保存后<strong>新登录</strong>会话生效。知客师账号勾选「高级知客」可额外获得备份/用户管理等权限（见用户编辑）。
-            </p>
-            <div id="role-permissions-panel">
-              <p class="empty-tip">加载中…</p>
-            </div>
-          </section>
+            <section class="card page-section">
+              <h3 class="page-section-title">角色权限配置</h3>
+              <p class="field-hint" style="margin-bottom: var(--space-3)">
+                按角色勾选可见菜单与 API
+                权限；保存后<strong>新登录</strong>会话生效。知客师账号勾选「高级知客」可额外获得备份/用户管理等权限（见用户编辑）。
+              </p>
+              <div id="role-permissions-panel">
+                <p class="empty-tip">加载中…</p>
+              </div>
+            </section>
 
-          <section class="card page-section">
-            <h3 class="page-section-title">用户管理</h3>
-            <div class="btn-bar" style="margin-bottom: var(--space-4)">
-              <button class="btn btn-primary" onclick="openUserModal()">
-                + 新增用户
-              </button>
-            </div>
-            <div id="user-list"></div>
-          </section>
+            <section class="card page-section">
+              <h3 class="page-section-title">用户管理</h3>
+              <div class="btn-bar" style="margin-bottom: var(--space-4)">
+                <button class="btn btn-primary" onclick="openUserModal()">
+                  + 新增用户
+                </button>
+              </div>
+              <div id="user-list"></div>
+            </section>
           </div>
         </div>
       </main>

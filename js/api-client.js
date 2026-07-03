@@ -422,9 +422,7 @@ async function apiBatchCheckIn(payload) {
 }
 
 function isLocalForceDb() {
-  return (
-    typeof window !== "undefined" && window.KETANG_FORCE_LOCAL_DB === true
-  );
+  return typeof window !== "undefined" && window.KETANG_FORCE_LOCAL_DB === true;
 }
 
 function useRemoteWriteApi() {

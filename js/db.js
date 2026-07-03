@@ -144,10 +144,7 @@ function refreshAfterWrite(writeResult, options) {
           if (options && options.fullRefresh) {
             renderAll({ skipSync: true });
           } else if (typeof refreshViewForScope === "function") {
-            refreshViewForScope(
-              (options && options.scope) || null,
-              options,
-            );
+            refreshViewForScope((options && options.scope) || null, options);
           }
         }
         var deferOpts = Object.assign({}, options, { skipViewRefresh: true });
@@ -500,10 +497,7 @@ function applyRemoteDelta(delta, options) {
     return false;
   }
   options = options || {};
-  if (
-    !options.skipRcPatch &&
-    typeof rcApplyDeltaPatches === "function"
-  ) {
+  if (!options.skipRcPatch && typeof rcApplyDeltaPatches === "function") {
     if (delta.patch_mode && delta.patches) {
       rcApplyDeltaPatches(delta.patches, delta.deletions);
     } else if (delta.modules && typeof rcApplyDeltaModules === "function") {
@@ -593,8 +587,7 @@ async function syncRemoteReadModel(options) {
         throw new Error("read-cache 未加载");
       }
       await rcEnsureAppData(force, {
-        hydrateSql:
-          typeof isLocalForceDb === "function" && isLocalForceDb(),
+        hydrateSql: typeof isLocalForceDb === "function" && isLocalForceDb(),
       });
     } catch (err) {
       setRemoteSyncStatus("error", err.message || "数据同步失败");

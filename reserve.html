@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="zh-CN">
   <head>
     <meta charset="UTF-8" />
@@ -23,7 +23,11 @@
       .reserve-success {
         padding: 1rem;
         border-radius: 8px;
-        background: color-mix(in srgb, var(--color-success, #2e7d32) 12%, white);
+        background: color-mix(
+          in srgb,
+          var(--color-success, #2e7d32) 12%,
+          white
+        );
       }
     </style>
   </head>
@@ -88,7 +92,11 @@
         </div>
         <div class="field">
           <label>备注</label>
-          <textarea id="rv-notes" rows="3" placeholder="特殊需求、同行人数等"></textarea>
+          <textarea
+            id="rv-notes"
+            rows="3"
+            placeholder="特殊需求、同行人数等"
+          ></textarea>
         </div>
         <div class="modal-actions">
           <button type="submit" class="btn btn-primary btn-lg" id="rv-submit">
