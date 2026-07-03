@@ -1,6 +1,6 @@
 # 多端数据同步与读模型架构规划（v2）
 
-> **状态：** 已实施（Phase 12，2026-07）  
+> **状态：** 主体已实施（Phase 12，2026-07）；去 sql.js 与 WebSocket 属于后续 Phase 13  
 > **适用：** Cloudflare Pages + Functions + D1 在线多人模式  
 > **约束：** 保持原生 HTML/CSS/JS、无运行时构建链；本地 IndexedDB 模式保留为灾备/开发
 
@@ -10,14 +10,14 @@
 
 ### 1.1 现状（as-is）
 
-| 维度       | 当前实现                                                                                     |
-| ---------- | -------------------------------------------------------------------------------------------- |
-| 权威数据源 | Cloudflare D1                                                                                |
-| 写路径     | `/api/v1/*`、`/api/v1/admin/records` 等业务 API                                              |
-| 读路径     | 登录后 `GET /api/v1/read/*` 按模块拉取 → `read-cache.js` 灌 sql.js 过渡；信息管理已 API 直读 |
-| 变更通知   | `app_meta.board_version` + 客户端每 8s 轮询 `GET /api/v1/board-version`                      |
-| 写后刷新   | `refreshAfterWrite()` → `renderAll({ forceSync: true })` 强制全量重拉                        |
-| 本地模式   | `localhost` / `file://` 仍用 IndexedDB + 完整 migration                                      |
+| 维度       | 当前实现                                                                                                       |
+| ---------- | -------------------------------------------------------------------------------------------------------------- |
+| 权威数据源 | Cloudflare D1                                                                                                  |
+| 写路径     | `/api/v1/*`、`/api/v1/admin/records` 等业务 API                                                                |
+| 读路径     | 登录后 `GET /api/v1/read/*` 按模块拉取 → `read-cache.js` `_rcStore`；部分报表/预测/排房路径仍经 `query()` 兼容 |
+| 变更通知   | `app_meta.board_version` + SSE（看板页）+ 客户端 active 3s / idle 20s 轮询 `GET /api/v1/board-version`         |
+| 写后刷新   | `refreshAfterWrite()` → `renderAll({ forceSync: true })` 强制全量重拉                                          |
+| 本地模式   | `localhost` / `file://` 仍用 IndexedDB + 完整 migration                                                        |
 
 ### 1.2 已暴露的痛点
 
@@ -54,7 +54,7 @@
 flowchart TB
   subgraph clients [浏览器终端]
     UI[页面 / 看板 / 列表]
-    Cache[(内存 sql.js 缓存)]
+    Cache[(_rcStore JSON 缓存 + sql.js 兼容查询)]
     Sync[SyncCoordinator]
     UI --> Cache
     Sync --> Cache
@@ -72,7 +72,7 @@ flowchart TB
 
   subgraph notify [变更通知 渐进]
     Poll[board-version 轮询]
-    SSE[SSE 房态推送 可选]
+    SSE[SSE 房态推送]
     Poll --> Sync
     SSE --> Sync
   end
@@ -227,8 +227,9 @@ syncRemoteReadModel(options)
 
 ### 6.3 与现有 sql.js 的关系
 
-- **短期（12.3）：** 模块 JSON 仍灌入 sql.js，复用现有 `query()` 与报表逻辑，降低重写成本
-- **中期：** 高频列表（在住、营期）可直渲染 API JSON，sql.js 仅服务复杂报表/导出
+- **当前（12.3/12.4 已落地后）：** 模块 JSON 首先进入 `_rcStore`，写后通过 `patches` / `deletions` 更新缓存；但 `reports.js`、`forecast.js`、`events.js`、`rooming-*` 等仍存在在线 `query()` 调用，可能触发 sql.js hydrate。
+- **下一步（Phase 13 前置）：** reports/forecast 先迁到 read API 或 `rc*` 聚合；再逐步清理 events/rooming/info 的在线 `query()`。
+- **终局（Phase 13 P4-④）：** 在线模式不加载 `sql-wasm.js` / `sql-wasm.wasm`；sql.js 仅保留给 `KETANG_FORCE_LOCAL_DB`、本地灾备和 migration 测试。
 
 ### 6.4 验收
 
@@ -281,13 +282,13 @@ syncRemoteReadModel(options)
 
 ### 8.1 技术选型（Cloudflare 友好）
 
-| 选项                               | 优点                       | 缺点                    |
-| ---------------------------------- | -------------------------- | ----------------------- |
-| **SSE** `GET /api/v1/stream/board` | Workers 原生支持、实现简单 | 每连接占 Worker；需心跳 |
-| 短轮询 3s（仅看板页）              | 零新基础设施               | 仍非真推送              |
-| Durable Objects + WebSocket        | 真双向                     | 复杂度与成本上升        |
+| 选项                               | 优点                               | 缺点                                               |
+| ---------------------------------- | ---------------------------------- | -------------------------------------------------- |
+| **SSE** `GET /api/v1/stream/board` | 已落地；Workers 原生支持、实现简单 | 当前服务端仍是 1.5s 轮询后转推；仅看板页维持连接   |
+| 短轮询 3s / 20s                    | 已落地；零新基础设施、可靠兜底     | 仍非真推送；hidden 跳过                            |
+| Durable Objects + WebSocket        | 真双向、可集中广播                 | 复杂度与成本上升；Pages Functions 原生支持需 spike |
 
-**建议：** 先做看板页 3s 轮询 `read/board`（12.3 后很轻）；夏季高峰前再评估 SSE。
+**建议：** 终端数 <30 且写后可见 P95 <2s 时不急于上 WebSocket。若需要继续优化，先把 SSE 检测间隔、后台恢复、`changed_domains` / `changed_modules` 推送做好；DO WebSocket 作为独立 spike。
 
 ### 8.2 验收
 
@@ -402,13 +403,23 @@ syncRemoteReadModel(options)
 
 ## 16. 实施状态
 
-| 子阶段 | 状态       | 备注                                                                  |
-| ------ | ---------- | --------------------------------------------------------------------- |
-| 12.1   | **已完成** | 写契约、deleteEvent 原子 batch、sync-coordinator、3s 轮询、营期页刷新 |
-| 12.2   | **已完成** | 视图注册、轮询分级（看板 3s / 其他 20s）、SSE 钩子                    |
-| 12.3   | **已完成** | 模块读 API + 写后按域拉取                                             |
-| 12.4   | **已完成** | sync_domain_log + delta API + 客户端 applyRemoteDelta                 |
-| 12.5   | **已完成** | 看板 SSE `/api/v1/stream/board`（3s 内推送版本变化）                  |
+| 子阶段 | 状态                   | 备注                                                                      |
+| ------ | ---------------------- | ------------------------------------------------------------------------- |
+| 12.1   | **已完成**             | 写契约、deleteEvent 原子 batch、sync-coordinator、3s 轮询、营期页刷新     |
+| 12.2   | **已完成**             | 视图注册、轮询分级（看板 3s / 其他 20s）、SSE 钩子                        |
+| 12.3   | **已完成**             | 模块读 API + 写后按域拉取                                                 |
+| 12.4   | **已完成**             | sync_domain_log + delta API + 客户端 applyRemoteDelta                     |
+| 12.5   | **已完成（有限实时）** | 看板 SSE `/api/v1/stream/board`；服务端 1.5s 检测版本变化，客户端轮询兜底 |
+
+## 17. 2026-07-03 补充审查：Phase 13 前置与 P4 边界
+
+Phase 12 已完成写契约、模块读、delta、SSE 主体，但以下内容不属于 Phase 12 已完成范围：
+
+- WebSocket：仓库当前未实现；若需要应走 Durable Object `BoardHub` 或独立 Worker spike。
+- 完全去 sql.js：当前 `index.html` 仍加载 `sql-wasm.js`，且在线热路径仍有多处 `query()`。
+- Normalized Store：当前 `_rcStore` + `rcApplyDeltaPatches()` 已能处理大部分跨模块重复表；`event:<id>` 短期陈旧优先补写响应 patch 范围，而不是立即重构 store。
+
+建议执行顺序：先清理 P1 尾巴（reports/forecast 在线零 `query()`），再按触发门槛评估 D1 只读副本、SSE/WebSocket 优化、Normalized Store，最后执行去 sql.js。
 
 ---
 

@@ -796,7 +796,13 @@ document
       showToast("入住登记成功");
       resetCheckin();
       showView("board");
-      rcRefreshAfterWrite(writeResult, { scope: "lodging" });
+      rcRefreshAfterWrite(writeResult, {
+        viewRefresh: function () {
+          if (typeof renderBoard === "function") renderBoard();
+          if (typeof renderLodging === "function") renderLodging();
+          if (typeof renderLodgersPage === "function") renderLodgersPage();
+        },
+      });
     } catch (err) {
       console.error(err);
       alert("入住登记失败：" + err.message);

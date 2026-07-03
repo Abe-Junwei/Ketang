@@ -573,6 +573,29 @@ function infoRefreshAfterWrite(writeResult, tab, syncOptions) {
   renderInfo(tab);
 }
 
+/** 乐观更新用临时 ID | Temp id for optimistic create rows */
+function infoTempId() {
+  return -Math.abs((Date.now() % 2147483647) || 1);
+}
+
+/** 立即 patch 缓存并重绘列表 | Optimistic cache patch + instant list render */
+function infoApplyOptimistic(optimistic, tab) {
+  if (!infoUseApiData() || !optimistic) return;
+  infoApplyWritePatches(null, { optimistic: optimistic });
+  _infoLodgerOnBedMap = null;
+  tab = tab || infoCurrentTab;
+  delete _infoLastToolbarHash[tab];
+  infoRenderCurrentTabLists();
+}
+
+/** API 失败后回滚 | Revert optimistic UI after failed write */
+async function infoRevertTab(tab) {
+  if (!infoUseApiData()) return;
+  infoInvalidateForTab(tab);
+  _infoLodgerOnBedMap = null;
+  await infoLoadAndRenderCurrentTab({ forceFetch: true, skipLoading: true });
+}
+
 function infoConfirm(msg) {
   return confirm(msg);
 }
@@ -764,7 +787,7 @@ async function submitRoom(id) {
   }
 
   try {
-    var writeResult = await apiAdminRecord("room", id ? "update" : "create", {
+    var payload = {
       room_id: id,
       name: name,
       location: location,
@@ -772,12 +795,34 @@ async function submitRoom(id) {
       dorm_type: dorm,
       notes: notes,
       ...roomTags,
-    });
-    closeModal();
+    };
+    if (infoUseApiData()) {
+      closeModal();
+      infoApplyOptimistic(
+        {
+          patches: {
+            rooms: [
+              Object.assign({}, payload, {
+                id: id || infoTempId(),
+              }),
+            ],
+          },
+          deletions: [],
+        },
+        "rooms",
+      );
+    }
+    var writeResult = await apiAdminRecord(
+      "room",
+      id ? "update" : "create",
+      payload,
+    );
+    if (!infoUseApiData()) closeModal();
     infoToast(id ? "房间已更新" : "房间已新增");
     infoRefreshAfterWrite(writeResult, "rooms");
   } catch (e) {
     console.error(e);
+    if (infoUseApiData()) await infoRevertTab("rooms");
     infoToast("保存失败：" + e.message);
   }
 }
@@ -797,11 +842,21 @@ async function deleteRoom(id) {
   }
   if (!infoConfirm(`确定删除房间「${r.name}」吗？此操作不可恢复。`)) return;
   try {
+    if (infoUseApiData()) {
+      infoApplyOptimistic(
+        {
+          patches: {},
+          deletions: [{ table_name: "rooms", row_id: id }],
+        },
+        "rooms",
+      );
+    }
     var writeResult = await apiAdminRecord("room", "delete", { room_id: id });
     infoToast("房间已删除");
     infoRefreshAfterWrite(writeResult, "rooms");
   } catch (e) {
     console.error(e);
+    if (infoUseApiData()) await infoRevertTab("rooms");
     infoToast("删除失败：" + e.message);
   }
 }
@@ -958,19 +1013,41 @@ async function submitBed(id) {
   }
 
   try {
-    var writeResult = await apiAdminRecord("bed", id ? "update" : "create", {
+    var payload = {
       bed_id: id,
       room_id: roomId,
       bed_number: number,
       status: status,
       notes: notes,
       ...bedTags,
-    });
-    closeModal();
+    };
+    if (infoUseApiData()) {
+      closeModal();
+      infoApplyOptimistic(
+        {
+          patches: {
+            beds: [
+              Object.assign({}, payload, {
+                id: id || infoTempId(),
+              }),
+            ],
+          },
+          deletions: [],
+        },
+        "beds",
+      );
+    }
+    var writeResult = await apiAdminRecord(
+      "bed",
+      id ? "update" : "create",
+      payload,
+    );
+    if (!infoUseApiData()) closeModal();
     infoToast(id ? "床位已更新" : "床位已新增");
     infoRefreshAfterWrite(writeResult, "beds");
   } catch (e) {
     console.error(e);
+    if (infoUseApiData()) await infoRevertTab("beds");
     infoToast("保存失败：" + e.message);
   }
 }
@@ -990,11 +1067,21 @@ async function deleteBed(id) {
   )
     return;
   try {
+    if (infoUseApiData()) {
+      infoApplyOptimistic(
+        {
+          patches: {},
+          deletions: [{ table_name: "beds", row_id: id }],
+        },
+        "beds",
+      );
+    }
     var writeResult = await apiAdminRecord("bed", "delete", { bed_id: id });
     infoToast("床位已删除");
     infoRefreshAfterWrite(writeResult, "beds");
   } catch (e) {
     console.error(e);
+    if (infoUseApiData()) await infoRevertTab("beds");
     infoToast("删除失败：" + e.message);
   }
 }
@@ -1155,7 +1242,7 @@ async function submitGuest(id) {
   }
 
   try {
-    var writeResult = await apiAdminRecord("guest", id ? "update" : "create", {
+    var payload = {
       guest_id: id,
       name: name,
       gender: gender,
@@ -1164,12 +1251,34 @@ async function submitGuest(id) {
       emergency_contact: contact.emergencyName,
       emergency_phone: contact.emergencyPhone,
       notes: notes,
-    });
-    closeModal();
+    };
+    if (infoUseApiData()) {
+      closeModal();
+      infoApplyOptimistic(
+        {
+          patches: {
+            guests: [
+              Object.assign({}, payload, {
+                id: id || infoTempId(),
+              }),
+            ],
+          },
+          deletions: [],
+        },
+        "guests",
+      );
+    }
+    var writeResult = await apiAdminRecord(
+      "guest",
+      id ? "update" : "create",
+      payload,
+    );
+    if (!infoUseApiData()) closeModal();
     infoToast(id ? "住客档案已更新" : "住客档案已新增");
     infoRefreshAfterWrite(writeResult, "guests");
   } catch (e) {
     console.error(e);
+    if (infoUseApiData()) await infoRevertTab("guests");
     infoToast("保存失败：" + e.message);
   }
 }
@@ -1188,11 +1297,21 @@ async function deleteGuest(id) {
   )
     return;
   try {
+    if (infoUseApiData()) {
+      infoApplyOptimistic(
+        {
+          patches: {},
+          deletions: [{ table_name: "guests", row_id: id }],
+        },
+        "guests",
+      );
+    }
     var writeResult = await apiAdminRecord("guest", "delete", { guest_id: id });
     infoToast("住客档案已删除");
     infoRefreshAfterWrite(writeResult, "guests");
   } catch (e) {
     console.error(e);
+    if (infoUseApiData()) await infoRevertTab("guests");
     infoToast("删除失败：" + e.message);
   }
 }
@@ -1436,7 +1555,7 @@ async function submitLodger(id) {
   }
 
   try {
-    var writeResult = await apiAdminRecord("lodger", "update", {
+    var payload = {
       lodger_id: id,
       name: name,
       gender: gender,
@@ -1448,12 +1567,30 @@ async function submitLodger(id) {
       source: source,
       bed_id: finalBedId,
       notes: notes,
-    });
-    closeModal();
+    };
+    if (infoUseApiData()) {
+      closeModal();
+      infoApplyOptimistic(
+        {
+          patches: {
+            lodgers: [
+              Object.assign({}, l, payload, {
+                id: id,
+              }),
+            ],
+          },
+          deletions: [],
+        },
+        "lodgers",
+      );
+    }
+    var writeResult = await apiAdminRecord("lodger", "update", payload);
+    if (!infoUseApiData()) closeModal();
     infoToast("挂单记录已更新");
     infoRefreshAfterWrite(writeResult, "lodgers");
   } catch (e) {
     console.error(e);
+    if (infoUseApiData()) await infoRevertTab("lodgers");
     infoToast("保存失败：" + e.message);
   }
 }
@@ -1464,11 +1601,21 @@ async function deleteInfoLodger(id) {
   const info = personDisplayName(l) + (l.phone ? " · " + l.phone : "");
   if (!infoConfirm(`确定删除挂单记录？\n${info}\n删除后不可恢复。`)) return;
   try {
+    if (infoUseApiData()) {
+      infoApplyOptimistic(
+        {
+          patches: {},
+          deletions: [{ table_name: "lodgers", row_id: id }],
+        },
+        "lodgers",
+      );
+    }
     var writeResult = await apiDeleteLodger({ lodger_id: id });
     infoToast("已删除");
     infoRefreshAfterWrite(writeResult, "lodgers");
   } catch (e) {
     console.error(e);
+    if (infoUseApiData()) await infoRevertTab("lodgers");
     infoToast("删除失败：" + e.message);
   }
 }

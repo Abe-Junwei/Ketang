@@ -13,6 +13,7 @@ def main():
     ar = read("functions/_shared/admin-records.js")
     info = read("js/info.js")
     rc = read("js/read-cache.js")
+    checkin = read("js/checkin.js")
 
     checks = [
         ("enrichWriteResponse", "export async function enrichWriteResponse" in wr),
@@ -30,10 +31,18 @@ def main():
             "rcRefreshAfterWrite single impl",
             rc.count("function rcRefreshAfterWrite") == 1
             and "rcApplyWriteResult(writeResult)" in rc
+            and "touchBoardVersionFromWrite(writeResult)" not in rc
+            and "syncTask.then(refreshOnce)" in rc
             and "rcInvalidateMany(moduleKeys)" not in rc,
         ),
         ("info lodger map", "infoLodgerOnBedMap" in info),
         ("delete bed rooming", "rooming_assignments SET bed_id = NULL" in read("functions/_shared/admin-records.js")),
+        (
+            "checkin refreshes board after write",
+            'showView("board")' in checkin
+            and "rcRefreshAfterWrite(writeResult" in checkin
+            and "renderBoard" in checkin,
+        ),
     ]
     failed = [name for name, ok in checks if not ok]
     if failed:

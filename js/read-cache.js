@@ -89,16 +89,12 @@ function rcApplyWriteResult(writeResult) {
 }
 
 /**
- * 统一写后刷新：patch rc → touch version → 刷新当前视图 → 后台 defer 对账
- * Unified post-write refresh (ERPNext / Directus pattern)
+ * 统一写后刷新：patch rc → 刷新当前视图 → 后台 delta/module 对账 → 再刷新当前视图
+ * Unified post-write refresh: patch rc, render, reconcile, then render again.
  */
 function rcRefreshAfterWrite(writeResult, options) {
   options = options || {};
-  rcApplyWriteResult(writeResult);
-  if (typeof touchBoardVersionFromWrite === "function") {
-    touchBoardVersionFromWrite(writeResult);
-  }
-  if (!options.skipViewRefresh) {
+  function refreshOnce() {
     if (typeof options.viewRefresh === "function") {
       options.viewRefresh();
     } else if (typeof refreshViewForScope === "function") {
@@ -112,9 +108,15 @@ function rcRefreshAfterWrite(writeResult, options) {
       );
     }
   }
+  rcApplyWriteResult(writeResult);
+  // 不在乐观 patch 阶段推进本地版本；等待后台 delta/module 对账后再标记已同步。
+  // Do not advance local version during optimistic patch; let delta/module sync settle it.
+  if (!options.skipViewRefresh) {
+    refreshOnce();
+  }
   if (typeof isRemoteDB !== "function" || !isRemoteDB()) return;
   if (typeof refreshAfterWrite !== "function") return;
-  return refreshAfterWrite(
+  var syncTask = refreshAfterWrite(
     writeResult,
     Object.assign(
       {
@@ -124,8 +126,17 @@ function rcRefreshAfterWrite(writeResult, options) {
         skipModuleSync: true,
       },
       options,
+      { skipViewRefresh: true },
     ),
   );
+  if (
+    !options.skipViewRefresh &&
+    syncTask &&
+    typeof syncTask.then === "function"
+  ) {
+    syncTask.then(refreshOnce).catch(function () {});
+  }
+  return syncTask;
 }
 
 async function rcFetch(moduleKey, force) {

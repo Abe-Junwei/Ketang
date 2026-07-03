@@ -94,6 +94,9 @@ d1 = (ROOT / 'functions/_shared/d1.js').read_text(encoding='utf-8')
 if 'KETANG_DB.exec(SCHEMA_SQL)' in d1:
     print('FAIL remote D1 schema must run statements individually')
     sys.exit(1)
+if '!/^INSERT INTO audit_logs\\b/i.test(cleaned)' not in d1:
+    print('FAIL /api/db run must only allow audit_logs writes; business writes must use sync-aware APIs')
+    sys.exit(1)
 
 middleware = (ROOT / 'functions/_middleware.js').read_text(encoding='utf-8')
 for path in [

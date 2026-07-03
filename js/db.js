@@ -452,7 +452,11 @@ function touchBoardVersionFromWrite(writeResult) {
     if (typeof setLocalBoardVersion === "function") {
       setLocalBoardVersion(writeResult.board_version);
     } else if (typeof lastBoardVersion !== "undefined") {
-      lastBoardVersion = writeResult.board_version;
+      var parsed =
+        typeof parseBoardVersion === "function"
+          ? parseBoardVersion(writeResult.board_version)
+          : writeResult.board_version;
+      lastBoardVersion = parsed;
     }
   }
 }

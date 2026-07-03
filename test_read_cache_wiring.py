@@ -23,6 +23,14 @@ def main():
         ("rcEnsureAppData defined", "async function rcEnsureAppData" in rc),
         ("board module in bootstrap", '"board"' in rc and "RC_APP_MODULES" in rc),
         ("lodgers_records in bootstrap", "lodgers_records" in rc),
+        (
+            "write patch does not pre-touch board version",
+            "touchBoardVersionFromWrite(writeResult)" not in rc,
+        ),
+        (
+            "write refresh rerenders after background sync",
+            "syncTask.then(refreshOnce)" in rc,
+        ),
     ]
     failed = [name for name, ok in checks if not ok]
     if failed:

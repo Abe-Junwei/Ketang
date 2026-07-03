@@ -62,10 +62,16 @@ def main():
                 isAsync: rcRefreshAfterWrite.constructor.name === 'AsyncFunction',
                 hasApply: src.includes('rcApplyWriteResult'),
                 hasInvalidate: src.includes('rcInvalidateMany'),
+                preTouchesVersion: src.includes('touchBoardVersionFromWrite'),
               };
             })()""",
         ).get("value", {})
-        if probe.get("isAsync") or not probe.get("hasApply") or probe.get("hasInvalidate"):
+        if (
+            probe.get("isAsync")
+            or not probe.get("hasApply")
+            or probe.get("hasInvalidate")
+            or probe.get("preTouchesVersion")
+        ):
             print("FAIL: rcRefreshAfterWrite wrong implementation:", probe)
             sys.exit(1)
 
@@ -91,15 +97,13 @@ def main():
           await new Promise(r => setTimeout(r, 300));
           const inCache = (rcTables('settings_beds').rooms || []).some(r => r.name === name);
           const inDom = document.body.innerHTML.includes(name);
-          const localVer = getLocalBoardVersion();
-          const aligned = localVer === wr.board_version;
           let callErr = null;
           try {{
             await rcRefreshAfterWrite(wr, {{ infoTab: 'rooms', skipViewRefresh: true }});
           }} catch (e) {{
             callErr = e.message || String(e);
           }}
-          return {{ inCache, inDom, aligned, callErr, hasPatches: !!wr.patches }};
+          return {{ inCache, inDom, callErr, hasPatches: !!wr.patches }};
         }})()"""
 
         ws.send(
@@ -133,10 +137,6 @@ def main():
         if not result.get("inDom"):
             print("FAIL: room not in DOM after write")
             sys.exit(1)
-        if not result.get("aligned"):
-            print("FAIL: local board_version not updated from write response")
-            sys.exit(1)
-
         print("PASS: instant post-write cache + DOM refresh")
     finally:
         proc.terminate()

@@ -123,13 +123,13 @@ function parseBoardVersion(value) {
 }
 
 function getLocalBoardVersion() {
-  return typeof lastBoardVersion !== "undefined" ? lastBoardVersion : null;
+  if (typeof lastBoardVersion === "undefined") return null;
+  return parseBoardVersion(lastBoardVersion);
 }
 
 function setLocalBoardVersion(version) {
-  if (typeof lastBoardVersion !== "undefined") {
-    lastBoardVersion = version;
-  }
+  if (typeof lastBoardVersion === "undefined") return;
+  lastBoardVersion = parseBoardVersion(version);
 }
 
 /** 串行化本地读模型写入，避免并发灌库互相覆盖 | Serialize local read-model writes */
@@ -451,6 +451,16 @@ async function syncAfterRemoteWrite(writeResult, options) {
   }
 
   if (options.skipModuleSync) {
+    if (
+      writeResult &&
+      (writeResult.patches || writeResult.deletions) &&
+      writeVersion != null &&
+      localVersion != null &&
+      writeVersion === localVersion
+    ) {
+      notifyViewsForDomains(writeResult.changed_domains);
+      return;
+    }
     if (
       writeVersion != null &&
       localVersion != null &&

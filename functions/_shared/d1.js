@@ -516,10 +516,7 @@ export function assertAllowedSql(action, sql, session) {
     throw new Error("不允许执行结构变更 SQL");
 
   if (session.role === "admin") {
-    if (
-      !isQuery &&
-      /\b(users|rooms|beds|guests|events|lodgers|reservations)\b/i.test(cleaned)
-    ) {
+    if (!isQuery && !/^INSERT INTO audit_logs\b/i.test(cleaned)) {
       throw new Error("该写操作请使用业务接口");
     }
     return cleaned;
