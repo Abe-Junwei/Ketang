@@ -519,7 +519,11 @@ async function batchCancelEventMembers(source) {
     }
     var rollbackOk = original ? rollbackEventMembersOptimistic(original) : true;
     if (!rollbackOk) await forceRefreshEventMembers();
-    if (rollbackOk) rcRefreshAfterWrite(writeResult, { skipViewRefresh: true });
+    if (rollbackOk) {
+      rcRefreshAfterWrite(writeResult, {
+        viewRefresh: eventMemberViewRefresh(eventId),
+      });
+    }
   } catch (e) {
     console.error(e);
     var rollbackOk = rollbackEventMembersOptimistic(original);
@@ -589,7 +593,11 @@ async function batchNoShowEventMembers(source) {
     }
     var rollbackOk = original ? rollbackEventMembersOptimistic(original) : true;
     if (!rollbackOk) await forceRefreshEventMembers();
-    if (rollbackOk) rcRefreshAfterWrite(writeResult, { skipViewRefresh: true });
+    if (rollbackOk) {
+      rcRefreshAfterWrite(writeResult, {
+        viewRefresh: eventMemberViewRefresh(eventId),
+      });
+    }
   } catch (e) {
     console.error(e);
     var rollbackOk = rollbackEventMembersOptimistic(original);

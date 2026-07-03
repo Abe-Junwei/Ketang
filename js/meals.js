@@ -637,15 +637,31 @@ function getMealDayByRoom(date) {
     if (countPerson) byRoomMap[roomKey].people += 1;
   }
 
-  query(
-    `
+  (typeof rcReadReady === "function" && rcReadReady()
+    ? rcAllLodgersMerged()
+        .filter(function (l) {
+          return l.status === "在住" && l.check_in_date <= date;
+        })
+        .map(rcEnrichLodgerRow)
+        .map(function (l) {
+          if (l.bed_id && !l.room_id) {
+            var bed = rcBoardBeds().find(function (b) {
+              return b.id == l.bed_id;
+            });
+            if (bed) l.room_id = bed.room_id;
+          }
+          return l;
+        })
+    : query(
+        `
     SELECT l.*, r.name as room_name, r.id as room_id
     FROM lodgers l
     LEFT JOIN beds b ON b.id = l.bed_id
     LEFT JOIN rooms r ON r.id = b.room_id
     WHERE l.status = '在住' AND l.check_in_date <= ?
   `,
-    [date],
+        [date],
+      )
   ).forEach(function (l) {
     if (!isLodgerInHouseOnDate(l, date)) return;
     const flags = getMealFlagsForDate(l.id, date);
@@ -661,13 +677,22 @@ function getMealDayByRoom(date) {
     );
   });
 
-  query(
-    `
+  var dayReservations =
+    typeof rcReadReady === "function" && rcReadReady()
+      ? rcRows("reservations", "reservations").filter(function (r) {
+          return (
+            r.expected_check_in === date &&
+            (r.status === "预约" || r.status === "已确认")
+          );
+        })
+      : query(
+          `
     SELECT * FROM reservations
     WHERE expected_check_in = ? AND status IN ('预约', '已确认')
   `,
-    [date],
-  ).forEach(function (r) {
+          [date],
+        );
+  dayReservations.forEach(function (r) {
     const mf = reservationMealFlags(r);
     const eatsAny = !!(mf.breakfast || mf.lunch || mf.dinner);
     bump("pending", "待入住", mf.breakfast, mf.lunch, mf.dinner, eatsAny);

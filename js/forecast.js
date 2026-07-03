@@ -101,7 +101,7 @@ function renderTodayForecast() {
     byEvent = fd.byEvent;
     arrivalRooms = fd.arrivalRooms;
     departureRooms = fd.departureRooms;
-  } else {
+  } else if (isLocalForceDb()) {
     // 预计到达：预约/在住中 expected_check_in = date，且状态正常
     arrivalsResv = query(
       `
@@ -197,6 +197,9 @@ function renderTodayForecast() {
   `,
       [date],
     );
+  } else {
+    container.innerHTML = '<p class="empty-tip">数据加载中，请稍候…</p>';
+    return;
   }
 
   const totalArrivals = arrivalsResv.length + arrivalsLodger.length;
@@ -311,29 +314,39 @@ function exportTodayForecastCSV() {
     return;
   }
 
-  const arrivalsResv = query(
-    `
+  var arrivalsResv;
+  var arrivalsLodger;
+  var departures;
+  if (!isLocalForceDb()) {
+    var fd = rcForecastTodayData(date);
+    arrivalsResv = fd.arrivalsResv;
+    arrivalsLodger = fd.arrivalsLodger;
+    departures = fd.departures;
+  } else {
+    arrivalsResv = query(
+      `
     SELECT r.*, e.name as event_name FROM reservations r LEFT JOIN events e ON e.id = r.event_id
     WHERE r.expected_check_in = ? AND r.status IN ('预约','已确认') ORDER BY r.name
   `,
-    [date],
-  );
-  const arrivalsLodger = query(
-    `
+      [date],
+    );
+    arrivalsLodger = query(
+      `
     SELECT l.*, e.name as event_name, r.name as room_name, b.bed_number FROM lodgers l
     LEFT JOIN events e ON e.id = l.event_id LEFT JOIN beds b ON b.id = l.bed_id LEFT JOIN rooms r ON r.id = b.room_id
     WHERE l.check_in_date = ? AND l.status = '在住' ORDER BY l.name
   `,
-    [date],
-  );
-  const departures = query(
-    `
+      [date],
+    );
+    departures = query(
+      `
     SELECT l.*, e.name as event_name, r.name as room_name, b.bed_number FROM lodgers l
     LEFT JOIN events e ON e.id = l.event_id LEFT JOIN beds b ON b.id = l.bed_id LEFT JOIN rooms r ON r.id = b.room_id
     WHERE l.expected_check_out = ? AND l.status = '在住' ORDER BY l.name
   `,
-    [date],
-  );
+      [date],
+    );
+  }
 
   const lines = [
     "\uFEFF" +
@@ -467,7 +480,7 @@ function renderFlowForecast() {
     totalMaleBeds = flowPack.totalMaleBeds;
     totalFemaleBeds = flowPack.totalFemaleBeds;
     totalFlexBeds = flowPack.totalFlexBeds;
-  } else {
+  } else if (isLocalForceDb()) {
     // 计算每周的周一作为周标签
     weekData = [];
     let current = new Date(startDate);
@@ -551,6 +564,9 @@ function renderFlowForecast() {
       query(
         "SELECT COUNT(*) as c FROM beds b JOIN rooms r ON r.id=b.room_id WHERE r.dorm_type='不限' AND b.status!='维修' AND b.status!='备用'",
       )[0]?.c || 0;
+  } else {
+    container.innerHTML = '<p class="empty-tip">数据加载中，请稍候…</p>';
+    return;
   }
 
   // 可用于调剂的不限房间（当前空床）
@@ -559,7 +575,8 @@ function renderFlowForecast() {
     rcReadReady() &&
     typeof rcFlexEmptyRooms === "function"
       ? rcFlexEmptyRooms()
-      : query(`
+      : isLocalForceDb()
+        ? query(`
     SELECT r.name, r.location, COUNT(b.id) as beds
     FROM rooms r
     JOIN beds b ON b.room_id = r.id
@@ -567,7 +584,8 @@ function renderFlowForecast() {
     WHERE r.dorm_type='不限' AND b.status!='维修' AND b.status!='备用' AND l.id IS NULL
     GROUP BY r.id
     ORDER BY beds DESC, r.name
-  `);
+  `)
+        : [];
   const flexRoomNames = flexRooms.map(
     (r) => `${escapeHtml(r.location || "")}${escapeHtml(r.name)}(${r.beds}床)`,
   );
@@ -636,7 +654,11 @@ function renderFlowForecast() {
 
   // 营期入住率
   html += `<h3 class="section-title">营期入住率</h3>`;
-  const events = query(`
+  const events = !isLocalForceDb()
+    ? rcEventListWithStats().filter(function (e) {
+        return e.status !== "已取消";
+      })
+    : query(`
     SELECT e.*,
       (SELECT COUNT(*) FROM lodgers l WHERE l.event_id = e.id AND l.status = '在住') as checked_in,
       (SELECT COUNT(*) FROM reservations r WHERE r.event_id = e.id AND r.status IN ('预约','已确认')) as reserved

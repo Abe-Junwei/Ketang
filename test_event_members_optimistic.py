@@ -19,7 +19,7 @@ def main():
         ("optimistic patches reservations", "rcApplyDeltaPatches" in events and "reservations" in events),
         ("optimistic patches lodgers", "rcApplyDeltaPatches" in events and "lodgers" in events),
         ("renders member page immediately", "renderEventMembers(eventId);" in events),
-        ("success skip view refresh", "rcRefreshAfterWrite(writeResult, { skipViewRefresh: true })" in events),
+        ("success member view refresh", events.count("viewRefresh: eventMemberViewRefresh(eventId)") >= 2),
         ("local write result", events.count("writeResult = { ok: true, local: true };") >= 2),
         ("failure force fetches events", "rcEnsureEvents(true)" in events),
         ("rollback failure surfaced", "无法恢复最新成员数据" in events),

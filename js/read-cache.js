@@ -941,6 +941,201 @@ function rcFlexEmptyRooms() {
     });
 }
 
+function rcReportPaidDate(payment) {
+  if (!payment || !payment.paid_at) return "";
+  return String(payment.paid_at).slice(0, 10);
+}
+
+function rcReportLodgerActive(lodger) {
+  return lodger && (lodger.status === "在住" || lodger.status === "已退");
+}
+
+function rcReportPaymentsForDate(date) {
+  return rcRows("lodgers", "payments").filter(function (p) {
+    if (rcReportPaidDate(p) !== date) return false;
+    if (p.lodger_id == null || p.lodger_id === "") return true;
+    var l = rcLodgerById(p.lodger_id);
+    return !l || rcReportLodgerActive(l);
+  });
+}
+
+function rcReportPaymentsForMonth(monthPrefix) {
+  return rcRows("lodgers", "payments").filter(function (p) {
+    if (!String(p.paid_at || "").startsWith(monthPrefix)) return false;
+    if (p.lodger_id == null || p.lodger_id === "") return true;
+    var l = rcLodgerById(p.lodger_id);
+    return !l || rcReportLodgerActive(l);
+  });
+}
+
+function rcReportGroupPayments(rows) {
+  var byType = {};
+  var byMethod = {};
+  rows.forEach(function (p) {
+    var type = p.type || "";
+    var amt = parseFloat(p.amount) || 0;
+    if (!byType[type]) byType[type] = { type: type, total: 0, cnt: 0 };
+    byType[type].total += amt;
+    byType[type].cnt++;
+    var method = (p.method && String(p.method).trim()) || "未填写";
+    if (!byMethod[method]) byMethod[method] = { method: method, total: 0, cnt: 0 };
+    byMethod[method].total += amt;
+    byMethod[method].cnt++;
+  });
+  return {
+    payments: Object.values(byType),
+    payMethods: Object.values(byMethod).sort(function (a, b) {
+      return (b.total || 0) - (a.total || 0);
+    }),
+  };
+}
+
+/** 日报聚合 | Daily report payload from rc store */
+function rcDailyReportData(date) {
+  var lodgers = rcAllLodgersMerged().filter(rcReportLodgerActive);
+  var payGrouped = rcReportGroupPayments(rcReportPaymentsForDate(date));
+  return {
+    checkins: lodgers.filter(function (l) {
+      return l.check_in_date === date;
+    }).length,
+    checkouts: lodgers.filter(function (l) {
+      return l.actual_check_out === date;
+    }).length,
+    inHouse: lodgers.filter(function (l) {
+      return (
+        l.status === "在住" &&
+        l.check_in_date <= date &&
+        (!l.expected_check_out || l.expected_check_out > date)
+      );
+    }).length,
+    expectedCheckout: lodgers.filter(function (l) {
+      return l.status === "在住" && l.expected_check_out === date;
+    }).length,
+    payments: payGrouped.payments,
+    payMethods: payGrouped.payMethods,
+    checkinList: lodgers
+      .filter(function (l) {
+        return l.check_in_date === date;
+      })
+      .map(rcEnrichLodgerRow)
+      .sort(function (a, b) {
+        return (b.id || 0) - (a.id || 0);
+      }),
+    checkoutList: lodgers
+      .filter(function (l) {
+        return l.actual_check_out === date;
+      })
+      .map(rcEnrichLodgerRow)
+      .sort(function (a, b) {
+        return (b.id || 0) - (a.id || 0);
+      }),
+  };
+}
+
+/** 月报聚合 | Monthly report payload from rc store */
+function rcMonthlyReportData(month) {
+  var prefix = month + "-";
+  var lodgers = rcAllLodgersMerged().filter(rcReportLodgerActive);
+  var payGrouped = rcReportGroupPayments(rcReportPaymentsForMonth(prefix));
+  var byDayMap = {};
+  lodgers.forEach(function (l) {
+    if (!l.check_in_date || !l.check_in_date.startsWith(prefix)) return;
+    byDayMap[l.check_in_date] = (byDayMap[l.check_in_date] || 0) + 1;
+  });
+  return {
+    checkins: lodgers.filter(function (l) {
+      return l.check_in_date && l.check_in_date.startsWith(prefix);
+    }).length,
+    checkouts: lodgers.filter(function (l) {
+      return l.actual_check_out && l.actual_check_out.startsWith(prefix);
+    }).length,
+    payments: payGrouped.payments,
+    payMethods: payGrouped.payMethods,
+    byDay: Object.keys(byDayMap)
+      .sort()
+      .map(function (day) {
+        return { day: day, cnt: byDayMap[day] };
+      }),
+  };
+}
+
+/** 营期报表成员 | Event report member rows from rc store */
+function rcEventReportMembers(eventId) {
+  var members = [];
+  function pushLodger(l) {
+    members.push({
+      name: l.name,
+      dharma_name: l.dharma_name,
+      gender: l.gender,
+      role: l.role,
+      class_name: l.class_name,
+      kind: "在住",
+      status: l.status,
+      date_in: l.check_in_date,
+      date_out: l.expected_check_out,
+    });
+  }
+  function pushResv(r) {
+    members.push({
+      name: r.name,
+      dharma_name: r.dharma_name,
+      gender: r.gender,
+      role: r.role,
+      class_name: r.class_name,
+      kind: "预约",
+      status: r.status,
+      date_in: r.expected_check_in,
+      date_out: r.expected_check_out,
+    });
+  }
+  if (eventId) {
+    rcAllLodgersMerged()
+      .filter(function (l) {
+        return l.event_id == eventId && l.status === "在住";
+      })
+      .forEach(pushLodger);
+    rcRows("reservations", "reservations")
+      .filter(function (r) {
+        return (
+          r.event_id == eventId &&
+          (r.status === "预约" || r.status === "已确认")
+        );
+      })
+      .forEach(pushResv);
+  } else {
+    rcAllLodgersMerged()
+      .filter(function (l) {
+        return l.event_id != null && l.status === "在住";
+      })
+      .forEach(pushLodger);
+    rcRows("reservations", "reservations")
+      .filter(function (r) {
+        return (
+          r.event_id != null &&
+          (r.status === "预约" || r.status === "已确认")
+        );
+      })
+      .forEach(pushResv);
+  }
+  return members;
+}
+
+/** 日报 CSV 行 | Daily report export rows from rc store */
+function rcDailyReportExportRows(date) {
+  return rcAllLodgersMerged()
+    .filter(rcReportLodgerActive)
+    .filter(function (l) {
+      return l.check_in_date === date || l.actual_check_out === date;
+    })
+    .map(rcEnrichLodgerRow)
+    .sort(function (a, b) {
+      var da = a.check_in_date || "";
+      var db = b.check_in_date || "";
+      if (da !== db) return db.localeCompare(da);
+      return (b.id || 0) - (a.id || 0);
+    });
+}
+
 /** 营期列表含统计 | Event list with enrollment stats */
 function rcEventListWithStats() {
   var lodgers = rcAllLodgersMerged();

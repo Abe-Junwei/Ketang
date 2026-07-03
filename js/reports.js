@@ -270,42 +270,61 @@ async function renderDailyReport() {
     return;
   }
 
-  const checkins =
+  var checkins;
+  var checkouts;
+  var inHouse;
+  var expectedCheckout;
+  var payMap = {};
+  var payMethods;
+  var checkinList;
+  var checkoutList;
+  if (!isLocalForceDb()) {
+    var daily = rcDailyReportData(date);
+    checkins = daily.checkins;
+    checkouts = daily.checkouts;
+    inHouse = daily.inHouse;
+    expectedCheckout = daily.expectedCheckout;
+    daily.payments.forEach(function (p) {
+      payMap[p.type] = p.total || 0;
+    });
+    payMethods = daily.payMethods;
+    checkinList = daily.checkinList;
+    checkoutList = daily.checkoutList;
+  } else {
+    checkins =
+      query(
+        "SELECT COUNT(*) as c FROM lodgers WHERE check_in_date = ? AND status IN ('在住','已退')",
+        [date],
+      )[0]?.c || 0;
+    checkouts =
+      query(
+        "SELECT COUNT(*) as c FROM lodgers WHERE actual_check_out = ? AND status IN ('在住','已退')",
+        [date],
+      )[0]?.c || 0;
+    inHouse =
+      query(
+        "SELECT COUNT(*) as c FROM lodgers WHERE check_in_date <= ? AND status = '在住' AND (expected_check_out IS NULL OR expected_check_out > ?)",
+        [date, date],
+      )[0]?.c || 0;
+    expectedCheckout =
+      query(
+        "SELECT COUNT(*) as c FROM lodgers WHERE status = '在住' AND expected_check_out = ?",
+        [date],
+      )[0]?.c || 0;
     query(
-      "SELECT COUNT(*) as c FROM lodgers WHERE check_in_date = ? AND status IN ('在住','已退')",
-      [date],
-    )[0]?.c || 0;
-  const checkouts =
-    query(
-      "SELECT COUNT(*) as c FROM lodgers WHERE actual_check_out = ? AND status IN ('在住','已退')",
-      [date],
-    )[0]?.c || 0;
-  const inHouse =
-    query(
-      "SELECT COUNT(*) as c FROM lodgers WHERE check_in_date <= ? AND status = '在住' AND (expected_check_out IS NULL OR expected_check_out > ?)",
-      [date, date],
-    )[0]?.c || 0;
-  const expectedCheckout =
-    query(
-      "SELECT COUNT(*) as c FROM lodgers WHERE status = '在住' AND expected_check_out = ?",
-      [date],
-    )[0]?.c || 0;
-
-  const payments = query(
-    `
+      `
     SELECT p.type, COALESCE(SUM(p.amount), 0) as total, COUNT(*) as cnt
     FROM payments p
     LEFT JOIN lodgers l ON l.id = p.lodger_id
     WHERE date(p.paid_at) = ? AND (p.lodger_id IS NULL OR l.status IN ('在住', '已退'))
     GROUP BY p.type
   `,
-    [date],
-  );
-  const payMap = {};
-  payments.forEach((p) => (payMap[p.type] = p.total || 0));
-
-  const payMethods = query(
-    `
+      [date],
+    ).forEach(function (p) {
+      payMap[p.type] = p.total || 0;
+    });
+    payMethods = query(
+      `
     SELECT COALESCE(NULLIF(p.method, ''), '未填写') as method,
            COALESCE(SUM(p.amount), 0) as total,
            COUNT(*) as cnt
@@ -315,27 +334,27 @@ async function renderDailyReport() {
     GROUP BY COALESCE(NULLIF(p.method, ''), '未填写')
     ORDER BY total DESC
   `,
-    [date],
-  );
-
-  const meals = getMealDayStats(date);
-
-  const checkinList = query(
-    `
+      [date],
+    );
+    checkinList = query(
+      `
     SELECT l.*, r.name as room_name, b.bed_number
     FROM lodgers l LEFT JOIN beds b ON b.id = l.bed_id LEFT JOIN rooms r ON r.id = b.room_id
     WHERE l.check_in_date = ? AND l.status IN ('在住','已退') ORDER BY l.id DESC
   `,
-    [date],
-  );
-  const checkoutList = query(
-    `
+      [date],
+    );
+    checkoutList = query(
+      `
     SELECT l.*, r.name as room_name, b.bed_number
     FROM lodgers l LEFT JOIN beds b ON b.id = l.bed_id LEFT JOIN rooms r ON r.id = b.room_id
     WHERE l.actual_check_out = ? AND l.status IN ('在住','已退') ORDER BY l.id DESC
   `,
-    [date],
-  );
+      [date],
+    );
+  }
+
+  const meals = getMealDayStats(date);
 
   container.innerHTML = `
     <div class="stats">
@@ -468,14 +487,16 @@ function exportDailyReportCSV() {
     alert("请选择日期");
     return;
   }
-  const rows = query(
-    `
+  const rows = !isLocalForceDb()
+    ? rcDailyReportExportRows(date)
+    : query(
+        `
     SELECT l.*, r.name as room_name, b.bed_number
     FROM lodgers l LEFT JOIN beds b ON b.id = l.bed_id LEFT JOIN rooms r ON r.id = b.room_id
     WHERE l.status IN ('在住', '已退') AND (l.check_in_date = ? OR l.actual_check_out = ?) ORDER BY l.check_in_date DESC, l.id DESC
   `,
-    [date, date],
-  );
+        [date, date],
+      );
   const lines = [
     "\uFEFF" +
       [
@@ -526,30 +547,45 @@ async function renderMonthlyReport() {
     return;
   }
 
-  const checkins =
+  var checkins;
+  var checkouts;
+  var payMap = {};
+  var payMethods;
+  var byDay;
+  if (!isLocalForceDb()) {
+    var monthly = rcMonthlyReportData(month);
+    checkins = monthly.checkins;
+    checkouts = monthly.checkouts;
+    monthly.payments.forEach(function (p) {
+      payMap[p.type] = p.total || 0;
+    });
+    payMethods = monthly.payMethods;
+    byDay = monthly.byDay;
+  } else {
+    checkins =
+      query(
+        "SELECT COUNT(*) as c FROM lodgers WHERE check_in_date LIKE ? AND status IN ('在住','已退')",
+        [month + "%"],
+      )[0]?.c || 0;
+    checkouts =
+      query(
+        "SELECT COUNT(*) as c FROM lodgers WHERE actual_check_out LIKE ? AND status IN ('在住','已退')",
+        [month + "%"],
+      )[0]?.c || 0;
     query(
-      "SELECT COUNT(*) as c FROM lodgers WHERE check_in_date LIKE ? AND status IN ('在住','已退')",
-      [month + "%"],
-    )[0]?.c || 0;
-  const checkouts =
-    query(
-      "SELECT COUNT(*) as c FROM lodgers WHERE actual_check_out LIKE ? AND status IN ('在住','已退')",
-      [month + "%"],
-    )[0]?.c || 0;
-  const payments = query(
-    `
+      `
     SELECT p.type, COALESCE(SUM(p.amount), 0) as total
     FROM payments p
     LEFT JOIN lodgers l ON l.id = p.lodger_id
     WHERE p.paid_at LIKE ? AND (p.lodger_id IS NULL OR l.status IN ('在住', '已退'))
     GROUP BY p.type
   `,
-    [month + "%"],
-  );
-  const payMap = {};
-  payments.forEach((p) => (payMap[p.type] = p.total || 0));
-  const payMethods = query(
-    `
+      [month + "%"],
+    ).forEach(function (p) {
+      payMap[p.type] = p.total || 0;
+    });
+    payMethods = query(
+      `
     SELECT COALESCE(NULLIF(p.method, ''), '未填写') as method,
            COALESCE(SUM(p.amount), 0) as total,
            COUNT(*) as cnt
@@ -559,20 +595,21 @@ async function renderMonthlyReport() {
     GROUP BY COALESCE(NULLIF(p.method, ''), '未填写')
     ORDER BY total DESC
   `,
-    [month + "%"],
-  );
-  const meals = getMealMonthStats(month);
-
-  const byDay = query(
-    `
+      [month + "%"],
+    );
+    byDay = query(
+      `
     SELECT check_in_date as day, COUNT(*) as cnt
     FROM lodgers
     WHERE check_in_date LIKE ? AND status IN ('在住','已退')
     GROUP BY check_in_date
     ORDER BY check_in_date
   `,
-    [month + "%"],
-  );
+      [month + "%"],
+    );
+  }
+
+  const meals = getMealMonthStats(month);
 
   const chartSection = byDay.length
     ? `<div class="forecast-charts">${chartBoxHtml("每日入住趋势", "chart-monthly-checkins", true)}${chartBoxHtml("月款项构成", "chart-monthly-pay")}</div>`
@@ -660,16 +697,18 @@ function exportMonthlyReportCSV() {
     alert("请选择月份");
     return;
   }
-  const byDay = query(
-    `
+  const byDay = !isLocalForceDb()
+    ? rcMonthlyReportData(month).byDay
+    : query(
+        `
     SELECT check_in_date as day, COUNT(*) as cnt
     FROM lodgers
     WHERE check_in_date LIKE ? AND status IN ('在住', '已退')
     GROUP BY check_in_date
     ORDER BY check_in_date
   `,
-    [month + "%"],
-  );
+        [month + "%"],
+      );
   const lines = ["\uFEFF" + ["日期", "入住人次"].map(csvCell).join(",")];
   byDay.forEach((r) => lines.push([r.day, r.cnt].map(csvCell).join(",")));
   const blob = new Blob([lines.join("\n")], {
@@ -690,7 +729,10 @@ async function renderEventReport() {
   const container = document.getElementById("event-report-result");
   if (!container) return;
 
-  let sql = `
+  const members = !isLocalForceDb()
+    ? rcEventReportMembers(eventId || null)
+    : (function () {
+        let sql = `
     SELECT name, dharma_name, gender, role, class_name, '在住' as kind, status,
       check_in_date as date_in, expected_check_out as date_out
     FROM lodgers
@@ -701,10 +743,9 @@ async function renderEventReport() {
     FROM reservations
     WHERE event_id = ? AND status IN ('预约', '已确认')
   `;
-  let params = [eventId || 0, eventId || 0];
-
-  if (!eventId) {
-    sql = `
+        let params = [eventId || 0, eventId || 0];
+        if (!eventId) {
+          sql = `
       SELECT name, dharma_name, gender, role, class_name, '在住' as kind, status,
         check_in_date as date_in, expected_check_out as date_out
       FROM lodgers
@@ -715,10 +756,10 @@ async function renderEventReport() {
       FROM reservations
       WHERE event_id IS NOT NULL AND status IN ('预约', '已确认')
     `;
-    params = [];
-  }
-
-  const members = query(sql, params);
+          params = [];
+        }
+        return query(sql, params);
+      })();
 
   if (members.length === 0) {
     container.innerHTML = '<p class="empty-tip">无记录。</p>';
@@ -862,9 +903,11 @@ function renderEventReportCharts(groupNames, groups) {
 
 function exportEventReportCSV() {
   const eventId = document.getElementById("r-event").value;
-  const groupBy = document.getElementById("r-event-group").value || "role";
 
-  let sql = `
+  const members = !isLocalForceDb()
+    ? rcEventReportMembers(eventId || null)
+    : (function () {
+        let sql = `
     SELECT name, dharma_name, gender, role, class_name, '在住' as kind, status,
       check_in_date as date_in, expected_check_out as date_out
     FROM lodgers
@@ -875,9 +918,9 @@ function exportEventReportCSV() {
     FROM reservations
     WHERE event_id = ? AND status IN ('预约', '已确认')
   `;
-  let params = [eventId || 0, eventId || 0];
-  if (!eventId) {
-    sql = `
+        let params = [eventId || 0, eventId || 0];
+        if (!eventId) {
+          sql = `
       SELECT name, dharma_name, gender, role, class_name, '在住' as kind, status,
         check_in_date as date_in, expected_check_out as date_out
       FROM lodgers
@@ -888,10 +931,10 @@ function exportEventReportCSV() {
       FROM reservations
       WHERE event_id IS NOT NULL AND status IN ('预约', '已确认')
     `;
-    params = [];
-  }
-
-  const members = query(sql, params);
+          params = [];
+        }
+        return query(sql, params);
+      })();
   const headers = [
     "姓名 / 法名",
     "性别",
