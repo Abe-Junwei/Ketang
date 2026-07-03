@@ -23,7 +23,8 @@ def main():
         ("board rc stats", "rcGetBoardBedStats" in rc),
         ("boardReadCacheReady", "function boardReadCacheReady" in rc),
         ("app uses rc lodgers", "rcActiveLodgersEnriched" in read("js/app.js")),
-        ("housekeepingLoadAndRender", "housekeepingLoadAndRender" in read("js/housekeeping.js")),
+        ("rcOpsNoticeData", "function rcOpsNoticeData" in rc),
+        ("rcCheckoutReminders", "function rcCheckoutReminders" in rc),
     ]
     failed = [name for name, ok in checks if not ok]
     if failed:

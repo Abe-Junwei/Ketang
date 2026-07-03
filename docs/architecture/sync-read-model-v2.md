@@ -14,7 +14,7 @@
 | ---------- | ----------------------------------------------------------------------- |
 | 权威数据源 | Cloudflare D1                                                           |
 | 写路径     | `/api/v1/*`、`/api/v1/admin/records` 等业务 API                         |
-| 读路径     | 登录后 `GET /api/v1/read-model` 全表快照 → 灌入浏览器内存 sql.js        |
+| 读路径     | 登录后 `GET /api/v1/read/*` 按模块拉取 → `read-cache.js` 灌 sql.js 过渡；信息管理已 API 直读 |
 | 变更通知   | `app_meta.board_version` + 客户端每 8s 轮询 `GET /api/v1/board-version` |
 | 写后刷新   | `refreshAfterWrite()` → `renderAll({ forceSync: true })` 强制全量重拉   |
 | 本地模式   | `localhost` / `file://` 仍用 IndexedDB + 完整 migration                 |

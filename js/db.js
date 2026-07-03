@@ -543,22 +543,10 @@ async function syncRemoteReadModel(options) {
   remoteSyncPromise = (async function () {
     setRemoteSyncStatus("loading");
     try {
-      if (typeof rcEnsureAppData === "function") {
-        await rcEnsureAppData(force);
-        return;
+      if (typeof rcEnsureAppData !== "function") {
+        throw new Error("read-cache 未加载");
       }
-      const etag = force ? null : lastBoardVersion;
-      const payload = await apiReadModel(etag);
-      if (payload && payload.notModified) {
-        remoteReadModelReady = true;
-        lastRemoteSyncAt = Date.now();
-        if (payload.version != null) {
-          lastBoardVersion = payload.version;
-        }
-        setRemoteSyncStatus("ready");
-        return;
-      }
-      applyRemoteSnapshot(payload);
+      await rcEnsureAppData(force);
     } catch (err) {
       setRemoteSyncStatus("error", err.message || "数据同步失败");
       throw err;

@@ -32,9 +32,14 @@ function initReportDates() {
 function populateReportEventSelect() {
   const sel = document.getElementById("r-event");
   if (!sel) return;
-  const events = query(
-    "SELECT id, name, event_type FROM events WHERE status != '已取消' ORDER BY start_date DESC, id DESC",
-  );
+  var events;
+  if (typeof boardReadCacheReady === "function" && boardReadCacheReady()) {
+    events = rcEventsForSelect();
+  } else {
+    events = query(
+      "SELECT id, name, event_type FROM events WHERE status != '已取消' ORDER BY start_date DESC, id DESC",
+    );
+  }
   let html = '<option value=\"\">全部营期</option>';
   events.forEach((e) => {
     html += `<option value="${e.id}">${escapeHtml(e.name)} (${escapeHtml(e.event_type)})</option>`;

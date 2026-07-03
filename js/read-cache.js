@@ -306,6 +306,7 @@ function rcActiveLodgersEnriched() {
         room_name: room ? room.name : null,
         location: room ? room.location : null,
         bed_number: bed ? bed.bed_number : null,
+        dorm_type: room ? room.dorm_type : null,
       });
     })
     .sort(function (a, b) {
@@ -322,6 +323,137 @@ function boardReadCacheReady() {
     rcUseApiRead() &&
     rcBoardRooms().length > 0
   );
+}
+
+/** 营期列表（报表/下拉）| Active events for selects */
+function rcEventsForSelect() {
+  return rcRows("events", "events")
+    .filter(function (e) {
+      return e.status !== "已取消";
+    })
+    .sort(function (a, b) {
+      var sa = a.start_date || "";
+      var sb = b.start_date || "";
+      if (sa !== sb) return sb.localeCompare(sa);
+      return (b.id || 0) - (a.id || 0);
+    });
+}
+
+/** 退房提醒分组 | Checkout reminder rows by tab key */
+function rcCheckoutReminders(key, date) {
+  var today = typeof todayStr === "function" ? todayStr() : "";
+  var rows = rcActiveLodgersEnriched().filter(function (l) {
+    if (!l.expected_check_out) return false;
+    if (key === "overdue") return l.expected_check_out < today;
+    return l.expected_check_out === date;
+  });
+  if (key === "overdue") {
+    rows.sort(function (a, b) {
+      return (a.expected_check_out || "").localeCompare(
+        b.expected_check_out || "",
+      );
+    });
+  } else {
+    rows.sort(function (a, b) {
+      return (a.room_name || "").localeCompare(b.room_name || "", "zh-CN");
+    });
+  }
+  return rows;
+}
+
+/** 运营动态摘要 | Ops notice derived stats */
+function rcOpsNoticeData(today) {
+  var day = today || (typeof todayStr === "function" ? todayStr() : "");
+  var flow = rcGetBoardFlowStats(day);
+  var changeRoomIds = {};
+  rcActiveLodgersEnriched().forEach(function (l) {
+    if (l.expected_check_out !== day || !l.bed_id) return;
+    var bed = rcBoardBeds().find(function (b) {
+      return b.id == l.bed_id;
+    });
+    if (bed) changeRoomIds[bed.room_id] = true;
+  });
+  rcRows("reservations", "reservations").forEach(function (res) {
+    if (
+      res.expected_check_in !== day ||
+      (res.status !== "预约" && res.status !== "已确认")
+    )
+      return;
+    rcBoardRooms().forEach(function (room) {
+      if (typeof isSpareRoom === "function" && isSpareRoom(room)) return;
+      if (res.gender === "男" && room.dorm_type !== "男寮") return;
+      if (res.gender === "女" && room.dorm_type !== "女寮") return;
+      changeRoomIds[room.id] = true;
+    });
+  });
+  var endDate = typeof dateStr === "function" ? dateStr(7) : day;
+  var lodgersAll = rcBoardLodgers().concat(rcRows("lodgers", "lodgers"));
+  var resvs = rcRows("reservations", "reservations");
+  var eventAlerts = rcRows("events", "events")
+    .filter(function (e) {
+      if (e.status !== "筹备中" && e.status !== "招生中") return false;
+      if (!e.start_date || e.start_date < day || e.start_date > endDate)
+        return false;
+      if (!e.expected_count || e.expected_count <= 0) return false;
+      var checkedIn = 0;
+      var reserved = 0;
+      lodgersAll.forEach(function (l) {
+        if (l.event_id == e.id && l.status === "在住") checkedIn++;
+      });
+      resvs.forEach(function (r) {
+        if (
+          r.event_id == e.id &&
+          (r.status === "预约" || r.status === "已确认")
+        )
+          reserved++;
+      });
+      return checkedIn + reserved < e.expected_count;
+    })
+    .map(function (e) {
+      var checkedIn = 0;
+      var reserved = 0;
+      lodgersAll.forEach(function (l) {
+        if (l.event_id == e.id && l.status === "在住") checkedIn++;
+      });
+      resvs.forEach(function (r) {
+        if (
+          r.event_id == e.id &&
+          (r.status === "预约" || r.status === "已确认")
+        )
+          reserved++;
+      });
+      return Object.assign({}, e, {
+        checked_in: checkedIn,
+        reserved: reserved,
+      });
+    })
+    .sort(function (a, b) {
+      return (a.start_date || "").localeCompare(b.start_date || "");
+    });
+  var dirtyBeds = [];
+  var roomsById = {};
+  rcBoardRooms().forEach(function (r) {
+    roomsById[r.id] = r;
+  });
+  rcBoardBeds().forEach(function (b) {
+    if (b.status === "备用") return;
+    var room = roomsById[b.room_id];
+    if (!room || (typeof isSpareRoom === "function" && isSpareRoom(room)))
+      return;
+    if (rcLatestHkStatus(b.id) === "脏房") {
+      dirtyBeds.push({
+        room_name: room.name,
+        bed_number: b.bed_number,
+      });
+    }
+  });
+  return {
+    arrivals: flow.expArrive,
+    departures: flow.expDepart,
+    changeRooms: Object.keys(changeRoomIds).length,
+    eventAlerts: eventAlerts,
+    dirtyBeds: dirtyBeds.slice(0, 3),
+  };
 }
 
 /** 报表/历史：灌 sql.js 只读缓存（复杂 SQL 过渡） | Hydrate sql.js for legacy query() */
@@ -364,7 +496,7 @@ async function rcEnsureMeals(force) {
 
 /** 视图 → 读模块 | View to read-module keys */
 var RC_VIEW_MODULES = {
-  board: ["board"],
+  board: ["board", "reservations", "events", "meals"],
   lodging: ["board"],
   lodgers: ["lodgers", "board"],
   stay: ["board", "reservations", "events"],

@@ -1620,6 +1620,54 @@ function renderOpsNotice() {
   if (!el) return;
   const today = todayStr();
 
+  if (typeof boardReadCacheReady === "function" && boardReadCacheReady()) {
+    var ops = rcOpsNoticeData(today);
+    if (ops.arrivals > 0 || ops.departures > 0) {
+      el.innerHTML =
+        "<strong>今日预报：</strong>预计到达 <strong>" +
+        ops.arrivals +
+        "</strong> 人，预计离开 <strong>" +
+        ops.departures +
+        "</strong> 人，涉及约 <strong>" +
+        ops.changeRooms +
+        '</strong> 个房间变动。 <a href="javascript:void(0)" onclick="showView(\'forecast\'); forecastLoadTab(\'today\')" style="margin-left:var(--space-2);text-decoration:underline;color:var(--color-primary)">查看详情</a>';
+      return;
+    }
+    if (ops.eventAlerts.length > 0) {
+      var alertFirst = ops.eventAlerts[0];
+      var gap =
+        alertFirst.expected_count -
+        (alertFirst.checked_in || 0) -
+        (alertFirst.reserved || 0);
+      var more =
+        ops.eventAlerts.length > 1
+          ? "等 " + ops.eventAlerts.length + " 个营期"
+          : "";
+      el.innerHTML =
+        "<strong>招生预警：</strong>" +
+        escapeHtml(alertFirst.name) +
+        more +
+        " 预计 " +
+        alertFirst.expected_count +
+        " 人，目前还差 <strong>" +
+        gap +
+        '</strong> 人。 <a href="javascript:void(0)" onclick="showView(\'info\'); renderInfo(\'events\')" style="margin-left:var(--space-2);text-decoration:underline;color:var(--color-primary)">去营期管理</a>';
+      return;
+    }
+    if (ops.dirtyBeds.length === 0) {
+      el.textContent = "房态正常，暂无特殊待办。";
+      return;
+    }
+    var dirtyFirst = ops.dirtyBeds[0];
+    var dirtyLabel =
+      escapeHtml(dirtyFirst.room_name) +
+      (dirtyFirst.bed_number
+        ? " " + escapeHtml(formatBedLabel(dirtyFirst.bed_number, 0))
+        : "");
+    el.innerHTML = "提醒：" + dirtyLabel + " 需在今日午后安排深度清洁维护。";
+    return;
+  }
+
   // 今日到离预报
   const arrivals =
     query(
@@ -1776,6 +1824,10 @@ function renderCheckoutReminders() {
     { key: "overdue", label: "已超期", date: null },
   ];
   groups.forEach(function (g) {
+    if (typeof boardReadCacheReady === "function" && boardReadCacheReady()) {
+      _reminderData[g.key] = rcCheckoutReminders(g.key, g.date);
+      return;
+    }
     let sql = `SELECT l.*, r.name as room_name, r.dorm_type, b.bed_number FROM lodgers l LEFT JOIN beds b ON b.id=l.bed_id LEFT JOIN rooms r ON r.id=b.room_id WHERE l.status='在住' `;
     const params = [];
     if (g.key === "overdue") {
