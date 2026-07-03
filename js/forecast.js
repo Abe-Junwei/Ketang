@@ -16,6 +16,28 @@ const FORECAST_ROLE_GROUPS = {
   工人: "特殊",
 };
 
+async function forecastLoadTab(tab) {
+  initForecastDates();
+  const panel = document.getElementById("forecast-panel-" + tab);
+  if (panel) {
+    panel.innerHTML = '<p class="empty-tip">加载中…</p>';
+  }
+  try {
+    if (typeof rcEnsureViewModules === "function") {
+      await rcEnsureViewModules("forecast", false);
+    }
+  } catch (e) {
+    if (panel) {
+      panel.innerHTML =
+        '<p class="empty-tip">加载失败：' +
+        escapeHtml(e.message || "未知错误") +
+        "</p>";
+    }
+    return;
+  }
+  renderForecastTab(tab);
+}
+
 function initForecastDates() {
   const today = todayStr();
   const d = document.getElementById("fc-today-date");

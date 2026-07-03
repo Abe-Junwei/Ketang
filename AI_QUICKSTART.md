@@ -91,6 +91,8 @@ python3 test_cdp_migration.py    # V3 备份迁移至最新结构（KETANG_FORCE
 python3 test_headless.py         # HTTP 模式 headless 初始化冒烟
 python3 test_info_api_read.py    # 信息管理 API 直读契约
 python3 test_read_cache_wiring.py # read-cache 接线 + 模块读 bootstrap
+python3 test_cdp_online_journey.py  # 在线 API 挂单→退房（需云端登录；可 SKIP）
+python3 test_online_write_guard.py  # isLocalForceDb 写路径契约
 python3 test_api_structure.py    # 云端 API 文件结构检查
 npm run lint:ci                  # 开发期 JS/Functions ESLint 检查；不进入发布产物
 ```

@@ -493,13 +493,26 @@ function showView(name) {
       syncStayFormWizard("resv-form");
     }
   }
-  if (name === "history") renderHistory();
-  if (name === "forecast") {
-    initForecastDates();
-    renderForecastTab("today");
+  if (name === "history") {
+    if (typeof historyLoadAndRender === "function") historyLoadAndRender();
+    else renderHistory();
   }
-  if (name === "housekeeping") renderHousekeeping();
-  if (name === "reports") initReportDates();
+  if (name === "forecast") {
+    if (typeof forecastLoadTab === "function") forecastLoadTab("today");
+    else {
+      initForecastDates();
+      renderForecastTab("today");
+    }
+  }
+  if (name === "housekeeping") {
+    if (typeof housekeepingLoadAndRender === "function") {
+      housekeepingLoadAndRender();
+    } else renderHousekeeping();
+  }
+  if (name === "reports") {
+    if (typeof reportsInitAndLoad === "function") reportsInitAndLoad();
+    else initReportDates();
+  }
   if (name === "info") renderInfo("rooms");
   if (name === "backup") {
     renderOperationalSettingsPanel();
@@ -516,6 +529,37 @@ function showView(name) {
   ) {
     stopBoardPolling();
     startBoardPolling();
+  }
+  void prefetchViewData(name);
+}
+
+/** 在线模式：切视图后拉读模块并刷新 | Online view-scoped module fetch */
+async function prefetchViewData(viewName) {
+  if (typeof rcEnsureViewModules !== "function") return;
+  if (!rcUseApiRead()) return;
+  var keys = ["board", "lodging", "lodgers", "stay", "housekeeping"];
+  if (keys.indexOf(viewName) === -1) return;
+  try {
+    await rcEnsureViewModules(viewName, false);
+  } catch (e) {
+    if (typeof showToast === "function") {
+      showToast("数据加载失败：" + (e.message || "请刷新"));
+    }
+    return;
+  }
+  if (viewName === "board") renderBoard();
+  else if (viewName === "lodging") renderLodging();
+  else if (viewName === "lodgers") renderLodgersPage();
+  else if (viewName === "stay") {
+    if (typeof renderBedOptions === "function") renderBedOptions();
+    if (
+      _pendingStayMode === "reservation" &&
+      typeof renderReservationList === "function"
+    ) {
+      renderReservationList();
+    }
+  } else if (viewName === "housekeeping" && typeof renderHousekeeping === "function") {
+    renderHousekeeping();
   }
 }
 
@@ -541,6 +585,9 @@ function renderLodgersPage() {
 }
 
 function getBoardBedStats() {
+  if (typeof boardReadCacheReady === "function" && boardReadCacheReady()) {
+    return rcGetBoardBedStats();
+  }
   var spareSql = spareRoomExcludeClause("r");
   var total =
     query(
@@ -619,25 +666,36 @@ function renderBoardCharts() {
 
   renderBoardRingChart("board-occ", "chart-board-occ", "board-occ-pct", stats);
 
-  var expArrive =
-    query(
-      "SELECT COUNT(*) as c FROM (SELECT id FROM reservations WHERE expected_check_in = ? AND status IN ('预约','已确认') UNION ALL SELECT id FROM lodgers WHERE check_in_date = ? AND status = '在住')",
-      [today, today],
-    )[0]?.c || 0;
-  var expDepart =
-    query(
-      "SELECT COUNT(*) as c FROM lodgers WHERE expected_check_out = ? AND status = '在住'",
-      [today],
-    )[0]?.c || 0;
-  var actArrive =
-    query(
-      "SELECT COUNT(*) as c FROM lodgers WHERE check_in_date = ? AND status = '在住'",
-      [today],
-    )[0]?.c || 0;
-  var actDepart =
-    query("SELECT COUNT(*) as c FROM lodgers WHERE actual_check_out = ?", [
-      today,
-    ])[0]?.c || 0;
+  var flow;
+  if (typeof boardReadCacheReady === "function" && boardReadCacheReady()) {
+    flow = rcGetBoardFlowStats(today);
+  } else {
+    flow = {
+      expArrive:
+        query(
+          "SELECT COUNT(*) as c FROM (SELECT id FROM reservations WHERE expected_check_in = ? AND status IN ('预约','已确认') UNION ALL SELECT id FROM lodgers WHERE check_in_date = ? AND status = '在住')",
+          [today, today],
+        )[0]?.c || 0,
+      expDepart:
+        query(
+          "SELECT COUNT(*) as c FROM lodgers WHERE expected_check_out = ? AND status = '在住'",
+          [today],
+        )[0]?.c || 0,
+      actArrive:
+        query(
+          "SELECT COUNT(*) as c FROM lodgers WHERE check_in_date = ? AND status = '在住'",
+          [today],
+        )[0]?.c || 0,
+      actDepart:
+        query("SELECT COUNT(*) as c FROM lodgers WHERE actual_check_out = ?", [
+          today,
+        ])[0]?.c || 0,
+    };
+  }
+  var expArrive = flow.expArrive;
+  var expDepart = flow.expDepart;
+  var actArrive = flow.actArrive;
+  var actDepart = flow.actDepart;
 
   createKetangChart("board-flow", "chart-board-flow", {
     type: "bar",
@@ -667,27 +725,39 @@ function renderBoardCharts() {
     },
   });
 
-  var spareSql = spareRoomExcludeClause("r");
-  var maleBeds =
-    query(
-      "SELECT COUNT(*) as c FROM beds b JOIN rooms r ON r.id=b.room_id WHERE r.dorm_type='男寮' AND b.status!='维修' AND b.status!='备用' AND " +
-        spareSql,
-    )[0]?.c || 0;
-  var femaleBeds =
-    query(
-      "SELECT COUNT(*) as c FROM beds b JOIN rooms r ON r.id=b.room_id WHERE r.dorm_type='女寮' AND b.status!='维修' AND b.status!='备用' AND " +
-        spareSql,
-    )[0]?.c || 0;
-  var maleOcc =
-    query(
-      "SELECT COUNT(DISTINCT l.bed_id) as c FROM lodgers l JOIN beds b ON b.id=l.bed_id JOIN rooms r ON r.id=b.room_id WHERE l.status='在住' AND r.dorm_type='男寮' AND b.status!='备用' AND " +
-        spareSql,
-    )[0]?.c || 0;
-  var femaleOcc =
-    query(
-      "SELECT COUNT(DISTINCT l.bed_id) as c FROM lodgers l JOIN beds b ON b.id=l.bed_id JOIN rooms r ON r.id=b.room_id WHERE l.status='在住' AND r.dorm_type='女寮' AND b.status!='备用' AND " +
-        spareSql,
-    )[0]?.c || 0;
+  var maleBeds;
+  var femaleBeds;
+  var maleOcc;
+  var femaleOcc;
+  if (typeof boardReadCacheReady === "function" && boardReadCacheReady()) {
+    var dorm = rcGetDormBedStats();
+    maleBeds = dorm.maleBeds;
+    femaleBeds = dorm.femaleBeds;
+    maleOcc = dorm.maleOcc;
+    femaleOcc = dorm.femaleOcc;
+  } else {
+    var spareSql = spareRoomExcludeClause("r");
+    maleBeds =
+      query(
+        "SELECT COUNT(*) as c FROM beds b JOIN rooms r ON r.id=b.room_id WHERE r.dorm_type='男寮' AND b.status!='维修' AND b.status!='备用' AND " +
+          spareSql,
+      )[0]?.c || 0;
+    femaleBeds =
+      query(
+        "SELECT COUNT(*) as c FROM beds b JOIN rooms r ON r.id=b.room_id WHERE r.dorm_type='女寮' AND b.status!='维修' AND b.status!='备用' AND " +
+          spareSql,
+      )[0]?.c || 0;
+    maleOcc =
+      query(
+        "SELECT COUNT(DISTINCT l.bed_id) as c FROM lodgers l JOIN beds b ON b.id=l.bed_id JOIN rooms r ON r.id=b.room_id WHERE l.status='在住' AND r.dorm_type='男寮' AND b.status!='备用' AND " +
+          spareSql,
+      )[0]?.c || 0;
+    femaleOcc =
+      query(
+        "SELECT COUNT(DISTINCT l.bed_id) as c FROM lodgers l JOIN beds b ON b.id=l.bed_id JOIN rooms r ON r.id=b.room_id WHERE l.status='在住' AND r.dorm_type='女寮' AND b.status!='备用' AND " +
+          spareSql,
+      )[0]?.c || 0;
+  }
   var maleFree = Math.max(0, maleBeds - maleOcc);
   var femaleFree = Math.max(0, femaleBeds - femaleOcc);
   var dormSub = document.getElementById("board-chart-dorm-sub");
@@ -1177,14 +1247,21 @@ function toggleRoomExpand(roomId, cardEl) {
 function renderRoomDetailPanel(roomId, cardEl) {
   const panel = document.getElementById("room-detail-panel");
   if (!panel) return;
-  const r = query("SELECT * FROM rooms WHERE id = ?", [roomId])[0];
+  var useRc = typeof boardReadCacheReady === "function" && boardReadCacheReady();
+  const r = useRc
+    ? rcBoardRooms().find(function (room) {
+        return room.id == roomId;
+      })
+    : query("SELECT * FROM rooms WHERE id = ?", [roomId])[0];
   if (!r) {
     closeRoomDetail();
     return;
   }
 
-  const beds = query(
-    `
+  const beds = useRc
+    ? rcBedsForRoomEnriched(roomId)
+    : query(
+        `
     SELECT b.*, l.id as lodger_id, l.name, l.dharma_name,
       COALESCE((SELECT status FROM housekeeping WHERE bed_id = b.id ORDER BY changed_at DESC LIMIT 1), '净房') as hk_status
     FROM beds b
@@ -1192,8 +1269,8 @@ function renderRoomDetailPanel(roomId, cardEl) {
         WHERE b.room_id = ? AND b.status != '备用'
         ORDER BY b.id
       `,
-    [roomId],
-  );
+        [roomId],
+      );
   const columns = splitBedColumns(beds, 3);
   let offset = 0;
   const columnsHtml = columns
@@ -1243,7 +1320,10 @@ function renderRooms() {
     grid.innerHTML = '<p class="empty-tip">' + escapeHtml(msg) + "</p>";
     return;
   }
-  const rooms = query("SELECT * FROM rooms ORDER BY floor ASC, id");
+  var useRc = typeof boardReadCacheReady === "function" && boardReadCacheReady();
+  const rooms = useRc
+    ? rcBoardRooms()
+    : query("SELECT * FROM rooms ORDER BY floor ASC, id");
 
   let groups = {};
   const locFloor = {};
@@ -1281,8 +1361,10 @@ function renderRooms() {
 
     rlist.forEach(function (r) {
       if (isSpareRoom(r)) return;
-      const beds = query(
-        `
+      const beds = useRc
+        ? rcBedsForRoomEnriched(r.id)
+        : query(
+            `
         SELECT b.*, l.id as lodger_id, l.name, l.dharma_name, l.gender,
           COALESCE((SELECT status FROM housekeeping WHERE bed_id = b.id ORDER BY changed_at DESC LIMIT 1), '净房') as hk_status
         FROM beds b
@@ -1290,8 +1372,8 @@ function renderRooms() {
         WHERE b.room_id = ? AND b.status != '备用'
         ORDER BY b.id
       `,
-        [r.id],
-      );
+            [r.id],
+          );
 
       const totalBeds = beds.length;
       if (!totalBeds) return;
@@ -1434,7 +1516,10 @@ function renderLodgers() {
   if (!tbody) return;
   tbody.innerHTML = "";
   if (cardList) cardList.innerHTML = "";
-  const lodgers = query(`
+  const lodgers =
+    typeof boardReadCacheReady === "function" && boardReadCacheReady()
+      ? rcActiveLodgersEnriched()
+      : query(`
     SELECT l.*, r.name as room_name, r.location, b.bed_number
     FROM lodgers l
     LEFT JOIN beds b ON b.id = l.bed_id
@@ -1573,7 +1658,7 @@ function renderOpsNotice() {
         [today, today],
       )[0]?.c || 0;
     el.innerHTML = `<strong>今日预报：</strong>预计到达 <strong>${arrivals}</strong> 人，预计离开 <strong>${departures}</strong> 人，涉及约 <strong>${changeRooms}</strong> 个房间变动。
-      <a href="javascript:void(0)" onclick="showView('forecast'); renderForecastTab('today')" style="margin-left:var(--space-2);text-decoration:underline;color:var(--color-primary)">查看详情</a>`;
+      <a href="javascript:void(0)" onclick="showView('forecast'); forecastLoadTab('today')" style="margin-left:var(--space-2);text-decoration:underline;color:var(--color-primary)">查看详情</a>`;
     return;
   }
 

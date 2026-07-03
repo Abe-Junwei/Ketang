@@ -271,13 +271,7 @@ async function batchCancelEventMembers() {
 
   try {
     var writeResult = null;
-    if (useRemoteWriteApi()) {
-      writeResult = await apiBatchEventMembers({
-        action: "cancel",
-        items: selected,
-        event_id: eventId,
-      });
-    } else {
+    if (isLocalForceDb()) {
       await withTransaction(async () => {
         for (const item of selected) {
           if (item.kind === "reservation") {
@@ -314,6 +308,12 @@ async function batchCancelEventMembers() {
         }
       });
       await saveDB();
+    } else {
+      writeResult = await apiBatchEventMembers({
+        action: "cancel",
+        items: selected,
+        event_id: eventId,
+      });
     }
   } catch (e) {
     console.error(e);
@@ -346,13 +346,7 @@ async function batchNoShowEventMembers() {
 
   try {
     var writeResult = null;
-    if (useRemoteWriteApi()) {
-      writeResult = await apiBatchEventMembers({
-        action: "noshow",
-        items: resvOnly,
-        event_id: eventId,
-      });
-    } else {
+    if (isLocalForceDb()) {
       await withTransaction(async () => {
         for (const item of resvOnly) {
           const r = query("SELECT * FROM reservations WHERE id = ?", [
@@ -369,6 +363,12 @@ async function batchNoShowEventMembers() {
         }
       });
       await saveDB();
+    } else {
+      writeResult = await apiBatchEventMembers({
+        action: "noshow",
+        items: resvOnly,
+        event_id: eventId,
+      });
     }
   } catch (e) {
     console.error(e);
@@ -467,21 +467,7 @@ async function submitEvent(e) {
 
   try {
     var writeResult = null;
-    if (useRemoteWriteApi()) {
-      writeResult = await apiAdminRecord("event", id ? "update" : "create", {
-        event_id: id,
-        name: name,
-        event_type: eventType,
-        gender_type: genderType,
-        expected_count: expected,
-        start_date: startDate,
-        end_date: endDate,
-        status: status,
-        notes: notes,
-        include_spare_beds: includeSpareBeds,
-        ...rooming,
-      });
-    } else {
+    if (isLocalForceDb()) {
       await withTransaction(async () => {
         if (id) {
           const old = query("SELECT status FROM events WHERE id=?", [id])[0];
@@ -561,13 +547,27 @@ async function submitEvent(e) {
           logAudit("新增营期", "event", newId, { name });
         }
       });
+    } else {
+      writeResult = await apiAdminRecord("event", id ? "update" : "create", {
+        event_id: id,
+        name: name,
+        event_type: eventType,
+        gender_type: genderType,
+        expected_count: expected,
+        start_date: startDate,
+        end_date: endDate,
+        status: status,
+        notes: notes,
+        include_spare_beds: includeSpareBeds,
+        ...rooming,
+      });
     }
   } catch (e) {
     console.error(e);
     alert("保存营期失败：" + e.message);
     return;
   }
-  if (!useRemoteWriteApi()) await saveDB();
+  if (isLocalForceDb()) await saveDB();
   closeEventModal();
   showToast("营期保存成功");
   var eventRefreshOpts = eventWriteRefreshOptions();
@@ -593,16 +593,15 @@ async function deleteEvent(id) {
   if (!confirm(`确定删除营期「${e.name}」吗？`)) return;
   try {
     var deleteResult = null;
-    if (useRemoteWriteApi()) {
-      deleteResult = await apiAdminRecord("event", "delete", { event_id: id });
-    } else {
+    if (isLocalForceDb()) {
       await withTransaction(async () => {
         run("DELETE FROM events WHERE id = ?", [id]);
         logAudit("删除营期", "event", id, { name: e.name });
       });
       await saveDB();
-    }
-    showToast("营期已删除");
+    } else {
+      deleteResult = await apiAdminRecord("event", "delete", { event_id: id });
+    }    showToast("营期已删除");
     var eventRefreshOpts = eventWriteRefreshOptions();
     var refreshTask = refreshAfterWrite(deleteResult, eventRefreshOpts);
     if (refreshTask && typeof refreshTask.then === "function") {

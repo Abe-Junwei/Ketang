@@ -19,8 +19,19 @@ function renderBedPicker(options) {
   const onSelect = options.onSelect || "selectBed";
   const spareRoomFilter = options.spareRoomFilter !== false;
 
-  const rooms = query(
-    `
+  var rooms;
+  var useRc =
+    typeof rcUseApiRead === "function" &&
+    rcUseApiRead() &&
+    typeof rcBoardRoomsWithStats === "function";
+  if (useRc) {
+    rooms = rcBoardRoomsWithStats(excludeId, {
+      gender: gender,
+      spareRoomFilter: spareRoomFilter,
+    });
+  } else {
+    rooms = query(
+      `
     SELECT r.*, COUNT(b2.id) as total_beds,
       COUNT(CASE WHEN b2.status NOT IN ('维修','备用') AND b2.id != ?
         AND l2.id IS NULL
@@ -32,17 +43,20 @@ function renderBedPicker(options) {
     GROUP BY r.id
     ORDER BY r.floor ASC, r.id
   `,
-    [excludeId],
-  );
+      [excludeId],
+    );
+  }
 
   let html = "";
   let hasAnyRoom = false;
 
   rooms.forEach(function (r) {
-    if (spareRoomFilter && typeof isSpareRoom === "function" && isSpareRoom(r))
-      return;
-    if (gender === "男" && r.dorm_type === "女寮") return;
-    if (gender === "女" && r.dorm_type === "男寮") return;
+    if (!useRc) {
+      if (spareRoomFilter && typeof isSpareRoom === "function" && isSpareRoom(r))
+        return;
+      if (gender === "男" && r.dorm_type === "女寮") return;
+      if (gender === "女" && r.dorm_type === "男寮") return;
+    }
     hasAnyRoom = true;
 
     const isFull = (r.avail || 0) === 0;
@@ -61,8 +75,22 @@ function renderBedPicker(options) {
 
     html += '<div class="bp-room-beds">';
     if (!isFull) {
-      const beds = query(
-        `
+      var beds;
+      if (useRc && typeof rcBedsForRoom === "function") {
+        beds = rcBedsForRoom(r.id, {
+          excludeBedId: excludeId,
+          skipSpare: true,
+          skipMaint: true,
+        })
+          .filter(function (b) {
+            return !rcLodgerOnBed(b.id);
+          })
+          .map(function (b, idx) {
+            return rcBedRowEnriched(b, idx);
+          });
+      } else {
+        beds = query(
+          `
         SELECT b.*,
           COALESCE((SELECT status FROM housekeeping WHERE bed_id = b.id ORDER BY changed_at DESC LIMIT 1), '净房') as hk_status
         FROM beds b
@@ -70,8 +98,9 @@ function renderBedPicker(options) {
         WHERE b.room_id = ? AND b.id != ? AND b.status NOT IN ('维修','备用') AND l.id IS NULL
         ORDER BY b.id
       `,
-        [r.id, excludeId],
-      );
+          [r.id, excludeId],
+        );
+      }
 
       let hasBeds = false;
       beds.forEach(function (b) {
@@ -103,6 +132,19 @@ function renderBedPicker(options) {
 }
 
 function renderBedOptions(selectedRoomId, selectedBedId) {
+  void renderBedOptionsAsync(selectedRoomId, selectedBedId);
+}
+
+async function renderBedOptionsAsync(selectedRoomId, selectedBedId) {
+  if (typeof rcEnsureBoard === "function" && rcUseApiRead()) {
+    try {
+      await rcEnsureBoard(false);
+    } catch (e) {
+      if (typeof showToast === "function") {
+        showToast("床位列表加载失败：" + (e.message || ""));
+      }
+    }
+  }
   const genderSel = document.getElementById("ci-gender");
   const gender = genderSel ? genderSel.value : "";
 
@@ -352,12 +394,7 @@ async function assignExistingLodgerToBed(lodgerId, bedId, opts) {
   }
   try {
     var writeResult = null;
-    if (useRemoteWriteApi()) {
-      writeResult = await apiAssignBed({
-        lodger_id: lodgerId,
-        bed_id: parseInt(bedId, 10),
-      });
-    } else {
+    if (isLocalForceDb()) {
       await withTransaction(async () => {
         run("UPDATE lodgers SET bed_id=? WHERE id=? AND status='在住'", [
           bedId,
@@ -373,8 +410,12 @@ async function assignExistingLodgerToBed(lodgerId, bedId, opts) {
         await ensureLodgerMeals(lodgerId);
       });
       await saveDB();
-    }
-    if (!quiet) {
+    } else {
+      writeResult = await apiAssignBed({
+        lodger_id: lodgerId,
+        bed_id: parseInt(bedId, 10),
+      });
+    }    if (!quiet) {
       closeModal();
       showToast("已分配床位");
     }
@@ -423,12 +464,7 @@ async function assignReservationToBed(resvId, bedId, opts) {
   }
   try {
     var writeResult = null;
-    if (useRemoteWriteApi()) {
-      writeResult = await apiAssignBed({
-        reservation_id: parseInt(resvId, 10),
-        bed_id: parseInt(bedId, 10),
-      });
-    } else {
+    if (isLocalForceDb()) {
       await withTransaction(async () => {
         const rNow = query("SELECT status FROM reservations WHERE id=?", [
           resvId,
@@ -487,8 +523,12 @@ async function assignReservationToBed(resvId, bedId, opts) {
         logAudit("预约转入住", "reservation", resvId, { lodger_id: lodgerId });
       });
       await saveDB();
-    }
-    if (!quiet) {
+    } else {
+      writeResult = await apiAssignBed({
+        reservation_id: parseInt(resvId, 10),
+        bed_id: parseInt(bedId, 10),
+      });
+    }    if (!quiet) {
       closeModal();
       showToast("已分配床位");
     }
@@ -612,38 +652,8 @@ document
 
     try {
       var writeResult = null;
-      if (useRemoteWriteApi()) {
-        writeResult = await apiCheckIn({
-          bed_id: parseInt(bedId, 10),
-          name: name,
-          gender: gender || null,
-          phone: contact.phone,
-          id_card: contact.idCard,
-          check_in_date: checkIn,
-          expected_check_out: checkOut,
-          event_id: document.getElementById("ci-event").value || null,
-          role: readLodgerRoleInput("ci-role"),
-          class_name: document.getElementById("ci-class").value.trim() || null,
-          ...participantTags,
-          source: document.getElementById("ci-source").value || null,
-          notes: document.getElementById("ci-notes").value.trim() || null,
-          emergency_name:
-            document.getElementById("ci-emergency-name").value.trim() || null,
-          emergency_phone:
-            document.getElementById("ci-emergency-phone").value.trim() || null,
-          meal_breakfast: ciMeal.breakfast,
-          meal_lunch: ciMeal.lunch,
-          meal_dinner: ciMeal.dinner,
-          deposit: parseFloat(document.getElementById("ci-deposit").value) || 0,
-          room_fee:
-            parseFloat(document.getElementById("ci-room-fee").value) || 0,
-          pay_method: document.getElementById("ci-pay-method").value || null,
-          pay_remark:
-            document.getElementById("ci-pay-remark").value.trim() || null,
-          reservation_id: resvId ? parseInt(resvId, 10) : null,
-        });
-      } else {
-        await withTransaction(async () => {
+      if (isLocalForceDb()) {
+      await withTransaction(async () => {
           const person = parsePersonNameInput(name);
           const guestId = findOrCreateGuest(
             person.name,
@@ -759,8 +769,37 @@ document
           }
         });
         await saveDB();
-      }
-      document.getElementById("ci-resv-id").value = "";
+    } else {
+      writeResult = await apiCheckIn({
+          bed_id: parseInt(bedId, 10),
+          name: name,
+          gender: gender || null,
+          phone: contact.phone,
+          id_card: contact.idCard,
+          check_in_date: checkIn,
+          expected_check_out: checkOut,
+          event_id: document.getElementById("ci-event").value || null,
+          role: readLodgerRoleInput("ci-role"),
+          class_name: document.getElementById("ci-class").value.trim() || null,
+          ...participantTags,
+          source: document.getElementById("ci-source").value || null,
+          notes: document.getElementById("ci-notes").value.trim() || null,
+          emergency_name:
+            document.getElementById("ci-emergency-name").value.trim() || null,
+          emergency_phone:
+            document.getElementById("ci-emergency-phone").value.trim() || null,
+          meal_breakfast: ciMeal.breakfast,
+          meal_lunch: ciMeal.lunch,
+          meal_dinner: ciMeal.dinner,
+          deposit: parseFloat(document.getElementById("ci-deposit").value) || 0,
+          room_fee:
+            parseFloat(document.getElementById("ci-room-fee").value) || 0,
+          pay_method: document.getElementById("ci-pay-method").value || null,
+          pay_remark:
+            document.getElementById("ci-pay-remark").value.trim() || null,
+          reservation_id: resvId ? parseInt(resvId, 10) : null,
+        });
+    }      document.getElementById("ci-resv-id").value = "";
       showToast("入住登记成功");
       resetCheckin();
       showView("board");
@@ -932,7 +971,7 @@ async function importBatchCSV(input) {
       const lunch = batchMeal.lunch;
       const dinner = batchMeal.dinner;
 
-      if (useRemoteWriteApi()) {
+      if (!isLocalForceDb()) {
         resultDiv.innerHTML = "<p>正在导入云端...</p>";
         const result = await apiBatchCheckIn({
           rows: rows,

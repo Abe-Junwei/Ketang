@@ -1,4 +1,11 @@
 function getHouseStatus(bedId) {
+  if (
+    typeof boardReadCacheReady === "function" &&
+    boardReadCacheReady() &&
+    typeof rcLatestHkStatus === "function"
+  ) {
+    return rcLatestHkStatus(bedId);
+  }
   const row = query(
     "SELECT * FROM housekeeping WHERE bed_id = ? ORDER BY changed_at DESC LIMIT 1",
     [bedId],
@@ -14,40 +21,79 @@ function setHouseStatus(bedId, status, notes, operator) {
 }
 
 function isBedAssignable(bedId) {
-  const bed = query("SELECT * FROM beds WHERE id = ?", [bedId])[0];
-  if (!bed || bed.status === "维修" || bed.status === "备用") return false;
+  if (typeof boardReadCacheReady === "function" && boardReadCacheReady()) {
+    var bed = rcBoardBeds().find(function (b) {
+      return b.id == bedId;
+    });
+    if (!bed || bed.status === "维修" || bed.status === "备用") return false;
+    if (rcLodgerOnBed(bedId)) return false;
+    var hk = rcLatestHkStatus(bedId);
+    if (
+      typeof housekeepingRequiresInspect === "function" &&
+      housekeepingRequiresInspect()
+    )
+      return hk === "可用";
+    return hk === "净房" || hk === "可用";
+  }
+  var bedRow = query("SELECT * FROM beds WHERE id = ?", [bedId])[0];
+  if (!bedRow || bedRow.status === "维修" || bedRow.status === "备用") return false;
   const occ =
     query(
       "SELECT COUNT(*) as c FROM lodgers WHERE bed_id = ? AND status = '在住'",
       [bedId],
     )[0]?.c || 0;
   if (occ > 0) return false;
-  const hk = getHouseStatus(bedId);
+  var hkLocal = getHouseStatus(bedId);
   if (
     typeof housekeepingRequiresInspect === "function" &&
     housekeepingRequiresInspect()
   )
-    return hk === "可用";
-  return hk === "净房" || hk === "可用";
+    return hkLocal === "可用";
+  return hkLocal === "净房" || hkLocal === "可用";
+}
+
+async function housekeepingLoadAndRender() {
+  const grid = document.getElementById("hk-grid");
+  if (grid) grid.innerHTML = '<p class="empty-tip">加载中…</p>';
+  try {
+    if (typeof rcEnsureViewModules === "function") {
+      await rcEnsureViewModules("housekeeping", false);
+    }
+  } catch (e) {
+    if (grid) {
+      grid.innerHTML =
+        '<p class="empty-tip">加载失败：' +
+        escapeHtml(e.message || "未知错误") +
+        "</p>";
+    }
+    return;
+  }
+  renderHousekeeping();
 }
 
 function renderHousekeeping() {
   const grid = document.getElementById("hk-grid");
   if (!grid) return;
   grid.innerHTML = "";
-  const rooms = query("SELECT * FROM rooms ORDER BY id");
+  var useRc =
+    typeof boardReadCacheReady === "function" && boardReadCacheReady();
+  const rooms = useRc
+    ? rcBoardRooms()
+    : query("SELECT * FROM rooms ORDER BY id");
   rooms.forEach((r) => {
     if (typeof isSpareRoom === "function" && isSpareRoom(r)) return;
-    const beds = query(
-      `
+    const beds = useRc
+      ? rcBedsForRoomEnriched(r.id)
+      : query(
+          `
       SELECT b.*, l.id as lodger_id, l.name, l.dharma_name
       FROM beds b
       LEFT JOIN lodgers l ON l.bed_id = b.id AND l.status='在住'
       WHERE b.room_id = ? AND b.status != '备用'
       ORDER BY b.id
     `,
-      [r.id],
-    );
+          [r.id],
+        );
     if (!beds.length) return;
 
     const group = document.createElement("section");
@@ -62,7 +108,7 @@ function renderHousekeeping() {
     const bedWrap = group.querySelector(".hk-room-beds");
 
     beds.forEach((b) => {
-      const hk = getHouseStatus(b.id);
+      const hk = useRc ? b.hk_status || getHouseStatus(b.id) : getHouseStatus(b.id);
       const occupied = !!b.lodger_id;
       const card = document.createElement("article");
       card.className =
@@ -113,12 +159,14 @@ function renderHousekeeping() {
 
 async function setHkAndRender(bedId, status) {
   if (status === "维修") {
-    const occ =
-      query(
-        "SELECT COUNT(*) as c FROM lodgers WHERE bed_id=? AND status='在住'",
-        [bedId],
-      )[0]?.c || 0;
-    if (occ > 0) {
+    const occupied =
+      typeof boardReadCacheReady === "function" && boardReadCacheReady()
+        ? !!rcLodgerOnBed(bedId)
+        : (query(
+          "SELECT COUNT(*) as c FROM lodgers WHERE bed_id=? AND status='在住'",
+          [bedId],
+        )[0]?.c || 0) > 0;
+    if (occupied) {
       alert("该床位当前有在住住客，不能设为维修");
       return;
     }
@@ -135,13 +183,7 @@ async function setHkAndRender(bedId, status) {
   }
   try {
     var writeResult = null;
-    if (useRemoteWriteApi()) {
-      writeResult = await apiSetHouseStatus({
-        bed_id: bedId,
-        status: status,
-        notes: `手动设置${status}`,
-      });
-    } else {
+    if (isLocalForceDb()) {
       await withTransaction(async () => {
         setHouseStatus(bedId, status, `手动设置${status}`);
         if (status === "维修")
@@ -158,6 +200,12 @@ async function setHkAndRender(bedId, status) {
         logAudit("房务状态变更", "bed", bedId, { status: status });
       });
       await saveDB();
+    } else {
+      writeResult = await apiSetHouseStatus({
+        bed_id: bedId,
+        status: status,
+        notes: `手动设置${status}`,
+      });
     }
     renderHousekeeping();
     refreshAfterWrite(writeResult);
@@ -196,7 +244,7 @@ function renderOperationalSettingsPanel() {
 }
 
 function loadOperationalSettings() {
-  if (typeof useRemoteWriteApi === "function" && useRemoteWriteApi()) {
+  if (!isLocalForceDb()) {
     return apiAdminGetOperationalSettings();
   }
   return Promise.resolve({
@@ -210,14 +258,14 @@ async function saveOperationalSettings() {
     !!document.getElementById("hk-require-inspect")?.checked;
   try {
     var writeResult = null;
-    if (typeof useRemoteWriteApi === "function" && useRemoteWriteApi()) {
+    if (isLocalForceDb()) {
+      setAppMetaValue(APP_META_HK_REQUIRE_INSPECT, requireInspect ? "1" : "0");
+      await saveDB();
+    } else {
       writeResult = await apiAdminSaveOperationalSettings({
         housekeeping_require_inspect: requireInspect,
       });
       setAppMetaValue(APP_META_HK_REQUIRE_INSPECT, requireInspect ? "1" : "0");
-    } else {
-      setAppMetaValue(APP_META_HK_REQUIRE_INSPECT, requireInspect ? "1" : "0");
-      if (typeof saveDB === "function") await saveDB();
     }
     showToast("运营配置已保存");
     renderOperationalSettingsPanel();

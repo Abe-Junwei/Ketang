@@ -442,14 +442,14 @@ function renderRoomingDraftTable(event, assignments, canEdit) {
 }
 
 async function fetchRoomingPlanBundle(eventId) {
-  if (typeof useRemoteWriteApi === "function" && useRemoteWriteApi()) {
+  if (!isLocalForceDb()) {
     return apiRoomingPlanAction("get", { event_id: eventId });
   }
   return getLocalRoomingPlanBundle(eventId);
 }
 
 async function generateRoomingPlanDraft(eventId) {
-  if (typeof useRemoteWriteApi === "function" && useRemoteWriteApi()) {
+  if (!isLocalForceDb()) {
     return apiRoomingPlanAction("generate", { event_id: eventId });
   }
   var bundle = generateLocalRoomingPlan(eventId);
@@ -474,7 +474,7 @@ async function saveRoomingPlanDraft(eventId, plan, assignments, managerAck) {
       };
     }),
   };
-  if (typeof useRemoteWriteApi === "function" && useRemoteWriteApi()) {
+  if (!isLocalForceDb()) {
     return apiRoomingPlanAction("save", payload);
   }
   run(
@@ -556,7 +556,7 @@ async function renderRoomingPlan(eventId, options) {
     typeof hasPermission === "function" && hasPermission("settings.write");
   var bundle = await fetchRoomingPlanBundle(eventId);
   if (!bundle.plan && canEdit) {
-    if (typeof useRemoteWriteApi === "function" && useRemoteWriteApi()) {
+    if (!isLocalForceDb()) {
       await apiRoomingPlanAction("ensure", { event_id: eventId });
     } else {
       ensureLocalRoomingPlan(eventId);

@@ -893,7 +893,7 @@ function mealGridSkipToday() {
 
 async function submitMeals(lodgerId) {
   const defaults = readMealModalDefaults();
-  if (!useRemoteWriteApi()) {
+  if (isLocalForceDb()) {
     setLodgerMealDefaults(
       lodgerId,
       defaults.breakfast,
@@ -919,7 +919,24 @@ async function submitMeals(lodgerId) {
   });
   try {
     var writeResult = null;
-    if (useRemoteWriteApi()) {
+    if (isLocalForceDb()) {
+      await withTransaction(async () => {
+        Object.entries(map).forEach(function (entry) {
+          const date = entry[0];
+          const vals = entry[1];
+          run(
+            "INSERT OR REPLACE INTO meals (lodger_id, date, breakfast, lunch, dinner) VALUES (?, ?, ?, ?, ?)",
+            [lodgerId, date, vals.breakfast, vals.lunch, vals.dinner],
+          );
+        });
+        logAudit("保存用斋设置", "lodger", lodgerId, {
+          name: personDisplayName(l),
+          defaults: defaults,
+          affected_dates: Object.keys(map).length,
+        });
+      });
+      await saveDB();
+    } else {
       const days = {};
       document.querySelectorAll(".meal-skip-cb").forEach(function (cb) {
         const d = cb.dataset.date;
@@ -940,23 +957,6 @@ async function submitMeals(lodgerId) {
         defaults: defaults,
         days: days,
       });
-    } else {
-      await withTransaction(async () => {
-        Object.entries(map).forEach(function (entry) {
-          const date = entry[0];
-          const vals = entry[1];
-          run(
-            "INSERT OR REPLACE INTO meals (lodger_id, date, breakfast, lunch, dinner) VALUES (?, ?, ?, ?, ?)",
-            [lodgerId, date, vals.breakfast, vals.lunch, vals.dinner],
-          );
-        });
-        logAudit("保存用斋设置", "lodger", lodgerId, {
-          name: personDisplayName(l),
-          defaults: defaults,
-          affected_dates: Object.keys(map).length,
-        });
-      });
-      await saveDB();
     }
     closeModal();
     showToast("用斋设置已保存");

@@ -143,7 +143,7 @@ async function republishLocalRoomingPlan(eventId) {
 }
 
 async function fetchRoomingQueueBundle(eventId) {
-  if (typeof useRemoteWriteApi === "function" && useRemoteWriteApi()) {
+  if (!isLocalForceDb()) {
     return apiRoomingPlanAction("queue", { event_id: eventId });
   }
   var plan = query("SELECT * FROM rooming_plans WHERE event_id = ? LIMIT 1", [
@@ -180,7 +180,7 @@ function roomingQueueAssignAlreadyDone(item) {
 }
 
 async function markRoomingQueueItemStatus(queueId, status) {
-  if (typeof useRemoteWriteApi === "function" && useRemoteWriteApi()) {
+  if (!isLocalForceDb()) {
     var writeResult = await apiRoomingPlanAction("update_queue", {
       queue_id: queueId,
       queue_status: status,
@@ -356,7 +356,7 @@ async function handlePublishRoomingPlan(eventId) {
     return;
   }
   try {
-    if (typeof useRemoteWriteApi === "function" && useRemoteWriteApi()) {
+    if (!isLocalForceDb()) {
       var publishResult = await apiRoomingPlanAction("publish", {
         event_id: eventId,
       });
@@ -389,7 +389,7 @@ async function handleRepublishRoomingPlan(eventId) {
     return;
   }
   try {
-    if (typeof useRemoteWriteApi === "function" && useRemoteWriteApi()) {
+    if (!isLocalForceDb()) {
       var republishResult = await apiRoomingPlanAction("republish", {
         event_id: eventId,
         confirm_republish: true,
@@ -444,7 +444,7 @@ async function handleRoomingQueueCheckin(queueId, eventId) {
     return;
   }
   try {
-    if (typeof useRemoteWriteApi === "function" && useRemoteWriteApi()) {
+    if (!isLocalForceDb()) {
       var queueResult = await apiRoomingPlanAction("process_queue", {
         event_id: eventId,
         queue_id: queueId,

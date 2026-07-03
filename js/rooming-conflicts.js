@@ -227,7 +227,7 @@ function renderRoomingConflictsPanel(conflictResult) {
 }
 
 async function fetchRoomingConflictReport(eventId, planId, assignments) {
-  if (typeof useRemoteWriteApi === "function" && useRemoteWriteApi()) {
+  if (!isLocalForceDb()) {
     return apiRoomingPlanAction("check", {
       event_id: eventId,
       plan_id: planId,

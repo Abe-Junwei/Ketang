@@ -183,6 +183,147 @@ function rcBedsForRoomEnriched(roomId) {
   });
 }
 
+/** 看板 KPI | Board KPI from read-cache */
+function rcGetBoardBedStats() {
+  var total = 0;
+  var occupied = 0;
+  var dirty = 0;
+  rcBoardRooms().forEach(function (r) {
+    if (typeof isSpareRoom === "function" && isSpareRoom(r)) return;
+    rcBedsForRoom(r.id, { skipSpare: true }).forEach(function (b) {
+      total++;
+      if (rcLodgerOnBed(b.id)) occupied++;
+      else if (rcLatestHkStatus(b.id) === "脏房") dirty++;
+    });
+  });
+  var empty = Math.max(0, total - occupied);
+  var cleanEmpty = Math.max(0, empty - dirty);
+  var lodgerCount = rcBoardLodgers().filter(function (l) {
+    return l.status === "在住";
+  }).length;
+  var today = typeof todayStr === "function" ? todayStr() : "";
+  var resvToday = 0;
+  rcRows("reservations", "reservations").forEach(function (rv) {
+    if (
+      rv.expected_check_in === today &&
+      (rv.status === "预约" || rv.status === "已确认")
+    ) {
+      resvToday++;
+    }
+  });
+  var occPct = total ? Math.round((occupied / total) * 100) : 0;
+  return {
+    total: total,
+    occupied: occupied,
+    empty: empty,
+    dirty: dirty,
+    cleanEmpty: cleanEmpty,
+    lodgerCount: lodgerCount,
+    resvToday: resvToday,
+    occPct: occPct,
+  };
+}
+
+/** 今日到离流 | Today flow counts from read-cache */
+function rcGetBoardFlowStats(today) {
+  var day = today || (typeof todayStr === "function" ? todayStr() : "");
+  var lodgers = rcBoardLodgers();
+  var expArrive = 0;
+  rcRows("reservations", "reservations").forEach(function (rv) {
+    if (
+      rv.expected_check_in === day &&
+      (rv.status === "预约" || rv.status === "已确认")
+    ) {
+      expArrive++;
+    }
+  });
+  lodgers.forEach(function (l) {
+    if (l.check_in_date === day && l.status === "在住") expArrive++;
+  });
+  var expDepart = 0;
+  var actArrive = 0;
+  var actDepart = 0;
+  lodgers.forEach(function (l) {
+    if (l.expected_check_out === day && l.status === "在住") expDepart++;
+    if (l.check_in_date === day && l.status === "在住") actArrive++;
+    if (l.actual_check_out === day) actDepart++;
+  });
+  return {
+    expArrive: expArrive,
+    expDepart: expDepart,
+    actArrive: actArrive,
+    actDepart: actDepart,
+  };
+}
+
+/** 男女寮床位占用 | Dorm-type bed counts from read-cache */
+function rcGetDormBedStats() {
+  var maleBeds = 0;
+  var femaleBeds = 0;
+  var maleOcc = 0;
+  var femaleOcc = 0;
+  var roomsById = {};
+  rcBoardRooms().forEach(function (r) {
+    roomsById[r.id] = r;
+  });
+  rcBoardBeds().forEach(function (b) {
+    if (b.status === "维修" || b.status === "备用") return;
+    var room = roomsById[b.room_id];
+    if (!room || (typeof isSpareRoom === "function" && isSpareRoom(room))) return;
+    if (room.dorm_type === "男寮") maleBeds++;
+    else if (room.dorm_type === "女寮") femaleBeds++;
+    if (rcLodgerOnBed(b.id)) {
+      if (room.dorm_type === "男寮") maleOcc++;
+      else if (room.dorm_type === "女寮") femaleOcc++;
+    }
+  });
+  return {
+    maleBeds: maleBeds,
+    femaleBeds: femaleBeds,
+    maleOcc: maleOcc,
+    femaleOcc: femaleOcc,
+  };
+}
+
+/** 在住列表（含房床字段）| Active lodgers with room/bed labels */
+function rcActiveLodgersEnriched() {
+  var roomsById = {};
+  rcBoardRooms().forEach(function (r) {
+    roomsById[r.id] = r;
+  });
+  var bedsById = {};
+  rcBoardBeds().forEach(function (b) {
+    bedsById[b.id] = b;
+  });
+  return rcBoardLodgers()
+    .filter(function (l) {
+      return l.status === "在住";
+    })
+    .map(function (l) {
+      var bed = bedsById[l.bed_id];
+      var room = bed ? roomsById[bed.room_id] : null;
+      return Object.assign({}, l, {
+        room_name: room ? room.name : null,
+        location: room ? room.location : null,
+        bed_number: bed ? bed.bed_number : null,
+      });
+    })
+    .sort(function (a, b) {
+      var da = a.check_in_date || "";
+      var db = b.check_in_date || "";
+      if (da !== db) return db.localeCompare(da);
+      return (b.id || 0) - (a.id || 0);
+    });
+}
+
+function boardReadCacheReady() {
+  return (
+    typeof rcUseApiRead === "function" &&
+    rcUseApiRead() &&
+    rcBoardRooms().length > 0
+  );
+}
+
 /** 报表/历史：灌 sql.js 只读缓存（复杂 SQL 过渡） | Hydrate sql.js for legacy query() */
 async function rcHydrateLegacyQueries(moduleKeys, force) {
   if (!rcUseApiRead()) return;
@@ -219,6 +360,25 @@ async function rcEnsureReservations(force) {
 
 async function rcEnsureMeals(force) {
   await rcFetch("meals", force);
+}
+
+/** 视图 → 读模块 | View to read-module keys */
+var RC_VIEW_MODULES = {
+  board: ["board"],
+  lodging: ["board"],
+  lodgers: ["lodgers", "board"],
+  stay: ["board", "reservations", "events"],
+  history: ["lodgers", "events", "meals"],
+  forecast: ["board", "reservations", "lodgers", "events"],
+  housekeeping: ["board"],
+  reports: ["meals", "lodgers", "events"],
+};
+
+async function rcEnsureViewModules(viewName, force) {
+  if (!rcUseApiRead()) return;
+  var modules = RC_VIEW_MODULES[viewName];
+  if (!modules || !modules.length) return;
+  await rcHydrateLegacyQueries(modules, force);
 }
 
 var RC_APP_MODULES = [

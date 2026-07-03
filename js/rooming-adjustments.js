@@ -51,7 +51,7 @@ async function logRoomingAdjustment(payload) {
     reason: payload.reason || "",
     operator: payload.operator || roomingAdjustmentOperator(),
   };
-  if (typeof useRemoteWriteApi === "function" && useRemoteWriteApi()) {
+  if (!isLocalForceDb()) {
     var writeResult = await apiRoomingPlanAction("log_adjustment", body);
     if (typeof refreshAfterWrite === "function") refreshAfterWrite(writeResult);
     return;
@@ -110,7 +110,7 @@ async function logRoomingQueueSkipAdjustment(item, eventId) {
 }
 
 async function fetchRoomingRetrospective(eventId) {
-  if (typeof useRemoteWriteApi === "function" && useRemoteWriteApi()) {
+  if (!isLocalForceDb()) {
     return apiRoomingPlanAction("retrospective", { event_id: eventId });
   }
   var evt = query("SELECT * FROM events WHERE id = ?", [eventId])[0];

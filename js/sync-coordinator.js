@@ -78,7 +78,8 @@ var VIEW_SYNC_SCOPES = {
       var tab =
         document.querySelector(".forecast-tab-btn.active")?.dataset.tab ||
         "today";
-      if (typeof renderForecastTab === "function") renderForecastTab(tab);
+      if (typeof forecastLoadTab === "function") forecastLoadTab(tab);
+      else if (typeof renderForecastTab === "function") renderForecastTab(tab);
     },
   },
   history: {

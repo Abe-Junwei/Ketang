@@ -1,3 +1,25 @@
+async function historyLoadAndRender() {
+  const tbody = document.getElementById("history-table");
+  if (tbody) {
+    tbody.innerHTML =
+      '<tr><td colspan="12" class="empty-tip">加载中…</td></tr>';
+  }
+  try {
+    if (typeof rcEnsureViewModules === "function") {
+      await rcEnsureViewModules("history", false);
+    }
+  } catch (e) {
+    if (tbody) {
+      tbody.innerHTML =
+        '<tr><td colspan="12" class="empty-tip">加载失败：' +
+        escapeHtml(e.message || "未知错误") +
+        "</td></tr>";
+    }
+    return;
+  }
+  renderHistory();
+}
+
 function renderHistory() {
   const tbody = document.getElementById("history-table");
   tbody.innerHTML = "";

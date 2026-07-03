@@ -57,30 +57,7 @@ document.getElementById("resv-form").addEventListener("submit", async (e) => {
   const resvId = document.getElementById("resv-id").value;
   try {
     var writeResult = null;
-    if (useRemoteWriteApi()) {
-      writeResult = await apiUpsertReservation({
-        reservation_id: resvId ? parseInt(resvId, 10) : null,
-        name: name,
-        gender: gender || null,
-        phone: contact.phone,
-        id_card: contact.idCard,
-        emergency_name: contact.emergencyName || null,
-        emergency_phone: contact.emergencyPhone || null,
-        event_id: eventId,
-        role: readLodgerRoleInput("resv-role"),
-        class_name: document.getElementById("resv-class").value.trim() || null,
-        ...participantTags,
-        expected_check_in: checkIn,
-        expected_check_out: checkOut,
-        room_preference:
-          document.getElementById("resv-room").value.trim() || null,
-        source: document.getElementById("resv-source").value || null,
-        notes: document.getElementById("resv-notes").value.trim() || null,
-        meal_breakfast: meal.breakfast,
-        meal_lunch: meal.lunch,
-        meal_dinner: meal.dinner,
-      });
-    } else {
+    if (isLocalForceDb()) {
       const guestId = findOrCreateGuest(
         person.name,
         gender,
@@ -178,6 +155,29 @@ document.getElementById("resv-form").addEventListener("submit", async (e) => {
         }
       });
       await saveDB();
+    } else {
+      writeResult = await apiUpsertReservation({
+        reservation_id: resvId ? parseInt(resvId, 10) : null,
+        name: name,
+        gender: gender || null,
+        phone: contact.phone,
+        id_card: contact.idCard,
+        emergency_name: contact.emergencyName || null,
+        emergency_phone: contact.emergencyPhone || null,
+        event_id: eventId,
+        role: readLodgerRoleInput("resv-role"),
+        class_name: document.getElementById("resv-class").value.trim() || null,
+        ...participantTags,
+        expected_check_in: checkIn,
+        expected_check_out: checkOut,
+        room_preference:
+          document.getElementById("resv-room").value.trim() || null,
+        source: document.getElementById("resv-source").value || null,
+        notes: document.getElementById("resv-notes").value.trim() || null,
+        meal_breakfast: meal.breakfast,
+        meal_lunch: meal.lunch,
+        meal_dinner: meal.dinner,
+      });
     }
   } catch (e) {
     console.error(e);
@@ -310,12 +310,7 @@ async function updateResvStatus(id, status) {
   const oldStatus = r.status;
   try {
     var writeResult = null;
-    if (useRemoteWriteApi()) {
-      writeResult = await apiUpdateReservationStatus({
-        reservation_id: id,
-        status: status,
-      });
-    } else {
+    if (isLocalForceDb()) {
       await withTransaction(async () => {
         run("UPDATE reservations SET status=? WHERE id=?", [status, id]);
         logAudit("更新预约状态", "reservation", id, {
@@ -325,8 +320,12 @@ async function updateResvStatus(id, status) {
         });
       });
       await saveDB();
-    }
-    showToast(`预约已标记为「${status}」`);
+    } else {
+      writeResult = await apiUpdateReservationStatus({
+        reservation_id: id,
+        status: status,
+      });
+    }    showToast(`预约已标记为「${status}」`);
     renderReservations("全部");
     refreshAfterWrite(writeResult);
   } catch (e) {

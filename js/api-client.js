@@ -417,10 +417,12 @@ async function apiBatchCheckIn(payload) {
   });
 }
 
-function useRemoteWriteApi() {
+function isLocalForceDb() {
   return (
-    typeof isRemoteDB === "function" &&
-    isRemoteDB() &&
-    !(typeof window !== "undefined" && window.KETANG_FORCE_LOCAL_DB === true)
+    typeof window !== "undefined" && window.KETANG_FORCE_LOCAL_DB === true
   );
+}
+
+function useRemoteWriteApi() {
+  return typeof isRemoteDB === "function" && isRemoteDB() && !isLocalForceDb();
 }

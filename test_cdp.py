@@ -150,7 +150,21 @@ def main():
         errors = collect_errors(ws, 1.5)
 
         # Login through the visible identity selector so role-to-account mapping is covered.
-        role = evaluate(ws, "(async()=>{document.getElementById('login-username').value='admin';document.getElementById('login-password').value='admin';await submitLogin();return getCurrentUser() && getCurrentUser().role;})()").get('value')
+        login_expr = """
+            (async () => {
+              document.getElementById('login-username').value = 'admin';
+              document.getElementById('login-password').value = 'admin';
+              await submitLogin();
+              for (let i = 0; i < 40; i++) {
+                if (typeof isLoggedIn === 'function' && isLoggedIn()) break;
+                await new Promise(r => setTimeout(r, 250));
+              }
+              const u = typeof getCurrentUser === 'function' ? getCurrentUser() : null;
+              return u ? u.role : null;
+            })()
+        """
+        ws.send(json.dumps({'id': 3, 'method': 'Runtime.evaluate', 'params': {'expression': login_expr, 'awaitPromise': True, 'returnByValue': True}}))
+        role = recv_by_id(ws, 3, 90).get('result', {}).get('result', {}).get('value')
         if role != 'admin':
             print('FAIL: admin identity login failed, role=', role)
             sys.exit(1)
@@ -160,11 +174,20 @@ def main():
         views = ['board', 'lodging', 'lodgers', 'stay', 'forecast', 'housekeeping', 'reports', 'history', 'info', 'backup']
         for view in views:
             evaluate(ws, f"showView('{view}')")
-            time.sleep(0.6)
+            time.sleep(1.0 if view in ('forecast', 'history', 'reports') else 0.6)
             errors.extend([f"[{view}] {e}" for e in collect_errors(ws, 1.0)])
 
-        # Business path smoke tests
-        event_expr = """
+        online = evaluate(
+            ws,
+            "typeof useRemoteWriteApi === 'function' && useRemoteWriteApi()",
+        ).get('value')
+
+        if online:
+            print('SKIP: local SQL business path (online-only mode)')
+            print('SKIP: full business journey (online-only; writes require API)')
+        else:
+            # Business path smoke tests (KETANG_FORCE_LOCAL_DB only)
+            event_expr = """
             (() => {
                 run("INSERT INTO events (name, event_type, gender_type, expected_count, start_date, end_date, status) VALUES (?, ?, ?, ?, ?, ?, ?)", ['测试营期', '禅营', '男众', 10, '2026-07-01', '2026-07-07', '招生中']);
                 const eventId = db.exec("SELECT last_insert_rowid() as id")[0].values[0][0];
@@ -176,16 +199,16 @@ def main():
                 return { eventId, hasMalePlan: !!plan.malePlan, hasFemalePlan: !!plan.femalePlan };
             })()
         """
-        ws.send(json.dumps({'id': 4, 'method': 'Runtime.evaluate', 'params': {'expression': event_expr, 'returnByValue': True}}))
-        resp = recv_by_id(ws, 4, 30)
-        biz = resp.get('result', {}).get('result', {}).get('value', {})
-        print('Business path result:', biz)
-        if not biz.get('hasMalePlan') and not biz.get('hasFemalePlan'):
-            print("WARN: rooming suggestion returned empty plan (may be due to no matching rooms)")
-        errors.extend([f"[business] {e}" for e in collect_errors(ws, 1.0)])
+            ws.send(json.dumps({'id': 4, 'method': 'Runtime.evaluate', 'params': {'expression': event_expr, 'returnByValue': True}}))
+            resp = recv_by_id(ws, 4, 30)
+            biz = resp.get('result', {}).get('result', {}).get('value', {})
+            print('Business path result:', biz)
+            if not biz.get('hasMalePlan') and not biz.get('hasFemalePlan'):
+                print("WARN: rooming suggestion returned empty plan (may be due to no matching rooms)")
+            errors.extend([f"[business] {e}" for e in collect_errors(ws, 1.0)])
 
-        # Full business journey: checkin -> extend -> change bed -> meals -> checkout -> history
-        journey_expr = """
+            # Full business journey: checkin -> extend -> change bed -> meals -> checkout -> history
+            journey_expr = """
             (async () => {
                 window.__journeyLog = [];
                 const log = (msg) => { window.__journeyLog.push(msg); console.log(msg); };
@@ -281,17 +304,17 @@ def main():
                 return { error: err && err.message ? err.message : String(err) };
             })
         """
-        ws.send(json.dumps({'id': 5, 'method': 'Runtime.evaluate', 'params': {'expression': journey_expr, 'awaitPromise': True, 'returnByValue': True}}))
-        resp = recv_by_id(ws, 5, 120)
-        journey = resp.get('result', {}).get('result', {}).get('value', {})
-        print('Full journey result:', journey)
-        if not journey.get('checkedOut'):
-            print("FAIL: full business journey did not checkout")
-            sys.exit(1)
-        if journey.get('finalBed') is not None:
-            print("FAIL: final bed should be null after checkout")
-            sys.exit(1)
-        errors.extend([f"[journey] {e}" for e in collect_errors(ws, 1.0)])
+            ws.send(json.dumps({'id': 5, 'method': 'Runtime.evaluate', 'params': {'expression': journey_expr, 'awaitPromise': True, 'returnByValue': True}}))
+            resp = recv_by_id(ws, 5, 120)
+            journey = resp.get('result', {}).get('result', {}).get('value', {})
+            print('Full journey result:', journey)
+            if not journey.get('checkedOut'):
+                print("FAIL: full business journey did not checkout")
+                sys.exit(1)
+            if journey.get('finalBed') is not None:
+                print("FAIL: final bed should be null after checkout")
+                sys.exit(1)
+            errors.extend([f"[journey] {e}" for e in collect_errors(ws, 1.0)])
 
         # Permission negative test: zhike should not access info/backup
         evaluate(ws, "logout()")

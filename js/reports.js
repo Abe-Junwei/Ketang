@@ -1,3 +1,23 @@
+async function reportsInitAndLoad() {
+  initReportDates();
+  const eventSel = document.getElementById("r-event");
+  if (eventSel) {
+    eventSel.innerHTML = '<option value="">加载中…</option>';
+  }
+  try {
+    if (typeof rcEnsureViewModules === "function") {
+      await rcEnsureViewModules("reports", false);
+    }
+  } catch (e) {
+    if (eventSel) {
+      eventSel.innerHTML =
+        '<option value="">加载失败：' + escapeHtml(e.message || "") + "</option>";
+    }
+    return;
+  }
+  populateReportEventSelect();
+}
+
 function initReportDates() {
   const today = todayStr();
   const m = document.getElementById("r-meal-date");
@@ -27,7 +47,14 @@ function destroyReportCharts() {
   destroyKetangChartsByPrefix("report-");
 }
 
-function renderMealReport() {
+async function reportsEnsureData() {
+  if (typeof rcUseApiRead !== "function" || !rcUseApiRead()) return;
+  if (typeof rcEnsureViewModules !== "function") return;
+  await rcEnsureViewModules("reports", false);
+}
+
+async function renderMealReport() {
+  await reportsEnsureData();
   destroyReportCharts();
   const date = document.getElementById("r-meal-date").value;
   const container = document.getElementById("meal-report-result");
@@ -226,7 +253,8 @@ function renderPaymentMethodTable(rows) {
   return html;
 }
 
-function renderDailyReport() {
+async function renderDailyReport() {
+  await reportsEnsureData();
   destroyReportCharts();
   const date = document.getElementById("r-daily-date").value;
   const container = document.getElementById("daily-report-result");
@@ -481,7 +509,8 @@ function exportDailyReportCSV() {
   downloadBlob(blob, `daily_report_${date}.csv`);
 }
 
-function renderMonthlyReport() {
+async function renderMonthlyReport() {
+  await reportsEnsureData();
   destroyReportCharts();
   const month = document.getElementById("r-month").value;
   const container = document.getElementById("monthly-report-result");
@@ -646,7 +675,8 @@ function exportMonthlyReportCSV() {
    营期统计报表 | Event Report
    ============================================================ */
 
-function renderEventReport() {
+async function renderEventReport() {
+  await reportsEnsureData();
   destroyReportCharts();
   const eventId = document.getElementById("r-event").value;
   const groupBy = document.getElementById("r-event-group").value || "role";

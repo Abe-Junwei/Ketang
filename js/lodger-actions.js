@@ -142,12 +142,7 @@ async function submitExtend(id) {
   }
   try {
     var writeResult = null;
-    if (useRemoteWriteApi()) {
-      writeResult = await apiExtendStay({
-        lodger_id: id,
-        expected_check_out: date,
-      });
-    } else {
+    if (isLocalForceDb()) {
       await withTransaction(async () => {
         run(
           "UPDATE lodgers SET expected_check_out=? WHERE id=? AND status='在住'",
@@ -182,8 +177,12 @@ async function submitExtend(id) {
         );
       });
       await saveDB();
-    }
-    closeModal();
+    } else {
+      writeResult = await apiExtendStay({
+        lodger_id: id,
+        expected_check_out: date,
+      });
+    }    closeModal();
     showToast("续住成功");
     refreshAfterWrite(writeResult);
   } catch (e) {
@@ -288,19 +287,7 @@ async function submitChangeBed(lodgerId, gender) {
   }
   try {
     var writeResult = null;
-    if (useRemoteWriteApi()) {
-      const old = query(
-        "SELECT bed_id, guest_id, name, event_id FROM lodgers WHERE id=?",
-        [lodgerId],
-      )[0];
-      writeResult = await apiChangeBed({
-        lodger_id: lodgerId,
-        bed_id: parseInt(bedId, 10),
-      });
-      if (old && typeof maybeLogRoomingChangeBed === "function") {
-        await maybeLogRoomingChangeBed(lodgerId, old.bed_id, bedId);
-      }
-    } else {
+    if (isLocalForceDb()) {
       const old = query(
         "SELECT bed_id, guest_id, name, event_id FROM lodgers WHERE id=?",
         [lodgerId],
@@ -328,8 +315,19 @@ async function submitChangeBed(lodgerId, gender) {
       if (old && typeof maybeLogRoomingChangeBed === "function") {
         await maybeLogRoomingChangeBed(lodgerId, old.bed_id, bedId);
       }
-    }
-    closeModal();
+    } else {
+      const old = query(
+        "SELECT bed_id, guest_id, name, event_id FROM lodgers WHERE id=?",
+        [lodgerId],
+      )[0];
+      writeResult = await apiChangeBed({
+        lodger_id: lodgerId,
+        bed_id: parseInt(bedId, 10),
+      });
+      if (old && typeof maybeLogRoomingChangeBed === "function") {
+        await maybeLogRoomingChangeBed(lodgerId, old.bed_id, bedId);
+      }
+    }    closeModal();
     showToast("换床成功");
     refreshAfterWrite(writeResult);
   } catch (e) {
@@ -484,24 +482,7 @@ async function submitEditLodger(id) {
 
   try {
     var writeResult = null;
-    if (useRemoteWriteApi()) {
-      writeResult = await apiEditLodger({
-        lodger_id: id,
-        name: name,
-        gender: gender || null,
-        phone: contact.phone,
-        id_card: contact.idCard,
-        emergency_name: contact.emergencyName || null,
-        emergency_phone: contact.emergencyPhone || null,
-        check_in_date: checkIn,
-        expected_check_out: checkOut,
-        role: readLodgerRoleInput("edit-role"),
-        class_name: document.getElementById("edit-class").value.trim() || null,
-        ...participantTags,
-        event_id: document.getElementById("edit-event").value || null,
-        notes: document.getElementById("edit-notes").value.trim() || null,
-      });
-    } else {
+    if (isLocalForceDb()) {
       await withTransaction(async () => {
         run(
           `UPDATE lodgers SET
@@ -577,8 +558,24 @@ async function submitEditLodger(id) {
         });
       });
       await saveDB();
-    }
-    closeModal();
+    } else {
+      writeResult = await apiEditLodger({
+        lodger_id: id,
+        name: name,
+        gender: gender || null,
+        phone: contact.phone,
+        id_card: contact.idCard,
+        emergency_name: contact.emergencyName || null,
+        emergency_phone: contact.emergencyPhone || null,
+        check_in_date: checkIn,
+        expected_check_out: checkOut,
+        role: readLodgerRoleInput("edit-role"),
+        class_name: document.getElementById("edit-class").value.trim() || null,
+        ...participantTags,
+        event_id: document.getElementById("edit-event").value || null,
+        notes: document.getElementById("edit-notes").value.trim() || null,
+      });
+    }    closeModal();
     showToast("修改成功");
     refreshAfterWrite(writeResult);
   } catch (e) {
@@ -600,9 +597,7 @@ async function deleteLodger(id) {
   if (!ok) return;
   try {
     var writeResult = null;
-    if (useRemoteWriteApi()) {
-      writeResult = await apiDeleteLodger({ lodger_id: id });
-    } else {
+    if (isLocalForceDb()) {
       await withTransaction(async () => {
         run("DELETE FROM meals WHERE lodger_id=?", [id]);
         run("DELETE FROM payments WHERE lodger_id=?", [id]);
@@ -617,8 +612,9 @@ async function deleteLodger(id) {
         });
       });
       await saveDB();
-    }
-    showToast("已删除");
+    } else {
+      writeResult = await apiDeleteLodger({ lodger_id: id });
+    }    showToast("已删除");
     refreshAfterWrite(writeResult);
   } catch (e) {
     console.error(e);
@@ -698,14 +694,7 @@ async function submitCheckout(id) {
   const today = new Date().toISOString().slice(0, 10);
   try {
     var writeResult = null;
-    if (useRemoteWriteApi()) {
-      writeResult = await apiCheckout({
-        lodger_id: id,
-        refund: refund,
-        refund_method: method,
-        notes: notes,
-      });
-    } else {
+    if (isLocalForceDb()) {
       await withTransaction(async () => {
         run(
           "UPDATE lodgers SET status='已退', actual_check_out=?, bed_id=NULL WHERE id=?",
@@ -741,8 +730,14 @@ async function submitCheckout(id) {
         });
       });
       await saveDB();
-    }
-    closeModal();
+    } else {
+      writeResult = await apiCheckout({
+        lodger_id: id,
+        refund: refund,
+        refund_method: method,
+        notes: notes,
+      });
+    }    closeModal();
     showToast("退房成功");
     refreshAfterWrite(writeResult);
   } catch (e) {
