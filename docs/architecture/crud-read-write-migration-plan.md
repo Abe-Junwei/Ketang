@@ -1,6 +1,6 @@
 # CRUD 与在线读写链路迁移计划
 
-> 状态：规划中  
+> 状态：主体已落地，验收补强中  
 > 日期：2026-07-03  
 > 目标：把客堂系统从“在线可用 + 兼容 sql.js 过渡态”迁到“D1 权威、读写分离、模块化 read API、可观测、多端一致”的稳定多用户架构。
 
@@ -43,12 +43,12 @@ flowchart LR
 
 | 区域       | 当前状态                                             | 差距                                                       |
 | ---------- | ---------------------------------------------------- | ---------------------------------------------------------- |
-| 核心写 API | 多数已接 `rcRefreshAfterWrite`，核心业务已有 patches | 排房、运营设置仍偏 `finishWrite`，行级 patches 不完整      |
-| 乐观 UI    | 信息管理已做 `infoApplyOptimistic`                   | 入住/退房/换床/用斋/预约/营期多为等待 API 返回             |
-| 读路径     | 看板、信息在线主路径、部分营期/预测已有 `rc*`        | 报表、预测、历史、排房、权限仍有在线 `query()` 或 fallback |
-| 排房       | `rooming-read.js` 可读 event detail                  | 写后 invalidate + 强制重拉，patch 粒度不足                 |
-| 同步       | `board_version`、delta、SSE 主体可用                 | 还缺按模块的延迟指标、失败重试可观测性                     |
-| sql.js     | 在线不加载 wasm；本地动态加载                         | 极少数本地分支仍保留 `query()` fallback              |
+| 核心写 API | 核心业务、排房、运营设置已接 `finishWrite` / `enrichWriteResponse` | 公开预约与生产域契约仍需持续巡检                          |
+| 乐观 UI    | 信息管理、高频写按钮、部分小范围操作已有保存中/乐观反馈 | 入住/退房/换床仍保持低风险 L1，不做完整乐观                |
+| 读路径     | D1–D6 在线热路径已迁到 `rc*` / read API，并有边界守卫 | 非热路径本地 fallback 仍保留；继续做语义 parity 抽样        |
+| 排房       | 读走 event detail / `rooming-read.js`，写返回行级 patches | 冲突检查仍为服务端计算 action，后续可独立改成 read endpoint |
+| 同步       | `board_version`、delta、SSE、写后 patch 主体可用       | 还缺按模块的延迟指标、失败重试可观测性                     |
+| sql.js     | 在线不加载 wasm；本地/灾备动态加载                    | 本地 migration / 灾备恢复仍需保留并定期验证                |
 
 ## 4. 分阶段计划
 

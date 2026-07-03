@@ -60,6 +60,11 @@ def main():
     events = read("js/events.js")
     rooming_read = read("js/rooming-read.js")
     rooming_capacity = read("js/rooming-capacity.js")
+    rooming_plans = read("js/rooming-plans.js")
+    rooming_publish = read("js/rooming-publish.js")
+    rooming_adjustments = read("js/rooming-adjustments.js")
+    rooming_conflicts = read("js/rooming-conflicts.js")
+    read_modules = read("functions/_shared/read-modules.js")
     auth = read("js/auth.js")
     resv = read("js/reservations.js")
 
@@ -100,6 +105,12 @@ def main():
         ("rooming plan rc", "rcRoomingPlanByEventId" in rooming_read),
         ("rooming assignments guard", "if (!roomingUseLocalRead()) return [];" in rooming_read),
         ("rooming capacity guard", "roomingUseLocalRead()" in rooming_capacity),
+        (
+            "rooming event detail assignments join plan",
+            "FROM rooming_assignments ra" in read_modules
+            and "JOIN rooming_plans rp ON rp.id = ra.plan_id" in read_modules
+            and "SELECT * FROM ${table} WHERE event_id = ?" not in read_modules,
+        ),
         ("auth remote users", "useRemoteAdminUsers" in auth),
         ("auth list api", "apiAdminListUsers" in auth),
         ("auth lookup remote", "findAdminUserById" in auth),
@@ -119,6 +130,10 @@ def main():
     )
     failed += scan_render_exports("history", history)
     failed += scan_render_exports("events", events, skip_fns={"renderEventProgressChart"})
+    failed += scan_render_exports("rooming plans", rooming_plans)
+    failed += scan_render_exports("rooming publish", rooming_publish)
+    failed += scan_render_exports("rooming adjustments", rooming_adjustments)
+    failed += scan_render_exports("rooming conflicts", rooming_conflicts)
 
     for fn in [
         "roomingGetPlan",
@@ -136,6 +151,51 @@ def main():
         src = rooming_read if fn.startswith("rooming") else rooming_capacity
         body = fn_body(src, fn)
         ok, name = assert_no_unguarded_query(fn, body)
+        if not ok:
+            failed.append(name)
+
+    for fn in [
+        "fetchRoomingPlanBundle",
+        "generateRoomingPlanDraft",
+        "saveRoomingPlanDraft",
+        "renderRoomingPlan",
+        "handleRefreshRoomingConflicts",
+        "handleSaveRoomingPlan",
+        "fetchRoomingConflictReport",
+        "fetchRoomingQueueBundle",
+        "findRoomingQueueItem",
+        "markRoomingQueueItemStatus",
+        "renderRoomingCheckinQueue",
+        "exportRoomingCheckinListCSV",
+        "exportRoomingRoomTableCSV",
+        "loadRoomingPrintQueue",
+        "fetchRoomingRetrospective",
+        "renderRoomingRetrospective",
+        "exportRoomingRetrospectiveCSV",
+        "logRoomingAdjustment",
+    ]:
+        src = {
+            "fetchRoomingPlanBundle": rooming_plans,
+            "generateRoomingPlanDraft": rooming_plans,
+            "saveRoomingPlanDraft": rooming_plans,
+            "renderRoomingPlan": rooming_plans,
+            "handleRefreshRoomingConflicts": rooming_plans,
+            "handleSaveRoomingPlan": rooming_plans,
+            "fetchRoomingConflictReport": rooming_conflicts,
+            "fetchRoomingQueueBundle": rooming_publish,
+            "findRoomingQueueItem": rooming_publish,
+            "markRoomingQueueItemStatus": rooming_publish,
+            "renderRoomingCheckinQueue": rooming_publish,
+            "exportRoomingCheckinListCSV": rooming_publish,
+            "exportRoomingRoomTableCSV": rooming_publish,
+            "loadRoomingPrintQueue": rooming_publish,
+            "fetchRoomingRetrospective": rooming_adjustments,
+            "renderRoomingRetrospective": rooming_adjustments,
+            "exportRoomingRetrospectiveCSV": rooming_adjustments,
+            "logRoomingAdjustment": rooming_adjustments,
+        }[fn]
+        body = fn_body(src, fn)
+        ok, name = assert_no_unguarded_query(f"rooming {fn}", body)
         if not ok:
             failed.append(name)
 

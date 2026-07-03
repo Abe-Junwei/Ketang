@@ -26,6 +26,12 @@ def main():
         ("rooming-plans imports enrich", "enrichWriteResponse" in plans),
         ("rooming-publish imports enrich", "enrichWriteResponse" in publish),
         (
+            "ensure patches plan assignments",
+            "roomingWritePatches" in function_slice(plans, "handleRoomingPlanAction")
+            and "finishWrite" in function_slice(plans, "handleRoomingPlanAction")
+            and "extraPatches" in function_slice(plans, "handleRoomingPlanAction"),
+        ),
+        (
             "generate patches plan assignments",
             "roomingWritePatches" in function_slice(plans, "generateRoomingPlanAssignments")
             and "rooming_plans" in function_slice(plans, "generateRoomingPlanAssignments")
@@ -63,6 +69,12 @@ def main():
             "adjustment patches adjustment",
             "roomingAdjustmentPatches" in function_slice(publish, "logRoomingAdjustment")
             and "rooming_adjustments" in function_slice(publish, "logRoomingAdjustment"),
+        ),
+        (
+            "frontend rooming reads use event detail",
+            'apiRoomingPlanAction("get"' not in read("js/rooming-plans.js")
+            and 'apiRoomingPlanAction("queue"' not in read("js/rooming-publish.js")
+            and 'apiRoomingPlanAction("retrospective"' not in read("js/rooming-adjustments.js"),
         ),
         (
             "frontend skips force refetch when patched",

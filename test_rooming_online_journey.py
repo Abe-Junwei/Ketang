@@ -19,6 +19,7 @@ def main():
 
     checks = [
         ("api rooming route", "handleRoomingPlanAction" in api_route and "handleRoomingPublishAction" in api_route),
+        ("ensure write patches", "roomingWritePatches" in shared_plans and "action === \"ensure\"" in shared_plans),
         ("generate write patches", "roomingWritePatches" in shared_plans and "generateRoomingPlanAssignments" in shared_plans),
         ("save write patches", "roomingWritePatches" in shared_plans and "saveRoomingPlan" in shared_plans),
         ("publish write patches", "roomingPublishPatches" in shared_publish),
@@ -29,6 +30,7 @@ def main():
         ("republish refreshes", "roomingRefreshAfterWrite(eventId, republishResult)" in publish),
         ("queue update refreshes", "roomingRefreshAfterWrite(eventId, queueResult)" in publish),
         ("adjustment refreshes", "roomingRefreshAfterWrite(eventId, writeResult)" in adjustments),
+        ("rooming reads event detail", 'apiRoomingPlanAction("get"' not in plans and 'apiRoomingPlanAction("queue"' not in publish and 'apiRoomingPlanAction("retrospective"' not in adjustments),
         ("patch detector", "function roomingWriteHasPatches" in rr),
         ("skip force refetch when patched", "if (!hasPatches && eventId && roomingReadReady())" in rr),
         ("queue checkin uses assign bed", "assignExistingLodgerToBed" in publish or "assignExistingLodgerToBed" in read("js/rooming-publish.js")),

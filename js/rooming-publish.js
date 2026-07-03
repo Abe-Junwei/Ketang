@@ -144,7 +144,11 @@ async function republishLocalRoomingPlan(eventId) {
 
 async function fetchRoomingQueueBundle(eventId) {
   if (!isLocalForceDb()) {
-    return apiRoomingPlanAction("queue", { event_id: eventId });
+    await roomingEnsureEvent(eventId, false);
+    return {
+      plan: roomingGetPlan(eventId) || null,
+      queue: roomingCheckinQueueForEvent(eventId),
+    };
   }
   var plan = query("SELECT * FROM rooming_plans WHERE event_id = ? LIMIT 1", [
     eventId,

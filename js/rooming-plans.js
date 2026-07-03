@@ -443,7 +443,12 @@ function renderRoomingDraftTable(event, assignments, canEdit) {
 
 async function fetchRoomingPlanBundle(eventId) {
   if (!isLocalForceDb()) {
-    return apiRoomingPlanAction("get", { event_id: eventId });
+    await roomingEnsureEvent(eventId, false);
+    var plan = roomingGetPlan(eventId);
+    return {
+      plan: plan || null,
+      assignments: plan ? roomingAssignmentsForEvent(eventId, plan.id) : [],
+    };
   }
   return getLocalRoomingPlanBundle(eventId);
 }

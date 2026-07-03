@@ -39,6 +39,12 @@ def main():
         ("info events loader", "info_events" in read("js/info.js")),
         ("rcModulesForInfoTab", "function rcModulesForInfoTab" in rc),
         ("resolveScopedModuleKeys", "function resolveScopedModuleKeys" in read("js/sync-coordinator.js")),
+        (
+            "event detail assignments join plan",
+            "FROM rooming_assignments ra" in read("functions/_shared/read-modules.js")
+            and "JOIN rooming_plans rp ON rp.id = ra.plan_id" in read("functions/_shared/read-modules.js")
+            and "SELECT * FROM ${table} WHERE event_id = ?" not in read("functions/_shared/read-modules.js"),
+        ),
     ]
     failed = [name for name, ok in checks if not ok]
     if failed:

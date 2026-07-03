@@ -116,23 +116,33 @@ export async function buildEventDetailModule(env, session, eventId, options) {
   tables.events = eventRows.map((row) =>
     sanitizeRowForRole("events", row, session.role),
   );
-  const roomingTables = [
-    "rooming_plans",
-    "rooming_assignments",
-    "rooming_checkin_queue",
-    "rooming_adjustments",
-  ];
-  await Promise.all(
-    roomingTables.map(async function (table) {
-      const rows = await queryD1(
-        env,
-        `SELECT * FROM ${table} WHERE event_id = ?`,
-        [id],
-      );
-      tables[table] = rows.map((row) =>
-        sanitizeRowForRole(table, row, session.role),
-      );
-    }),
+  const [plans, assignments, queue, adjustments] = await Promise.all([
+    queryD1(env, "SELECT * FROM rooming_plans WHERE event_id = ?", [id]),
+    queryD1(
+      env,
+      `SELECT ra.* FROM rooming_assignments ra
+       JOIN rooming_plans rp ON rp.id = ra.plan_id
+       WHERE rp.event_id = ?`,
+      [id],
+    ),
+    queryD1(env, "SELECT * FROM rooming_checkin_queue WHERE event_id = ?", [
+      id,
+    ]),
+    queryD1(env, "SELECT * FROM rooming_adjustments WHERE event_id = ?", [
+      id,
+    ]),
+  ]);
+  tables.rooming_plans = plans.map((row) =>
+    sanitizeRowForRole("rooming_plans", row, session.role),
+  );
+  tables.rooming_assignments = assignments.map((row) =>
+    sanitizeRowForRole("rooming_assignments", row, session.role),
+  );
+  tables.rooming_checkin_queue = queue.map((row) =>
+    sanitizeRowForRole("rooming_checkin_queue", row, session.role),
+  );
+  tables.rooming_adjustments = adjustments.map((row) =>
+    sanitizeRowForRole("rooming_adjustments", row, session.role),
   );
   const version = await getBoardVersion(env);
   return {

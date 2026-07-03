@@ -33,7 +33,10 @@ def main():
             rc.count("function rcRefreshAfterWrite") == 1
             and "rcApplyWriteResult(writeResult)" in rc
             and "touchBoardVersionFromWrite(writeResult)" not in rc
-            and "syncTask.then(refreshOnce)" in rc
+            and "var syncTask = refreshAfterWrite" in rc
+            and "syncTask" in rc
+            and ".then(function ()" in rc
+            and "refreshOnce();" in rc
             and "rcInvalidateMany(moduleKeys)" not in rc,
         ),
         ("info lodger map", "infoLodgerOnBedMap" in info),

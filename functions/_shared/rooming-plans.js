@@ -616,7 +616,11 @@ export async function handleRoomingPlanAction(env, session, body) {
     await requirePermission(env, session, "settings.write");
     if (!eventId) throw new Error("缺少营期");
     await ensurePlanForEvent(env, session, eventId);
-    return getRoomingPlanBundle(env, eventId);
+    const bundle = await getRoomingPlanBundle(env, eventId);
+    const writeMeta = await finishWrite(env, {}, ["events"], ["events"]);
+    return enrichWriteResponse(env, { ...bundle, ...writeMeta }, {
+      extraPatches: await roomingWritePatches(env, eventId),
+    });
   }
 
   if (action === "generate") {

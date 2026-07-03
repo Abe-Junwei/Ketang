@@ -104,9 +104,39 @@ async function logRoomingQueueSkipAdjustment(item, eventId) {
   });
 }
 
+function roomingRetrospectiveSummary(queue, adjustments) {
+  queue = queue || [];
+  adjustments = adjustments || [];
+  return {
+    total: queue.length,
+    pending: queue.filter(function (q) {
+      return q.queue_status === "待办理";
+    }).length,
+    done: queue.filter(function (q) {
+      return q.queue_status === "已办理";
+    }).length,
+    skipped: queue.filter(function (q) {
+      return q.queue_status === "已跳过";
+    }).length,
+    adjustments: adjustments.length,
+  };
+}
+
 async function fetchRoomingRetrospective(eventId) {
   if (!isLocalForceDb()) {
-    return apiRoomingPlanAction("retrospective", { event_id: eventId });
+    await roomingEnsureEvent(eventId, false);
+    var remoteEvent = roomingGetEvent(eventId);
+    if (!remoteEvent) throw new Error("营期不存在");
+    var remotePlan = roomingGetPlan(eventId);
+    var remoteQueue = roomingCheckinQueueForEvent(eventId);
+    var remoteAdjustments = roomingAdjustmentsForEvent(eventId);
+    return {
+      event: remoteEvent,
+      plan: remotePlan || null,
+      queue: remoteQueue,
+      adjustments: remoteAdjustments,
+      summary: roomingRetrospectiveSummary(remoteQueue, remoteAdjustments),
+    };
   }
   var evt = query("SELECT * FROM events WHERE id = ?", [eventId])[0];
   if (!evt) throw new Error("营期不存在");
@@ -120,19 +150,7 @@ async function fetchRoomingRetrospective(eventId) {
     plan: plan || null,
     queue: queue,
     adjustments: adjustments,
-    summary: {
-      total: queue.length,
-      pending: queue.filter(function (q) {
-        return q.queue_status === "待办理";
-      }).length,
-      done: queue.filter(function (q) {
-        return q.queue_status === "已办理";
-      }).length,
-      skipped: queue.filter(function (q) {
-        return q.queue_status === "已跳过";
-      }).length,
-      adjustments: adjustments.length,
-    },
+    summary: roomingRetrospectiveSummary(queue, adjustments),
   };
 }
 
