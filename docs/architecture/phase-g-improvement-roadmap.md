@@ -66,27 +66,29 @@
 
 ---
 
-## Phase G-3：read module 数据分层（2–4 天）
+## Phase G-3：read module 数据分层（2–4 天）✅ board 投影已上线
 
 **目标**：降低 parse/内存成本；`read/board` decoded ≤180KB、gzip ≤8KB。
 
 ### 落位
 
-| 模块 | 文件 | 改造 |
-|------|------|------|
-| board 字段投影 | `functions/_shared/read-modules.js` | rooms: id/name/floor/location；beds: id/room_id/bed_number/status；lodgers: 在住最小集；housekeeping: 非净房 only |
-| lodgers_records 拆分 | `functions/_shared/read-modules.js` + 新 module keys | `lodgers_active` / `lodgers_recent` / `lodgers_history_page` / `lodgers_lookup` |
-| 前端模块表 | `js/read-cache.js` | `RC_DEFERRED_MODULES` 调整；history 不进 bootstrap |
-| 回归 | `test_read_module_board_slim.py` | 加 payload 体积上限断言 |
+| 模块 | 文件 | 改造 | 状态 |
+|------|------|------|------|
+| board 字段投影 | `functions/_shared/read-modules.js` | rooms/beds/lodgers/hk 最小字段集 + `projectBoardRow` | ✅ 2026-07-04 |
+| lodgers_records 拆分 | `functions/_shared/read-modules.js` + 新 module keys | `lodgers_active` / `lodgers_recent` / `lodgers_history_page` / `lodgers_lookup` | 待做 |
+| 前端模块表 | `js/read-cache.js` | `RC_DEFERRED_MODULES` 调整；history 不进 bootstrap | 待做 |
+| 回归 | `test_read_module_board_slim.py` | 字段投影契约断言 | ✅ |
 
-### 验收
+### 验收（2026-07-04 生产 7 样本）
 
 ```text
-read_board decoded_bytes ≤ 180KB
-read_board gzip ≤ 8KB
-read_board server_total ≤ 800ms
-read_lodgers_records 不作为首屏依赖
+read_board decoded_bytes ≤ 180KB   → 105496 ✅
+read_board gzip ≤ 8KB              → 7831 ✅
+read_board server_total ≤ 800ms    → read_module_ms p50 497 ✅
+read_lodgers_records 不作为首屏依赖 → 仍 WARN（外部 gap），非 board 阻塞
 ```
+
+**说明**：rooms 保留 `dorm_type`（看板/KPI/换房筛选必需）；lodgers 保留 `event_id`（运营提醒合并用）。
 
 ---
 

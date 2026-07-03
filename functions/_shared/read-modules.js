@@ -25,6 +25,37 @@ export const READ_MODULE_TABLES = {
   lodgers_records: ["lodgers", "beds"],
 };
 
+/** board 字段投影 | View-model fields for read/board (G-3 slim payload) */
+const BOARD_TABLE_FIELDS = {
+  rooms: ["id", "name", "floor", "location", "dorm_type"],
+  beds: ["id", "room_id", "bed_number", "status"],
+  lodgers: [
+    "id",
+    "bed_id",
+    "name",
+    "dharma_name",
+    "gender",
+    "status",
+    "check_in_date",
+    "expected_check_out",
+    "actual_check_out",
+    "event_id",
+  ],
+  housekeeping: ["bed_id", "status", "changed_at"],
+};
+
+function projectBoardRow(table, row) {
+  const fields = BOARD_TABLE_FIELDS[table];
+  if (!fields || !row || typeof row !== "object") return row;
+  const out = {};
+  fields.forEach(function (field) {
+    if (Object.prototype.hasOwnProperty.call(row, field)) {
+      out[field] = row[field];
+    }
+  });
+  return out;
+}
+
 const MODULE_PERMISSIONS = {
   board: ["board.read"],
   lodgers: ["lodging.read"],
@@ -68,12 +99,18 @@ async function fetchModuleTableRows(env, table, permissions, moduleKey) {
   }
   /** board 首屏瘦身：在住挂单 + 非净房房态 | Slim board payload for first paint */
   if (moduleKey === "board" && table === "lodgers") {
-    return queryD1(env, "SELECT * FROM lodgers WHERE status = '在住'", []);
+    return queryD1(
+      env,
+      `SELECT id, bed_id, name, dharma_name, gender, status,
+              check_in_date, expected_check_out, actual_check_out, event_id
+       FROM lodgers WHERE status = '在住'`,
+      [],
+    );
   }
   if (moduleKey === "board" && table === "housekeeping") {
     return queryD1(
       env,
-      `SELECT h.* FROM housekeeping h
+      `SELECT h.bed_id, h.status, h.changed_at FROM housekeeping h
        INNER JOIN (
          SELECT bed_id, MAX(changed_at) AS latest_at
          FROM housekeeping
@@ -103,9 +140,10 @@ export async function buildReadModule(env, session, moduleKey, options) {
   await Promise.all(
     tables.map(async function (table) {
       const rows = await fetchModuleTableRows(env, table, permissions, key);
-      data[table] = rows.map((row) =>
-        sanitizeRowForRole(table, row, session.role),
-      );
+      data[table] = rows.map((row) => {
+        const sanitized = sanitizeRowForRole(table, row, session.role);
+        return key === "board" ? projectBoardRow(table, sanitized) : sanitized;
+      });
     }),
   );
   const version = await getBoardVersion(env);
