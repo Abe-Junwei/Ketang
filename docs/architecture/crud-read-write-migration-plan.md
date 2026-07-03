@@ -327,3 +327,9 @@ npm run lint:ci
 5. **Phase D 尾巴**：`validation.js`（重复入住、编辑联系人）、`reservations.js`（营期校验）、`mobile-ui.js`（移动端看板 hero）已补 rc/read-shim；本地 fallback 保留。
 
 当前生产观测见 [docs/ops/performance-baseline.json](../ops/performance-baseline.json) 的 `observed_production`；`phase_g_targets_ms` 为目标值，超阈会在巡检报告 WARN。
+
+## 10. Phase G 后续改进（2026-07-04 调研）
+
+当前瓶颈已从 D1 init 转为 **首屏浏览器关键路径**（CDP `first-view-ready` ≈13s）与 **边缘 RTT**（external gap）。完整六阶段路线（RUM → 首屏 → 数据分层 → CF 观测 → 合成监控 → 阶段 SLO）见 [phase-g-improvement-roadmap.md](./phase-g-improvement-roadmap.md)。
+
+**最小下一步（第 1 批）**：~~`js/perf-rum.js` + `POST /api/v1/metrics/perf` + 全端点 `Server-Timing`~~ **已落地（2026-07-04）**。下一批：Phase G-2 首屏关键路径（renderRooms 延后/分片、idle deferred）。

@@ -127,6 +127,11 @@ export async function requireSession(request, env, queryD1) {
   return session;
 }
 
+/** 可选会话（RUM 等匿名采样）| Optional session for sampled telemetry */
+export async function optionalSession(request, env, queryD1) {
+  return verifySession(request, env, queryD1);
+}
+
 export function requireAdmin(session) {
   if (session.role !== "admin") throw new Error("需要管理员权限");
 }

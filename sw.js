@@ -1,5 +1,5 @@
 /* 客堂静态资源 Service Worker | Offline shell cache (no API/data) */
-var CACHE_VERSION = "ketang-shell-v10";
+var CACHE_VERSION = "ketang-shell-v11";
 var PRECACHE = [
   "./",
   "./index.html",
@@ -23,6 +23,7 @@ var PRECACHE = [
   "./lib/chart.umd.min.js",
   "./js/utils.js",
   "./js/perf.js",
+  "./js/perf-rum.js",
   "./js/db.js",
   "./js/api-client.js",
   "./js/guests.js",

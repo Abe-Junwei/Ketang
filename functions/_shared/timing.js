@@ -11,12 +11,55 @@ export function wantTiming(request) {
   return request.headers.get("x-ketang-debug") === "timing";
 }
 
+/** 请求追踪 ID | Per-request correlation id */
+export function createRequestId() {
+  if (typeof crypto !== "undefined" && crypto.randomUUID) {
+    return crypto.randomUUID();
+  }
+  return `kr_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+}
+
+function stageHeaderName(key) {
+  return String(key)
+    .replace(/_ms$/, "")
+    .replace(/[^a-zA-Z0-9_-]/g, "_")
+    .slice(0, 32);
+}
+
+/** W3C Server-Timing + X-Ketang-Request-Id | Attach timing headers for RUM */
+export function applyTimingHeaders(headers, stages, requestId, request) {
+  if (!headers) return;
+  if (requestId) headers.set("X-Ketang-Request-Id", requestId);
+  const parts = [];
+  Object.keys(stages || {}).forEach(function (key) {
+    if (key === "total_ms") return;
+    const val = stages[key];
+    if (typeof val === "number" && val >= 0) {
+      parts.push(`${stageHeaderName(key)};dur=${Math.round(val)}`);
+    }
+  });
+  if (stages?.total_ms != null) {
+    parts.push(`total;dur=${Math.round(stages.total_ms)}`);
+  }
+  if (parts.length) headers.set("Server-Timing", parts.join(", "));
+  if (wantTiming(request)) {
+    headers.set("X-Ketang-Timing", JSON.stringify(stages));
+  }
+}
+
+function attachTimerHeaders(response, stages, requestId, request) {
+  applyTimingHeaders(response.headers, stages, requestId, request);
+  return response;
+}
+
 /** 请求级计时器 | Per-request stage timer */
 export function createRequestTimer() {
   const startedAt = Date.now();
   const stages = {};
+  const requestId = createRequestId();
 
   return {
+    requestId,
     mark(name, ms) {
       stages[name] = ms != null ? ms : Date.now() - startedAt;
     },
@@ -30,9 +73,14 @@ export function createRequestTimer() {
       stages.total_ms = Date.now() - startedAt;
       if (wantTiming(request)) {
         console.log("ketang_timing", JSON.stringify(stages));
-        return json({ ...body, _timing: stages }, status);
+        return attachTimerHeaders(
+          json({ ...body, _timing: stages }, status),
+          stages,
+          requestId,
+          request,
+        );
       }
-      return json(body, status);
+      return attachTimerHeaders(json(body, status), stages, requestId, request);
     },
     finishWithCookies(body, request, status, cookieHeaders) {
       stages.total_ms = Date.now() - startedAt;
@@ -40,16 +88,30 @@ export function createRequestTimer() {
       if (wantTiming(request)) {
         console.log("ketang_timing", JSON.stringify(stages));
       }
-      return jsonWithCookies(payload, status, cookieHeaders);
+      return attachTimerHeaders(
+        jsonWithCookies(payload, status, cookieHeaders),
+        stages,
+        requestId,
+        request,
+      );
     },
     finish304(request, etag) {
       stages.total_ms = Date.now() - startedAt;
       const headers = new globalThis.Headers({ ETag: String(etag) });
+      applyTimingHeaders(headers, stages, requestId, request);
       if (wantTiming(request)) {
         console.log("ketang_timing", JSON.stringify(stages));
-        headers.set("X-Ketang-Timing", JSON.stringify(stages));
       }
       return new Response(null, { status: 304, headers });
+    },
+    finish204(request) {
+      stages.total_ms = Date.now() - startedAt;
+      const headers = new globalThis.Headers();
+      applyTimingHeaders(headers, stages, requestId, request);
+      if (wantTiming(request)) {
+        console.log("ketang_timing", JSON.stringify(stages));
+      }
+      return new Response(null, { status: 204, headers });
     },
   };
 }

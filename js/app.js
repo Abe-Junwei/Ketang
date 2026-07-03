@@ -79,6 +79,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
     window.ketangReady = true;
     if (typeof ketangPerfMark === "function") ketangPerfMark("app-ready");
+    if (typeof perfRumInit === "function") perfRumInit();
     console.log("客堂管理系统初始化完成");
   } catch (e) {
     console.error("初始化失败 | Init failed:", e);
@@ -863,11 +864,17 @@ async function renderAll(options) {
   updateRemoteSyncBanner();
   if (loginBootstrap) {
     renderBoard();
+    if (typeof ketangPerfMark === "function") ketangPerfMark("render-rooms:start");
     renderRooms();
+    if (typeof ketangPerfMark === "function") {
+      ketangPerfMark("render-rooms:end");
+      ketangPerfMeasure("render-rooms", "render-rooms:start", "render-rooms:end");
+    }
     if (typeof ketangPerfMark === "function") {
       ketangPerfMark("first-view-ready");
       ketangPerfMeasure("first-view-ready", "login:start", "first-view-ready");
     }
+    if (typeof perfRumOnFirstViewReady === "function") perfRumOnFirstViewReady();
     if (typeof ketangPerfMark === "function") {
       ketangPerfMark("render-all:end");
       ketangPerfMeasure("render-all", "render-all:start", "render-all:end");

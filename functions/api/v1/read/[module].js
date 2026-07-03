@@ -27,10 +27,7 @@ export async function onRequestGet({ request, env, params }) {
       ifNoneMatch != null &&
       String(parseInt(ifNoneMatch, 10)) === String(version)
     ) {
-      return new Response(null, {
-        status: 304,
-        headers: { ETag: String(version) },
-      });
+      return timer.finish304(request, version);
     }
     const payload = await timer.stage("read_module_ms", () =>
       buildReadModule(env, session, moduleKey, { skipInit: true }),

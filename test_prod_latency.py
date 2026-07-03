@@ -17,6 +17,7 @@ from typing import Any, Callable
 ROOT = Path(__file__).resolve().parent
 DEFAULT_BASELINE = ROOT / "docs/ops/performance-baseline.json"
 DEFAULT_SAMPLES = 7
+DEFAULT_WARMUP = 2
 OUTLIER_RETRY_MS = 12000
 OUTLIER_P50_FACTOR = 2.5
 _COOKIE_JAR = http.cookiejar.CookieJar()
@@ -42,6 +43,7 @@ def summarize_samples(samples: list[int]) -> dict:
     return {
         "samples": samples,
         "p50_ms": percentile(samples, 50),
+        "p75_ms": percentile(samples, 75),
         "p95_ms": percentile(samples, 95),
         "max_ms": max(samples),
     }
@@ -57,11 +59,24 @@ def decode_response_body(raw: bytes, headers: dict) -> tuple[str, bytes]:
 
 def response_meta(headers: dict, wire_bytes: bytes, decoded_bytes: bytes) -> dict:
     encoding = headers.get("Content-Encoding") or headers.get("content-encoding") or "identity"
-    return {
+    cf_ray = headers.get("CF-RAY") or headers.get("cf-ray")
+    colo = cf_ray.split("-")[-1] if cf_ray and "-" in cf_ray else None
+    meta = {
         "content_encoding": encoding.lower(),
         "bytes": len(wire_bytes),
         "decoded_bytes": len(decoded_bytes),
     }
+    if cf_ray:
+        meta["cf_ray"] = cf_ray
+    if colo:
+        meta["cf_colo"] = colo
+    server_timing = headers.get("Server-Timing") or headers.get("server-timing")
+    if server_timing:
+        meta["server_timing_header"] = server_timing
+    request_id = headers.get("X-Ketang-Request-Id") or headers.get("x-ketang-request-id")
+    if request_id:
+        meta["request_id"] = request_id
+    return meta
 
 
 def request_json(url, method="GET", headers=None, body=None, timeout=120):
@@ -149,12 +164,28 @@ PHASE_G_METRIC_MAP = {
 
 def parse_timing_header(headers: dict) -> dict | None:
     raw = headers.get("X-Ketang-Timing") or headers.get("x-ketang-timing")
-    if not raw:
+    if raw:
+        try:
+            return json.loads(raw)
+        except json.JSONDecodeError:
+            pass
+    server = headers.get("Server-Timing") or headers.get("server-timing")
+    if not server:
         return None
-    try:
-        return json.loads(raw)
-    except json.JSONDecodeError:
-        return None
+    stages: dict[str, int] = {}
+    for part in server.split(","):
+        piece = part.strip()
+        if not piece:
+            continue
+        name, _, dur = piece.partition(";")
+        if "dur=" in dur:
+            try:
+                ms = int(float(dur.split("dur=")[-1].strip()))
+                key = name.strip().replace("-", "_") + "_ms"
+                stages[key] = ms
+            except ValueError:
+                continue
+    return stages or None
 
 
 def extract_timing(payload: dict | None, headers: dict, status: int) -> dict | None:
@@ -168,7 +199,7 @@ def extract_timing(payload: dict | None, headers: dict, status: int) -> dict | N
 def run_external_ms(external_ms: int, timing: dict | None, meta: dict) -> dict:
     server_total = int(timing["total_ms"]) if timing and timing.get("total_ms") is not None else None
     gap = external_ms - server_total if server_total is not None else None
-    return {
+    run = {
         "external_ms": external_ms,
         "server_total_ms": server_total,
         "network_gap_ms": gap,
@@ -176,6 +207,13 @@ def run_external_ms(external_ms: int, timing: dict | None, meta: dict) -> dict:
         "bytes": meta.get("bytes"),
         "decoded_bytes": meta.get("decoded_bytes"),
     }
+    if meta.get("cf_ray"):
+        run["cf_ray"] = meta["cf_ray"]
+    if meta.get("cf_colo"):
+        run["cf_colo"] = meta["cf_colo"]
+    if meta.get("request_id"):
+        run["request_id"] = meta["request_id"]
+    return run
 
 
 def summarize_probe_runs(runs: list[dict]) -> dict:
@@ -191,6 +229,10 @@ def summarize_probe_runs(runs: list[dict]) -> dict:
     metric["content_encoding"] = last.get("content_encoding")
     metric["bytes"] = last.get("bytes")
     metric["decoded_bytes"] = last.get("decoded_bytes")
+    if last.get("cf_ray"):
+        metric["cf_ray"] = last["cf_ray"]
+    if last.get("cf_colo"):
+        metric["cf_colo"] = last["cf_colo"]
     if runs[-1].get("server_timing"):
         metric["server_timing"] = runs[-1]["server_timing"]
     retries = [r["retry_ms"] for r in runs if r.get("retry_ms") is not None]
@@ -314,6 +356,36 @@ def check_baseline(results: dict, baseline: dict) -> list[str]:
         if actual > limit:
             failures.append(f"{key} p95={actual}ms exceeds {limit}ms")
     return failures
+
+
+def check_baseline_graded(results: dict, baseline: dict) -> tuple[list[str], list[str], list[str]]:
+    """FAIL / WARN / INFO 分级 | Graded baseline checks."""
+    thresholds = baseline.get("thresholds_ms", {})
+    levels = baseline.get("probe_check_levels", {})
+    warn_keys = set(levels.get("warn", []))
+    fails: list[str] = []
+    warns: list[str] = []
+    infos: list[str] = []
+    outliers = results.get("outliers") or []
+    if outliers:
+        recovered = [o for o in outliers if o.get("retry_ms") is not None]
+        if recovered:
+            infos.append(f"{len(recovered)} outlier(s) retried")
+    for key, limit in thresholds.items():
+        metric = results.get(key)
+        if not isinstance(metric, dict):
+            fails.append(f"missing metric {key}")
+            continue
+        actual = metric.get("p95_ms", metric.get("max_ms", 0))
+        server = metric.get("server_total_ms")
+        if actual <= limit:
+            continue
+        msg = f"{key} p95={actual}ms exceeds {limit}ms"
+        if key in warn_keys and server is not None and server <= limit:
+            warns.append(msg + " (server ok, external gap)")
+        else:
+            fails.append(msg)
+    return fails, warns, infos
 
 
 def probe_frontend_metrics(frontend_base: str | None, api_base: str) -> dict:
@@ -541,10 +613,21 @@ def main() -> int:
         help=f"Repeat count for P50/P95 (default {DEFAULT_SAMPLES})",
     )
     parser.add_argument(
+        "--warmup",
+        type=int,
+        default=DEFAULT_WARMUP,
+        help=f"Warm-up requests excluded from samples (default {DEFAULT_WARMUP})",
+    )
+    parser.add_argument(
         "--check-baseline",
         nargs="?",
         const=str(DEFAULT_BASELINE),
         help="Fail when P95 exceeds docs/ops/performance-baseline.json",
+    )
+    parser.add_argument(
+        "--check-baseline-graded",
+        action="store_true",
+        help="Print FAIL/WARN/INFO baseline levels (probe_check_levels in baseline JSON)",
     )
     parser.add_argument(
         "--check-phase-g",
@@ -564,12 +647,13 @@ def main() -> int:
     base = args.base.rstrip("/")
     timing_q = "?timing=1"
     sample_n = max(1, args.samples)
+    warmup_n = max(0, args.warmup)
     probe_frontend = args.probe_frontend or args.check_phase_g
-    baseline_path = Path(args.check_baseline or DEFAULT_BASELINE)
+    baseline_path = Path(args.check_baseline or DEFAULT_BASELINE) if args.check_baseline else DEFAULT_BASELINE
     baseline = load_baseline(baseline_path) if baseline_path.exists() else {"thresholds_ms": {}}
     thresholds = baseline.get("thresholds_ms", {})
 
-    print(f"Target: {base} (samples={sample_n}, gzip=on)")
+    print(f"Target: {base} (samples={sample_n}, warmup={warmup_n}, gzip=on)")
     results: dict = {}
     all_outliers: list[dict] = []
 
@@ -599,6 +683,8 @@ def main() -> int:
         return run
 
     try:
+        for _ in range(warmup_n):
+            login_fetch()
         metric, outliers = probe_repeat(
             "login_role_ms", sample_n, login_fetch, thresholds.get("login_role_ms")
         )
@@ -770,16 +856,36 @@ def main() -> int:
         report_path.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
         print(f"Report written: {report_path}")
 
-    if args.check_baseline:
-        failures = check_baseline(results, baseline)
-        if failures:
-            print("FAIL baseline thresholds:")
-            for item in failures:
-                print(f"  - {item}")
-            if all_outliers:
-                print(f"NOTE: {len(all_outliers)} outlier sample(s) recorded in results.outliers")
-            return 1
-        print(f"OK within baseline ({baseline_path.name})")
+    if args.check_baseline or args.check_baseline_graded:
+        if args.check_baseline_graded:
+            fails, warns, infos = check_baseline_graded(results, baseline)
+            if infos:
+                print("INFO baseline:")
+                for item in infos:
+                    print(f"  - {item}")
+            if warns:
+                print("WARN baseline thresholds:")
+                for item in warns:
+                    print(f"  - {item}")
+            if fails:
+                print("FAIL baseline thresholds:")
+                for item in fails:
+                    print(f"  - {item}")
+                if all_outliers:
+                    print(f"NOTE: {len(all_outliers)} outlier sample(s) in results.outliers")
+                return 1
+            if not warns:
+                print(f"OK within baseline ({baseline_path.name})")
+        elif args.check_baseline:
+            failures = check_baseline(results, baseline)
+            if failures:
+                print("FAIL baseline thresholds:")
+                for item in failures:
+                    print(f"  - {item}")
+                if all_outliers:
+                    print(f"NOTE: {len(all_outliers)} outlier sample(s) recorded in results.outliers")
+                return 1
+            print(f"OK within baseline ({baseline_path.name})")
 
     if args.check_phase_g:
         pg_failures = check_phase_g(results, baseline)

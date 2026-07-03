@@ -1,7 +1,7 @@
 {
-  "version": 2,
-  "updated": "2026-07-03",
-  "notes": "Phase G 前端 performance.mark + 生产延迟阈值。探针默认 gzip（Accept-Encoding）、samples=7、报告含 network_gap_ms/bytes/outliers。phase_g_targets_ms 为稳定目标。",
+  "version": 3,
+  "updated": "2026-07-04",
+  "notes": "Phase G：RUM（真实用户）做最终判断，合成探针做回归。external gap 单独 WARN。阶段 SLO 见 phase_g_stage_targets_ms；终态见 phase_g_targets_ms。",
   "thresholds_ms": {
     "index_ttfb_ms": 5000,
     "login_role_ms": 15000,
@@ -23,6 +23,34 @@
     "extra_module_fetch_after_write_max": 1,
     "d1_error_rate_max_pct": 0.1
   },
+  "phase_g_stage_targets_ms": {
+    "stage_1_first_view_ready_ms": 8000,
+    "stage_2_first_view_ready_ms": 5000,
+    "final_first_view_ready_ms": 3000,
+    "stage_1_read_board_external_ms": 3000,
+    "final_read_board_external_ms": 2000,
+    "server_read_module_ms": 800,
+    "write_refresh_ms": 500,
+    "render_board_ms": 500,
+    "long_task_max_ms": 200
+  },
+  "probe_check_levels": {
+    "fail": [
+      "missing_metric",
+      "write_refresh_p95_exceeds_target",
+      "server_read_module_p95_exceeds_2x_target",
+      "functional_error"
+    ],
+    "warn": [
+      "external_gap_p95_exceeds_threshold_server_ok",
+      "read_events_ms",
+      "read_lodgers_records_ms",
+      "sync_delta_ms"
+    ],
+    "info": [
+      "outlier_retry_recovered"
+    ]
+  },
   "phase_g_metric_sources": {
     "login_to_ready_p95_ms": "优先 frontend_login_ready_ms / ketang:first-view-ready；否则代理 max(login, read_board)",
     "write_refresh_p95_ms": "frontend_write_refresh_ms：CDP（--probe-frontend）",
@@ -40,6 +68,8 @@
     "ketang:render-all:end",
     "ketang:render-board:start",
     "ketang:render-board:end",
+    "ketang:render-rooms:start",
+    "ketang:render-rooms:end",
     "ketang:rc:bootstrap:start",
     "ketang:rc:bootstrap:end",
     "ketang:rc:deferred:start",
