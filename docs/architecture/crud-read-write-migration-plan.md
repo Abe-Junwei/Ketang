@@ -332,4 +332,4 @@ npm run lint:ci
 
 当前瓶颈已从 D1 init 转为 **首屏浏览器关键路径**（CDP `first-view-ready` ≈13s）与 **边缘 RTT**（external gap）。完整六阶段路线（RUM → 首屏 → 数据分层 → CF 观测 → 合成监控 → 阶段 SLO）见 [phase-g-improvement-roadmap.md](./phase-g-improvement-roadmap.md)。
 
-**最小下一步（第 1 批）**：~~`js/perf-rum.js` + `POST /api/v1/metrics/perf` + 全端点 `Server-Timing`~~ **已落地（2026-07-04）**。下一批：Phase G-2 首屏关键路径（renderRooms 延后/分片、idle deferred）。
+**最小下一步（第 1 批）**：~~RUM + Server-Timing~~ **已落地**。~~Phase G-2 首屏~~ **已落地（2026-07-04）**。下一批：**Phase G-3** read module 字段投影。

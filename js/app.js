@@ -566,20 +566,49 @@ async function prefetchViewData(viewName) {
   }
 }
 
-function renderBoard() {
-  if (typeof ketangPerfMark === "function") ketangPerfMark("render-board:start");
-  renderCheckoutReminders();
-  renderOpsNotice();
-  checkBackupReminder();
-  renderStats();
-  if (typeof renderMobileBoardHero === "function") renderMobileBoardHero();
+function scheduleIdleTask(fn, timeoutMs) {
+  var ms = timeoutMs == null ? 2000 : timeoutMs;
+  if (typeof requestIdleCallback === "function") {
+    requestIdleCallback(
+      function () {
+        fn();
+      },
+      { timeout: ms },
+    );
+  } else {
+    setTimeout(fn, 16);
+  }
+}
+
+function showRoomGridLoading() {
+  var grid = document.getElementById("room-grid");
+  if (!grid) return;
+  grid.innerHTML =
+    '<p class="empty-tip">' + escapeHtml("正在加载房态…") + "</p>";
+}
+
+function renderBoardDeferredExtras() {
   renderBoardCharts();
   if (typeof renderBoardCapacityForecast === "function") {
     renderBoardCapacityForecast();
   }
   renderTodayMealsPanel();
   renderBedOptions();
-  refreshBoardSearch();
+}
+
+function renderBoard(options) {
+  options = options || {};
+  var bootstrapOnly = !!options.bootstrapOnly;
+  if (typeof ketangPerfMark === "function") ketangPerfMark("render-board:start");
+  renderCheckoutReminders();
+  renderOpsNotice();
+  checkBackupReminder();
+  renderStats();
+  if (typeof renderMobileBoardHero === "function") renderMobileBoardHero();
+  if (!bootstrapOnly) {
+    renderBoardDeferredExtras();
+    refreshBoardSearch();
+  }
   if (typeof ketangPerfMark === "function") {
     ketangPerfMark("render-board:end");
     ketangPerfMeasure("render-board", "render-board:start", "render-board:end");
@@ -863,33 +892,38 @@ async function renderAll(options) {
   }
   updateRemoteSyncBanner();
   if (loginBootstrap) {
-    renderBoard();
-    if (typeof ketangPerfMark === "function") ketangPerfMark("render-rooms:start");
-    renderRooms();
-    if (typeof ketangPerfMark === "function") {
-      ketangPerfMark("render-rooms:end");
-      ketangPerfMeasure("render-rooms", "render-rooms:start", "render-rooms:end");
-    }
+    showRoomGridLoading();
+    renderBoard({ bootstrapOnly: true });
     if (typeof ketangPerfMark === "function") {
       ketangPerfMark("first-view-ready");
       ketangPerfMeasure("first-view-ready", "login:start", "first-view-ready");
     }
-    if (typeof perfRumOnFirstViewReady === "function") perfRumOnFirstViewReady();
     if (typeof ketangPerfMark === "function") {
       ketangPerfMark("render-all:end");
       ketangPerfMeasure("render-all", "render-all:start", "render-all:end");
     }
-    syncRemoteReadModel({ deferredOnly: true, force: false })
-      .then(function () {
-        renderLodgers();
-        renderTodayMealsPanel();
-        if (typeof refreshActiveViewsAfterSync === "function") {
-          refreshActiveViewsAfterSync();
-        }
-      })
-      .catch(function () {
-        /* non-fatal deferred load */
+    scheduleIdleTask(function () {
+      if (typeof ketangPerfMark === "function") ketangPerfMark("render-rooms:start");
+      renderRooms();
+      if (typeof ketangPerfMark === "function") {
+        ketangPerfMark("render-rooms:end");
+        ketangPerfMeasure("render-rooms", "render-rooms:start", "render-rooms:end");
+      }
+      refreshBoardSearch();
+      scheduleIdleTask(function () {
+        syncRemoteReadModel({ deferredOnly: true, force: false })
+          .then(function () {
+            renderBoardDeferredExtras();
+            renderLodgers();
+            if (typeof refreshActiveViewsAfterSync === "function") {
+              refreshActiveViewsAfterSync();
+            }
+          })
+          .catch(function () {
+            /* non-fatal deferred load */
+          });
       });
+    });
     return;
   }
   renderRooms();

@@ -52,39 +52,17 @@
 
 ---
 
-## Phase G-2：首屏关键路径（2–3 天）
+## Phase G-2：首屏关键路径（2026-07-04 已落地）
 
-**目标**：`first-view-ready` 13.3s → 8s → 5s → 3s（阶段目标见 baseline `phase_g_stage_targets_ms`）。
+**目标**：`first-view-ready` 不等待 room-grid DOM 与 deferred 模块。
 
-### 当前路径（`js/app.js` → `renderAll({ loginBootstrap })`）
-
-```text
-syncRemoteReadModel({ bootstrapOnly })
-renderBoard()      ← 含 renderTodayMealsPanel 等
-renderRooms()      ← 可能阻塞首屏
-mark first-view-ready
-syncRemoteReadModel({ deferredOnly }) 后台
-```
-
-### 改造项
-
-| # | 项 | 文件 | 说明 |
-|---|-----|------|------|
-| 1 | 拆分 mark | `js/app.js` | 已有 `render-board`；补 `render-rooms:start/end` |
-| 2 | 延后 renderRooms | `js/app.js` | 首屏默认看板若不需完整 room-grid，则 first-view-ready 前不调用 |
-| 3 | DOM 分片 | `js/app.js` `renderRooms()` | 每批 50–100 床位，`requestAnimationFrame` 让出主线程 |
-| 4 | 重定义 first-view-ready | `js/auth.js` / `docs/ops/performance-baseline.json` | KPI 条 + 骨架可见即可，不等全部 room DOM |
-| 5 | idle deferred | `js/db.js` `syncRemoteReadModel({ deferredOnly })` | `requestIdleCallback` + fallback `setTimeout` |
-| 6 | longtask 观测 | `js/perf-rum.js` | CDP + RUM 记录 `long_task_max_ms` |
-
-### 验收
-
-```text
-frontend first-view-ready p95 ≤ 8000ms（阶段 1）
-render_board_ms p95 ≤ 500ms
-render_rooms 不阻塞 first-view-ready
-long_task_max_ms ≤ 200ms
-```
+| 项 | 实现 |
+|----|------|
+| 首屏定义 | KPI/提醒/统计 +「正在加载房态…」占位，不含 room-grid |
+| `renderBoard({ bootstrapOnly })` | 跳过 charts/meals/bedOptions |
+| `renderRooms` | `requestIdleCallback` 延后，不阻塞 `first-view-ready` |
+| deferred sync | 嵌套 idle，在 room-grid 之后拉后台模块 |
+| RUM 上报 | 改在 `login-ready` measure 后 250ms（含 `first_view_ready_ms`） |
 
 ---
 

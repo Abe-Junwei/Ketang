@@ -33,6 +33,8 @@ def main():
         ("render board mark", 'ketangPerfMark("render-board:start")' in app),
         ("render rooms mark", 'ketangPerfMark("render-rooms:start")' in app),
         ("first view ready", 'ketangPerfMark("first-view-ready")' in app),
+        ("bootstrap board only", "bootstrapOnly: true" in app),
+        ("idle deferred rooms", "scheduleIdleTask" in app),
         ("perf rum script", "perf-rum.js" in html),
         ("login bootstrap", "loginBootstrap" in app),
         ("write refresh mark", 'ketangPerfMark("write-refresh:start")' in rc),

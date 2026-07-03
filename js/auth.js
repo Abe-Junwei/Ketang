@@ -572,6 +572,7 @@ async function submitLogin() {
         ketangPerfMeasure("login", "login:start", "login:end");
         ketangPerfMeasure("login-ready", "login:start", "login-ready");
       }
+      if (typeof perfRumOnLoginReady === "function") perfRumOnLoginReady();
       if (errorEl) errorEl.textContent = "";
       hideLoginOverlay();
       if (typeof startBoardPolling === "function") startBoardPolling();

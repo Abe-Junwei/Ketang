@@ -218,9 +218,14 @@ function perfRumInit() {
   });
 }
 
-function perfRumOnFirstViewReady() {
+function perfRumOnLoginReady() {
   if (!perfRumShouldReport()) return;
   setTimeout(function () {
-    perfRumSend("first-view-ready");
-  }, 100);
+    perfRumSend("login-ready");
+  }, 250);
+}
+
+/** @deprecated use perfRumOnLoginReady after login-ready measure */
+function perfRumOnFirstViewReady() {
+  perfRumOnLoginReady();
 }
