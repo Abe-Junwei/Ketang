@@ -15,16 +15,25 @@ function renderMobileBoardHero() {
   if (typeof getBoardBedStats !== "function") return;
   var stats = getBoardBedStats();
   var today = todayStr();
-  var expArrive =
-    query(
-      "SELECT COUNT(*) as c FROM (SELECT id FROM reservations WHERE expected_check_in = ? AND status IN ('预约','已确认') UNION ALL SELECT id FROM lodgers WHERE check_in_date = ? AND status = '在住')",
-      [today, today],
-    )[0]?.c || 0;
-  var expDepart =
-    query(
-      "SELECT COUNT(*) as c FROM lodgers WHERE expected_check_out = ? AND status = '在住'",
-      [today],
-    )[0]?.c || 0;
+  var flow;
+  if (!isLocalForceDb() && typeof rcGetBoardFlowStats === "function") {
+    flow = rcGetBoardFlowStats(today);
+  } else {
+    flow = {
+      expArrive:
+        query(
+          "SELECT COUNT(*) as c FROM (SELECT id FROM reservations WHERE expected_check_in = ? AND status IN ('预约','已确认') UNION ALL SELECT id FROM lodgers WHERE check_in_date = ? AND status = '在住')",
+          [today, today],
+        )[0]?.c || 0,
+      expDepart:
+        query(
+          "SELECT COUNT(*) as c FROM lodgers WHERE expected_check_out = ? AND status = '在住'",
+          [today],
+        )[0]?.c || 0,
+    };
+  }
+  var expArrive = flow.expArrive;
+  var expDepart = flow.expDepart;
   el.hidden = false;
   el.innerHTML =
     '<div class="mobile-hero-grid">' +

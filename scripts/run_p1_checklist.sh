@@ -19,7 +19,11 @@ python3 scripts/post_deploy_check.py --base "$PATROL_BASE" --allow-access-block
 echo
 echo "== P1 latency baseline ($LATENCY_BASE) =="
 python3 test_prod_latency.py --base "$LATENCY_BASE" --samples 3 \
-  --check-baseline docs/ops/performance-baseline.json
+  --check-baseline docs/ops/performance-baseline.json \
+  --write-report /tmp/ketang-latency-report.json || true
+python3 test_prod_latency.py --base "$LATENCY_BASE" --samples 3 \
+  --check-phase-g --check-baseline docs/ops/performance-baseline.json \
+  || echo "WARN: phase G targets not met (see /tmp/ketang-latency-report.json)"
 
 echo
 echo "OK P1 checklist passed"

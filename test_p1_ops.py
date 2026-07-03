@@ -37,9 +37,22 @@ for key in required_metrics:
         print(f"FAIL baseline missing threshold {key}")
         sys.exit(1)
 
+phase_g = baseline.get("phase_g_targets_ms", {})
+for key in [
+    "login_to_ready_p95_ms",
+    "delta_sync_p95_ms",
+    "read_module_p95_ms",
+]:
+    if key not in phase_g:
+        print(f"FAIL baseline missing phase_g target {key}")
+        sys.exit(1)
+
 latency = (ROOT / "test_prod_latency.py").read_text(encoding="utf-8")
 if "read_model_304_ms" not in latency or "--check-baseline" not in latency:
     print("FAIL test_prod_latency.py missing 304 probe or baseline check")
+    sys.exit(1)
+if "--check-phase-g" not in latency or "check_phase_g" not in latency:
+    print("FAIL test_prod_latency.py missing phase G check")
     sys.exit(1)
 
 patrol = (ROOT / "scripts/post_deploy_check.py").read_text(encoding="utf-8")

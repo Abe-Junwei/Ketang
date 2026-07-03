@@ -111,15 +111,26 @@ function validateGuestContact(opts) {
 function validateEditLodgerContact(lodgerId, phone, idCard, emergencyOverride) {
   let emergencyName = "";
   let emergencyPhone = "";
-  const row = query("SELECT guest_id FROM lodgers WHERE id=?", [lodgerId])[0];
-  if (row?.guest_id) {
-    const guest = query(
-      "SELECT emergency_contact, emergency_phone FROM guests WHERE id=?",
-      [row.guest_id],
-    )[0];
-    if (guest) {
-      emergencyName = guest.emergency_contact || "";
-      emergencyPhone = guest.emergency_phone || "";
+  if (typeof readLodger === "function") {
+    const row = readLodger(lodgerId);
+    if (row && row.guest_id && typeof readGuest === "function") {
+      const guest = readGuest(row.guest_id);
+      if (guest) {
+        emergencyName = guest.emergency_contact || "";
+        emergencyPhone = guest.emergency_phone || "";
+      }
+    }
+  } else {
+    const row = query("SELECT guest_id FROM lodgers WHERE id=?", [lodgerId])[0];
+    if (row?.guest_id) {
+      const guest = query(
+        "SELECT emergency_contact, emergency_phone FROM guests WHERE id=?",
+        [row.guest_id],
+      )[0];
+      if (guest) {
+        emergencyName = guest.emergency_contact || "";
+        emergencyPhone = guest.emergency_phone || "";
+      }
     }
   }
   if (emergencyOverride) {
@@ -233,6 +244,21 @@ function validateFields(fieldIds) {
 
 function checkDuplicate(phone, idCard, excludeId) {
   if (!phone && !idCard) return null;
+  if (
+    typeof readUseRc === "function" &&
+    readUseRc() &&
+    typeof rcRows === "function"
+  ) {
+    const rows = rcRows("lodgers", "lodgers").filter(function (l) {
+      if (l.status !== "在住") return false;
+      if (excludeId && l.id == excludeId) return false;
+      if (phone && l.phone === phone) return true;
+      if (idCard && l.id_card === idCard) return true;
+      return false;
+    });
+    return rows.length > 0 ? rows[0] : null;
+  }
+  if (!isLocalForceDb()) return null;
   let sql = "SELECT * FROM lodgers WHERE status='在住' AND (";
   const params = [];
   const conds = [];

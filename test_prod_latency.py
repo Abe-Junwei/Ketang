@@ -89,6 +89,54 @@ def load_baseline(path: Path) -> dict:
     return data
 
 
+PHASE_G_METRIC_MAP = {
+    "delta_sync_p95_ms": "sync_delta_ms",
+    "read_module_p95_ms": "read_lodgers_records_ms",
+    "reports_history_query_p95_ms": "read_events_ms",
+}
+
+
+def phase_g_actual_ms(key: str, results: dict) -> int | None:
+    if key == "login_to_ready_p95_ms":
+        parts = []
+        for src in ("login_role_ms", "read_board_ms"):
+            metric = results.get(src)
+            if isinstance(metric, dict):
+                parts.append(metric.get("p95_ms", metric.get("max_ms", 0)))
+        return max(parts) if parts else None
+    if key == "write_refresh_p95_ms":
+        metric = results.get("frontend_write_refresh_ms")
+        if isinstance(metric, dict):
+            return metric.get("p95_ms", metric.get("max_ms"))
+        return None
+    src = PHASE_G_METRIC_MAP.get(key)
+    if not src:
+        return None
+    metric = results.get(src)
+    if not isinstance(metric, dict):
+        return None
+    return metric.get("p95_ms", metric.get("max_ms"))
+
+
+def check_phase_g(results: dict, baseline: dict) -> list[str]:
+    targets = baseline.get("phase_g_targets_ms", {})
+    failures: list[str] = []
+    for key, limit in targets.items():
+        if key == "extra_module_fetch_after_write_max":
+            continue
+        if key == "d1_error_rate_max_pct":
+            continue
+        if not str(key).endswith("_ms"):
+            continue
+        actual = phase_g_actual_ms(key, results)
+        if actual is None:
+            failures.append(f"missing phase G metric {key}")
+            continue
+        if actual > limit:
+            failures.append(f"{key} p95={actual}ms exceeds {limit}ms")
+    return failures
+
+
 def check_baseline(results: dict, baseline: dict) -> list[str]:
     thresholds = baseline.get("thresholds_ms", {})
     failures: list[str] = []
@@ -118,6 +166,11 @@ def main() -> int:
         nargs="?",
         const=str(DEFAULT_BASELINE),
         help="Fail when P95 exceeds docs/ops/performance-baseline.json",
+    )
+    parser.add_argument(
+        "--check-phase-g",
+        action="store_true",
+        help="Fail when P95 exceeds phase_g_targets_ms in baseline",
     )
     parser.add_argument(
         "--write-report",
@@ -218,6 +271,30 @@ def main() -> int:
     results["read_lodgers_records_ms"] = summarize_samples(module_samples)
     results["read_lodgers_records_timing"] = body.get("_timing")
 
+    board_mod_samples: list[int] = []
+    for _ in range(sample_n):
+        status, body, ms, _ = request_json(
+            f"{base}/api/v1/read/board{timing_q}",
+        )
+        board_mod_samples.append(ms)
+        if status != 200 or not body.get("tables"):
+            print(f"FAIL read/board status={status} body={body}")
+            return 1
+    results["read_board_ms"] = summarize_samples(board_mod_samples)
+    results["read_board_timing"] = body.get("_timing")
+
+    events_mod_samples: list[int] = []
+    for _ in range(sample_n):
+        status, body, ms, _ = request_json(
+            f"{base}/api/v1/read/events{timing_q}",
+        )
+        events_mod_samples.append(ms)
+        if status != 200 or not body.get("tables"):
+            print(f"FAIL read/events status={status} body={body}")
+            return 1
+    results["read_events_ms"] = summarize_samples(events_mod_samples)
+    results["read_events_timing"] = body.get("_timing")
+
     delta_samples: list[int] = []
     version = body.get("board_version")
     for _ in range(sample_n):
@@ -260,6 +337,17 @@ def main() -> int:
                 print(f"  - {item}")
             return 1
         print(f"OK within baseline ({baseline_path.name})")
+
+    if args.check_phase_g:
+        baseline_path = Path(args.check_baseline or DEFAULT_BASELINE)
+        baseline = load_baseline(baseline_path)
+        pg_failures = check_phase_g(results, baseline)
+        if pg_failures:
+            print("FAIL phase G targets:")
+            for item in pg_failures:
+                print(f"  - {item}")
+            return 1
+        print("OK within phase G targets")
 
     print("OK production latency probe")
     return 0

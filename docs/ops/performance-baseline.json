@@ -35,5 +35,15 @@
     "ketang:delta:start",
     "ketang:delta:end",
     "ketang:app-ready"
-  ]
+  ],
+  "observed_production": {
+    "base": "https://wulingkt.net",
+    "recorded": "2026-07-03",
+    "samples": 2,
+    "login_role_ms_p95": 19316,
+    "read_board_ms_p95": null,
+    "sync_delta_ms_p95": 16038,
+    "read_lodgers_records_ms_p95": 3931,
+    "notes": "phase_g_targets_ms 为目标值；巡检见 .github/workflows/prod-latency.yml"
+  }
 }

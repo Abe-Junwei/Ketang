@@ -32,6 +32,8 @@ def assert_no_unguarded_query(label, body, allow_local=True):
         return True, None
     if "isLocalForceDb()" in body:
         return True, None
+    if "readLodger(" in body or "readUseRc()" in body or "readGuest(" in body:
+        return True, None
     if "useRemoteAdminUsers()" in body:
         return True, None
     if allow_local and "roomingUseLocalRead()" in body:
@@ -67,6 +69,8 @@ def main():
     read_modules = read("functions/_shared/read-modules.js")
     auth = read("js/auth.js")
     resv = read("js/reservations.js")
+    validation = read("js/validation.js")
+    mobile_ui = read("js/mobile-ui.js")
 
     checks = [
         ("reports daily rc", "rcDailyReportData" in reports),
@@ -114,6 +118,12 @@ def main():
         ("auth remote users", "useRemoteAdminUsers" in auth),
         ("auth list api", "apiAdminListUsers" in auth),
         ("auth lookup remote", "findAdminUserById" in auth),
+        ("resv event guard", "eventGetById(eventId)" in resv),
+        ("validation duplicate rc", "readUseRc()" in validation and "checkDuplicate" in validation),
+        (
+            "mobile hero flow rc",
+            "rcGetBoardFlowStats" in mobile_ui and "isLocalForceDb()" in mobile_ui,
+        ),
     ]
 
     failed = [name for name, ok in checks if not ok]
@@ -241,6 +251,17 @@ def main():
         ok, name = assert_no_unguarded_query(f"reservations {fn}", body)
         if not ok:
             failed.append(name)
+
+    for fn in ["validateEditLodgerContact", "checkDuplicate"]:
+        body = fn_body(validation, fn)
+        ok, name = assert_no_unguarded_query(f"validation {fn}", body)
+        if not ok:
+            failed.append(name)
+
+    body = fn_body(mobile_ui, "renderMobileBoardHero")
+    ok, name = assert_no_unguarded_query("mobile-ui renderMobileBoardHero", body)
+    if not ok:
+        failed.append(name)
 
     if failed:
         print("FAIL online query boundaries:", ", ".join(failed))

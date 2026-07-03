@@ -322,6 +322,6 @@ npm run lint:ci
 
 1. **生产测速**：`test_prod_latency.py --check-baseline --check-phase-g`；每周 Cron 见 [.github/workflows/prod-latency.yml](../.github/workflows/prod-latency.yml)。
 2. **前端 P95**：`test_phase_g_cdp.py` 测 `login-ready` mark；CI `prod-latency` job 与 `test_perf_marks.py` 契约。
-3. **Phase D 尾巴**：`validation.js`（重复入住、编辑联系人）、`reservations.js`（营期校验）已补 rc/read-shim；本地 fallback 保留。
+3. **Phase D 尾巴**：`validation.js`（重复入住、编辑联系人）、`reservations.js`（营期校验）、`mobile-ui.js`（移动端看板 hero）已补 rc/read-shim；本地 fallback 保留。
 
 当前生产观测见 [docs/ops/performance-baseline.json](../ops/performance-baseline.json) 的 `observed_production`；`phase_g_targets_ms` 为目标值，超阈会在巡检报告 WARN。
