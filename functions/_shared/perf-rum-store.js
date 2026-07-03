@@ -77,7 +77,10 @@ function sanitizeResources(raw) {
         duration_ms: Math.min(600000, Math.max(0, Math.round(Number(item.duration_ms) || 0))),
         transfer_size: Math.max(0, Math.round(Number(item.transfer_size) || 0)),
         ttfb_ms: Math.min(600000, Math.max(0, Math.round(Number(item.ttfb_ms) || 0))),
-        download_ms: Math.min(600000, Math.max(0, Math.round(Number(item.download_ms) || 0)),
+        download_ms: Math.min(
+          600000,
+          Math.max(0, Math.round(Number(item.download_ms) || 0)),
+        ),
       };
     })
     .filter(Boolean);
