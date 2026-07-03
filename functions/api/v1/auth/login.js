@@ -5,13 +5,12 @@ import {
   authenticateByUsername,
 } from "../../../_shared/auth-login.js";
 import { buildDualAuthSuccess } from "../../../_shared/auth-response.js";
-import { buildReadModule } from "../../../_shared/read-modules.js";
+import {
+  wantsBootstrapBoardFlag,
+  buildAuthBootstrapBoardExtra,
+  sessionShapeFromDbUser,
+} from "../../../_shared/auth-bootstrap-board.js";
 import { createRequestTimer, wantTiming } from "../../../_shared/timing.js";
-
-function wantsBootstrapBoard(body) {
-  const v = body && body.bootstrap_board;
-  return v === true || v === 1 || v === "1";
-}
 
 /** POST /api/v1/auth/login — 双 token 登录 | Login with access + refresh cookie */
 export async function onRequestPost({ request, env, waitUntil }) {
@@ -26,7 +25,7 @@ export async function onRequestPost({ request, env, waitUntil }) {
     userAgent: request.headers.get("user-agent") || "",
   };
   const timer = createRequestTimer();
-  const bootstrapBoard = wantsBootstrapBoard(body);
+  const bootstrapBoard = wantsBootstrapBoardFlag(body && body.bootstrap_board);
   try {
     let user = null;
     if (body.role) {
@@ -54,16 +53,11 @@ export async function onRequestPost({ request, env, waitUntil }) {
 
     let extraBody = {};
     if (bootstrapBoard) {
-      const sessionShape = {
-        role: user.role,
-        id: user.id,
-        sub: user.id,
-        is_advanced: !!user.is_advanced,
-      };
-      const boardPayload = await timer.stage("read_board_ms", () =>
-        buildReadModule(env, sessionShape, "board", { skipInit: true }),
+      extraBody = await buildAuthBootstrapBoardExtra(
+        env,
+        sessionShapeFromDbUser(user),
+        timer,
       );
-      extraBody.read_modules = { board: boardPayload };
     }
 
     const response = await buildDualAuthSuccess(

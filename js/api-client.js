@@ -155,16 +155,21 @@ async function apiAuthLogin(body) {
   return data;
 }
 
-async function apiAuthRefreshForRestore() {
+async function apiAuthRefreshForRestore(options) {
   if (
     typeof isRemoteRefreshBlocked === "function" &&
     isRemoteRefreshBlocked()
   ) {
     throw new Error("登录已过期，请重新登录");
   }
+  var bootstrapBoard = !!(options && options.bootstrapBoard);
   const response = await fetch("/api/v1/auth/refresh", {
     method: "POST",
     credentials: "include",
+    headers: bootstrapBoard ? { "Content-Type": "application/json" } : undefined,
+    body: bootstrapBoard
+      ? JSON.stringify({ bootstrap_board: true })
+      : undefined,
   });
   const data = await parseJsonResponse(response);
   if (!response.ok) throw new Error(data.error || "登录已过期，请重新登录");
@@ -252,8 +257,9 @@ async function apiSessionMe() {
 }
 
 /** 启动恢复会话：401 时不立即清空，由 restoreRemoteSession 决定 | Boot-time session restore */
-async function apiSessionMeForRestore() {
-  return apiFetch("/api/v1/session", { preserveSessionOn401: true });
+async function apiSessionMeForRestore(options) {
+  var qs = options && options.bootstrapBoard ? "?bootstrap_board=1" : "";
+  return apiFetch("/api/v1/session" + qs, { preserveSessionOn401: true });
 }
 
 async function apiAdminListUsers() {

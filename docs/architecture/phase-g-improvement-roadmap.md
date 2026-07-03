@@ -31,7 +31,7 @@
 
 ## Phase G-2：首屏关键路径 ✅
 
-`first-view-ready` 不等待 room-grid；`renderBoard({ bootstrapOnly })` + idle deferred sync；登录 `bootstrap_board` 内嵌 board（G-6，省一轮 RTT）。
+`first-view-ready` 不等待 room-grid；`renderBoard({ bootstrapOnly })` + idle deferred sync；登录/恢复会话 `bootstrap_board` opt-in 内嵌 board（G-6）。
 
 ---
 

@@ -9,15 +9,15 @@ def read(path):
 
 
 def main():
+    shared = read("functions/_shared/auth-bootstrap-board.js")
     login = read("functions/api/v1/auth/login.js")
     auth = read("js/auth.js")
     rc = read("js/read-cache.js")
 
     checks = [
-        ("login wantsBootstrapBoard", "wantsBootstrapBoard" in login),
-        ("login buildReadModule", "buildReadModule" in login),
-        ("login read_modules", "read_modules" in login),
-        ("login read_board_ms stage", "read_board_ms" in login),
+        ("shared wantsBootstrapBoardFlag", "wantsBootstrapBoardFlag" in shared),
+        ("login uses shared", "auth-bootstrap-board" in login),
+        ("login read_board_ms stage", "read_board_ms" in login or "buildAuthBootstrapBoardExtra" in login),
         ("auth bootstrap_board", "bootstrap_board: true" in auth),
         ("auth rcApplyLoginBootstrap", "rcApplyLoginBootstrap" in auth),
         ("rc rcHasSeededBoard", "rcHasSeededBoard" in rc),

@@ -72,25 +72,43 @@ export async function buildRefreshSuccess(
   user,
   permissions,
   refreshToken,
+  request,
+  extraBody,
+  timer,
 ) {
   const access_token = await signAccessToken(env, user);
-  return jsonWithCookies(sessionBody(user, permissions), 200, [
+  const body = sessionBody(user, permissions, extraBody);
+  const cookies = [
     accessCookieHeader(access_token, ACCESS_TTL_SEC),
     refreshCookieHeader(refreshToken, REFRESH_TTL_SEC),
-  ]);
+  ];
+  if (timer && request) {
+    return timer.finishWithCookies(body, request, 200, cookies);
+  }
+  return jsonWithCookies(body, 200, cookies);
 }
 
 /** GET /session：续签 access Cookie | Session check with access cookie rotation */
-export function buildSessionUserResponse(env, sessionResult) {
+export function buildSessionUserResponse(
+  env,
+  sessionResult,
+  extraBody,
+  timer,
+  request,
+) {
   if (!sessionResult) return null;
-  const body = {
-    expires_in: ACCESS_TTL_SEC,
-    user: sessionResult.user,
-    permissions: sessionResult.permissions,
-  };
-  return jsonWithCookies(body, 200, [
+  const body = sessionBody(
+    sessionResult.user,
+    sessionResult.permissions,
+    extraBody,
+  );
+  const cookies = [
     accessCookieHeader(sessionResult.access_token, ACCESS_TTL_SEC),
-  ]);
+  ];
+  if (timer && request) {
+    return timer.finishWithCookies(body, request, 200, cookies);
+  }
+  return jsonWithCookies(body, 200, cookies);
 }
 
 export function buildLogoutResponse() {

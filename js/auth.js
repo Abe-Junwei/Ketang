@@ -220,6 +220,15 @@ function clearAuthSession() {
   syncAuthBodyClass();
 }
 
+function shouldRequestRestoreBootstrapBoard() {
+  if (typeof rcHasSeededBoard === "function") return !rcHasSeededBoard();
+  return true;
+}
+
+function applyRestoreBootstrapBoard(data) {
+  if (typeof rcApplyLoginBootstrap === "function") rcApplyLoginBootstrap(data);
+}
+
 async function restoreRemoteSession() {
   if (typeof isRemoteDB !== "function" || !isRemoteDB()) {
     return !!currentUser;
@@ -237,11 +246,12 @@ async function restoreRemoteSession() {
   if (!currentUser) showBootstrapping();
 
   try {
-    const data = await apiSessionMeForRestore();
+    var restoreBootstrap = shouldRequestRestoreBootstrapBoard();
+    const data = await apiSessionMeForRestore({
+      bootstrapBoard: restoreBootstrap,
+    });
     applySessionRefresh(data);
-    if (typeof rcKickoffBoardBootstrap === "function") {
-      rcKickoffBoardBootstrap(false);
-    }
+    applyRestoreBootstrapBoard(data);
     hideLoginOverlay();
     return true;
   } catch (e) {
@@ -259,11 +269,12 @@ async function restoreRemoteSession() {
   }
 
   try {
-    const data = await apiAuthRefreshForRestore();
+    var restoreBootstrap = shouldRequestRestoreBootstrapBoard();
+    const data = await apiAuthRefreshForRestore({
+      bootstrapBoard: restoreBootstrap,
+    });
     applySessionRefresh(data);
-    if (typeof rcKickoffBoardBootstrap === "function") {
-      rcKickoffBoardBootstrap(false);
-    }
+    applyRestoreBootstrapBoard(data);
     hideLoginOverlay();
     return true;
   } catch (e) {

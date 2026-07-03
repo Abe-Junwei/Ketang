@@ -89,9 +89,11 @@
   "observed_production": {
     "base": "https://wulingkt.net",
     "recorded": "2026-07-04",
-    "deploy": "G-6 login embeds board; CDP read_module_marks expect []",
+    "deploy": "G-6 login+session restore embed board (opt-in bootstrap_board)",
     "samples": 5,
     "probe_gzip": true,
+    "login_bootstrap_bytes_gzip": null,
+    "login_bootstrap_decoded_bytes": null,
     "read_board_ms_p95": 2171,
     "read_board_bytes_gzip": 7833,
     "read_lodgers_active_ms_p95": 2544,

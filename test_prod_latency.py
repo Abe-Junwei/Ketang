@@ -802,6 +802,40 @@ def main() -> int:
         print(f"FAIL {exc}")
         return 1
 
+    def login_bootstrap_fetch():
+        status, body, ms, hdrs, meta = request_json(
+            f"{base}/api/v1/auth/login{timing_q}",
+            method="POST",
+            body={
+                "role": args.role,
+                "password": args.password,
+                "bootstrap_board": True,
+            },
+        )
+        if status != 200 or not body.get("user"):
+            raise RuntimeError(f"login_bootstrap status={status} body={body}")
+        board = (body.get("read_modules") or {}).get("board")
+        if not board or not board.get("tables"):
+            raise RuntimeError("login_bootstrap missing read_modules.board")
+        timing = extract_timing(body, hdrs, status)
+        run = run_external_ms(ms, timing, meta)
+        if timing:
+            run["server_timing"] = timing
+        return run
+
+    try:
+        metric, outliers = probe_repeat(
+            "login_bootstrap_ms",
+            sample_n,
+            login_bootstrap_fetch,
+            thresholds.get("login_role_ms"),
+        )
+        results["login_bootstrap_ms"] = metric
+        results["login_bootstrap_timing"] = metric.get("server_timing")
+        all_outliers.extend(outliers)
+    except RuntimeError as exc:
+        print(f"WARN login_bootstrap probe: {exc}")
+
     def session_fetch():
         status, body, ms, hdrs, meta = request_json(f"{base}/api/v1/session{timing_q}")
         if status != 200:
