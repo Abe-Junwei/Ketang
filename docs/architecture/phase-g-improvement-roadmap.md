@@ -8,10 +8,10 @@
 
 | 指标 | 外部 P95 | Server P95 | 判断 |
 |------|---------:|-----------:|------|
-| `read/board` | ~3146ms | ~803ms | ✅ gzip 7831B / decoded 105KB |
+| `read/board` | ~2171ms (P50) | ~798ms | ✅ gzip 7833B / decoded 105KB |
 | `read/lodgers_active` | — | — | ✅ 替代 bulk `lodgers_records` |
-| `write-refresh` | — | — | ✅ CDP ~127ms |
-| `first-view-ready` | — | — | ⚠️ CDP ~9.3s（仍受 board fetch 主导） |
+| `write-refresh` | — | — | ✅ CDP ~137ms |
+| `first-view-ready` | — | — | ⚠️ CDP ~7.0s（board prefetch 后；仍受 RTT 主导） |
 | external gap | ~2.1s | — | ⚠️ WARN；D1 `perf_probe_samples` + 可选 AE |
 
 **结论**：G-1～G-5 已落地。后续重心：RUM 样本积累 → 边缘 colo 治理决策 → 阶段 SLO 收敛。
