@@ -772,12 +772,12 @@ bash scripts/run_p1_checklist.sh https://wulingkt.net https://<pages-preview>.ke
 
 #### 19.7.3 P1 尾巴清零批次
 
-| 批次 | 范围                                              | 工作                                                        | 完成标准                                           |
-| ---- | ------------------------------------------------- | ----------------------------------------------------------- | -------------------------------------------------- |
-| A    | `reports.js`                                      | 日报/月报/事件报表改为 read API 或 `rc*` 聚合               | 已完成，在线路径不直接调用 `query()`               |
-| B    | `forecast.js`                                     | 今日房态/预测改为 `rc*` + 内存计算                          | 已完成，预测页不触发 sql.js hydrate                |
-| C    | `history.js`、`events.js`、`rooming-*`、`auth.js` | 剩余在线读分支迁到 `rc*` / read API；`info.js` 做防回归验收 | 已完成，在线路径仅保留本地/灾备 `query()` 分支     |
-| D    | `index.html`、`db.js`、发布白名单脚本             | `sql-wasm.js` 改为本地模式/灾备路径动态加载                 | 已完成，在线 bundle 不加载 `sql-wasm.js` / wasm    |
+| 批次 | 范围                                              | 工作                                                        | 完成标准                                        |
+| ---- | ------------------------------------------------- | ----------------------------------------------------------- | ----------------------------------------------- |
+| A    | `reports.js`                                      | 日报/月报/事件报表改为 read API 或 `rc*` 聚合               | 已完成，在线路径不直接调用 `query()`            |
+| B    | `forecast.js`                                     | 今日房态/预测改为 `rc*` + 内存计算                          | 已完成，预测页不触发 sql.js hydrate             |
+| C    | `history.js`、`events.js`、`rooming-*`、`auth.js` | 剩余在线读分支迁到 `rc*` / read API；`info.js` 做防回归验收 | 已完成，在线路径仅保留本地/灾备 `query()` 分支  |
+| D    | `index.html`、`db.js`、发布白名单脚本             | `sql-wasm.js` 改为本地模式/灾备路径动态加载                 | 已完成，在线 bundle 不加载 `sql-wasm.js` / wasm |
 
 #### 19.7.4 P4 技术专项触发门槛
 
@@ -790,14 +790,14 @@ bash scripts/run_p1_checklist.sh https://wulingkt.net https://<pages-preview>.ke
 
 #### 19.7.5 下一步建议
 
-| 优先级  | 动作                                                                                             | 估算   |
-| ------- | ------------------------------------------------------------------------------------------------ | ------ |
-| P0      | Phase B 排房写路径 patches + Phase C-L1 高频操作保存中/防重复                                    | 已完成 |
-| P0 并行 | 完成 P1 尾巴 A/B/C：在线热路径零 `query()`                                                       | 已完成 |
-| P1      | `index.html` 动态加载 `sql-wasm.js`，仅本地模式/灾备路径加载                                     | 已完成 |
-| P1      | 补推送延迟、delta 次数、read P95 度量基线                                                        | 0.5 天 |
-| P2      | spike D1 读副本 + Pages WebSocket / Durable Object 可行性                                        | 0.5 天 |
-| P3      | 根据 spike 结果启动 D1 读副本或 SSE 优化                                                         | 待决策 |
+| 优先级  | 动作                                                          | 估算   |
+| ------- | ------------------------------------------------------------- | ------ |
+| P0      | Phase B 排房写路径 patches + Phase C-L1 高频操作保存中/防重复 | 已完成 |
+| P0 并行 | 完成 P1 尾巴 A/B/C：在线热路径零 `query()`                    | 已完成 |
+| P1      | `index.html` 动态加载 `sql-wasm.js`，仅本地模式/灾备路径加载  | 已完成 |
+| P1      | 补推送延迟、delta 次数、read P95 度量基线                     | 0.5 天 |
+| P2      | spike D1 读副本 + Pages WebSocket / Durable Object 可行性     | 0.5 天 |
+| P3      | 根据 spike 结果启动 D1 读副本或 SSE 优化                      | 待决策 |
 
 结论：P4 四项仍然不阻塞正式上线；P1 尾巴已清理，后续按 [CRUD 与在线读写链路迁移计划](architecture/crud-read-write-migration-plan.md) 继续做生产性能基线、双端同步 P95 和本地/灾备恢复巡检。
 

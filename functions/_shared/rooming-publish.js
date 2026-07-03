@@ -200,10 +200,14 @@ export async function publishRoomingPlan(env, session, eventId) {
     ["events", "lodging"],
     ["events", "board"],
   );
-  return enrichWriteResponse(env, { ...payload, ...writeMeta }, {
-    deletions: roomingQueueDeletions(oldQueue),
-    extraPatches: await roomingPublishPatches(env, eventId),
-  });
+  return enrichWriteResponse(
+    env,
+    { ...payload, ...writeMeta },
+    {
+      deletions: roomingQueueDeletions(oldQueue),
+      extraPatches: await roomingPublishPatches(env, eventId),
+    },
+  );
 }
 
 export async function republishRoomingPlan(env, session, eventId, body) {
@@ -290,10 +294,14 @@ export async function republishRoomingPlan(env, session, eventId, body) {
     ["events", "lodging"],
     ["events", "board"],
   );
-  return enrichWriteResponse(env, { ...payload, ...writeMeta }, {
-    deletions: roomingQueueDeletions(pendingQueue),
-    extraPatches: await roomingPublishPatches(env, eventId),
-  });
+  return enrichWriteResponse(
+    env,
+    { ...payload, ...writeMeta },
+    {
+      deletions: roomingQueueDeletions(pendingQueue),
+      extraPatches: await roomingPublishPatches(env, eventId),
+    },
+  );
 }
 
 export async function updateRoomingQueueItem(env, session, body) {
@@ -327,9 +335,13 @@ export async function updateRoomingQueueItem(env, session, body) {
   const writeMeta = await finishWrite(env, {}, ["events"], ["events"]);
   const extraPatches = await roomingQueuePatches(env, queueId);
   const updatedRow = extraPatches.rooming_checkin_queue[0] || rows[0];
-  return enrichWriteResponse(env, { ...updatedRow, ...writeMeta }, {
-    extraPatches: extraPatches,
-  });
+  return enrichWriteResponse(
+    env,
+    { ...updatedRow, ...writeMeta },
+    {
+      extraPatches: extraPatches,
+    },
+  );
 }
 
 async function roomingQueueAssignAlreadyDoneServer(env, item) {
@@ -394,7 +406,8 @@ export async function processRoomingQueueCheckin(env, session, body) {
   if (!item.member_ref_id) throw new Error("该条目缺少关联人员");
 
   let assigned = await roomingQueueAssignAlreadyDoneServer(env, item);
-  let assignedLodgerId = item.member_kind === "lodger" ? item.member_ref_id : null;
+  let assignedLodgerId =
+    item.member_kind === "lodger" ? item.member_ref_id : null;
   const deferOpts = { deferFinishWrite: true };
   if (!assigned) {
     try {

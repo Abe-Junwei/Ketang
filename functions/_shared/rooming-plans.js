@@ -404,10 +404,14 @@ export async function generateRoomingPlanAssignments(env, session, eventId) {
   );
   const bundle = await getRoomingPlanBundle(env, eventId);
   const writeMeta = await finishWrite(env, {}, ["events"], ["events"]);
-  return enrichWriteResponse(env, { ...bundle, ...writeMeta }, {
-    deletions: roomingAssignmentDeletions(oldAssignments),
-    extraPatches: await roomingWritePatches(env, eventId),
-  });
+  return enrichWriteResponse(
+    env,
+    { ...bundle, ...writeMeta },
+    {
+      deletions: roomingAssignmentDeletions(oldAssignments),
+      extraPatches: await roomingWritePatches(env, eventId),
+    },
+  );
 }
 
 export async function saveRoomingPlan(env, session, body) {
@@ -481,9 +485,13 @@ export async function saveRoomingPlan(env, session, body) {
   );
   const bundle = await getRoomingPlanBundle(env, plan.event_id);
   const writeMeta = await finishWrite(env, {}, ["events"], ["events"]);
-  return enrichWriteResponse(env, { ...bundle, ...writeMeta }, {
-    extraPatches: await roomingWritePatches(env, plan.event_id),
-  });
+  return enrichWriteResponse(
+    env,
+    { ...bundle, ...writeMeta },
+    {
+      extraPatches: await roomingWritePatches(env, plan.event_id),
+    },
+  );
 }
 
 async function enrichAssignmentsForConflict(env, assignments) {
@@ -618,9 +626,13 @@ export async function handleRoomingPlanAction(env, session, body) {
     await ensurePlanForEvent(env, session, eventId);
     const bundle = await getRoomingPlanBundle(env, eventId);
     const writeMeta = await finishWrite(env, {}, ["events"], ["events"]);
-    return enrichWriteResponse(env, { ...bundle, ...writeMeta }, {
-      extraPatches: await roomingWritePatches(env, eventId),
-    });
+    return enrichWriteResponse(
+      env,
+      { ...bundle, ...writeMeta },
+      {
+        extraPatches: await roomingWritePatches(env, eventId),
+      },
+    );
   }
 
   if (action === "generate") {

@@ -329,62 +329,68 @@ async function renderRoomingCheckinQueue(eventId) {
 
 async function handlePublishRoomingPlan(source, eventId) {
   return withActionPending(source, "保存中…", async function () {
-  if (typeof hasPermission === "function" && !hasPermission("settings.write")) {
-    alert("权限不足");
-    return;
-  }
-  if (
-    !confirm(
-      "将生成「待入住清单」供知客师逐条办理，不会自动写入床位。预计占位人员不会进入清单。继续发布？",
-    )
-  ) {
-    return;
-  }
-  try {
-    if (!isLocalForceDb()) {
-      var publishResult = await apiRoomingPlanAction("publish", {
-        event_id: eventId,
-      });
-      await roomingRefreshAfterWrite(eventId, publishResult);
-    } else {
-      await publishLocalRoomingPlan(eventId);
+    if (
+      typeof hasPermission === "function" &&
+      !hasPermission("settings.write")
+    ) {
+      alert("权限不足");
+      return;
     }
-    showToast("已发布待入住清单");
-    await renderRoomingCheckinQueue(eventId);
-  } catch (err) {
-    alert("发布失败：" + (err.message || err));
-  }
+    if (
+      !confirm(
+        "将生成「待入住清单」供知客师逐条办理，不会自动写入床位。预计占位人员不会进入清单。继续发布？",
+      )
+    ) {
+      return;
+    }
+    try {
+      if (!isLocalForceDb()) {
+        var publishResult = await apiRoomingPlanAction("publish", {
+          event_id: eventId,
+        });
+        await roomingRefreshAfterWrite(eventId, publishResult);
+      } else {
+        await publishLocalRoomingPlan(eventId);
+      }
+      showToast("已发布待入住清单");
+      await renderRoomingCheckinQueue(eventId);
+    } catch (err) {
+      alert("发布失败：" + (err.message || err));
+    }
   });
 }
 
 async function handleRepublishRoomingPlan(source, eventId) {
   return withActionPending(source, "保存中…", async function () {
-  if (typeof hasPermission === "function" && !hasPermission("settings.write")) {
-    alert("权限不足");
-    return;
-  }
-  if (
-    !confirm(
-      "重新发布会按当前草稿重建所有「待办理」条目；已办理/已跳过记录保留。继续？",
-    )
-  ) {
-    return;
-  }
-  try {
-    if (!isLocalForceDb()) {
-      var republishResult = await apiRoomingPlanAction("republish", {
-        event_id: eventId,
-        confirm_republish: true,
-      });
-      await roomingRefreshAfterWrite(eventId, republishResult);
-    } else {
-      await republishLocalRoomingPlan(eventId);
+    if (
+      typeof hasPermission === "function" &&
+      !hasPermission("settings.write")
+    ) {
+      alert("权限不足");
+      return;
     }
-    showToast("已重新发布待入住清单");
-    await renderRoomingCheckinQueue(eventId);
-  } catch (err) {
-    alert("重新发布失败：" + (err.message || err));
-  }
+    if (
+      !confirm(
+        "重新发布会按当前草稿重建所有「待办理」条目；已办理/已跳过记录保留。继续？",
+      )
+    ) {
+      return;
+    }
+    try {
+      if (!isLocalForceDb()) {
+        var republishResult = await apiRoomingPlanAction("republish", {
+          event_id: eventId,
+          confirm_republish: true,
+        });
+        await roomingRefreshAfterWrite(eventId, republishResult);
+      } else {
+        await republishLocalRoomingPlan(eventId);
+      }
+      showToast("已重新发布待入住清单");
+      await renderRoomingCheckinQueue(eventId);
+    } catch (err) {
+      alert("重新发布失败：" + (err.message || err));
+    }
   });
 }
 
@@ -396,115 +402,115 @@ async function completeRoomingQueueCheckin(queueId, eventId, item) {
 
 async function handleRoomingQueueCheckin(source, queueId, eventId) {
   return withActionPending(source, "保存中…", async function () {
-  if (
-    typeof hasPermission === "function" &&
-    !hasPermission("lodging.checkin")
-  ) {
-    alert("权限不足");
-    return;
-  }
-  var item = await findRoomingQueueItem(queueId, eventId);
-  if (!item || item.queue_status !== "待办理") return;
-  if (!item.suggested_bed_id) {
-    alert("该条目未指定建议床位，请在住宿办理中手动操作。");
-    return;
-  }
-  if (!item.member_ref_id) {
-    alert("该条目缺少关联人员，无法自动办理。");
-    return;
-  }
-  if (
-    !confirm(
-      "按预分床位为「" +
-        String(item.member_name || "") +
-        "」办理？仍将走正常入住/分床流程，请确认房态与身份无误。",
-    )
-  ) {
-    return;
-  }
-  try {
-    if (!isLocalForceDb()) {
-      var queueResult = await apiRoomingPlanAction("process_queue", {
-        event_id: eventId,
-        queue_id: queueId,
-      });
-      await roomingRefreshAfterWrite(eventId, queueResult);
-      showToast("已办理：" + item.member_name);
-      await renderRoomingCheckinQueue(eventId);
+    if (
+      typeof hasPermission === "function" &&
+      !hasPermission("lodging.checkin")
+    ) {
+      alert("权限不足");
       return;
     }
+    var item = await findRoomingQueueItem(queueId, eventId);
+    if (!item || item.queue_status !== "待办理") return;
+    if (!item.suggested_bed_id) {
+      alert("该条目未指定建议床位，请在住宿办理中手动操作。");
+      return;
+    }
+    if (!item.member_ref_id) {
+      alert("该条目缺少关联人员，无法自动办理。");
+      return;
+    }
+    if (
+      !confirm(
+        "按预分床位为「" +
+          String(item.member_name || "") +
+          "」办理？仍将走正常入住/分床流程，请确认房态与身份无误。",
+      )
+    ) {
+      return;
+    }
+    try {
+      if (!isLocalForceDb()) {
+        var queueResult = await apiRoomingPlanAction("process_queue", {
+          event_id: eventId,
+          queue_id: queueId,
+        });
+        await roomingRefreshAfterWrite(eventId, queueResult);
+        showToast("已办理：" + item.member_name);
+        await renderRoomingCheckinQueue(eventId);
+        return;
+      }
 
-    if (roomingQueueAssignAlreadyDone(item)) {
-      await completeRoomingQueueCheckin(queueId, eventId, item);
-      return;
-    }
-    var ok =
-      item.member_kind === "lodger"
-        ? await assignExistingLodgerToBed(
-            item.member_ref_id,
-            item.suggested_bed_id,
-            { quiet: true, awaitRefresh: true },
-          )
-        : await assignReservationToBed(
-            item.member_ref_id,
-            item.suggested_bed_id,
-            { quiet: true, awaitRefresh: true },
-          );
-    if (!ok) {
       if (roomingQueueAssignAlreadyDone(item)) {
         await completeRoomingQueueCheckin(queueId, eventId, item);
         return;
       }
-      alert(
-        "办理未完成：床位状态与预分不一致，请核对后手动标记「已办理」或「跳过」。",
-      );
-      return;
-    }
-    await completeRoomingQueueCheckin(queueId, eventId, item);
-  } catch (err) {
-    if (roomingQueueAssignAlreadyDone(item)) {
-      try {
-        await completeRoomingQueueCheckin(queueId, eventId, item);
-        return;
-      } catch (markErr) {
-        alert("办理失败：" + (markErr.message || markErr));
+      var ok =
+        item.member_kind === "lodger"
+          ? await assignExistingLodgerToBed(
+              item.member_ref_id,
+              item.suggested_bed_id,
+              { quiet: true, awaitRefresh: true },
+            )
+          : await assignReservationToBed(
+              item.member_ref_id,
+              item.suggested_bed_id,
+              { quiet: true, awaitRefresh: true },
+            );
+      if (!ok) {
+        if (roomingQueueAssignAlreadyDone(item)) {
+          await completeRoomingQueueCheckin(queueId, eventId, item);
+          return;
+        }
+        alert(
+          "办理未完成：床位状态与预分不一致，请核对后手动标记「已办理」或「跳过」。",
+        );
         return;
       }
+      await completeRoomingQueueCheckin(queueId, eventId, item);
+    } catch (err) {
+      if (roomingQueueAssignAlreadyDone(item)) {
+        try {
+          await completeRoomingQueueCheckin(queueId, eventId, item);
+          return;
+        } catch (markErr) {
+          alert("办理失败：" + (markErr.message || markErr));
+          return;
+        }
+      }
+      alert("办理失败：" + (err.message || err));
     }
-    alert("办理失败：" + (err.message || err));
-  }
   });
 }
 
 async function handleRoomingQueueSkip(source, queueId, eventId) {
   return withActionPending(source, "保存中…", async function () {
-  if (
-    typeof hasPermission === "function" &&
-    !hasPermission("lodging.checkin")
-  ) {
-    alert("权限不足");
-    return;
-  }
-  if (!confirm("标记为「已跳过」？表示本条暂不按预分床办理。")) return;
-  var item = await findRoomingQueueItem(queueId, eventId);
-  if (!item || item.queue_status !== "待办理") return;
-  try {
-    await markRoomingQueueItemStatus(queueId, "已跳过", eventId);
-    if (typeof logRoomingQueueSkipAdjustment === "function") {
-      try {
-        await logRoomingQueueSkipAdjustment(item, eventId);
-      } catch (logErr) {
-        console.error(logErr);
-        showToast("已跳过，但调整记录写入失败");
-        await renderRoomingCheckinQueue(eventId);
-        return;
-      }
+    if (
+      typeof hasPermission === "function" &&
+      !hasPermission("lodging.checkin")
+    ) {
+      alert("权限不足");
+      return;
     }
-    showToast("已跳过");
-    await renderRoomingCheckinQueue(eventId);
-  } catch (err) {
-    alert("操作失败：" + (err.message || err));
-  }
+    if (!confirm("标记为「已跳过」？表示本条暂不按预分床办理。")) return;
+    var item = await findRoomingQueueItem(queueId, eventId);
+    if (!item || item.queue_status !== "待办理") return;
+    try {
+      await markRoomingQueueItemStatus(queueId, "已跳过", eventId);
+      if (typeof logRoomingQueueSkipAdjustment === "function") {
+        try {
+          await logRoomingQueueSkipAdjustment(item, eventId);
+        } catch (logErr) {
+          console.error(logErr);
+          showToast("已跳过，但调整记录写入失败");
+          await renderRoomingCheckinQueue(eventId);
+          return;
+        }
+      }
+      showToast("已跳过");
+      await renderRoomingCheckinQueue(eventId);
+    } catch (err) {
+      alert("操作失败：" + (err.message || err));
+    }
   });
 }
 

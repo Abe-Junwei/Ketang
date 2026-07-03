@@ -575,7 +575,7 @@ function infoRefreshAfterWrite(writeResult, tab, syncOptions) {
 
 /** 乐观更新用临时 ID | Temp id for optimistic create rows */
 function infoTempId() {
-  return -Math.abs((Date.now() % 2147483647) || 1);
+  return -Math.abs(Date.now() % 2147483647 || 1);
 }
 
 /** 立即 patch 缓存并重绘列表 | Optimistic cache patch + instant list render */
@@ -757,75 +757,75 @@ function openRoomModal(id) {
 
 async function submitRoom(event, id) {
   return withActionPending(event, "保存中…", async function () {
-  infoClearErrors("info-room-");
-  const name = infoGetValue("info-room-name");
-  const location = infoGetValue("info-room-location");
-  const floor = infoGetInt("info-room-floor");
-  const dorm = infoGetValue("info-room-dorm");
-  const notes = infoGetValue("info-room-notes");
-  let roomTags;
-  try {
-    roomTags = readRoomTagFieldsFromForm();
-  } catch (err) {
-    alert(err.message || String(err));
-    return;
-  }
-
-  if (!name) {
-    infoShowFieldError("info-room-name", "房间名为必填");
-    return scrollToFirstError(["info-room-name"]);
-  }
-  if (!INFO_DORM_OPTIONS.includes(dorm)) {
-    infoShowFieldError("info-room-dorm", "请选择有效的寮房类型");
-    return;
-  }
-  const dup = infoRoomRows().find(function (r) {
-    return r.name === name && r.id != (id || 0);
-  });
-  if (dup) {
-    infoShowFieldError("info-room-name", "房间名已存在");
-    return;
-  }
-
-  try {
-    var payload = {
-      room_id: id,
-      name: name,
-      location: location,
-      floor: floor || 1,
-      dorm_type: dorm,
-      notes: notes,
-      ...roomTags,
-    };
-    if (infoUseApiData()) {
-      closeModal();
-      infoApplyOptimistic(
-        {
-          patches: {
-            rooms: [
-              Object.assign({}, payload, {
-                id: id || infoTempId(),
-              }),
-            ],
-          },
-          deletions: [],
-        },
-        "rooms",
-      );
+    infoClearErrors("info-room-");
+    const name = infoGetValue("info-room-name");
+    const location = infoGetValue("info-room-location");
+    const floor = infoGetInt("info-room-floor");
+    const dorm = infoGetValue("info-room-dorm");
+    const notes = infoGetValue("info-room-notes");
+    let roomTags;
+    try {
+      roomTags = readRoomTagFieldsFromForm();
+    } catch (err) {
+      alert(err.message || String(err));
+      return;
     }
-    var writeResult = await apiAdminRecord(
-      "room",
-      id ? "update" : "create",
-      payload,
-    );
-    if (!infoUseApiData()) closeModal();
-    infoToast(id ? "房间已更新" : "房间已新增");
-    infoRefreshAfterWrite(writeResult, "rooms");
-  } catch (e) {
-    console.error(e);
-    if (infoUseApiData()) await infoRevertTab("rooms");
-    infoToast("保存失败：" + e.message);
-  }
+
+    if (!name) {
+      infoShowFieldError("info-room-name", "房间名为必填");
+      return scrollToFirstError(["info-room-name"]);
+    }
+    if (!INFO_DORM_OPTIONS.includes(dorm)) {
+      infoShowFieldError("info-room-dorm", "请选择有效的寮房类型");
+      return;
+    }
+    const dup = infoRoomRows().find(function (r) {
+      return r.name === name && r.id != (id || 0);
+    });
+    if (dup) {
+      infoShowFieldError("info-room-name", "房间名已存在");
+      return;
+    }
+
+    try {
+      var payload = {
+        room_id: id,
+        name: name,
+        location: location,
+        floor: floor || 1,
+        dorm_type: dorm,
+        notes: notes,
+        ...roomTags,
+      };
+      if (infoUseApiData()) {
+        closeModal();
+        infoApplyOptimistic(
+          {
+            patches: {
+              rooms: [
+                Object.assign({}, payload, {
+                  id: id || infoTempId(),
+                }),
+              ],
+            },
+            deletions: [],
+          },
+          "rooms",
+        );
+      }
+      var writeResult = await apiAdminRecord(
+        "room",
+        id ? "update" : "create",
+        payload,
+      );
+      if (!infoUseApiData()) closeModal();
+      infoToast(id ? "房间已更新" : "房间已新增");
+      infoRefreshAfterWrite(writeResult, "rooms");
+    } catch (e) {
+      console.error(e);
+      if (infoUseApiData()) await infoRevertTab("rooms");
+      infoToast("保存失败：" + e.message);
+    }
   });
 }
 
@@ -974,85 +974,89 @@ function openBedModal(id) {
 
 async function submitBed(event, id) {
   return withActionPending(event, "保存中…", async function () {
-  infoClearErrors("info-bed-");
-  const roomId = infoGetInt("info-bed-room");
-  const number = infoGetValue("info-bed-number");
-  const status = infoGetValue("info-bed-status");
-  const notes = infoGetValue("info-bed-notes");
-  let bedTags;
-  try {
-    bedTags = readBedTagFieldsFromForm();
-  } catch (err) {
-    alert(err.message || String(err));
-    return;
-  }
-
-  if (!roomId) {
-    infoShowFieldError("info-bed-room", "请选择所属房间");
-    return;
-  }
-  if (!number) {
-    infoShowFieldError("info-bed-number", "床位号为必填");
-    return scrollToFirstError(["info-bed-number"]);
-  }
-  if (!INFO_BED_STATUS_OPTIONS.includes(status)) {
-    infoShowFieldError("info-bed-status", "请选择有效的床位状态");
-    return;
-  }
-  const dup = (infoModuleTables("settings_beds").beds || []).find(function (b) {
-    return b.room_id == roomId && b.bed_number === number && b.id != (id || 0);
-  });
-  if (dup) {
-    infoShowFieldError("info-bed-number", "该房间下已存在相同床位号");
-    return;
-  }
-  const occupantCount = id ? infoActiveLodgerCount(id) : 0;
-  if (occupantCount > 0 && (status === "维修" || status === "备用")) {
-    infoShowFieldError(
-      "info-bed-status",
-      "该床位当前有住客，不能设为维修或备用",
-    );
-    return;
-  }
-
-  try {
-    var payload = {
-      bed_id: id,
-      room_id: roomId,
-      bed_number: number,
-      status: status,
-      notes: notes,
-      ...bedTags,
-    };
-    if (infoUseApiData()) {
-      closeModal();
-      infoApplyOptimistic(
-        {
-          patches: {
-            beds: [
-              Object.assign({}, payload, {
-                id: id || infoTempId(),
-              }),
-            ],
-          },
-          deletions: [],
-        },
-        "beds",
-      );
+    infoClearErrors("info-bed-");
+    const roomId = infoGetInt("info-bed-room");
+    const number = infoGetValue("info-bed-number");
+    const status = infoGetValue("info-bed-status");
+    const notes = infoGetValue("info-bed-notes");
+    let bedTags;
+    try {
+      bedTags = readBedTagFieldsFromForm();
+    } catch (err) {
+      alert(err.message || String(err));
+      return;
     }
-    var writeResult = await apiAdminRecord(
-      "bed",
-      id ? "update" : "create",
-      payload,
+
+    if (!roomId) {
+      infoShowFieldError("info-bed-room", "请选择所属房间");
+      return;
+    }
+    if (!number) {
+      infoShowFieldError("info-bed-number", "床位号为必填");
+      return scrollToFirstError(["info-bed-number"]);
+    }
+    if (!INFO_BED_STATUS_OPTIONS.includes(status)) {
+      infoShowFieldError("info-bed-status", "请选择有效的床位状态");
+      return;
+    }
+    const dup = (infoModuleTables("settings_beds").beds || []).find(
+      function (b) {
+        return (
+          b.room_id == roomId && b.bed_number === number && b.id != (id || 0)
+        );
+      },
     );
-    if (!infoUseApiData()) closeModal();
-    infoToast(id ? "床位已更新" : "床位已新增");
-    infoRefreshAfterWrite(writeResult, "beds");
-  } catch (e) {
-    console.error(e);
-    if (infoUseApiData()) await infoRevertTab("beds");
-    infoToast("保存失败：" + e.message);
-  }
+    if (dup) {
+      infoShowFieldError("info-bed-number", "该房间下已存在相同床位号");
+      return;
+    }
+    const occupantCount = id ? infoActiveLodgerCount(id) : 0;
+    if (occupantCount > 0 && (status === "维修" || status === "备用")) {
+      infoShowFieldError(
+        "info-bed-status",
+        "该床位当前有住客，不能设为维修或备用",
+      );
+      return;
+    }
+
+    try {
+      var payload = {
+        bed_id: id,
+        room_id: roomId,
+        bed_number: number,
+        status: status,
+        notes: notes,
+        ...bedTags,
+      };
+      if (infoUseApiData()) {
+        closeModal();
+        infoApplyOptimistic(
+          {
+            patches: {
+              beds: [
+                Object.assign({}, payload, {
+                  id: id || infoTempId(),
+                }),
+              ],
+            },
+            deletions: [],
+          },
+          "beds",
+        );
+      }
+      var writeResult = await apiAdminRecord(
+        "bed",
+        id ? "update" : "create",
+        payload,
+      );
+      if (!infoUseApiData()) closeModal();
+      infoToast(id ? "床位已更新" : "床位已新增");
+      infoRefreshAfterWrite(writeResult, "beds");
+    } catch (e) {
+      console.error(e);
+      if (infoUseApiData()) await infoRevertTab("beds");
+      infoToast("保存失败：" + e.message);
+    }
   });
 }
 
@@ -1195,97 +1199,97 @@ function openGuestModal(id) {
 
 async function submitGuest(event, id) {
   return withActionPending(event, "保存中…", async function () {
-  infoClearErrors("info-guest-");
-  const person = parsePersonNameInput(infoGetValue("info-guest-name"));
-  const name = person.name;
-  const gender = infoGetValue("info-guest-gender");
-  const phone = infoGetValue("info-guest-phone");
-  const idCard = infoGetValue("info-guest-idcard");
-  const emergency = infoGetValue("info-guest-emergency");
-  const emergencyPhone = infoGetValue("info-guest-emergency-phone");
-  const notes = infoGetValue("info-guest-notes");
+    infoClearErrors("info-guest-");
+    const person = parsePersonNameInput(infoGetValue("info-guest-name"));
+    const name = person.name;
+    const gender = infoGetValue("info-guest-gender");
+    const phone = infoGetValue("info-guest-phone");
+    const idCard = infoGetValue("info-guest-idcard");
+    const emergency = infoGetValue("info-guest-emergency");
+    const emergencyPhone = infoGetValue("info-guest-emergency-phone");
+    const notes = infoGetValue("info-guest-notes");
 
-  if (!name) {
-    infoShowFieldError("info-guest-name", "姓名 / 法名为必填");
-    return scrollToFirstError(["info-guest-name"]);
-  }
-  const contact = validateGuestContact({
-    phone: phone,
-    idCard: idCard,
-    emergencyName: emergency,
-    emergencyPhone: emergencyPhone,
-  });
-  if (!contact.ok) {
-    if (contact.field === "idcard") {
-      infoShowFieldError("info-guest-idcard", contact.msg);
-    } else if (contact.field === "phone") {
-      infoShowFieldError("info-guest-phone", contact.msg);
-    } else if (contact.field === "emergency_phone") {
-      infoShowFieldError("info-guest-emergency-phone", contact.msg);
-    } else {
-      alert(contact.msg);
+    if (!name) {
+      infoShowFieldError("info-guest-name", "姓名 / 法名为必填");
+      return scrollToFirstError(["info-guest-name"]);
     }
-    return;
-  }
-  const dupPhone =
-    contact.phone &&
-    infoGuestRows().find(function (g) {
-      return g.phone === contact.phone && g.id != (id || 0);
+    const contact = validateGuestContact({
+      phone: phone,
+      idCard: idCard,
+      emergencyName: emergency,
+      emergencyPhone: emergencyPhone,
     });
-  if (dupPhone) {
-    infoShowFieldError("info-guest-phone", "该手机号已存在");
-    return;
-  }
-  const dupIdCard =
-    contact.idCard &&
-    infoGuestRows().find(function (g) {
-      return g.id_card === contact.idCard && g.id != (id || 0);
-    });
-  if (dupIdCard) {
-    infoShowFieldError("info-guest-idcard", "该身份证已存在");
-    return;
-  }
+    if (!contact.ok) {
+      if (contact.field === "idcard") {
+        infoShowFieldError("info-guest-idcard", contact.msg);
+      } else if (contact.field === "phone") {
+        infoShowFieldError("info-guest-phone", contact.msg);
+      } else if (contact.field === "emergency_phone") {
+        infoShowFieldError("info-guest-emergency-phone", contact.msg);
+      } else {
+        alert(contact.msg);
+      }
+      return;
+    }
+    const dupPhone =
+      contact.phone &&
+      infoGuestRows().find(function (g) {
+        return g.phone === contact.phone && g.id != (id || 0);
+      });
+    if (dupPhone) {
+      infoShowFieldError("info-guest-phone", "该手机号已存在");
+      return;
+    }
+    const dupIdCard =
+      contact.idCard &&
+      infoGuestRows().find(function (g) {
+        return g.id_card === contact.idCard && g.id != (id || 0);
+      });
+    if (dupIdCard) {
+      infoShowFieldError("info-guest-idcard", "该身份证已存在");
+      return;
+    }
 
-  try {
-    var payload = {
-      guest_id: id,
-      name: name,
-      gender: gender,
-      phone: contact.phone,
-      id_card: contact.idCard,
-      emergency_contact: contact.emergencyName,
-      emergency_phone: contact.emergencyPhone,
-      notes: notes,
-    };
-    if (infoUseApiData()) {
-      closeModal();
-      infoApplyOptimistic(
-        {
-          patches: {
-            guests: [
-              Object.assign({}, payload, {
-                id: id || infoTempId(),
-              }),
-            ],
+    try {
+      var payload = {
+        guest_id: id,
+        name: name,
+        gender: gender,
+        phone: contact.phone,
+        id_card: contact.idCard,
+        emergency_contact: contact.emergencyName,
+        emergency_phone: contact.emergencyPhone,
+        notes: notes,
+      };
+      if (infoUseApiData()) {
+        closeModal();
+        infoApplyOptimistic(
+          {
+            patches: {
+              guests: [
+                Object.assign({}, payload, {
+                  id: id || infoTempId(),
+                }),
+              ],
+            },
+            deletions: [],
           },
-          deletions: [],
-        },
-        "guests",
+          "guests",
+        );
+      }
+      var writeResult = await apiAdminRecord(
+        "guest",
+        id ? "update" : "create",
+        payload,
       );
+      if (!infoUseApiData()) closeModal();
+      infoToast(id ? "住客档案已更新" : "住客档案已新增");
+      infoRefreshAfterWrite(writeResult, "guests");
+    } catch (e) {
+      console.error(e);
+      if (infoUseApiData()) await infoRevertTab("guests");
+      infoToast("保存失败：" + e.message);
     }
-    var writeResult = await apiAdminRecord(
-      "guest",
-      id ? "update" : "create",
-      payload,
-    );
-    if (!infoUseApiData()) closeModal();
-    infoToast(id ? "住客档案已更新" : "住客档案已新增");
-    infoRefreshAfterWrite(writeResult, "guests");
-  } catch (e) {
-    console.error(e);
-    if (infoUseApiData()) await infoRevertTab("guests");
-    infoToast("保存失败：" + e.message);
-  }
   });
 }
 
@@ -1471,135 +1475,137 @@ function infoReloadBedOptions(roomSelectId, bedSelectId, selectedBedId) {
 
 async function submitLodger(event, id) {
   return withActionPending(event, "保存中…", async function () {
-  infoClearErrors("info-lodger-");
-  const l = infoFindLodger(id);
-  if (!l) return infoToast("挂单记录不存在");
+    infoClearErrors("info-lodger-");
+    const l = infoFindLodger(id);
+    if (!l) return infoToast("挂单记录不存在");
 
-  const person = parsePersonNameInput(infoGetValue("info-lodger-name"));
-  const name = person.name;
-  const gender = infoGetValue("info-lodger-gender");
-  const phone = infoGetValue("info-lodger-phone");
-  const idCard = infoGetValue("info-lodger-idcard");
-  const checkIn = infoGetValue("info-lodger-checkin");
-  const expectedOut = infoGetValue("info-lodger-checkout");
-  const status = infoGetValue("info-lodger-status");
-  const source = infoGetValue("info-lodger-source");
-  const roomId = infoGetValue("info-lodger-room");
-  const bedIdRaw = infoGetValue("info-lodger-bed");
-  const bedId = bedIdRaw ? parseInt(bedIdRaw, 10) : null;
-  const notes = infoGetValue("info-lodger-notes");
+    const person = parsePersonNameInput(infoGetValue("info-lodger-name"));
+    const name = person.name;
+    const gender = infoGetValue("info-lodger-gender");
+    const phone = infoGetValue("info-lodger-phone");
+    const idCard = infoGetValue("info-lodger-idcard");
+    const checkIn = infoGetValue("info-lodger-checkin");
+    const expectedOut = infoGetValue("info-lodger-checkout");
+    const status = infoGetValue("info-lodger-status");
+    const source = infoGetValue("info-lodger-source");
+    const roomId = infoGetValue("info-lodger-room");
+    const bedIdRaw = infoGetValue("info-lodger-bed");
+    const bedId = bedIdRaw ? parseInt(bedIdRaw, 10) : null;
+    const notes = infoGetValue("info-lodger-notes");
 
-  if (!name) {
-    infoShowFieldError("info-lodger-name", "姓名 / 法名为必填");
-    return scrollToFirstError(["info-lodger-name"]);
-  }
-  const contact = validateEditLodgerContact(id, phone, idCard);
-  if (!contact.ok) {
-    if (contact.field === "idcard") {
-      infoShowFieldError("info-lodger-idcard", contact.msg);
-    } else if (contact.field === "phone") {
-      infoShowFieldError("info-lodger-phone", contact.msg);
-    } else {
-      alert(contact.msg);
+    if (!name) {
+      infoShowFieldError("info-lodger-name", "姓名 / 法名为必填");
+      return scrollToFirstError(["info-lodger-name"]);
     }
-    return;
-  }
-  if (!checkIn || !expectedOut) {
-    if (!checkIn) infoShowFieldError("info-lodger-checkin", "请选择入住日期");
-    if (!expectedOut)
-      infoShowFieldError("info-lodger-checkout", "请选择预离日期");
-    return;
-  }
-  if (expectedOut < checkIn) {
-    infoShowFieldError("info-lodger-checkout", "预离日期不能早于入住日期");
-    return;
-  }
-
-  const dup = checkDuplicate(contact.phone, contact.idCard, id);
-  if (dup) {
-    const infoDup =
-      personDisplayName(dup) + (dup.phone ? " · " + dup.phone : "");
-    if (
-      !confirm(`检测到该手机号/身份证已有在住记录：${infoDup}\n是否继续保存？`)
-    )
-      return;
-  }
-
-  // 床位占用校验：新床位不能被其他在住住客占用
-  if (bedId) {
-    const other = (infoModuleTables("lodgers").lodgers || []).find(
-      function (row) {
-        return row.bed_id == bedId && row.status === "在住" && row.id != id;
-      },
-    );
-    if (other) {
-      infoShowFieldError("info-lodger-bed", "该床位已被其他在住住客占用");
+    const contact = validateEditLodgerContact(id, phone, idCard);
+    if (!contact.ok) {
+      if (contact.field === "idcard") {
+        infoShowFieldError("info-lodger-idcard", contact.msg);
+      } else if (contact.field === "phone") {
+        infoShowFieldError("info-lodger-phone", contact.msg);
+      } else {
+        alert(contact.msg);
+      }
       return;
     }
-    const bed = infoBedWithRoom(bedId);
-    if (bed && !dormMatchGender(bed.dorm_type, gender)) {
-      infoShowFieldError("info-lodger-bed", "该床位所在房间寮类型与性别不符");
+    if (!checkIn || !expectedOut) {
+      if (!checkIn) infoShowFieldError("info-lodger-checkin", "请选择入住日期");
+      if (!expectedOut)
+        infoShowFieldError("info-lodger-checkout", "请选择预离日期");
       return;
     }
-  }
-
-  let actualOut = l.actual_check_out;
-  let finalBedId = bedId;
-  if (status === "已退" && l.status === "在住") {
-    const balance = infoLodgerPaymentBalance(id);
-    if (balance > 0) {
-      infoToast(
-        "该挂单尚有余额 " +
-          balance.toFixed(2) +
-          " 元，请使用「退房」功能处理退款",
-      );
+    if (expectedOut < checkIn) {
+      infoShowFieldError("info-lodger-checkout", "预离日期不能早于入住日期");
       return;
     }
-    actualOut = todayStr();
-    finalBedId = null;
-  } else if (status === "在住" && l.status === "已退") {
-    actualOut = null;
-  }
 
-  try {
-    var payload = {
-      lodger_id: id,
-      name: name,
-      gender: gender,
-      phone: contact.phone,
-      id_card: contact.idCard,
-      check_in_date: checkIn,
-      expected_check_out: expectedOut,
-      status: status,
-      source: source,
-      bed_id: finalBedId,
-      notes: notes,
-    };
-    if (infoUseApiData()) {
-      closeModal();
-      infoApplyOptimistic(
-        {
-          patches: {
-            lodgers: [
-              Object.assign({}, l, payload, {
-                id: id,
-              }),
-            ],
-          },
-          deletions: [],
+    const dup = checkDuplicate(contact.phone, contact.idCard, id);
+    if (dup) {
+      const infoDup =
+        personDisplayName(dup) + (dup.phone ? " · " + dup.phone : "");
+      if (
+        !confirm(
+          `检测到该手机号/身份证已有在住记录：${infoDup}\n是否继续保存？`,
+        )
+      )
+        return;
+    }
+
+    // 床位占用校验：新床位不能被其他在住住客占用
+    if (bedId) {
+      const other = (infoModuleTables("lodgers").lodgers || []).find(
+        function (row) {
+          return row.bed_id == bedId && row.status === "在住" && row.id != id;
         },
-        "lodgers",
       );
+      if (other) {
+        infoShowFieldError("info-lodger-bed", "该床位已被其他在住住客占用");
+        return;
+      }
+      const bed = infoBedWithRoom(bedId);
+      if (bed && !dormMatchGender(bed.dorm_type, gender)) {
+        infoShowFieldError("info-lodger-bed", "该床位所在房间寮类型与性别不符");
+        return;
+      }
     }
-    var writeResult = await apiAdminRecord("lodger", "update", payload);
-    if (!infoUseApiData()) closeModal();
-    infoToast("挂单记录已更新");
-    infoRefreshAfterWrite(writeResult, "lodgers");
-  } catch (e) {
-    console.error(e);
-    if (infoUseApiData()) await infoRevertTab("lodgers");
-    infoToast("保存失败：" + e.message);
-  }
+
+    let actualOut = l.actual_check_out;
+    let finalBedId = bedId;
+    if (status === "已退" && l.status === "在住") {
+      const balance = infoLodgerPaymentBalance(id);
+      if (balance > 0) {
+        infoToast(
+          "该挂单尚有余额 " +
+            balance.toFixed(2) +
+            " 元，请使用「退房」功能处理退款",
+        );
+        return;
+      }
+      actualOut = todayStr();
+      finalBedId = null;
+    } else if (status === "在住" && l.status === "已退") {
+      actualOut = null;
+    }
+
+    try {
+      var payload = {
+        lodger_id: id,
+        name: name,
+        gender: gender,
+        phone: contact.phone,
+        id_card: contact.idCard,
+        check_in_date: checkIn,
+        expected_check_out: expectedOut,
+        status: status,
+        source: source,
+        bed_id: finalBedId,
+        notes: notes,
+      };
+      if (infoUseApiData()) {
+        closeModal();
+        infoApplyOptimistic(
+          {
+            patches: {
+              lodgers: [
+                Object.assign({}, l, payload, {
+                  id: id,
+                }),
+              ],
+            },
+            deletions: [],
+          },
+          "lodgers",
+        );
+      }
+      var writeResult = await apiAdminRecord("lodger", "update", payload);
+      if (!infoUseApiData()) closeModal();
+      infoToast("挂单记录已更新");
+      infoRefreshAfterWrite(writeResult, "lodgers");
+    } catch (e) {
+      console.error(e);
+      if (infoUseApiData()) await infoRevertTab("lodgers");
+      infoToast("保存失败：" + e.message);
+    }
   });
 }
 

@@ -164,8 +164,8 @@ function renderHousekeeping() {
       const hk = pendingStatus
         ? pendingStatus
         : useRc
-        ? b.hk_status || getHouseStatus(b.id)
-        : getHouseStatus(b.id);
+          ? b.hk_status || getHouseStatus(b.id)
+          : getHouseStatus(b.id);
       const occupied = !!b.lodger_id;
       const pending = !!pendingStatus;
       const card = document.createElement("article");
@@ -340,13 +340,19 @@ async function saveOperationalSettings(source) {
     try {
       var writeResult = null;
       if (isLocalForceDb()) {
-        setAppMetaValue(APP_META_HK_REQUIRE_INSPECT, requireInspect ? "1" : "0");
+        setAppMetaValue(
+          APP_META_HK_REQUIRE_INSPECT,
+          requireInspect ? "1" : "0",
+        );
         await saveDB();
       } else {
         writeResult = await apiAdminSaveOperationalSettings({
           housekeeping_require_inspect: requireInspect,
         });
-        setAppMetaValue(APP_META_HK_REQUIRE_INSPECT, requireInspect ? "1" : "0");
+        setAppMetaValue(
+          APP_META_HK_REQUIRE_INSPECT,
+          requireInspect ? "1" : "0",
+        );
       }
       showToast("运营配置已保存");
       renderOperationalSettingsPanel();
@@ -356,7 +362,9 @@ async function saveOperationalSettings(source) {
         refreshAfterWrite(writeResult);
       }
       if (
-        document.getElementById("view-housekeeping")?.classList.contains("active")
+        document
+          .getElementById("view-housekeeping")
+          ?.classList.contains("active")
       )
         renderHousekeeping();
     } catch (e) {

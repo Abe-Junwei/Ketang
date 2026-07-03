@@ -265,9 +265,9 @@ function computeDailyCapacityForecast(startDate, dayCount) {
           })
       : roomingUseLocalRead()
         ? query(
-          "SELECT gender, participant_identity, age_group, event_id FROM lodgers WHERE status='在住' AND check_in_date <= ? AND (expected_check_out IS NULL OR expected_check_out > ?)",
-          [day, day],
-        )
+            "SELECT gender, participant_identity, age_group, event_id FROM lodgers WHERE status='在住' AND check_in_date <= ? AND (expected_check_out IS NULL OR expected_check_out > ?)",
+            [day, day],
+          )
         : [];
     var reservations = roomingReadReady()
       ? rcRows("reservations", "reservations")
@@ -288,9 +288,9 @@ function computeDailyCapacityForecast(startDate, dayCount) {
           })
       : roomingUseLocalRead()
         ? query(
-          "SELECT gender, participant_identity, age_group, event_id FROM reservations WHERE status IN ('预约','已确认') AND expected_check_in <= ? AND (expected_check_out IS NULL OR expected_check_out > ?)",
-          [day, day],
-        )
+            "SELECT gender, participant_identity, age_group, event_id FROM reservations WHERE status IN ('预约','已确认') AND expected_check_in <= ? AND (expected_check_out IS NULL OR expected_check_out > ?)",
+            [day, day],
+          )
         : [];
     var registered = lodgers.concat(reservations);
     var male = registered.filter(function (p) {

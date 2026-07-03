@@ -96,7 +96,8 @@ function rcApplyWriteResult(writeResult) {
  */
 function rcRefreshAfterWrite(writeResult, options) {
   options = options || {};
-  if (typeof ketangPerfMark === "function") ketangPerfMark("write-refresh:start");
+  if (typeof ketangPerfMark === "function")
+    ketangPerfMark("write-refresh:start");
   function finishPerf() {
     if (typeof ketangPerfMark === "function") {
       ketangPerfMark("write-refresh:end");
@@ -1063,7 +1064,8 @@ function rcReportGroupPayments(rows) {
     byType[type].total += amt;
     byType[type].cnt++;
     var method = (p.method && String(p.method).trim()) || "未填写";
-    if (!byMethod[method]) byMethod[method] = { method: method, total: 0, cnt: 0 };
+    if (!byMethod[method])
+      byMethod[method] = { method: method, total: 0, cnt: 0 };
     byMethod[method].total += amt;
     byMethod[method].cnt++;
   });
@@ -1196,8 +1198,7 @@ function rcEventReportMembers(eventId) {
     rcRows("reservations", "reservations")
       .filter(function (r) {
         return (
-          r.event_id != null &&
-          (r.status === "预约" || r.status === "已确认")
+          r.event_id != null && (r.status === "预约" || r.status === "已确认")
         );
       })
       .forEach(pushResv);

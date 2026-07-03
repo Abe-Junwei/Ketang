@@ -730,24 +730,27 @@ async function renderRoomingPlan(eventId, options) {
 
 async function handleGenerateRoomingPlan(source, eventId) {
   return withActionPending(source, "保存中…", async function () {
-  if (typeof hasPermission === "function" && !hasPermission("settings.write")) {
-    alert("权限不足");
-    return;
-  }
-  if (
-    !confirm(
-      "将按当前报名与预计人数重新生成床位预分房，现有草稿条目会被覆盖。继续？",
-    )
-  ) {
-    return;
-  }
-  try {
-    await generateRoomingPlanDraft(eventId);
-    showToast("已自动生成预分房草稿");
-    await renderRoomingPlan(eventId);
-  } catch (err) {
-    alert("生成失败：" + (err.message || err));
-  }
+    if (
+      typeof hasPermission === "function" &&
+      !hasPermission("settings.write")
+    ) {
+      alert("权限不足");
+      return;
+    }
+    if (
+      !confirm(
+        "将按当前报名与预计人数重新生成床位预分房，现有草稿条目会被覆盖。继续？",
+      )
+    ) {
+      return;
+    }
+    try {
+      await generateRoomingPlanDraft(eventId);
+      showToast("已自动生成预分房草稿");
+      await renderRoomingPlan(eventId);
+    } catch (err) {
+      alert("生成失败：" + (err.message || err));
+    }
   });
 }
 
@@ -763,57 +766,60 @@ async function handleRefreshRoomingConflicts(eventId) {
 
 async function handleSaveRoomingPlan(source, eventId) {
   return withActionPending(source, "保存中…", async function () {
-  if (typeof hasPermission === "function" && !hasPermission("settings.write")) {
-    alert("权限不足");
-    return;
-  }
-  var bundle = await fetchRoomingPlanBundle(eventId);
-  if (!bundle.plan) {
-    alert("请先自动生成预分房");
-    return;
-  }
-  var state = collectRoomingPlanFormState(bundle.plan, bundle.assignments);
-  var checkAssignments = assignmentsForConflictCheck(
-    bundle.assignments,
-    state.assignments,
-  );
-  var conflictReport = await fetchRoomingConflictReport(
-    eventId,
-    bundle.plan.id,
-    checkAssignments,
-  );
-  if (state.plan.status === "已确认" && conflictReport.error_count > 0) {
-    alert(
-      "存在 " +
-        conflictReport.error_count +
-        " 项硬性冲突，请先处理后再标记为「已确认」。可点击「刷新冲突检查」查看详情。",
-    );
-    await renderRoomingPlan(eventId, { formState: state });
-    return;
-  }
-  if (
-    state.plan.status === "已确认" &&
-    conflictReport.warning_count > 0 &&
-    !confirm(
-      "仍有 " +
-        conflictReport.warning_count +
-        " 项待人工确认的问题。确定在负责人已知情的情况下标记为「已确认」？",
-    )
-  ) {
-    await renderRoomingPlan(eventId, { formState: state });
-    return;
-  }
-  try {
-    await saveRoomingPlanDraft(
-      eventId,
-      state.plan,
+    if (
+      typeof hasPermission === "function" &&
+      !hasPermission("settings.write")
+    ) {
+      alert("权限不足");
+      return;
+    }
+    var bundle = await fetchRoomingPlanBundle(eventId);
+    if (!bundle.plan) {
+      alert("请先自动生成预分房");
+      return;
+    }
+    var state = collectRoomingPlanFormState(bundle.plan, bundle.assignments);
+    var checkAssignments = assignmentsForConflictCheck(
+      bundle.assignments,
       state.assignments,
-      state.managerAck,
     );
-    showToast("预分房草稿已保存");
-    await renderRoomingPlan(eventId);
-  } catch (err) {
-    alert("保存失败：" + (err.message || err));
-  }
+    var conflictReport = await fetchRoomingConflictReport(
+      eventId,
+      bundle.plan.id,
+      checkAssignments,
+    );
+    if (state.plan.status === "已确认" && conflictReport.error_count > 0) {
+      alert(
+        "存在 " +
+          conflictReport.error_count +
+          " 项硬性冲突，请先处理后再标记为「已确认」。可点击「刷新冲突检查」查看详情。",
+      );
+      await renderRoomingPlan(eventId, { formState: state });
+      return;
+    }
+    if (
+      state.plan.status === "已确认" &&
+      conflictReport.warning_count > 0 &&
+      !confirm(
+        "仍有 " +
+          conflictReport.warning_count +
+          " 项待人工确认的问题。确定在负责人已知情的情况下标记为「已确认」？",
+      )
+    ) {
+      await renderRoomingPlan(eventId, { formState: state });
+      return;
+    }
+    try {
+      await saveRoomingPlanDraft(
+        eventId,
+        state.plan,
+        state.assignments,
+        state.managerAck,
+      );
+      showToast("预分房草稿已保存");
+      await renderRoomingPlan(eventId);
+    } catch (err) {
+      alert("保存失败：" + (err.message || err));
+    }
   });
 }

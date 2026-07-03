@@ -39,7 +39,9 @@ function eventRefreshAfterWrite(writeResult, options) {
         skipViewRefresh: false,
         viewRefresh: function () {
           if (
-            document.getElementById("view-info")?.classList.contains("active") &&
+            document
+              .getElementById("view-info")
+              ?.classList.contains("active") &&
             typeof infoCurrentTab !== "undefined" &&
             infoCurrentTab === "events" &&
             typeof infoRenderCurrentTabLists === "function"
@@ -377,7 +379,7 @@ function renderEventMembers(eventId) {
     ? pack.lodgers
     : isLocalForceDb()
       ? query(
-        `
+          `
     SELECT l.id, l.name, l.dharma_name, l.gender, l.check_in_date, l.expected_check_out, l.role, l.class_name, l.participant_identity, l.age_group, l.status, r.name as room_name, b.bed_number, 'lodger' as kind
     FROM lodgers l
     LEFT JOIN beds b ON b.id = l.bed_id
@@ -385,22 +387,22 @@ function renderEventMembers(eventId) {
     WHERE l.event_id = ? AND l.status = '在住'
     ORDER BY l.status, l.name
   `,
-        [eventId],
-      )
+          [eventId],
+        )
       : [];
 
   const reservations = pack
     ? pack.reservations
     : isLocalForceDb()
       ? query(
-        `
+          `
     SELECT r.id, r.name, r.dharma_name, r.gender, r.expected_check_in, r.expected_check_out, r.role, r.class_name, r.participant_identity, r.age_group, r.status, r.room_preference, 'reservation' as kind
     FROM reservations r
     WHERE r.event_id = ? AND r.status IN ('预约', '已确认')
     ORDER BY r.expected_check_in, r.name
   `,
-        [eventId],
-      )
+          [eventId],
+        )
       : [];
 
   const members = [...lodgers, ...reservations];
@@ -566,7 +568,9 @@ async function batchCancelEventMembers(source) {
     var rollbackOk = rollbackEventMembersOptimistic(original);
     var refreshOk = await forceRefreshEventMembers();
     if (!rollbackOk && !refreshOk) {
-      alert("批量取消失败，且无法恢复最新成员数据，请手动刷新页面：" + e.message);
+      alert(
+        "批量取消失败，且无法恢复最新成员数据，请手动刷新页面：" + e.message,
+      );
     } else {
       alert("批量取消失败：" + e.message);
     }
@@ -640,7 +644,10 @@ async function batchNoShowEventMembers(source) {
     var rollbackOk = rollbackEventMembersOptimistic(original);
     var refreshOk = await forceRefreshEventMembers();
     if (!rollbackOk && !refreshOk) {
-      alert("批量标记 No-show 失败，且无法恢复最新成员数据，请手动刷新页面：" + e.message);
+      alert(
+        "批量标记 No-show 失败，且无法恢复最新成员数据，请手动刷新页面：" +
+          e.message,
+      );
     } else {
       alert("批量标记 No-show 失败：" + e.message);
     }
@@ -1056,13 +1063,13 @@ function generateRoomingSuggestion(eventId) {
     ? roomingAvailRoomsGrouped(evt)
     : isLocalForceDb()
       ? (function () {
-        const requireInspect =
-          typeof housekeepingRequiresInspect === "function" &&
-          housekeepingRequiresInspect();
-        const hkStatuses = requireInspect ? "('可用')" : "('净房','可用')";
-        const includeSpare = !!evt.include_spare_beds;
-        const spareSql = spareRoomExcludeClause("r", includeSpare);
-        return query(`
+          const requireInspect =
+            typeof housekeepingRequiresInspect === "function" &&
+            housekeepingRequiresInspect();
+          const hkStatuses = requireInspect ? "('可用')" : "('净房','可用')";
+          const includeSpare = !!evt.include_spare_beds;
+          const spareSql = spareRoomExcludeClause("r", includeSpare);
+          return query(`
     SELECT r.id, r.name, r.location, r.dorm_type, COUNT(b.id) as avail_beds
     FROM rooms r
     JOIN beds b ON b.room_id = r.id
@@ -1074,7 +1081,7 @@ function generateRoomingSuggestion(eventId) {
     HAVING avail_beds > 0
     ORDER BY CASE r.dorm_type WHEN '男寮' THEN 1 WHEN '女寮' THEN 2 ELSE 3 END, r.location, r.name
   `);
-      })()
+        })()
       : [];
 
   // 分配算法

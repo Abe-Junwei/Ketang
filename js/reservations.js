@@ -36,11 +36,9 @@ document.getElementById("resv-form").addEventListener("submit", async (e) => {
   const person = parsePersonNameInput(name);
   const eventId = document.getElementById("resv-event").value || null;
   if (eventId) {
-    const evt = query(
-      "SELECT id FROM events WHERE id=? AND status != '已取消'",
-      [eventId],
-    )[0];
-    if (!evt) {
+    const evt =
+      typeof eventGetById === "function" ? eventGetById(eventId) : null;
+    if (!evt || evt.status === "已取消") {
       alert("所选营期不存在或已取消，请重新选择");
       return;
     }
@@ -312,7 +310,9 @@ function reservationRowsForRender(filterStatus) {
   ) {
     return rcRows("reservations", "reservations")
       .filter(function (r) {
-        return !filterStatus || filterStatus === "全部" || r.status === filterStatus;
+        return (
+          !filterStatus || filterStatus === "全部" || r.status === filterStatus
+        );
       })
       .slice()
       .sort(function (a, b) {
@@ -433,7 +433,9 @@ async function updateResvStatus(source, id, status) {
         status: status,
       });
     }
-    var rollbackOk = original ? rollbackReservationStatusOptimistic(original) : true;
+    var rollbackOk = original
+      ? rollbackReservationStatusOptimistic(original)
+      : true;
     if (!rollbackOk) await forceRefreshReservations();
     showToast(`预约已标记为「${status}」`);
     if (rollbackOk) rcRefreshAfterWrite(writeResult, { skipViewRefresh: true });
@@ -442,7 +444,9 @@ async function updateResvStatus(source, id, status) {
     var rollbackOk = rollbackReservationStatusOptimistic(original);
     var refreshOk = await forceRefreshReservations();
     if (!rollbackOk && !refreshOk) {
-      alert("更新预约状态失败，且无法恢复最新数据，请手动刷新页面：" + e.message);
+      alert(
+        "更新预约状态失败，且无法恢复最新数据，请手动刷新页面：" + e.message,
+      );
     } else {
       alert("更新预约状态失败：" + e.message);
     }

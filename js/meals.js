@@ -1175,7 +1175,10 @@ async function submitMeals(event, lodgerId) {
       var refreshOk = await forceRefreshMeals();
       refreshMealsVisibleSurfaces();
       if (!rollbackOk && !refreshOk) {
-        alert("保存用斋设置失败，且无法恢复最新用斋数据，请手动刷新页面：" + e.message);
+        alert(
+          "保存用斋设置失败，且无法恢复最新用斋数据，请手动刷新页面：" +
+            e.message,
+        );
       } else {
         alert("保存用斋设置失败：" + e.message);
       }

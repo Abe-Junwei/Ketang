@@ -129,67 +129,67 @@ function openExtendModal(id) {
 
 async function submitExtend(event, id) {
   return withActionPending(event, "保存中…", async function () {
-  const date = document.getElementById("ext-date").value;
-  if (!date) {
-    alert("请选择新的预离日期");
-    return;
-  }
-  const l = readLodger(id);
-  if (!l) return;
-  if (date < l.check_in_date) {
-    alert("预离日期不能早于入住日期");
-    return;
-  }
-  try {
-    var writeResult = null;
-    if (isLocalForceDb()) {
-      await withTransaction(async () => {
-        run(
-          "UPDATE lodgers SET expected_check_out=? WHERE id=? AND status='在住'",
-          [date, id],
-        );
-        logAudit("续住", "lodger", id, {
-          guest_id: l.guest_id,
-          name: l.name,
-          new_check_out: date,
-        });
-        // 续住后同步用斋日期范围：缩短时清理超期记录，延长/不变时补充新日期
-        const defaults = getLodgerMealDefaults(l);
-        run("DELETE FROM meals WHERE lodger_id=? AND date>?", [id, date]);
-        const existing = query(
-          "SELECT date FROM meals WHERE lodger_id=? ORDER BY date DESC LIMIT 1",
-          [id],
-        )[0];
-        const start = existing
-          ? formatLocalDate(
-              new Date(
-                new Date(existing.date + "T12:00:00").getTime() + 86400000,
-              ),
-            )
-          : l.check_in_date;
-        await generateMeals(
-          id,
-          start,
-          date,
-          defaults.breakfast,
-          defaults.lunch,
-          defaults.dinner,
-        );
-      });
-      await saveDB();
-    } else {
-      writeResult = await apiExtendStay({
-        lodger_id: id,
-        expected_check_out: date,
-      });
+    const date = document.getElementById("ext-date").value;
+    if (!date) {
+      alert("请选择新的预离日期");
+      return;
     }
-    closeModal();
-    showToast("续住成功");
-    rcRefreshAfterWrite(writeResult);
-  } catch (e) {
-    console.error(e);
-    alert("续住失败：" + e.message);
-  }
+    const l = readLodger(id);
+    if (!l) return;
+    if (date < l.check_in_date) {
+      alert("预离日期不能早于入住日期");
+      return;
+    }
+    try {
+      var writeResult = null;
+      if (isLocalForceDb()) {
+        await withTransaction(async () => {
+          run(
+            "UPDATE lodgers SET expected_check_out=? WHERE id=? AND status='在住'",
+            [date, id],
+          );
+          logAudit("续住", "lodger", id, {
+            guest_id: l.guest_id,
+            name: l.name,
+            new_check_out: date,
+          });
+          // 续住后同步用斋日期范围：缩短时清理超期记录，延长/不变时补充新日期
+          const defaults = getLodgerMealDefaults(l);
+          run("DELETE FROM meals WHERE lodger_id=? AND date>?", [id, date]);
+          const existing = query(
+            "SELECT date FROM meals WHERE lodger_id=? ORDER BY date DESC LIMIT 1",
+            [id],
+          )[0];
+          const start = existing
+            ? formatLocalDate(
+                new Date(
+                  new Date(existing.date + "T12:00:00").getTime() + 86400000,
+                ),
+              )
+            : l.check_in_date;
+          await generateMeals(
+            id,
+            start,
+            date,
+            defaults.breakfast,
+            defaults.lunch,
+            defaults.dinner,
+          );
+        });
+        await saveDB();
+      } else {
+        writeResult = await apiExtendStay({
+          lodger_id: id,
+          expected_check_out: date,
+        });
+      }
+      closeModal();
+      showToast("续住成功");
+      rcRefreshAfterWrite(writeResult);
+    } catch (e) {
+      console.error(e);
+      alert("续住失败：" + e.message);
+    }
   });
 }
 
@@ -260,83 +260,83 @@ function selectChangeBed(e, bedId) {
 
 async function submitChangeBed(event, lodgerId, gender) {
   return withActionPending(event, "保存中…", async function () {
-  const bedId = document.getElementById("chg-bed").value;
-  if (!bedId) {
-    alert("请选择新床位");
-    return;
-  }
-  const bed = readBedJoined(bedId);
-  if (!bed) return;
-  if (!dormMatchGender(bed.dorm_type, gender)) {
-    alert("该床位所在房间寮类型不符");
-    return;
-  }
-  var occ = readUseRc()
-    ? rcLodgerOnBed(bedId)
-      ? 1
-      : 0
-    : query(
-        "SELECT COUNT(*) as c FROM lodgers WHERE bed_id=? AND status='在住'",
-        [bedId],
-      )[0]?.c || 0;
-  if (occ > 0) {
-    alert("该床位已有人");
-    return;
-  }
-  if (!isBedAssignable(bedId)) {
-    alert("该床位当前不可分配（可能未清洁或处于维修状态）");
-    return;
-  }
-  try {
-    var writeResult = null;
-    if (isLocalForceDb()) {
-      const old = query(
-        "SELECT bed_id, guest_id, name, event_id FROM lodgers WHERE id=?",
-        [lodgerId],
-      )[0];
-      await withTransaction(async () => {
-        run("UPDATE lodgers SET bed_id=? WHERE id=? AND status='在住'", [
-          bedId,
-          lodgerId,
-        ]);
-        // 释放旧床位，占用新床位 | Release old bed, occupy new bed
-        if (old && old.bed_id) {
-          run("UPDATE beds SET status='可用' WHERE id=?", [old.bed_id]);
-          setHouseStatus(old.bed_id, "脏房", "换床释放旧床位");
-        }
-        run("UPDATE beds SET status='占用' WHERE id=?", [bedId]);
-        setHouseStatus(bedId, "占用", "换床占用新床位");
-        logAudit("换床", "lodger", lodgerId, {
-          guest_id: old.guest_id,
-          old_bed_id: old.bed_id,
-          new_bed_id: bedId,
-          name: old.name,
-        });
-      });
-      await saveDB();
-      if (old && typeof maybeLogRoomingChangeBed === "function") {
-        await maybeLogRoomingChangeBed(lodgerId, old.bed_id, bedId);
-      }
-    } else {
-      const old = query(
-        "SELECT bed_id, guest_id, name, event_id FROM lodgers WHERE id=?",
-        [lodgerId],
-      )[0];
-      writeResult = await apiChangeBed({
-        lodger_id: lodgerId,
-        bed_id: parseInt(bedId, 10),
-      });
-      if (old && typeof maybeLogRoomingChangeBed === "function") {
-        await maybeLogRoomingChangeBed(lodgerId, old.bed_id, bedId);
-      }
+    const bedId = document.getElementById("chg-bed").value;
+    if (!bedId) {
+      alert("请选择新床位");
+      return;
     }
-    closeModal();
-    showToast("换床成功");
-    rcRefreshAfterWrite(writeResult);
-  } catch (e) {
-    console.error(e);
-    alert("换床失败：" + e.message);
-  }
+    const bed = readBedJoined(bedId);
+    if (!bed) return;
+    if (!dormMatchGender(bed.dorm_type, gender)) {
+      alert("该床位所在房间寮类型不符");
+      return;
+    }
+    var occ = readUseRc()
+      ? rcLodgerOnBed(bedId)
+        ? 1
+        : 0
+      : query(
+          "SELECT COUNT(*) as c FROM lodgers WHERE bed_id=? AND status='在住'",
+          [bedId],
+        )[0]?.c || 0;
+    if (occ > 0) {
+      alert("该床位已有人");
+      return;
+    }
+    if (!isBedAssignable(bedId)) {
+      alert("该床位当前不可分配（可能未清洁或处于维修状态）");
+      return;
+    }
+    try {
+      var writeResult = null;
+      if (isLocalForceDb()) {
+        const old = query(
+          "SELECT bed_id, guest_id, name, event_id FROM lodgers WHERE id=?",
+          [lodgerId],
+        )[0];
+        await withTransaction(async () => {
+          run("UPDATE lodgers SET bed_id=? WHERE id=? AND status='在住'", [
+            bedId,
+            lodgerId,
+          ]);
+          // 释放旧床位，占用新床位 | Release old bed, occupy new bed
+          if (old && old.bed_id) {
+            run("UPDATE beds SET status='可用' WHERE id=?", [old.bed_id]);
+            setHouseStatus(old.bed_id, "脏房", "换床释放旧床位");
+          }
+          run("UPDATE beds SET status='占用' WHERE id=?", [bedId]);
+          setHouseStatus(bedId, "占用", "换床占用新床位");
+          logAudit("换床", "lodger", lodgerId, {
+            guest_id: old.guest_id,
+            old_bed_id: old.bed_id,
+            new_bed_id: bedId,
+            name: old.name,
+          });
+        });
+        await saveDB();
+        if (old && typeof maybeLogRoomingChangeBed === "function") {
+          await maybeLogRoomingChangeBed(lodgerId, old.bed_id, bedId);
+        }
+      } else {
+        const old = query(
+          "SELECT bed_id, guest_id, name, event_id FROM lodgers WHERE id=?",
+          [lodgerId],
+        )[0];
+        writeResult = await apiChangeBed({
+          lodger_id: lodgerId,
+          bed_id: parseInt(bedId, 10),
+        });
+        if (old && typeof maybeLogRoomingChangeBed === "function") {
+          await maybeLogRoomingChangeBed(lodgerId, old.bed_id, bedId);
+        }
+      }
+      closeModal();
+      showToast("换床成功");
+      rcRefreshAfterWrite(writeResult);
+    } catch (e) {
+      console.error(e);
+      alert("换床失败：" + e.message);
+    }
   });
 }
 
@@ -412,181 +412,185 @@ function openEditLodgerModal(id) {
 
 async function submitEditLodger(event, id) {
   return withActionPending(event, "保存中…", async function () {
-  if (
-    !validateFields([
-      "edit-name",
-      "edit-phone",
-      "edit-idcard",
-      "edit-emergency-phone",
-    ])
-  ) {
-    alert("请修正红色标记的字段后重新提交");
-    return;
-  }
-  const name = document.getElementById("edit-name").value.trim();
-  const person = parsePersonNameInput(name);
-  const phoneRaw = document.getElementById("edit-phone").value.trim();
-  const phone = phoneRaw ? phoneRaw.replace(/\s/g, "") : null;
-  const idCard = document.getElementById("edit-idcard").value.trim();
-  const emergencyName = document
-    .getElementById("edit-emergency-name")
-    .value.trim();
-  const emergencyPhoneRaw = document
-    .getElementById("edit-emergency-phone")
-    .value.trim();
-  const emergencyPhone = emergencyPhoneRaw
-    ? emergencyPhoneRaw.replace(/\s/g, "")
-    : "";
-  const contact = validateEditLodgerContact(id, phone, idCard, {
-    emergencyName: emergencyName,
-    emergencyPhone: emergencyPhone,
-  });
-  if (!contact.ok) {
-    alertGuestContactError(contact);
-    return;
-  }
-
-  const gender = document.getElementById("edit-gender").value;
-  const l = readLodger(id);
-  if (!l || !l.bed_id) {
-    alert("挂单数据不可用");
-    return;
-  }
-  const bed = readBedJoined(l.bed_id);
-  if (!dormMatchGender(bed.dorm_type, gender)) {
     if (
-      !confirm(
-        `该床位所在房间为「${bed.dorm_type}」，修改性别后可能不符合安排。是否继续？`,
+      !validateFields([
+        "edit-name",
+        "edit-phone",
+        "edit-idcard",
+        "edit-emergency-phone",
+      ])
+    ) {
+      alert("请修正红色标记的字段后重新提交");
+      return;
+    }
+    const name = document.getElementById("edit-name").value.trim();
+    const person = parsePersonNameInput(name);
+    const phoneRaw = document.getElementById("edit-phone").value.trim();
+    const phone = phoneRaw ? phoneRaw.replace(/\s/g, "") : null;
+    const idCard = document.getElementById("edit-idcard").value.trim();
+    const emergencyName = document
+      .getElementById("edit-emergency-name")
+      .value.trim();
+    const emergencyPhoneRaw = document
+      .getElementById("edit-emergency-phone")
+      .value.trim();
+    const emergencyPhone = emergencyPhoneRaw
+      ? emergencyPhoneRaw.replace(/\s/g, "")
+      : "";
+    const contact = validateEditLodgerContact(id, phone, idCard, {
+      emergencyName: emergencyName,
+      emergencyPhone: emergencyPhone,
+    });
+    if (!contact.ok) {
+      alertGuestContactError(contact);
+      return;
+    }
+
+    const gender = document.getElementById("edit-gender").value;
+    const l = readLodger(id);
+    if (!l || !l.bed_id) {
+      alert("挂单数据不可用");
+      return;
+    }
+    const bed = readBedJoined(l.bed_id);
+    if (!dormMatchGender(bed.dorm_type, gender)) {
+      if (
+        !confirm(
+          `该床位所在房间为「${bed.dorm_type}」，修改性别后可能不符合安排。是否继续？`,
+        )
       )
-    )
+        return;
+    }
+
+    const checkIn = document.getElementById("edit-in").value;
+    const checkOut = document.getElementById("edit-out").value || null;
+    if (checkOut && checkOut < checkIn) {
+      alert("预离日期不能早于入住日期");
       return;
-  }
+    }
 
-  const checkIn = document.getElementById("edit-in").value;
-  const checkOut = document.getElementById("edit-out").value || null;
-  if (checkOut && checkOut < checkIn) {
-    alert("预离日期不能早于入住日期");
-    return;
-  }
+    const dup = checkDuplicate(contact.phone, contact.idCard, id);
+    if (dup) {
+      const info =
+        personDisplayName(dup) + (dup.phone ? " · " + dup.phone : "");
+      if (
+        !confirm(`检测到该手机号/身份证已有在住记录：${info}\n是否继续保存？`)
+      )
+        return;
+    }
 
-  const dup = checkDuplicate(contact.phone, contact.idCard, id);
-  if (dup) {
-    const info = personDisplayName(dup) + (dup.phone ? " · " + dup.phone : "");
-    if (!confirm(`检测到该手机号/身份证已有在住记录：${info}\n是否继续保存？`))
+    let participantTags;
+    try {
+      participantTags = readParticipantTagsFromForm("edit");
+    } catch (err) {
+      alert(err.message || String(err));
       return;
-  }
+    }
 
-  let participantTags;
-  try {
-    participantTags = readParticipantTagsFromForm("edit");
-  } catch (err) {
-    alert(err.message || String(err));
-    return;
-  }
-
-  try {
-    var writeResult = null;
-    if (isLocalForceDb()) {
-      await withTransaction(async () => {
-        run(
-          `UPDATE lodgers SET
+    try {
+      var writeResult = null;
+      if (isLocalForceDb()) {
+        await withTransaction(async () => {
+          run(
+            `UPDATE lodgers SET
         name=?, dharma_name=?, gender=?, phone=?, id_card=?,
         check_in_date=?, expected_check_out=?, role=?, class_name=?, participant_identity=?, age_group=?, special_needs=?, event_id=?, notes=?
         WHERE id=?`,
-          [
-            person.name,
-            person.dharma_name,
-            gender || null,
-            contact.phone,
-            contact.idCard,
-            checkIn,
-            checkOut,
-            readLodgerRoleInput("edit-role"),
-            document.getElementById("edit-class").value.trim() || null,
-            ...Object.values(participantTags),
-            document.getElementById("edit-event").value || null,
-            document.getElementById("edit-notes").value.trim() || null,
-            id,
-          ],
-        );
-
-        // 同步更新关联 guests 表
-        const lodger = query("SELECT guest_id FROM lodgers WHERE id=?", [
-          id,
-        ])[0];
-        if (lodger && lodger.guest_id) {
-          run(
-            `UPDATE guests SET
-          name=?, dharma_name=?, gender=?, phone=?, id_card=?, emergency_contact=?, emergency_phone=?, updated_at=?
-          WHERE id=?`,
             [
               person.name,
               person.dharma_name,
               gender || null,
               contact.phone,
               contact.idCard,
-              contact.emergencyName || null,
-              contact.emergencyPhone || null,
-              new Date().toISOString(),
-              lodger.guest_id,
+              checkIn,
+              checkOut,
+              readLodgerRoleInput("edit-role"),
+              document.getElementById("edit-class").value.trim() || null,
+              ...Object.values(participantTags),
+              document.getElementById("edit-event").value || null,
+              document.getElementById("edit-notes").value.trim() || null,
+              id,
             ],
           );
-        }
 
-        logAudit("编辑挂单", "lodger", id, {
-          guest_id: lodger && lodger.guest_id,
+          // 同步更新关联 guests 表
+          const lodger = query("SELECT guest_id FROM lodgers WHERE id=?", [
+            id,
+          ])[0];
+          if (lodger && lodger.guest_id) {
+            run(
+              `UPDATE guests SET
+          name=?, dharma_name=?, gender=?, phone=?, id_card=?, emergency_contact=?, emergency_phone=?, updated_at=?
+          WHERE id=?`,
+              [
+                person.name,
+                person.dharma_name,
+                gender || null,
+                contact.phone,
+                contact.idCard,
+                contact.emergencyName || null,
+                contact.emergencyPhone || null,
+                new Date().toISOString(),
+                lodger.guest_id,
+              ],
+            );
+          }
+
+          logAudit("编辑挂单", "lodger", id, {
+            guest_id: lodger && lodger.guest_id,
+            name: name,
+          });
+
+          // 重新生成用斋记录（保留已有跳过设置；缺失日期按默认用斋）
+          const existing = {};
+          query("SELECT * FROM meals WHERE lodger_id=?", [id]).forEach((m) => {
+            existing[m.date] = m;
+          });
+          run("DELETE FROM meals WHERE lodger_id=?", [id]);
+          const defaults = getLodgerMealDefaults(id);
+          const dates = getLodgerStayDates({
+            check_in_date: checkIn,
+            expected_check_out: checkOut,
+          });
+          dates.forEach((d) => {
+            const m = existing[d] || {
+              breakfast: defaults.breakfast,
+              lunch: defaults.lunch,
+              dinner: defaults.dinner,
+            };
+            run(
+              `INSERT INTO meals (lodger_id, date, breakfast, lunch, dinner) VALUES (?, ?, ?, ?, ?)`,
+              [id, d, m.breakfast ? 1 : 0, m.lunch ? 1 : 0, m.dinner ? 1 : 0],
+            );
+          });
+        });
+        await saveDB();
+      } else {
+        writeResult = await apiEditLodger({
+          lodger_id: id,
           name: name,
-        });
-
-        // 重新生成用斋记录（保留已有跳过设置；缺失日期按默认用斋）
-        const existing = {};
-        query("SELECT * FROM meals WHERE lodger_id=?", [id]).forEach((m) => {
-          existing[m.date] = m;
-        });
-        run("DELETE FROM meals WHERE lodger_id=?", [id]);
-        const defaults = getLodgerMealDefaults(id);
-        const dates = getLodgerStayDates({
+          gender: gender || null,
+          phone: contact.phone,
+          id_card: contact.idCard,
+          emergency_name: contact.emergencyName || null,
+          emergency_phone: contact.emergencyPhone || null,
           check_in_date: checkIn,
           expected_check_out: checkOut,
+          role: readLodgerRoleInput("edit-role"),
+          class_name:
+            document.getElementById("edit-class").value.trim() || null,
+          ...participantTags,
+          event_id: document.getElementById("edit-event").value || null,
+          notes: document.getElementById("edit-notes").value.trim() || null,
         });
-        dates.forEach((d) => {
-          const m = existing[d] || {
-            breakfast: defaults.breakfast,
-            lunch: defaults.lunch,
-            dinner: defaults.dinner,
-          };
-          run(
-            `INSERT INTO meals (lodger_id, date, breakfast, lunch, dinner) VALUES (?, ?, ?, ?, ?)`,
-            [id, d, m.breakfast ? 1 : 0, m.lunch ? 1 : 0, m.dinner ? 1 : 0],
-          );
-        });
-      });
-      await saveDB();
-    } else {
-      writeResult = await apiEditLodger({
-        lodger_id: id,
-        name: name,
-        gender: gender || null,
-        phone: contact.phone,
-        id_card: contact.idCard,
-        emergency_name: contact.emergencyName || null,
-        emergency_phone: contact.emergencyPhone || null,
-        check_in_date: checkIn,
-        expected_check_out: checkOut,
-        role: readLodgerRoleInput("edit-role"),
-        class_name: document.getElementById("edit-class").value.trim() || null,
-        ...participantTags,
-        event_id: document.getElementById("edit-event").value || null,
-        notes: document.getElementById("edit-notes").value.trim() || null,
-      });
+      }
+      closeModal();
+      showToast("修改成功");
+      rcRefreshAfterWrite(writeResult);
+    } catch (e) {
+      console.error(e);
+      alert("保存修改失败：" + e.message);
     }
-    closeModal();
-    showToast("修改成功");
-    rcRefreshAfterWrite(writeResult);
-  } catch (e) {
-    console.error(e);
-    alert("保存修改失败：" + e.message);
-  }
   });
 }
 
@@ -676,75 +680,75 @@ function openCheckoutModal(id) {
 
 async function submitCheckout(event, id) {
   return withActionPending(event, "保存中…", async function () {
-  const refund = parseFloat(document.getElementById("co-refund").value) || 0;
-  const method = document.getElementById("co-refund-method").value;
-  const notes = document.getElementById("co-notes").value.trim() || null;
-  if (refund < 0) {
-    alert("退款金额不能为负数");
-    return;
-  }
-  const paid = readPaymentSummary(id);
-  const balance = paid.balance;
-  if (refund > balance) {
-    alert(`退款金额不能超过余额 ${balance.toFixed(2)}`);
-    return;
-  }
-  const l = readLodger(id);
-  if (!l) return;
-  const today = new Date().toISOString().slice(0, 10);
-  try {
-    var writeResult = null;
-    if (isLocalForceDb()) {
-      await withTransaction(async () => {
-        run(
-          "UPDATE lodgers SET status='已退', actual_check_out=?, bed_id=NULL WHERE id=?",
-          [today, id],
-        );
-        if (l && l.bed_id) {
-          run("UPDATE beds SET status='可用' WHERE id=?", [l.bed_id]);
-          setHouseStatus(l.bed_id, "脏房", notes || "办理退房");
-        }
-        if (refund > 0) {
-          run(
-            "INSERT INTO payments (lodger_id, type, amount, method, remark) VALUES (?, '退款', ?, ?, ?)",
-            [id, refund, method, notes],
-          );
-          logAudit("退款", "lodger", id, {
-            guest_id: l.guest_id,
-            name: l.name,
-            refund: refund,
-            method: method,
-          });
-        } else {
-          // 零退款也写入一条占位流水，确保每笔退房都有支付记录可追踪
-          run(
-            "INSERT INTO payments (lodger_id, type, amount, method, remark) VALUES (?, '退款', 0, ?, ?)",
-            [id, method, "退房结算（无退款）"],
-          );
-        }
-        logAudit("退房", "lodger", id, {
-          guest_id: l.guest_id,
-          bed_id: l.bed_id,
-          refund: refund,
-          name: l.name,
-        });
-      });
-      await saveDB();
-    } else {
-      writeResult = await apiCheckout({
-        lodger_id: id,
-        refund: refund,
-        refund_method: method,
-        notes: notes,
-      });
+    const refund = parseFloat(document.getElementById("co-refund").value) || 0;
+    const method = document.getElementById("co-refund-method").value;
+    const notes = document.getElementById("co-notes").value.trim() || null;
+    if (refund < 0) {
+      alert("退款金额不能为负数");
+      return;
     }
-    closeModal();
-    showToast("退房成功");
-    rcRefreshAfterWrite(writeResult);
-  } catch (e) {
-    console.error(e);
-    alert("退房失败：" + e.message);
-  }
+    const paid = readPaymentSummary(id);
+    const balance = paid.balance;
+    if (refund > balance) {
+      alert(`退款金额不能超过余额 ${balance.toFixed(2)}`);
+      return;
+    }
+    const l = readLodger(id);
+    if (!l) return;
+    const today = new Date().toISOString().slice(0, 10);
+    try {
+      var writeResult = null;
+      if (isLocalForceDb()) {
+        await withTransaction(async () => {
+          run(
+            "UPDATE lodgers SET status='已退', actual_check_out=?, bed_id=NULL WHERE id=?",
+            [today, id],
+          );
+          if (l && l.bed_id) {
+            run("UPDATE beds SET status='可用' WHERE id=?", [l.bed_id]);
+            setHouseStatus(l.bed_id, "脏房", notes || "办理退房");
+          }
+          if (refund > 0) {
+            run(
+              "INSERT INTO payments (lodger_id, type, amount, method, remark) VALUES (?, '退款', ?, ?, ?)",
+              [id, refund, method, notes],
+            );
+            logAudit("退款", "lodger", id, {
+              guest_id: l.guest_id,
+              name: l.name,
+              refund: refund,
+              method: method,
+            });
+          } else {
+            // 零退款也写入一条占位流水，确保每笔退房都有支付记录可追踪
+            run(
+              "INSERT INTO payments (lodger_id, type, amount, method, remark) VALUES (?, '退款', 0, ?, ?)",
+              [id, method, "退房结算（无退款）"],
+            );
+          }
+          logAudit("退房", "lodger", id, {
+            guest_id: l.guest_id,
+            bed_id: l.bed_id,
+            refund: refund,
+            name: l.name,
+          });
+        });
+        await saveDB();
+      } else {
+        writeResult = await apiCheckout({
+          lodger_id: id,
+          refund: refund,
+          refund_method: method,
+          notes: notes,
+        });
+      }
+      closeModal();
+      showToast("退房成功");
+      rcRefreshAfterWrite(writeResult);
+    } catch (e) {
+      console.error(e);
+      alert("退房失败：" + e.message);
+    }
   });
 }
 

@@ -128,9 +128,7 @@ export async function buildEventDetailModule(env, session, eventId, options) {
     queryD1(env, "SELECT * FROM rooming_checkin_queue WHERE event_id = ?", [
       id,
     ]),
-    queryD1(env, "SELECT * FROM rooming_adjustments WHERE event_id = ?", [
-      id,
-    ]),
+    queryD1(env, "SELECT * FROM rooming_adjustments WHERE event_id = ?", [id]),
   ]);
   tables.rooming_plans = plans.map((row) =>
     sanitizeRowForRole("rooming_plans", row, session.role),

@@ -41,14 +41,14 @@ flowchart LR
 
 ## 3. 当前差距
 
-| 区域       | 当前状态                                             | 差距                                                       |
-| ---------- | ---------------------------------------------------- | ---------------------------------------------------------- |
-| 核心写 API | 核心业务、排房、运营设置已接 `finishWrite` / `enrichWriteResponse` | 公开预约与生产域契约仍需持续巡检                          |
-| 乐观 UI    | 信息管理、高频写按钮、部分小范围操作已有保存中/乐观反馈 | 入住/退房/换床仍保持低风险 L1，不做完整乐观                |
-| 读路径     | D1–D6 在线热路径已迁到 `rc*` / read API，并有边界守卫 | 非热路径本地 fallback 仍保留；继续做语义 parity 抽样        |
-| 排房       | 读走 event detail / `rooming-read.js`，写返回行级 patches | 冲突检查仍为服务端计算 action，后续可独立改成 read endpoint |
-| 同步       | `board_version`、delta、SSE、写后 patch 主体可用       | 还缺按模块的延迟指标、失败重试可观测性                     |
-| sql.js     | 在线不加载 wasm；本地/灾备动态加载                    | 本地 migration / 灾备恢复仍需保留并定期验证                |
+| 区域       | 当前状态                                                           | 差距                                                        |
+| ---------- | ------------------------------------------------------------------ | ----------------------------------------------------------- |
+| 核心写 API | 核心业务、排房、运营设置已接 `finishWrite` / `enrichWriteResponse` | 公开预约与生产域契约仍需持续巡检                            |
+| 乐观 UI    | 信息管理、高频写按钮、部分小范围操作已有保存中/乐观反馈            | 入住/退房/换床仍保持低风险 L1，不做完整乐观                 |
+| 读路径     | D1–D6 在线热路径已迁到 `rc*` / read API，并有边界守卫              | 非热路径本地 fallback 仍保留；继续做语义 parity 抽样        |
+| 排房       | 读走 event detail / `rooming-read.js`，写返回行级 patches          | 冲突检查仍为服务端计算 action，后续可独立改成 read endpoint |
+| 同步       | `board_version`、delta、SSE、写后 patch 主体可用                   | 还缺按模块的延迟指标、失败重试可观测性                      |
+| sql.js     | 在线不加载 wasm；本地/灾备动态加载                                 | 本地 migration / 灾备恢复仍需保留并定期验证                 |
 
 ## 4. 分阶段计划
 
@@ -318,10 +318,10 @@ npm run lint:ci
 | 第 4 周 | D6 + Phase E                        | 权限读路径迁移；公开预约闭环测试                |
 | 第 5 周 | Phase F + Phase G                   | 在线不加载 sql.js；性能基线与总验收             |
 
-## 9. 当前下一步
+## 9. 后续运维（2026-07-03 已落地）
 
-**Phase A–G 主体已完成**（2026-07-03）。后续可选：
+1. **生产测速**：`test_prod_latency.py --check-baseline --check-phase-g`；每周 Cron 见 [.github/workflows/prod-latency.yml](../.github/workflows/prod-latency.yml)。
+2. **前端 P95**：`test_phase_g_cdp.py` 测 `login-ready` mark；CI `prod-latency` job 与 `test_perf_marks.py` 契约。
+3. **Phase D 尾巴**：`validation.js`（重复入住、编辑联系人）、`reservations.js`（营期校验）已补 rc/read-shim；本地 fallback 保留。
 
-1. 生产域跑 `test_prod_latency.py` 对照 `docs/ops/performance-baseline.json` 的 `phase_g_targets_ms`。
-2. 双端同步 / 写后可见 P95 纳入 CI 或 Cron 巡检。
-3. 继续清 Phase D 非热路径 `query()` 尾巴（本地 fallback 保留）。
+当前生产观测见 [docs/ops/performance-baseline.json](../ops/performance-baseline.json) 的 `observed_production`；`phase_g_targets_ms` 为目标值，超阈会在巡检报告 WARN。
