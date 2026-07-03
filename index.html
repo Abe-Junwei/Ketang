@@ -2,6 +2,11 @@
 <html lang="zh-CN">
   <head>
     <meta charset="UTF-8" />
+    <script>
+      if (/[?&]force_local_db=1(?:&|$)/.test(location.search)) {
+        window.KETANG_FORCE_LOCAL_DB = true;
+      }
+    </script>
     <meta
       name="viewport"
       content="width=device-width, initial-scale=1.0, viewport-fit=cover"

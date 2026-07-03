@@ -1,49 +1,15 @@
 #!/usr/bin/env python3
-"""CDP test: import a V3 DB and verify migration chain through V20."""
+"""CDP test: import a V3 DB and verify migration chain through V21."""
 import subprocess
 import sys
 import time
 import json
 import websocket
-from test_cdp import start_server, wait_for_cdp, evaluate, collect_errors, recv_by_id, curl_get
+from test_cdp import start_server, wait_for_cdp, cdp_ws_url, evaluate, collect_errors, recv_by_id
 from test_file_protocol import chrome_binary
 
 PORT = 8125
 CDP_PORT = 9224
-
-
-def cdp_ws_any_page():
-    data = json.loads(curl_get(f"http://127.0.0.1:{CDP_PORT}/json", timeout=2))
-    for p in data:
-        if p.get("type") == "page" and "webSocketDebuggerUrl" in p:
-            return p["webSocketDebuggerUrl"]
-    return None
-
-
-def cdp_navigate_force_local(ws, port):
-    """Inject KETANG_FORCE_LOCAL_DB before first navigation (online-only default)."""
-    ws.send(json.dumps({"id": 100, "method": "Page.enable"}))
-    ws.recv()
-    ws.send(
-        json.dumps(
-            {
-                "id": 101,
-                "method": "Page.addScriptToEvaluateOnNewDocument",
-                "params": {"source": "window.KETANG_FORCE_LOCAL_DB = true;"},
-            }
-        )
-    )
-    ws.recv()
-    ws.send(
-        json.dumps(
-            {
-                "id": 102,
-                "method": "Page.navigate",
-                "params": {"url": f"http://127.0.0.1:{port}/index.html"},
-            }
-        )
-    )
-    ws.recv()
 
 
 def main():
@@ -52,19 +18,20 @@ def main():
     if not chrome:
         print("SKIP: Chrome not found")
         sys.exit(0)
+    entry_url = f"http://127.0.0.1:{PORT}/index.html?force_local_db=1"
     proc = subprocess.Popen([
         chrome,
         f"--remote-debugging-port={CDP_PORT}",
         "--remote-allow-origins=*",
         "--headless=new", "--disable-gpu", "--no-sandbox", "--disable-dev-shm-usage",
-        "about:blank"
+        entry_url,
     ], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
 
     try:
         if not wait_for_cdp():
             print("FAIL: CDP not ready")
             sys.exit(1)
-        ws_url = cdp_ws_any_page()
+        ws_url = cdp_ws_url()
         if not ws_url:
             print("FAIL: no CDP page")
             sys.exit(1)
@@ -72,9 +39,8 @@ def main():
         ws = websocket.create_connection(ws_url, timeout=10)
         ws.send(json.dumps({'id': 2, 'method': 'Runtime.enable'}))
         ws.recv()
-        cdp_navigate_force_local(ws, PORT)
 
-        for _ in range(30):
+        for _ in range(60):
             res = evaluate(ws, 'window.ketangReady')
             if res.get('value') is True:
                 break
@@ -83,10 +49,17 @@ def main():
             print("FAIL: app did not initialize")
             sys.exit(1)
 
+        remote = evaluate(ws, 'isRemoteDB()').get('value')
+        if remote is not False:
+            print('FAIL: expected local DB mode for migration test, isRemoteDB=', remote)
+            sys.exit(1)
+
         # Fetch V3 DB and import via JS (same migration chain as importDB)
         import_expr = """
             (async () => {
+                try {
                 const r = await fetch('test_v3.db');
+                if (!r.ok) return { err: 'fetch test_v3.db failed: ' + r.status };
                 const buf = await r.arrayBuffer();
                 const arr = new Uint8Array(buf);
                 db = new SQL.Database(arr);
@@ -147,6 +120,9 @@ def main():
                     eventsExists, usersExists, users,
                     eventCount, guests, lodgers, hk
                 };
+                } catch (e) {
+                    return { err: e && e.message ? e.message : String(e) };
+                }
             })()
         """
         ws.send(json.dumps({'id': 3, 'method': 'Runtime.evaluate', 'params': {'expression': import_expr, 'awaitPromise': True, 'returnByValue': True}}))
@@ -155,6 +131,9 @@ def main():
         if result.get('type') == 'object' and 'value' in result:
             values = result['value']
             print('Migration result:', values)
+            if values.get('err'):
+                print('FAIL: migration error:', values.get('err'))
+                sys.exit(1)
             if values.get('version') != 21:
                 print("FAIL: schema version not migrated to 21")
                 sys.exit(1)
