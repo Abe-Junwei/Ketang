@@ -26,6 +26,8 @@ def main() -> int:
          'RC_DEFERRED_MODULES = [\n  "lodgers",\n  "lodgers_lookup"' in rc.replace("\r\n", "\n")),
         ("rcFetchHistoryRows", "rcFetchHistoryRows" in rc),
         ("history server fetch", "rcFetchHistoryRows" in hist),
+        ("lodgers_active in rcLodgerById", 'rcRows("lodgers_active", "lodgers")' in rc),
+        ("lodgers_recent on-demand only", "lodgers_recent 仅 API" in rc),
         ("lodging domain split", 'lodging: ["lodgers_active", "lodgers_lookup"]' in sync),
     ]
     failed = [name for name, ok in checks if not ok]

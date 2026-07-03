@@ -22,7 +22,7 @@ function aeDataPoint(env, payload) {
 }
 
 /** 异步写入探针/服务端耗时 | Fire-and-forget probe timing (D1 + optional AE) */
-export function recordPerfObservation(env, request, observation) {
+export function recordPerfObservation(env, request, observation, waitUntil) {
   if (!observation || typeof observation !== "object") return;
   const payload = {
     endpoint: String(observation.endpoint || "unknown").slice(0, 64),
@@ -57,9 +57,12 @@ export function recordPerfObservation(env, request, observation) {
   }
 
   if (!tasks.length) return;
-  globalThis.waitUntil?.(
-    Promise.allSettled(tasks).then(function () {
-      return undefined;
-    }),
-  );
+  const run = Promise.allSettled(tasks).then(function () {
+    return undefined;
+  });
+  if (typeof waitUntil === "function") {
+    waitUntil(run);
+  } else {
+    void run;
+  }
 }

@@ -8,7 +8,7 @@ import { buildReadModule, buildLodgersHistoryPage, isSpecialReadModule } from ".
 import { createRequestTimer, wantTiming } from "../../../_shared/timing.js";
 
 /** GET /api/v1/read/:module — 按模块读模型 | Module-scoped read API */
-export async function onRequestGet({ request, env, params }) {
+export async function onRequestGet({ request, env, params, waitUntil }) {
   if (!env.KETANG_DB) {
     return new Response(JSON.stringify({ error: "缺少 D1 绑定 KETANG_DB" }), {
       status: 500,
@@ -22,14 +22,16 @@ export async function onRequestGet({ request, env, params }) {
       requireSession(request, env, (sql, p) => queryD1(env, sql, p)),
     );
     const version = await timer.stage("version_ms", () => getBoardVersion(env));
+    const isHistoryPage = isSpecialReadModule(moduleKey);
     const ifNoneMatch = request.headers.get("If-None-Match");
     if (
+      !isHistoryPage &&
       ifNoneMatch != null &&
       String(parseInt(ifNoneMatch, 10)) === String(version)
     ) {
       return timer.finish304(request, version);
     }
-    const payload = isSpecialReadModule(moduleKey)
+    const payload = isHistoryPage
       ? await timer.stage("read_module_ms", () => {
           const url = new globalThis.URL(request.url);
           const query = Object.fromEntries(url.searchParams.entries());
@@ -46,7 +48,7 @@ export async function onRequestGet({ request, env, params }) {
       timer.observe(env, request, {
         endpoint: "read/" + moduleKey,
         source: "read_module",
-      });
+      }, waitUntil);
     }
     return response;
   } catch (error) {

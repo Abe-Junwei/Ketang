@@ -621,11 +621,11 @@ function rcEventsById() {
 
 function rcAllLodgersMerged() {
   var byId = {};
+  /** lodgers_recent 仅 API 按需拉取，不参与合并 | recent module is on-demand only */
   [
     rcBoardLodgers(),
     rcRows("lodgers", "lodgers"),
     rcRows("lodgers_active", "lodgers"),
-    rcRows("lodgers_recent", "lodgers"),
   ].forEach(function (arr) {
     arr.forEach(function (l) {
       byId[l.id] = l;
@@ -636,15 +636,18 @@ function rcAllLodgersMerged() {
 
 function rcLodgerById(id) {
   if (!id) return null;
-  return (
-    rcBoardLodgers().find(function (l) {
+  var sources = [
+    rcBoardLodgers(),
+    rcRows("lodgers_active", "lodgers"),
+    rcRows("lodgers", "lodgers"),
+  ];
+  for (var i = 0; i < sources.length; i++) {
+    var found = sources[i].find(function (l) {
       return l.id == id;
-    }) ||
-    rcRows("lodgers", "lodgers").find(function (l) {
-      return l.id == id;
-    }) ||
-    null
-  );
+    });
+    if (found) return found;
+  }
+  return null;
 }
 
 function rcEnrichLodgerRow(l) {
@@ -716,7 +719,7 @@ function rcReservationById(id) {
 
 function rcBedById(id) {
   if (!id) return null;
-  var mods = ["board", "settings_beds", "lodgers"];
+  var mods = ["board", "lodgers_active", "settings_beds", "lodgers"];
   for (var i = 0; i < mods.length; i++) {
     var row = rcRows(mods[i], "beds").find(function (b) {
       return b.id == id;
@@ -900,7 +903,6 @@ function rcInvalidateEventDetail(eventId) {
 
 function rcHistorySearch(filters) {
   filters = filters || {};
-  var events = rcEventsById();
   var rows = rcAllLodgersMerged().map(function (l) {
     return rcEnrichLodgerRow(l);
   });

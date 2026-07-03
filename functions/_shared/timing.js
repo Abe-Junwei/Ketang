@@ -114,17 +114,22 @@ export function createRequestTimer() {
       }
       return new Response(null, { status: 204, headers });
     },
-    observe(env, request, meta) {
+    observe(env, request, meta, waitUntil) {
       if (!env || !request) return;
       stages.total_ms = Date.now() - startedAt;
-      recordPerfObservation(env, request, {
-        endpoint: meta?.endpoint || "unknown",
-        server_ms: stages.total_ms,
-        request_id: requestId,
-        server_timing: { ...stages },
-        source: meta?.source || "server",
-        bytes: meta?.bytes,
-      });
+      recordPerfObservation(
+        env,
+        request,
+        {
+          endpoint: meta?.endpoint || "unknown",
+          server_ms: stages.total_ms,
+          request_id: requestId,
+          server_timing: { ...stages },
+          source: meta?.source || "server",
+          bytes: meta?.bytes,
+        },
+        waitUntil,
+      );
     },
   };
 }

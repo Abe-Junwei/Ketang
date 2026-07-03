@@ -20,7 +20,7 @@ def main() -> int:
         ("moduleKey passed", "fetchModuleTableRows(env, table, permissions, key)" in src),
         ("board field projection", "BOARD_TABLE_FIELDS" in src),
         ("projectBoardRow", "function projectBoardRow" in src),
-        ("projection applied", 'key === "board" ? projectBoardRow' in src),
+        ("projection applied", 'if (key === "board") return projectBoardRow' in src),
         ("rooms dorm_type", '"dorm_type"' in src),
         ("lodgers event_id", '"event_id"' in src),
         ("hk bed_id only", "h.bed_id, h.status, h.changed_at" in src),
