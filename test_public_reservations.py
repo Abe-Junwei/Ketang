@@ -13,6 +13,7 @@ def main():
     reserve_html = read("reserve.html")
     public_js = read("js/public-reserve.js")
     api = read("functions/api/public/reservations.js")
+    handler = api[api.find("export async function onRequestPost") :]
     lodgers = read("functions/_shared/lodgers.js")
     notify = read("functions/_shared/public-reservation-notify.js")
     rate = read("functions/_shared/rate-limit.js")
@@ -28,10 +29,10 @@ def main():
         ("inline validation", "showReserveError" in public_js),
         ("success state", "showReserveSuccess" in public_js or "预约已提交" in public_js),
         ("date order guard", "预离日期不能早于入住日期" in public_js),
-        ("switch off guard", 'KETANG_PUBLIC_RESERVATIONS === "false"' in api),
-        ("403 message", "线上预约未开放" in api),
-        ("rate limit check", "checkRateLimit" in api and "public_resv" in api),
-        ("rate limit record", "recordRateLimitHit" in api),
+        ("switch off guard", 'KETANG_PUBLIC_RESERVATIONS === "false"' in handler),
+        ("403 message", "线上预约未开放" in handler),
+        ("rate limit check", "checkRateLimit" in handler and "public_resv" in handler),
+        ("rate limit record", "recordRateLimitHit" in handler),
         ("429 mapping", "429" in api and "过于频繁" in api),
         ("api handler POST only", "onRequestPost" in api and "onRequestGet" not in api),
         ("public write api", "apiPublicReservation" in lodgers),
@@ -43,7 +44,11 @@ def main():
         ("sync reservations domain", 'registerViewRefresh("domain:reservations"' in sync),
         ("sync reservations module", 'registerViewRefresh("module:reservations"' in sync),
         ("backend confirm", "updateResvStatus" in resv and "已确认" in resv),
-        ("backend checkin", "checkInFromResv" in resv),
+        ("backend checkin", "checkInFromResv" in resv and "reservationForStatus" in resv),
+        ("backend edit rc", "editResv" in resv and "reservationForStatus(id)" in resv),
+        ("guest emergency rc", "guestEmergencyFields" in resv and "rcGuestById" in resv),
+        ("rate limit after body", handler.find("const body = await readJson") < handler.find("await recordRateLimitHit")),
+        ("rate limit after 403", handler.find('KETANG_PUBLIC_RESERVATIONS === "false"') < handler.find("await recordRateLimitHit")),
         ("backend cancel", "已取消" in resv and "renderReservations" in resv),
         ("backend rc read", "reservationRowsForRender" in resv and "rcRows(\"reservations\"" in resv),
         ("no public list API", not Path("functions/api/public/reservations/list.js").exists()),

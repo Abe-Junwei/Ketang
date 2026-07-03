@@ -22,6 +22,9 @@ def main():
         ("success checks rollback", "if (!rollbackOk) await forceRefreshReservations()" in resv),
         ("failure force fetches reservations", "rcEnsureReservations(true)" in resv),
         ("rollback reports unrecovered failure", "无法恢复最新数据" in resv),
+        ("checkin uses rc read", "function checkInFromResv" in resv and "reservationForStatus(id)" in resv),
+        ("edit uses rc read", "function editResv" in resv and "reservationForStatus(id)" in resv),
+        ("guest emergency helper", "function guestEmergencyFields" in resv),
     ]
     failed = [name for name, ok in checks if not ok]
     if failed:

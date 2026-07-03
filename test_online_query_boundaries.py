@@ -61,6 +61,7 @@ def main():
     rooming_read = read("js/rooming-read.js")
     rooming_capacity = read("js/rooming-capacity.js")
     auth = read("js/auth.js")
+    resv = read("js/reservations.js")
 
     checks = [
         ("reports daily rc", "rcDailyReportData" in reports),
@@ -172,6 +173,12 @@ def main():
         }[fn]
         body = fn_body(src, fn)
         ok, name = assert_no_unguarded_query(fn, body, allow_local=fn != "lookupAdminUser")
+        if not ok:
+            failed.append(name)
+
+    for fn in ["checkInFromResv", "editResv", "guestEmergencyFields"]:
+        body = fn_body(resv, fn)
+        ok, name = assert_no_unguarded_query(f"reservations {fn}", body)
         if not ok:
             failed.append(name)
 

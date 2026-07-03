@@ -51,7 +51,7 @@ jobs:
         run: npm run format:check
 
       - name: Check Python test syntax
-        run: python -m py_compile test_api_structure.py test_auth_gateway.py test_headless.py test_cdp.py test_cdp_migration.py test_file_protocol.py test_write_patches.py test_write_after_refresh.py test_online_write_response_contract.py test_action_pending_guard.py test_meals_optimistic.py test_housekeeping_optimistic.py test_reservation_status_optimistic.py test_event_members_optimistic.py test_rooming_write_patches.py test_rooming_online_journey.py test_online_query_boundaries.py test_view_read_modules.py test_rc_parity.py test_public_reservations.py test_public_reserve_cdp.py
+        run: python -m py_compile test_api_structure.py test_auth_gateway.py test_headless.py test_cdp.py test_cdp_migration.py test_file_protocol.py test_write_patches.py test_write_after_refresh.py test_online_write_response_contract.py test_action_pending_guard.py test_meals_optimistic.py test_housekeeping_optimistic.py test_reservation_status_optimistic.py test_event_members_optimistic.py test_rooming_write_patches.py test_rooming_online_journey.py test_online_query_boundaries.py test_view_read_modules.py test_rc_parity.py test_public_reservations.py test_public_reserve_cdp.py test_public_reservation_rate_limit.py test_public_reservation_sync_cdp.py
 
       - name: Verify online API structure
         run: python test_api_structure.py
@@ -94,6 +94,8 @@ jobs:
         run: |
           python test_public_reservations.py
           python test_public_reserve_cdp.py
+          python test_public_reservation_rate_limit.py
+          python test_public_reservation_sync_cdp.py
 
       - name: Instant post-write refresh (online)
         run: python test_write_after_refresh.py

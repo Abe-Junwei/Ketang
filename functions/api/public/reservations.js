@@ -16,12 +16,12 @@ export async function onRequestPost({ request, env }) {
     const bindQ = (sql, p) => queryD1(env, sql, p);
     const bindR = (sql, p) => runD1(env, sql, p);
     await checkRateLimit(env, ip, "public_resv", 20, bindQ, bindR, 15 * 60);
-    await recordRateLimitHit(env, ip, "public_resv", bindQ, bindR, 15 * 60);
     const body = await readJson(request);
     if (!body) return json({ error: "请求格式错误" }, 400);
     if (env.KETANG_PUBLIC_RESERVATIONS === "false") {
       return json({ error: "线上预约未开放" }, 403);
     }
+    await recordRateLimitHit(env, ip, "public_resv", bindQ, bindR, 15 * 60);
     const result = await apiPublicReservation(env, body);
     return json(result, 201);
   } catch (error) {

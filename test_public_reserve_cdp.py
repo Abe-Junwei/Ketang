@@ -65,6 +65,34 @@ def main():
             ws,
             """
             (async function () {
+              document.getElementById('reserve-form').setAttribute('novalidate', 'novalidate');
+              document.getElementById('rv-name').value = '';
+              document.getElementById('rv-gender').value = '';
+              document.getElementById('rv-idcard').value = '';
+              document.getElementById('rv-in').value = '';
+              document.getElementById('reserve-result').hidden = true;
+              document.getElementById('reserve-result').textContent = '';
+              document.getElementById('reserve-form').requestSubmit();
+              await new Promise(function (r) { setTimeout(r, 150); });
+              return true;
+            })()
+            """,
+        )
+        req = evaluate(
+            ws,
+            "({ formHidden: document.getElementById('reserve-form').hidden, err: document.getElementById('reserve-result').textContent || '' })",
+        )
+        if req.get("value", {}).get("formHidden"):
+            print("FAIL: form hidden on empty required")
+            sys.exit(1)
+        if "必填" not in str(req.get("value", {}).get("err", "")):
+            print("FAIL: missing required validation message:", req)
+            sys.exit(1)
+
+        evaluate(
+            ws,
+            """
+            (async function () {
               document.getElementById('rv-name').value = '测试';
               document.getElementById('rv-gender').value = '男';
               document.getElementById('rv-idcard').value = '110101199001011234';

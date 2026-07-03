@@ -211,7 +211,7 @@ function resetResvForm() {
 }
 
 function editResv(id) {
-  const r = query("SELECT * FROM reservations WHERE id=?", [id])[0];
+  const r = reservationForStatus(id);
   if (!r) return;
   if (r.status === "已入住" || r.status === "已取消") {
     alert("已入住或已取消的预约不可编辑");
@@ -242,10 +242,7 @@ function editResv(id) {
   document.getElementById("resv-source").value = r.source || "";
   document.getElementById("resv-notes").value = r.notes || "";
   if (r.guest_id) {
-    const guest = query(
-      "SELECT emergency_contact, emergency_phone FROM guests WHERE id=?",
-      [r.guest_id],
-    )[0];
+    const guest = guestEmergencyFields(r.guest_id);
     if (guest) {
       document.getElementById("resv-emergency-name").value =
         guest.emergency_contact || "";
@@ -347,6 +344,28 @@ function reservationForStatus(id) {
   return query("SELECT * FROM reservations WHERE id=?", [id])[0];
 }
 
+function guestEmergencyFields(guestId) {
+  if (!guestId) return null;
+  if (
+    !isLocalForceDb() &&
+    typeof rcGuestById === "function" &&
+    typeof rcReadReady === "function" &&
+    rcReadReady()
+  ) {
+    var g = rcGuestById(guestId);
+    if (!g) return null;
+    return {
+      emergency_contact: g.emergency_contact || "",
+      emergency_phone: g.emergency_phone || "",
+    };
+  }
+  return (
+    query("SELECT emergency_contact, emergency_phone FROM guests WHERE id=?", [
+      guestId,
+    ])[0] || null
+  );
+}
+
 function applyReservationStatusOptimistic(row, status) {
   if (
     isLocalForceDb() ||
@@ -434,7 +453,7 @@ async function updateResvStatus(source, id, status) {
 }
 
 function checkInFromResv(id) {
-  const r = query("SELECT * FROM reservations WHERE id=?", [id])[0];
+  const r = reservationForStatus(id);
   if (!r) return;
   if (r.status === "已取消" || r.status === "No-show") {
     alert("该预约已取消或 No-show，无法转入住");
@@ -447,10 +466,7 @@ function checkInFromResv(id) {
   document.getElementById("ci-phone").value = r.phone || "";
   document.getElementById("ci-idcard").value = r.id_card || "";
   if (r.guest_id) {
-    const guest = query(
-      "SELECT emergency_contact, emergency_phone FROM guests WHERE id=?",
-      [r.guest_id],
-    )[0];
+    const guest = guestEmergencyFields(r.guest_id);
     if (guest) {
       document.getElementById("ci-emergency-name").value =
         guest.emergency_contact || "";
