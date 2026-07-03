@@ -638,13 +638,40 @@ function resetRemoteReadModelState() {
   db = null;
 }
 
+let remoteDeferredPromise = null;
+
 async function syncRemoteReadModel(options) {
   if (!isRemoteDB()) return;
   if (typeof isLoggedIn === "function" && !isLoggedIn()) return;
-  if (remoteSyncPromise) return remoteSyncPromise;
+  const bootstrapOnly = !!(options && options.bootstrapOnly);
+  const deferredOnly = !!(options && options.deferredOnly);
   const force = !!(options && options.force);
+  if (deferredOnly) {
+    if (remoteDeferredPromise) return remoteDeferredPromise;
+    remoteDeferredPromise = (async function () {
+      try {
+        if (typeof rcEnsureAppData !== "function") {
+          throw new Error("read-cache 未加载");
+        }
+        setRemoteSyncStatus("loading");
+        await rcEnsureAppData(force, {
+          deferredOnly: true,
+          hydrateSql: typeof isLocalForceDb === "function" && isLocalForceDb(),
+        });
+        setRemoteSyncStatus("ready");
+      } catch (err) {
+        setRemoteSyncStatus("error", err.message || "数据同步失败");
+        throw err;
+      } finally {
+        remoteDeferredPromise = null;
+      }
+    })();
+    return remoteDeferredPromise;
+  }
+  if (remoteSyncPromise) return remoteSyncPromise;
   if (
     !force &&
+    !bootstrapOnly &&
     remoteReadModelReady &&
     Date.now() - lastRemoteSyncAt < (options?.minIntervalMs || 800)
   ) {
@@ -657,8 +684,11 @@ async function syncRemoteReadModel(options) {
         throw new Error("read-cache 未加载");
       }
       await rcEnsureAppData(force, {
+        bootstrapOnly: bootstrapOnly,
         hydrateSql: typeof isLocalForceDb === "function" && isLocalForceDb(),
       });
+      if (!bootstrapOnly) setRemoteSyncStatus("ready");
+      else setRemoteSyncStatus("idle");
     } catch (err) {
       setRemoteSyncStatus("error", err.message || "数据同步失败");
       throw err;

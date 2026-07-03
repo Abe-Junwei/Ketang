@@ -1544,16 +1544,55 @@ var RC_APP_MODULES = [
   "meals",
 ];
 
+/** 登录首屏最小模块 | Login bootstrap modules (board only) */
+var RC_BOOTSTRAP_MODULES = ["board"];
+
+/** 登录后后台拉取 | Deferred after first-view-ready */
+var RC_DEFERRED_MODULES = [
+  "lodgers",
+  "lodgers_records",
+  "reservations",
+  "events",
+  "meals",
+];
+
 /** 登录/全站刷新：并行拉模块；在线不灌 sql.js | App bootstrap */
 async function rcEnsureAppData(force, options) {
   if (!rcUseApiRead()) return;
   options = options || {};
   if (force) rcInvalidate();
+  var keys = RC_APP_MODULES;
+  var perfLabel = "rc:app";
+  if (options.bootstrapOnly) {
+    keys = RC_BOOTSTRAP_MODULES;
+    perfLabel = "rc:bootstrap";
+  } else if (options.deferredOnly) {
+    keys = RC_DEFERRED_MODULES;
+    perfLabel = "rc:deferred";
+  }
+  if (typeof ketangPerfMark === "function") ketangPerfMark(perfLabel + ":start");
   await Promise.all(
-    RC_APP_MODULES.map(function (key) {
+    keys.map(function (key) {
       return rcFetch(key, force);
     }),
   );
+  if (typeof ketangPerfMark === "function") {
+    ketangPerfMark(perfLabel + ":end");
+    ketangPerfMeasure(perfLabel, perfLabel + ":start", perfLabel + ":end");
+  }
+  if (options.bootstrapOnly) {
+    RC_BOOTSTRAP_MODULES.forEach(function (key) {
+      var payload = _rcStore[key];
+      if (
+        payload &&
+        payload.board_version != null &&
+        typeof setLocalBoardVersion === "function"
+      ) {
+        setLocalBoardVersion(payload.board_version);
+      }
+    });
+    return;
+  }
   var hydrateSql =
     options.hydrateSql ||
     (typeof isLocalForceDb === "function" && isLocalForceDb());

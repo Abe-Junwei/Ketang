@@ -51,7 +51,7 @@ jobs:
         run: npm run format:check
 
       - name: Check Python test syntax
-        run: python -m py_compile test_api_structure.py test_auth_gateway.py test_headless.py test_cdp.py test_cdp_migration.py test_file_protocol.py test_write_patches.py test_write_after_refresh.py test_online_write_response_contract.py test_action_pending_guard.py test_meals_optimistic.py test_housekeeping_optimistic.py test_reservation_status_optimistic.py test_event_members_optimistic.py test_rooming_write_patches.py test_rooming_online_journey.py test_online_query_boundaries.py test_view_read_modules.py test_rc_parity.py test_public_reservations.py test_public_reserve_cdp.py test_public_reservation_rate_limit.py test_public_reservation_sync_cdp.py test_online_no_sql.py test_online_query_guard.py test_perf_marks.py test_phase_g_cdp.py test_phase_g_fast_paths.py test_prod_latency.py test_p1_ops.py
+        run: python -m py_compile test_api_structure.py test_auth_gateway.py test_headless.py test_cdp.py test_cdp_migration.py test_file_protocol.py test_write_patches.py test_write_after_refresh.py test_online_write_response_contract.py test_action_pending_guard.py test_meals_optimistic.py test_housekeeping_optimistic.py test_reservation_status_optimistic.py test_event_members_optimistic.py test_rooming_write_patches.py test_rooming_online_journey.py test_online_query_boundaries.py test_view_read_modules.py test_rc_parity.py test_public_reservations.py test_public_reserve_cdp.py test_public_reservation_rate_limit.py test_public_reservation_sync_cdp.py test_online_no_sql.py test_online_query_guard.py test_perf_marks.py test_phase_g_cdp.py test_phase_g_fast_paths.py test_read_module_board_slim.py test_prod_latency.py test_p1_ops.py
 
       - name: Verify online API structure
         run: python test_api_structure.py
@@ -109,6 +109,7 @@ jobs:
         run: |
           python test_perf_marks.py
           python test_phase_g_fast_paths.py
+          python test_read_module_board_slim.py
           python test_p1_ops.py
 
       - name: Headless initialization smoke test

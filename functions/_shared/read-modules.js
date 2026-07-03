@@ -48,7 +48,7 @@ function hasModulePermission(permissions, moduleKey) {
   return required.some((code) => permissions.includes(code));
 }
 
-async function fetchModuleTableRows(env, table, permissions) {
+async function fetchModuleTableRows(env, table, permissions, moduleKey) {
   if (!TABLE_NAME_RE.test(table)) throw new Error("无效的表名");
   if (table === "app_meta") {
     if (permissions.includes("settings.read")) {
@@ -65,6 +65,23 @@ async function fetchModuleTableRows(env, table, permissions) {
       );
     }
     return [];
+  }
+  /** board 首屏瘦身：在住挂单 + 非净房房态 | Slim board payload for first paint */
+  if (moduleKey === "board" && table === "lodgers") {
+    return queryD1(env, "SELECT * FROM lodgers WHERE status = '在住'", []);
+  }
+  if (moduleKey === "board" && table === "housekeeping") {
+    return queryD1(
+      env,
+      `SELECT h.* FROM housekeeping h
+       INNER JOIN (
+         SELECT bed_id, MAX(changed_at) AS latest_at
+         FROM housekeeping
+         GROUP BY bed_id
+       ) x ON h.bed_id = x.bed_id AND h.changed_at = x.latest_at
+       WHERE h.status != '净房'`,
+      [],
+    );
   }
   return queryD1(env, `SELECT * FROM ${table}`, []);
 }
@@ -85,7 +102,7 @@ export async function buildReadModule(env, session, moduleKey, options) {
   const data = {};
   await Promise.all(
     tables.map(async function (table) {
-      const rows = await fetchModuleTableRows(env, table, permissions);
+      const rows = await fetchModuleTableRows(env, table, permissions, key);
       data[table] = rows.map((row) =>
         sanitizeRowForRole(table, row, session.role),
       );

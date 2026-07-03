@@ -26,6 +26,8 @@ def main():
         ("rcOpsNoticeData", "function rcOpsNoticeData" in rc),
         ("rcCheckoutReminders", "function rcCheckoutReminders" in rc),
         ("rcReadReady", "function rcReadReady" in rc),
+        ("RC_BOOTSTRAP_MODULES", "RC_BOOTSTRAP_MODULES" in rc),
+        ("RC_DEFERRED_MODULES", "RC_DEFERRED_MODULES" in rc),
         ("rcEventListWithStats", "function rcEventListWithStats" in rc),
         ("rcEventMembers", "function rcEventMembers" in rc),
         ("rcForecastTodayData", "function rcForecastTodayData" in rc),

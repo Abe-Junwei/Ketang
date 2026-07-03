@@ -320,8 +320,10 @@ npm run lint:ci
 
 ## 9. 后续运维（2026-07-03 已落地）
 
-1. **生产测速**：`test_prod_latency.py --check-baseline --check-phase-g`；每周 Cron 见 [.github/workflows/prod-latency.yml](../.github/workflows/prod-latency.yml)。
-2. **前端 P95**：`test_phase_g_cdp.py` 测 `login-ready` mark；CI `prod-latency` job 与 `test_perf_marks.py` 契约。
-3. **Phase D 尾巴**：`validation.js`（重复入住、编辑联系人）、`reservations.js`（营期校验）、`mobile-ui.js`（移动端看板 hero）已补 rc/read-shim；本地 fallback 保留。
+1. **生产测速**：`test_prod_latency.py --check-baseline --check-phase-g --probe-frontend --frontend-base https://wulingkt.net`；每周 Cron 见 [.github/workflows/prod-latency.yml](../.github/workflows/prod-latency.yml)。探针 gzip-aware、`network_gap_ms`、outlier 重试。
+2. **前端 P95**：CDP 优先 `ketang:first-view-ready`（登录后首屏房态）；完整 `login-ready` 记入 `frontend_login_ready_full_ms`。契约见 `test_perf_marks.py`；静态 fast-path 见 `test_phase_g_fast_paths.py`。
+3. **登录 bootstrap**：在线登录仅同步 `board` 模块 → 渲染房态 → 打 `first-view-ready` → 后台拉 `lodgers/lodgers_records/reservations/events/meals`（`RC_BOOTSTRAP_MODULES` / `RC_DEFERRED_MODULES`）。
+4. **read/board 瘦身**：`lodgers` 仅 `status='在住'`；`housekeeping` 每床最新且 `status!='净房'`。契约见 `test_read_module_board_slim.py`。
+5. **Phase D 尾巴**：`validation.js`（重复入住、编辑联系人）、`reservations.js`（营期校验）、`mobile-ui.js`（移动端看板 hero）已补 rc/read-shim；本地 fallback 保留。
 
 当前生产观测见 [docs/ops/performance-baseline.json](../ops/performance-baseline.json) 的 `observed_production`；`phase_g_targets_ms` 为目标值，超阈会在巡检报告 WARN。

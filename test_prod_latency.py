@@ -396,6 +396,7 @@ def probe_frontend_metrics(frontend_base: str | None, api_base: str) -> dict:
           }
           const measures = performance.getEntriesByType('measure');
           const loginReady = measures.filter(e => e.name === 'ketang:login-ready');
+          const firstView = measures.filter(e => e.name === 'ketang:first-view-ready');
           const readBoard = measures.filter(e => e.name === 'ketang:read:board');
           const readModules = measures
             .filter(e => e.name.startsWith('ketang:read:') && e.name.endsWith(':end') === false)
@@ -422,12 +423,15 @@ def probe_frontend_metrics(frontend_base: str | None, api_base: str) -> dict:
             loginReadyMs: loginReady.length
               ? Math.round(loginReady[loginReady.length - 1].duration)
               : null,
+            firstViewReadyMs: firstView.length
+              ? Math.round(firstView[firstView.length - 1].duration)
+              : null,
             readBoardMs: readBoard.length
               ? Math.round(readBoard[readBoard.length - 1].duration)
               : null,
             writeRefreshMs,
             readModuleMarks: readModuleNames,
-            hasLoginReady: loginReady.length > 0,
+            hasLoginReady: loginReady.length > 0 || firstView.length > 0,
           };
         })().catch(e => ({ error: e.message || String(e) }))
         """
@@ -461,13 +465,25 @@ def probe_frontend_metrics(frontend_base: str | None, api_base: str) -> dict:
             "api_base": api_base,
             "read_module_marks": result.get("readModuleMarks") or [],
         }
-        if result.get("loginReadyMs") is not None:
-            ms = int(result["loginReadyMs"])
+        first_ms = result.get("firstViewReadyMs")
+        login_ms = result.get("loginReadyMs")
+        ready_ms = first_ms if first_ms is not None else login_ms
+        if ready_ms is not None:
             out["frontend_login_ready_ms"] = {
-                "samples": [ms],
-                "p50_ms": ms,
-                "p95_ms": ms,
-                "max_ms": ms,
+                "samples": [ready_ms],
+                "p50_ms": ready_ms,
+                "p95_ms": ready_ms,
+                "max_ms": ready_ms,
+                "source": "cdp_ketang:first-view-ready"
+                if first_ms is not None
+                else "cdp_ketang:login-ready",
+            }
+        if first_ms is not None and login_ms is not None and first_ms != login_ms:
+            out["frontend_login_ready_full_ms"] = {
+                "samples": [login_ms],
+                "p50_ms": login_ms,
+                "p95_ms": login_ms,
+                "max_ms": login_ms,
                 "source": "cdp_ketang:login-ready",
             }
         if result.get("readBoardMs") is not None:

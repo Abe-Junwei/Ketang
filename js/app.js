@@ -566,6 +566,7 @@ async function prefetchViewData(viewName) {
 }
 
 function renderBoard() {
+  if (typeof ketangPerfMark === "function") ketangPerfMark("render-board:start");
   renderCheckoutReminders();
   renderOpsNotice();
   checkBackupReminder();
@@ -578,6 +579,10 @@ function renderBoard() {
   renderTodayMealsPanel();
   renderBedOptions();
   refreshBoardSearch();
+  if (typeof ketangPerfMark === "function") {
+    ketangPerfMark("render-board:end");
+    ketangPerfMeasure("render-board", "render-board:start", "render-board:end");
+  }
 }
 
 function renderLodgersPage() {
@@ -822,11 +827,19 @@ function renderLodgingOccupancyChart() {
 
 async function renderAll(options) {
   if (typeof isLoggedIn === "function" && !isLoggedIn()) return;
+  var loginBootstrap =
+    !!(options && options.loginBootstrap) &&
+    typeof isRemoteDB === "function" &&
+    isRemoteDB();
+  if (typeof ketangPerfMark === "function") ketangPerfMark("render-all:start");
   if (isRemoteDB() && !(options && options.skipSync)) {
     const forceSync = !!(options && options.forceSync);
     try {
       if (forceSync || !remoteReadModelReady) {
-        await syncRemoteReadModel({ force: true });
+        await syncRemoteReadModel({
+          force: true,
+          bootstrapOnly: loginBootstrap,
+        });
       } else {
         try {
           const result = await apiBoardVersion();
@@ -848,6 +861,30 @@ async function renderAll(options) {
     }
   }
   updateRemoteSyncBanner();
+  if (loginBootstrap) {
+    renderBoard();
+    renderRooms();
+    if (typeof ketangPerfMark === "function") {
+      ketangPerfMark("first-view-ready");
+      ketangPerfMeasure("first-view-ready", "login:start", "first-view-ready");
+    }
+    if (typeof ketangPerfMark === "function") {
+      ketangPerfMark("render-all:end");
+      ketangPerfMeasure("render-all", "render-all:start", "render-all:end");
+    }
+    syncRemoteReadModel({ deferredOnly: true, force: false })
+      .then(function () {
+        renderLodgers();
+        renderTodayMealsPanel();
+        if (typeof refreshActiveViewsAfterSync === "function") {
+          refreshActiveViewsAfterSync();
+        }
+      })
+      .catch(function () {
+        /* non-fatal deferred load */
+      });
+    return;
+  }
   renderRooms();
   renderBoard();
   renderLodgers();
@@ -886,6 +923,10 @@ async function renderAll(options) {
   }
   if (typeof refreshActiveViewsAfterSync === "function") {
     refreshActiveViewsAfterSync();
+  }
+  if (typeof ketangPerfMark === "function") {
+    ketangPerfMark("render-all:end");
+    ketangPerfMeasure("render-all", "render-all:start", "render-all:end");
   }
 }
 

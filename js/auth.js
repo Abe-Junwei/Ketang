@@ -563,7 +563,9 @@ async function submitLogin() {
     if (await loginByRole(selectedRole, password)) {
       if (errorEl) errorEl.textContent = "正在同步数据，请稍候…";
       document.getElementById("login-password").value = "";
-      await renderAll();
+      await renderAll({
+        loginBootstrap: typeof isRemoteDB === "function" && isRemoteDB(),
+      });
       if (typeof ketangPerfMark === "function") {
         ketangPerfMark("login:end");
         ketangPerfMark("login-ready");
