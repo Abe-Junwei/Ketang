@@ -24,7 +24,8 @@ def main() -> int:
         ("lodgers_lookup deferred", '"lodgers_lookup"' in rc and "RC_DEFERRED_MODULES" in rc),
         ("no lodgers_records deferred", "RC_DEFERRED_MODULES" in rc and
          'RC_DEFERRED_MODULES = [\n  "lodgers",\n  "lodgers_lookup"' in rc.replace("\r\n", "\n")),
-        ("rcFetchHistoryRows", "rcFetchHistoryRows" in rc),
+        ("rcKickoffBoardBootstrap", "rcKickoffBoardBootstrap" in rc),
+        ("login kickoff board", "rcKickoffBoardBootstrap(true)" in read("js/auth.js")),
         ("history server fetch", "rcFetchHistoryRows" in hist),
         ("lodgers_active projection", "LODGERS_ACTIVE_LODGER_FIELDS" in rm),
         ("lookup id_card", '"id_card"' in rm and "lodgers_lookup" in rm),

@@ -199,6 +199,12 @@ async function rcFetch(moduleKey, force) {
   return _rcInflight[moduleKey];
 }
 
+/** 登录/恢复会话后立即拉 board（与 UI 准备并行）| Kick off board fetch before renderAll */
+function rcKickoffBoardBootstrap(force) {
+  if (!rcUseApiRead()) return null;
+  return rcFetch("board", !!force);
+}
+
 async function rcFetchMany(moduleKeys, force) {
   var keys = moduleKeys || [];
   await Promise.all(

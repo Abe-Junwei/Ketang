@@ -96,10 +96,10 @@
     "read_lodgers_active_bytes_gzip": 7298,
     "read_lodgers_lookup_ms_p95": 2098,
     "read_lodgers_lookup_bytes_gzip": 2985,
-    "frontend_first_view_ready_ms_cdp": 6984,
-    "frontend_write_refresh_ms": 133,
-    "frontend_read_board_ms_cdp": 2378,
+    "frontend_first_view_ready_ms_cdp": 7845,
+    "frontend_write_refresh_ms": 132,
+    "frontend_read_board_ms_cdp": 3818,
     "deferred_modules": "lodgers,lodgers_lookup,reservations,events,meals",
-    "notes": "bulk lodgers_records 已移除 deferred；lookup 33KB；first-view 9.3s→7.0s。"
+    "notes": "db.js?v=41 修复 bootstrapOnly 转发；CDP 仅 rc:bootstrap+read:board。外部 read:board ~3.8s。"
   }
 }

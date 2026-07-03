@@ -60,14 +60,18 @@ document.addEventListener("DOMContentLoaded", async () => {
     applyPermissions();
     if (isLoggedIn()) {
       hideLoginOverlay();
-      mountFormMealNeedPickers();
-      mountLodgerRoleSelects();
-      if (typeof mountParticipantTagSelects === "function") {
-        mountParticipantTagSelects();
-      }
       await renderAll({
         loginBootstrap: typeof isRemoteDB === "function" && isRemoteDB(),
       });
+      if (typeof schedulePostLoginUiMounts === "function") {
+        schedulePostLoginUiMounts();
+      } else {
+        mountFormMealNeedPickers();
+        mountLodgerRoleSelects();
+        if (typeof mountParticipantTagSelects === "function") {
+          mountParticipantTagSelects();
+        }
+      }
       document.getElementById("ci-in").valueAsDate = new Date();
       startBoardPolling();
     } else {

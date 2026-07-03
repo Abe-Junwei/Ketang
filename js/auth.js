@@ -239,6 +239,9 @@ async function restoreRemoteSession() {
   try {
     const data = await apiSessionMeForRestore();
     applySessionRefresh(data);
+    if (typeof rcKickoffBoardBootstrap === "function") {
+      rcKickoffBoardBootstrap(false);
+    }
     hideLoginOverlay();
     return true;
   } catch (e) {
@@ -258,6 +261,9 @@ async function restoreRemoteSession() {
   try {
     const data = await apiAuthRefreshForRestore();
     applySessionRefresh(data);
+    if (typeof rcKickoffBoardBootstrap === "function") {
+      rcKickoffBoardBootstrap(false);
+    }
     hideLoginOverlay();
     return true;
   } catch (e) {
@@ -368,17 +374,15 @@ async function loginByRole(role, password) {
     }
     if (!result.user) throw new Error("登录成功但未收到用户信息，请刷新后重试");
     applySessionRefresh(result);
+    if (typeof rcKickoffBoardBootstrap === "function") {
+      rcKickoffBoardBootstrap(true);
+    }
     logAudit("用户登录", "user", result.user.id, {
       username: result.user.username,
       role: result.user.role,
     });
     updateAuthUI();
     applyPermissions();
-    if (typeof mountFormMealNeedPickers === "function")
-      mountFormMealNeedPickers();
-    if (typeof mountLodgerRoleSelects === "function") mountLodgerRoleSelects();
-    if (typeof mountParticipantTagSelects === "function")
-      mountParticipantTagSelects();
     return true;
   }
 
@@ -543,6 +547,16 @@ function setPendingState(options) {
   btn.textContent = pending ? options.pendingText : options.idleText;
 }
 
+function schedulePostLoginUiMounts() {
+  var run = function () {
+    if (typeof mountFormMealNeedPickers === "function") mountFormMealNeedPickers();
+    if (typeof mountLodgerRoleSelects === "function") mountLodgerRoleSelects();
+    if (typeof mountParticipantTagSelects === "function") mountParticipantTagSelects();
+  };
+  if (typeof scheduleIdleTask === "function") scheduleIdleTask(run);
+  else run();
+}
+
 async function submitLogin() {
   if (loginSubmitting) return;
   const selectedRole = document.getElementById("login-username").value;
@@ -563,9 +577,11 @@ async function submitLogin() {
     if (await loginByRole(selectedRole, password)) {
       if (errorEl) errorEl.textContent = "正在同步数据，请稍候…";
       document.getElementById("login-password").value = "";
+      hideLoginOverlay();
       await renderAll({
         loginBootstrap: typeof isRemoteDB === "function" && isRemoteDB(),
       });
+      schedulePostLoginUiMounts();
       if (typeof ketangPerfMark === "function") {
         ketangPerfMark("login:end");
         ketangPerfMark("login-ready");
@@ -574,7 +590,6 @@ async function submitLogin() {
       }
       if (typeof perfRumOnLoginReady === "function") perfRumOnLoginReady();
       if (errorEl) errorEl.textContent = "";
-      hideLoginOverlay();
       if (typeof startBoardPolling === "function") startBoardPolling();
     } else if (errorEl) {
       errorEl.textContent = "账号或密码错误";
