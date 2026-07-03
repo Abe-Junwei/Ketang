@@ -1,7 +1,7 @@
 {
   "version": 2,
   "updated": "2026-07-03",
-  "notes": "Phase G 前端 performance.mark 埋点 + 生产延迟阈值。P95 超过 thresholds_ms 则 test_prod_latency --check-baseline 失败；phase_g_targets_ms 为稳定目标（非当前生产现状）。外部耗时 = 探针端到端；server_total_ms = 响应 _timing.total_ms 或 304 的 X-Ketang-Timing。行级 delta 依赖 v22。",
+  "notes": "Phase G 前端 performance.mark + 生产延迟阈值。探针默认 gzip（Accept-Encoding）、samples=7、报告含 network_gap_ms/bytes/outliers。phase_g_targets_ms 为稳定目标。",
   "thresholds_ms": {
     "index_ttfb_ms": 5000,
     "login_role_ms": 15000,
@@ -24,11 +24,11 @@
     "d1_error_rate_max_pct": 0.1
   },
   "phase_g_metric_sources": {
-    "login_to_ready_p95_ms": "代理：max(login_role_ms.p95, read_board_ms.p95)；真实首屏见 frontend_login_ready_ms（CDP ketang:login-ready）",
-    "write_refresh_p95_ms": "frontend_write_refresh_ms：CDP rcRefreshAfterWrite（--probe-frontend / --check-phase-g）",
-    "delta_sync_p95_ms": "sync_delta_ms 外部端到端；server 见 sync_delta_timing.total_ms",
-    "read_module_p95_ms": "read_lodgers_records_ms 外部端到端（非 read_board）；server 见 read_lodgers_records_timing",
-    "reports_history_query_p95_ms": "read_events_ms 外部端到端"
+    "login_to_ready_p95_ms": "优先 frontend_login_ready_ms（CDP）；否则代理 max(login, read_board)",
+    "write_refresh_p95_ms": "frontend_write_refresh_ms：CDP（--probe-frontend）",
+    "delta_sync_p95_ms": "sync_delta_ms 外部 P95；server 见 sync_delta_timing",
+    "read_module_p95_ms": "read_lodgers_records_ms 外部 P95",
+    "reports_history_query_p95_ms": "read_events_ms 外部 P95"
   },
   "frontend_marks": [
     "ketang:login:start",
@@ -46,13 +46,24 @@
   "observed_production": {
     "base": "https://wulingkt.net",
     "recorded": "2026-07-03",
-    "samples": 2,
-    "login_role_ms_p95": 19316,
-    "read_board_ms_p95": null,
-    "sync_delta_ms_p95": 16038,
-    "read_lodgers_records_ms_p95": 3931,
-    "read_board_server_total_ms": 1404,
-    "read_lodgers_records_server_total_ms": 1224,
-    "notes": "外部 P95 含 CF/网络 RTT；server_total_ms 为 2026-07-03 单次 timing=1 样本。phase_g_targets_ms 为上线稳定目标。"
+    "deploy": "post-init-fix (authEnsureReady + 304 fast path)",
+    "samples": 3,
+    "probe_gzip": true,
+    "login_role_ms_p95": 4352,
+    "login_role_server_p95": 2314,
+    "login_role_init_ms": 674,
+    "read_model_304_server_p95": 315,
+    "read_board_ms_p95": 6979,
+    "read_board_server_p95": 1129,
+    "read_board_network_gap_p95": 5850,
+    "read_board_bytes_gzip": 13800,
+    "read_lodgers_records_ms_p95": 2783,
+    "read_lodgers_records_server_p95": 1093,
+    "sync_delta_ms_p95": 8314,
+    "sync_delta_server_p95": 968,
+    "sync_delta_init_ms": 0,
+    "frontend_write_refresh_ms": 100,
+    "frontend_login_ready_ms_cdp": 10427,
+    "notes": "init 桶已消除；外部 gap 仍大。探针见 test_prod_latency --samples 7 --write-report。"
   }
 }

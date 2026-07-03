@@ -12,9 +12,13 @@ import time
 import urllib.error
 import urllib.request
 from pathlib import Path
+from typing import Any, Callable
 
 ROOT = Path(__file__).resolve().parent
 DEFAULT_BASELINE = ROOT / "docs/ops/performance-baseline.json"
+DEFAULT_SAMPLES = 7
+OUTLIER_RETRY_MS = 12000
+OUTLIER_P50_FACTOR = 2.5
 _COOKIE_JAR = http.cookiejar.CookieJar()
 _URL_OPENER = urllib.request.build_opener(
     urllib.request.HTTPCookieProcessor(_COOKIE_JAR),
@@ -43,11 +47,21 @@ def summarize_samples(samples: list[int]) -> dict:
     }
 
 
-def decode_response_body(raw: bytes, headers: dict) -> str:
+def decode_response_body(raw: bytes, headers: dict) -> tuple[str, bytes]:
     encoding = (headers.get("Content-Encoding") or headers.get("content-encoding") or "").lower()
+    wire = raw
     if encoding == "gzip":
         raw = gzip.decompress(raw)
-    return raw.decode("utf-8")
+    return raw.decode("utf-8"), wire
+
+
+def response_meta(headers: dict, wire_bytes: bytes, decoded_bytes: bytes) -> dict:
+    encoding = headers.get("Content-Encoding") or headers.get("content-encoding") or "identity"
+    return {
+        "content_encoding": encoding.lower(),
+        "bytes": len(wire_bytes),
+        "decoded_bytes": len(decoded_bytes),
+    }
 
 
 def request_json(url, method="GET", headers=None, body=None, timeout=120):
@@ -72,12 +86,14 @@ def request_json(url, method="GET", headers=None, body=None, timeout=120):
                 if not chunk:
                     break
                 chunks.append(chunk)
-            raw = b"".join(chunks)
+            wire = b"".join(chunks)
             elapsed_ms = int((time.perf_counter() - started) * 1000)
             hdrs = dict(resp.headers)
-            text = decode_response_body(raw, hdrs)
+            text, _wire = decode_response_body(wire, hdrs)
+            decoded = text.encode("utf-8")
             payload = json.loads(text or "{}") if text else {}
-            return resp.status, payload, elapsed_ms, hdrs
+            meta = response_meta(hdrs, wire, decoded)
+            return resp.status, payload, elapsed_ms, hdrs, meta
     except urllib.error.HTTPError as exc:
         chunks: list[bytes] = []
         while True:
@@ -85,18 +101,21 @@ def request_json(url, method="GET", headers=None, body=None, timeout=120):
             if not chunk:
                 break
             chunks.append(chunk)
-        raw = b"".join(chunks)
+        wire = b"".join(chunks)
         elapsed_ms = int((time.perf_counter() - started) * 1000)
         hdrs = dict(exc.headers)
         try:
-            text = decode_response_body(raw, hdrs)
+            text, _wire = decode_response_body(wire, hdrs)
+            decoded = text.encode("utf-8")
             payload = json.loads(text or "{}") if text else {}
         except (json.JSONDecodeError, UnicodeDecodeError):
-            payload = {"error": raw[:200].decode("utf-8", errors="replace")}
-        return exc.code, payload, elapsed_ms, hdrs
+            payload = {"error": wire[:200].decode("utf-8", errors="replace")}
+            decoded = wire[:200]
+        meta = response_meta(hdrs, wire, decoded if isinstance(decoded, bytes) else decoded)
+        return exc.code, payload, elapsed_ms, hdrs, meta
 
 
-def ttfb_ms(url, timeout=60):
+def ttfb_ms(url, timeout=60) -> tuple[int, dict]:
     started = time.perf_counter()
     req = urllib.request.Request(
         url,
@@ -107,8 +126,11 @@ def ttfb_ms(url, timeout=60):
         },
     )
     with urllib.request.urlopen(req, timeout=timeout) as resp:
-        resp.read(256)
-        return int((time.perf_counter() - started) * 1000)
+        wire = resp.read(256)
+        ms = int((time.perf_counter() - started) * 1000)
+        hdrs = dict(resp.headers)
+        meta = response_meta(hdrs, wire, wire)
+        return ms, meta
 
 
 def load_baseline(path: Path) -> dict:
@@ -135,18 +157,109 @@ def parse_timing_header(headers: dict) -> dict | None:
         return None
 
 
+def extract_timing(payload: dict | None, headers: dict, status: int) -> dict | None:
+    if isinstance(payload, dict) and payload.get("_timing"):
+        return payload["_timing"]
+    if status == 304:
+        return parse_timing_header(headers)
+    return None
+
+
+def run_external_ms(external_ms: int, timing: dict | None, meta: dict) -> dict:
+    server_total = int(timing["total_ms"]) if timing and timing.get("total_ms") is not None else None
+    gap = external_ms - server_total if server_total is not None else None
+    return {
+        "external_ms": external_ms,
+        "server_total_ms": server_total,
+        "network_gap_ms": gap,
+        "content_encoding": meta.get("content_encoding"),
+        "bytes": meta.get("bytes"),
+        "decoded_bytes": meta.get("decoded_bytes"),
+    }
+
+
+def summarize_probe_runs(runs: list[dict]) -> dict:
+    externals = [r["external_ms"] for r in runs]
+    metric = summarize_samples(externals)
+    gaps = [r["network_gap_ms"] for r in runs if r.get("network_gap_ms") is not None]
+    servers = [r["server_total_ms"] for r in runs if r.get("server_total_ms") is not None]
+    if gaps:
+        metric["network_gap_ms"] = percentile(gaps, 95)
+    if servers:
+        metric["server_total_ms"] = percentile(servers, 95)
+    last = runs[-1]
+    metric["content_encoding"] = last.get("content_encoding")
+    metric["bytes"] = last.get("bytes")
+    metric["decoded_bytes"] = last.get("decoded_bytes")
+    if runs[-1].get("server_timing"):
+        metric["server_timing"] = runs[-1]["server_timing"]
+    retries = [r["retry_ms"] for r in runs if r.get("retry_ms") is not None]
+    if retries:
+        metric["retry_ms"] = retries
+    return metric
+
+
+def classify_outliers(metric_key: str, runs: list[dict], baseline_limit: int | None) -> list[dict]:
+    if len(runs) < 2:
+        return []
+    p50 = percentile([r["external_ms"] for r in runs], 50)
+    threshold = max(int(p50 * OUTLIER_P50_FACTOR), OUTLIER_RETRY_MS)
+    if baseline_limit:
+        threshold = max(threshold, int(baseline_limit * 1.5))
+    outliers = []
+    for r in runs:
+        ext = r["external_ms"]
+        if ext <= threshold:
+            continue
+        srv = r.get("server_total_ms")
+        gap = r.get("network_gap_ms")
+        classification = "edge_or_network_tail"
+        if srv and gap is not None and gap > max(srv, 3000):
+            classification = "edge_or_network_tail"
+        elif srv and ext <= srv * 2:
+            classification = "server_or_cold_start"
+        outliers.append(
+            {
+                "metric": metric_key,
+                "sample_ms": ext,
+                "server_total_ms": srv,
+                "network_gap_ms": gap,
+                "retry_ms": r.get("retry_ms"),
+                "classification": classification,
+            }
+        )
+    return outliers
+
+
+def probe_repeat(
+    metric_key: str,
+    sample_n: int,
+    fetch_once: Callable[[], dict],
+    baseline_limit: int | None = None,
+) -> tuple[dict, list[dict]]:
+    runs: list[dict] = []
+    for _ in range(sample_n):
+        run = fetch_once()
+        if run["external_ms"] >= OUTLIER_RETRY_MS:
+            retry = fetch_once()
+            run["retry_ms"] = retry["external_ms"]
+        runs.append(run)
+    return summarize_probe_runs(runs), classify_outliers(metric_key, runs, baseline_limit)
+
+
 def attach_server_timing(metric: dict, timing: dict | None) -> None:
     if not isinstance(metric, dict) or not isinstance(timing, dict):
         return
-    total = timing.get("total_ms")
-    if total is not None:
-        metric["server_total_ms"] = int(total)
+    if timing.get("total_ms") is not None and "server_total_ms" not in metric:
+        metric["server_total_ms"] = int(timing["total_ms"])
     metric["server_timing"] = timing
 
 
 def phase_g_actual_ms(key: str, results: dict) -> int | None:
     if key == "login_to_ready_p95_ms":
-        # 代理口径：max(登录, 首屏 board 读)；非浏览器 login-ready mark
+        frontend = results.get("frontend_login_ready_ms")
+        if isinstance(frontend, dict) and frontend.get("p95_ms") is not None:
+            return frontend.get("p95_ms")
         parts = []
         for src in ("login_role_ms", "read_board_ms"):
             metric = results.get(src)
@@ -171,9 +284,7 @@ def check_phase_g(results: dict, baseline: dict) -> list[str]:
     targets = baseline.get("phase_g_targets_ms", {})
     failures: list[str] = []
     for key, limit in targets.items():
-        if key == "extra_module_fetch_after_write_max":
-            continue
-        if key == "d1_error_rate_max_pct":
+        if key in ("extra_module_fetch_after_write_max", "d1_error_rate_max_pct"):
             continue
         if not str(key).endswith("_ms"):
             continue
@@ -205,13 +316,12 @@ def check_baseline(results: dict, baseline: dict) -> list[str]:
     return failures
 
 
-def probe_frontend_write_refresh() -> dict | None:
-    """CDP: login + rcRefreshAfterWrite → ketang:write-refresh measure (local dev + cloud API)."""
+def probe_frontend_metrics(frontend_base: str | None, api_base: str) -> dict:
+    """CDP 前端 Phase G：login-ready、write-refresh、read module marks。"""
     if os.environ.get("KETANG_SKIP_ONLINE_E2E") == "1":
         return {"_skip": "KETANG_SKIP_ONLINE_E2E=1"}
     try:
         import subprocess
-        import time
 
         import websocket
 
@@ -224,7 +334,10 @@ def probe_frontend_write_refresh() -> dict | None:
     if not chrome:
         return {"_skip": "chrome_not_found"}
 
-    server = start_server()
+    page_base = (frontend_base or f"http://127.0.0.1:{PORT}").rstrip("/")
+    use_local_server = page_base.startswith("http://127.0.0.1") or page_base.startswith("http://localhost")
+    server = start_server() if use_local_server else None
+
     proc = subprocess.Popen(
         [
             chrome,
@@ -234,7 +347,7 @@ def probe_frontend_write_refresh() -> dict | None:
             "--disable-gpu",
             "--no-sandbox",
             "--disable-dev-shm-usage",
-            f"http://127.0.0.1:{PORT}/index.html",
+            f"{page_base}/index.html",
         ],
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
@@ -249,23 +362,23 @@ def probe_frontend_write_refresh() -> dict | None:
         ws = websocket.create_connection(ws_url, timeout=30)
         ws.send(json.dumps({"id": 1, "method": "Runtime.enable"}))
         ws.recv()
-        for _ in range(40):
+        for _ in range(60):
             if evaluate(ws, "window.ketangReady").get("value"):
                 break
             time.sleep(0.5)
         else:
             return {"_skip": "app_init_timeout"}
 
-        online = evaluate(
-            ws,
-            """({
-              isRemoteDB: typeof isRemoteDB === 'function' && isRemoteDB(),
-              useRemoteWriteApi: typeof useRemoteWriteApi === 'function' && useRemoteWriteApi(),
-              forceLocal: typeof isLocalForceDb === 'function' && isLocalForceDb(),
-            })""",
-        ).get("value", {})
-        if not online.get("isRemoteDB"):
-            return {"_skip": "not_remote_db", "detail": online}
+        if use_local_server:
+            online = evaluate(
+                ws,
+                """({
+                  isRemoteDB: typeof isRemoteDB === 'function' && isRemoteDB(),
+                  useRemoteWriteApi: typeof useRemoteWriteApi === 'function' && useRemoteWriteApi(),
+                })""",
+            ).get("value", {})
+            if not online.get("isRemoteDB"):
+                return {"_skip": "not_remote_db", "detail": online, "frontend_base": page_base}
 
         expr = """
         (async () => {
@@ -274,37 +387,47 @@ def probe_frontend_write_refresh() -> dict | None:
           document.getElementById('login-username').value = 'admin';
           document.getElementById('login-password').value = 'admin';
           await submitLogin();
-          for (let i = 0; i < 80; i++) {
+          for (let i = 0; i < 100; i++) {
             if (typeof isLoggedIn === 'function' && isLoggedIn()) break;
             await new Promise(r => setTimeout(r, 250));
           }
           if (!(typeof isLoggedIn === 'function' && isLoggedIn())) {
             return { error: 'login failed' };
           }
-          if (typeof rcRefreshAfterWrite !== 'function') {
-            return { error: 'rcRefreshAfterWrite missing' };
+          const measures = performance.getEntriesByType('measure');
+          const loginReady = measures.filter(e => e.name === 'ketang:login-ready');
+          const readBoard = measures.filter(e => e.name === 'ketang:read:board');
+          const readModules = measures
+            .filter(e => e.name.startsWith('ketang:read:') && e.name.endsWith(':end') === false)
+            .map(e => ({ name: e.name, ms: Math.round(e.duration || 0) }));
+          const readModuleNames = [...new Set(
+            measures.map(e => e.name).filter(n => n.startsWith('ketang:read:'))
+          )];
+          let writeRefreshMs = null;
+          if (typeof rcRefreshAfterWrite === 'function') {
+            const t0 = performance.now();
+            const task = rcRefreshAfterWrite(
+              { patches: {}, deletions: [] },
+              { scope: 'board', skipViewRefresh: false },
+            );
+            if (task && typeof task.then === 'function') await task;
+            await new Promise(r => setTimeout(r, 500));
+            const wr = performance.getEntriesByType('measure')
+              .filter(e => e.name === 'ketang:write-refresh');
+            writeRefreshMs = wr.length
+              ? Math.round(wr[wr.length - 1].duration)
+              : Math.round(performance.now() - t0);
           }
-          performance.clearMarks();
-          performance.clearMeasures();
-          const task = rcRefreshAfterWrite(
-            { patches: {}, deletions: [] },
-            { scope: 'board', skipViewRefresh: false },
-          );
-          if (task && typeof task.then === 'function') await task;
-          await new Promise(r => setTimeout(r, 1000));
-          const entries = performance.getEntriesByType('measure')
-            .filter(e => e.name === 'ketang:write-refresh');
-          const loginReady = performance.getEntriesByType('measure')
-            .filter(e => e.name === 'ketang:login-ready');
           return {
-            writeRefreshMs: entries.length
-              ? Math.round(entries[entries.length - 1].duration)
-              : null,
             loginReadyMs: loginReady.length
               ? Math.round(loginReady[loginReady.length - 1].duration)
               : null,
-            hasWriteRefresh: entries.length > 0,
-            marks: performance.getEntriesByType('mark').map(m => m.name),
+            readBoardMs: readBoard.length
+              ? Math.round(readBoard[readBoard.length - 1].duration)
+              : null,
+            writeRefreshMs,
+            readModuleMarks: readModuleNames,
+            hasLoginReady: loginReady.length > 0,
           };
         })().catch(e => ({ error: e.message || String(e) }))
         """
@@ -322,38 +445,62 @@ def probe_frontend_write_refresh() -> dict | None:
             )
         )
         result = (
-            recv_by_id(ws, 2, 240)
+            recv_by_id(ws, 2, 300)
             .get("result", {})
             .get("result", {})
             .get("value", {})
         )
         ws.close()
         if result.get("error"):
-            return {"_skip": result["error"], "detail": result}
-        if not result.get("hasWriteRefresh"):
-            return {"_skip": "write_refresh_mark_missing", "detail": result}
-        ms = result.get("writeRefreshMs")
-        if ms is None:
-            return {"_skip": "write_refresh_ms_null", "detail": result}
-        return {
-            "samples": [ms],
-            "p50_ms": ms,
-            "p95_ms": ms,
-            "max_ms": ms,
-            "login_ready_ms": result.get("loginReadyMs"),
-            "source": "cdp_rcRefreshAfterWrite",
+            return {"_skip": result["error"], "detail": result, "frontend_base": page_base}
+        if not result.get("hasLoginReady"):
+            return {"_skip": "login_ready_mark_missing", "detail": result, "frontend_base": page_base}
+
+        out: dict[str, Any] = {
+            "frontend_base": page_base,
+            "api_base": api_base,
+            "read_module_marks": result.get("readModuleMarks") or [],
         }
+        if result.get("loginReadyMs") is not None:
+            ms = int(result["loginReadyMs"])
+            out["frontend_login_ready_ms"] = {
+                "samples": [ms],
+                "p50_ms": ms,
+                "p95_ms": ms,
+                "max_ms": ms,
+                "source": "cdp_ketang:login-ready",
+            }
+        if result.get("readBoardMs") is not None:
+            ms = int(result["readBoardMs"])
+            out["frontend_read_board_ms"] = {
+                "samples": [ms],
+                "p50_ms": ms,
+                "p95_ms": ms,
+                "max_ms": ms,
+                "source": "cdp_ketang:read:board",
+            }
+        if result.get("writeRefreshMs") is not None:
+            ms = int(result["writeRefreshMs"])
+            out["frontend_write_refresh_ms"] = {
+                "samples": [ms],
+                "p50_ms": ms,
+                "p95_ms": ms,
+                "max_ms": ms,
+                "source": "cdp_rcRefreshAfterWrite",
+            }
+        return out
     finally:
         proc.terminate()
         try:
             proc.wait(timeout=3)
         except subprocess.TimeoutExpired:
             proc.kill()
-        server.terminate()
-        try:
-            server.wait(timeout=3)
-        except subprocess.TimeoutExpired:
-            server.kill()
+        if server:
+            server.terminate()
+            try:
+                server.wait(timeout=3)
+            except subprocess.TimeoutExpired:
+                server.kill()
 
 
 def main() -> int:
@@ -361,11 +508,20 @@ def main() -> int:
     parser.add_argument(
         "--base",
         default="https://wulingkt.net",
-        help="Site base URL (use Pages preview if main domain has Access)",
+        help="API/site base URL for HTTP probes",
+    )
+    parser.add_argument(
+        "--frontend-base",
+        help="CDP page base (default: local dev_server; use https://wulingkt.net for prod UI)",
     )
     parser.add_argument("--role", default="admin", help="Login role")
     parser.add_argument("--password", default="admin", help="Login password")
-    parser.add_argument("--samples", type=int, default=3, help="Repeat count for P50/P95")
+    parser.add_argument(
+        "--samples",
+        type=int,
+        default=DEFAULT_SAMPLES,
+        help=f"Repeat count for P50/P95 (default {DEFAULT_SAMPLES})",
+    )
     parser.add_argument(
         "--check-baseline",
         nargs="?",
@@ -380,7 +536,7 @@ def main() -> int:
     parser.add_argument(
         "--probe-frontend",
         action="store_true",
-        help="CDP probe for ketang:write-refresh (requires Chrome; skipped if unavailable)",
+        help="CDP probe for login-ready / write-refresh (requires Chrome)",
     )
     parser.add_argument(
         "--write-report",
@@ -391,204 +547,223 @@ def main() -> int:
     timing_q = "?timing=1"
     sample_n = max(1, args.samples)
     probe_frontend = args.probe_frontend or args.check_phase_g
+    baseline_path = Path(args.check_baseline or DEFAULT_BASELINE)
+    baseline = load_baseline(baseline_path) if baseline_path.exists() else {"thresholds_ms": {}}
+    thresholds = baseline.get("thresholds_ms", {})
 
-    print(f"Target: {base} (samples={sample_n})")
+    print(f"Target: {base} (samples={sample_n}, gzip=on)")
     results: dict = {}
+    all_outliers: list[dict] = []
 
     try:
-        ttfb_ms(f"{base}/index.html")  # warm-up | 忽略冷启动首包
-        index_samples = [ttfb_ms(f"{base}/index.html") for _ in range(sample_n)]
-        results["index_ttfb_ms"] = summarize_samples(index_samples)
+        ttfb_ms(f"{base}/index.html")
+        index_runs = []
+        for _ in range(sample_n):
+            ms, meta = ttfb_ms(f"{base}/index.html")
+            index_runs.append({"external_ms": ms, **meta})
+        results["index_ttfb_ms"] = summarize_probe_runs(index_runs)
     except Exception as exc:
         print(f"FAIL index TTFB: {exc}")
         return 1
 
-    login_samples: list[int] = []
-    login_timing = None
-    for _ in range(sample_n):
-        status, body, ms, _ = request_json(
+    def login_fetch():
+        status, body, ms, hdrs, meta = request_json(
             f"{base}/api/db{timing_q}",
             method="POST",
             body={"action": "login_role", "role": args.role, "password": args.password},
         )
-        login_samples.append(ms)
         if status != 200 or not body.get("user"):
-            print(f"FAIL login_role status={status} body={body}")
-            return 1
-        login_timing = body.get("_timing")
-    results["login_role_ms"] = summarize_samples(login_samples)
-    results["login_role_timing"] = login_timing
-    attach_server_timing(results["login_role_ms"], login_timing)
+            raise RuntimeError(f"login_role status={status} body={body}")
+        timing = extract_timing(body, hdrs, status)
+        run = run_external_ms(ms, timing, meta)
+        if timing:
+            run["server_timing"] = timing
+        return run
 
-    session_samples: list[int] = []
-    for _ in range(sample_n):
-        status, body, ms, _ = request_json(
-            f"{base}/api/v1/session{timing_q}",
+    try:
+        metric, outliers = probe_repeat(
+            "login_role_ms", sample_n, login_fetch, thresholds.get("login_role_ms")
         )
-        session_samples.append(ms)
-        if status != 200:
-            print(f"FAIL session status={status} body={body}")
-            return 1
-    results["session_ms"] = summarize_samples(session_samples)
-    results["session_timing"] = body.get("_timing")
-    attach_server_timing(results["session_ms"], body.get("_timing"))
+        results["login_role_ms"] = metric
+        results["login_role_timing"] = metric.get("server_timing")
+        all_outliers.extend(outliers)
+    except RuntimeError as exc:
+        print(f"FAIL {exc}")
+        return 1
 
-    read_samples: list[int] = []
-    etag = None
-    for _ in range(sample_n):
-        status, body, ms, headers = request_json(
-            f"{base}/api/v1/read-model{timing_q}",
-        )
-        read_samples.append(ms)
+    def session_fetch():
+        status, body, ms, hdrs, meta = request_json(f"{base}/api/v1/session{timing_q}")
         if status != 200:
-            print(f"FAIL read-model status={status} body={body}")
-            return 1
-        etag = headers.get("ETag") or headers.get("etag") or body.get("version")
-    results["read_model_ms"] = summarize_samples(read_samples)
-    results["read_model_timing"] = body.get("_timing")
-    attach_server_timing(results["read_model_ms"], body.get("_timing"))
+            raise RuntimeError(f"session status={status} body={body}")
+        timing = extract_timing(body, hdrs, status)
+        run = run_external_ms(ms, timing, meta)
+        if timing:
+            run["server_timing"] = timing
+        return run
 
-    if etag is not None:
-        etag_text = str(etag)
-        samples_304: list[int] = []
-        timing_304 = None
-        for _ in range(sample_n):
-            status, _, ms, headers = request_json(
+    metric, outliers = probe_repeat(
+        "session_ms", sample_n, session_fetch, thresholds.get("session_ms")
+    )
+    results["session_ms"] = metric
+    results["session_timing"] = metric.get("server_timing")
+    all_outliers.extend(outliers)
+
+    etag_holder: dict[str, Any] = {"etag": None}
+
+    def read_model_fetch():
+        status, body, ms, hdrs, meta = request_json(f"{base}/api/v1/read-model{timing_q}")
+        if status != 200:
+            raise RuntimeError(f"read-model status={status} body={body}")
+        etag_holder["etag"] = hdrs.get("ETag") or hdrs.get("etag") or body.get("version")
+        timing = extract_timing(body, hdrs, status)
+        run = run_external_ms(ms, timing, meta)
+        if timing:
+            run["server_timing"] = timing
+        return run
+
+    metric, outliers = probe_repeat(
+        "read_model_ms", sample_n, read_model_fetch, thresholds.get("read_model_ms")
+    )
+    results["read_model_ms"] = metric
+    results["read_model_timing"] = metric.get("server_timing")
+    all_outliers.extend(outliers)
+
+    if etag_holder["etag"] is not None:
+        etag_text = str(etag_holder["etag"])
+
+        def read_model_304_fetch():
+            status, body, ms, hdrs, meta = request_json(
                 f"{base}/api/v1/read-model{timing_q}",
                 headers={"If-None-Match": etag_text},
             )
-            samples_304.append(ms)
             if status != 304:
-                print(f"FAIL read-model 304 expected, got {status}")
-                return 1
-            timing_304 = parse_timing_header(headers) or timing_304
-        results["read_model_304_ms"] = summarize_samples(samples_304)
-        results["read_model_304_timing"] = timing_304
-        attach_server_timing(results["read_model_304_ms"], timing_304)
+                raise RuntimeError(f"read-model 304 expected, got {status}")
+            timing = extract_timing(body, hdrs, status)
+            run = run_external_ms(ms, timing, meta)
+            if timing:
+                run["server_timing"] = timing
+            return run
+
+        metric, outliers = probe_repeat(
+            "read_model_304_ms",
+            sample_n,
+            read_model_304_fetch,
+            thresholds.get("read_model_304_ms"),
+        )
+        results["read_model_304_ms"] = metric
+        results["read_model_304_timing"] = metric.get("server_timing")
+        all_outliers.extend(outliers)
     else:
         print("WARN read-model missing ETag; skipped 304 probe")
 
-    board_samples: list[int] = []
-    for _ in range(sample_n):
-        status, body, ms, _ = request_json(
-            f"{base}/api/v1/board-version",
-        )
-        board_samples.append(ms)
+    def board_version_fetch():
+        status, body, ms, hdrs, meta = request_json(f"{base}/api/v1/board-version")
         if status != 200:
-            print(f"FAIL board-version status={status} body={body}")
-            return 1
-    results["board_version_ms"] = summarize_samples(board_samples)
+            raise RuntimeError(f"board-version status={status} body={body}")
+        return run_external_ms(ms, None, meta)
 
-    module_samples: list[int] = []
-    for _ in range(sample_n):
-        status, body, ms, _ = request_json(
-            f"{base}/api/v1/read/lodgers_records{timing_q}",
+    metric, outliers = probe_repeat(
+        "board_version_ms", sample_n, board_version_fetch, thresholds.get("board_version_ms")
+    )
+    results["board_version_ms"] = metric
+    all_outliers.extend(outliers)
+
+    def module_fetch(path: str, key: str):
+        def _fetch():
+            status, body, ms, hdrs, meta = request_json(f"{base}{path}{timing_q}")
+            if status != 200 or not body.get("tables"):
+                raise RuntimeError(f"{key} status={status} body={body}")
+            timing = extract_timing(body, hdrs, status)
+            run = run_external_ms(ms, timing, meta)
+            if timing:
+                run["server_timing"] = timing
+            return run
+
+        return _fetch
+
+    for path, key in (
+        ("/api/v1/read/lodgers_records", "read_lodgers_records_ms"),
+        ("/api/v1/read/board", "read_board_ms"),
+        ("/api/v1/read/events", "read_events_ms"),
+    ):
+        metric, outliers = probe_repeat(
+            key, sample_n, module_fetch(path, key), thresholds.get(key)
         )
-        module_samples.append(ms)
-        if status != 200 or not body.get("tables"):
-            print(f"FAIL read/lodgers_records status={status} body={body}")
-            return 1
-    results["read_lodgers_records_ms"] = summarize_samples(module_samples)
-    results["read_lodgers_records_timing"] = body.get("_timing")
-    attach_server_timing(results["read_lodgers_records_ms"], body.get("_timing"))
+        results[key] = metric
+        results[key.replace("_ms", "_timing")] = metric.get("server_timing")
+        all_outliers.extend(outliers)
 
-    board_mod_samples: list[int] = []
-    for _ in range(sample_n):
-        status, body, ms, _ = request_json(
-            f"{base}/api/v1/read/board{timing_q}",
-        )
-        board_mod_samples.append(ms)
-        if status != 200 or not body.get("tables"):
-            print(f"FAIL read/board status={status} body={body}")
-            return 1
-    results["read_board_ms"] = summarize_samples(board_mod_samples)
-    results["read_board_timing"] = body.get("_timing")
-    attach_server_timing(results["read_board_ms"], body.get("_timing"))
+    board_version_holder: dict[str, Any] = {"v": 0}
+    status, body, _, _, _ = request_json(f"{base}/api/v1/read/board{timing_q}")
+    if status == 200:
+        board_version_holder["v"] = body.get("board_version") or 0
 
-    events_mod_samples: list[int] = []
-    for _ in range(sample_n):
-        status, body, ms, _ = request_json(
-            f"{base}/api/v1/read/events{timing_q}",
-        )
-        events_mod_samples.append(ms)
-        if status != 200 or not body.get("tables"):
-            print(f"FAIL read/events status={status} body={body}")
-            return 1
-    results["read_events_ms"] = summarize_samples(events_mod_samples)
-    results["read_events_timing"] = body.get("_timing")
-    attach_server_timing(results["read_events_ms"], body.get("_timing"))
-
-    delta_samples: list[int] = []
-    version = body.get("board_version")
-    delta_timing = None
-    for _ in range(sample_n):
-        status, payload, ms, headers = request_json(
+    def delta_fetch():
+        status, payload, ms, hdrs, meta = request_json(
             f"{base}/api/v1/sync/delta{timing_q}",
-            headers={"If-None-Match": str(version or 0)},
+            headers={"If-None-Match": str(board_version_holder["v"])},
         )
-        delta_samples.append(ms)
         if status not in (200, 304):
-            print(f"FAIL sync/delta status={status} body={payload}")
-            return 1
-        if status == 200:
-            delta_timing = payload.get("_timing") or delta_timing
-        else:
-            delta_timing = parse_timing_header(headers) or delta_timing
-    results["sync_delta_ms"] = summarize_samples(delta_samples)
-    results["sync_delta_timing"] = delta_timing
-    attach_server_timing(results["sync_delta_ms"], delta_timing)
+            raise RuntimeError(f"sync/delta status={status} body={payload}")
+        timing = extract_timing(payload, hdrs, status)
+        run = run_external_ms(ms, timing, meta)
+        if timing:
+            run["server_timing"] = timing
+        return run
+
+    metric, outliers = probe_repeat(
+        "sync_delta_ms", sample_n, delta_fetch, thresholds.get("sync_delta_ms")
+    )
+    results["sync_delta_ms"] = metric
+    results["sync_delta_timing"] = metric.get("server_timing")
+    all_outliers.extend(outliers)
+
+    if all_outliers:
+        results["outliers"] = all_outliers
 
     if probe_frontend:
-        frontend = probe_frontend_write_refresh()
-        if frontend and frontend.get("_skip"):
+        frontend = probe_frontend_metrics(args.frontend_base, base)
+        if frontend.get("_skip"):
             results["frontend_probe_skip"] = frontend
             print(f"WARN frontend probe skipped: {frontend.get('_skip')}")
-        elif frontend:
-            results["frontend_write_refresh_ms"] = frontend
-            if frontend.get("login_ready_ms") is not None:
-                results["frontend_login_ready_ms"] = {
-                    "samples": [frontend["login_ready_ms"]],
-                    "p50_ms": frontend["login_ready_ms"],
-                    "p95_ms": frontend["login_ready_ms"],
-                    "max_ms": frontend["login_ready_ms"],
-                    "source": "cdp_ketang:login-ready",
-                }
         else:
-            print("WARN frontend probe skipped (unknown)")
+            for k in (
+                "frontend_login_ready_ms",
+                "frontend_write_refresh_ms",
+                "frontend_read_board_ms",
+                "read_module_marks",
+                "frontend_base",
+            ):
+                if k in frontend:
+                    results[k] = frontend[k]
 
     print(json.dumps(results, ensure_ascii=False, indent=2))
 
+    report = {
+        "base": base,
+        "frontend_base": args.frontend_base,
+        "samples": sample_n,
+        "probe_gzip": True,
+        "results": results,
+    }
     if args.write_report:
         report_path = Path(args.write_report)
         report_path.parent.mkdir(parents=True, exist_ok=True)
-        report_path.write_text(
-            json.dumps(
-                {
-                    "base": base,
-                    "samples": sample_n,
-                    "results": results,
-                },
-                ensure_ascii=False,
-                indent=2,
-            ),
-            encoding="utf-8",
-        )
+        report_path.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
         print(f"Report written: {report_path}")
 
     if args.check_baseline:
-        baseline_path = Path(args.check_baseline)
-        baseline = load_baseline(baseline_path)
         failures = check_baseline(results, baseline)
         if failures:
             print("FAIL baseline thresholds:")
             for item in failures:
                 print(f"  - {item}")
+            if all_outliers:
+                print(f"NOTE: {len(all_outliers)} outlier sample(s) recorded in results.outliers")
             return 1
         print(f"OK within baseline ({baseline_path.name})")
 
     if args.check_phase_g:
-        baseline_path = Path(args.check_baseline or DEFAULT_BASELINE)
-        baseline = load_baseline(baseline_path)
         pg_failures = check_phase_g(results, baseline)
         if pg_failures:
             print("FAIL phase G targets:")
