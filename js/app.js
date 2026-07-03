@@ -1368,9 +1368,16 @@ function renderRooms() {
   }
   var useRc =
     typeof boardReadCacheReady === "function" && boardReadCacheReady();
-  const rooms = useRc
-    ? rcBoardRooms()
-    : query("SELECT * FROM rooms ORDER BY floor ASC, id");
+  var rooms;
+  if (useRc) {
+    rooms = rcBoardRooms();
+  } else if (typeof isRemoteDB === "function" && isRemoteDB()) {
+    grid.innerHTML =
+      '<p class="empty-tip">' + escapeHtml("正在加载房态数据…") + "</p>";
+    return;
+  } else {
+    rooms = query("SELECT * FROM rooms ORDER BY floor ASC, id");
+  }
 
   let groups = {};
   const locFloor = {};

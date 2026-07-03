@@ -362,7 +362,9 @@ def probe_frontend_metrics(frontend_base: str | None, api_base: str) -> dict:
         ws = websocket.create_connection(ws_url, timeout=30)
         ws.send(json.dumps({"id": 1, "method": "Runtime.enable"}))
         ws.recv()
-        for _ in range(60):
+        # Production cold load (restoreRemoteSession + CDN) can exceed 30s.
+        init_wait_iters = 120 if not use_local_server else 60
+        for _ in range(init_wait_iters):
             if evaluate(ws, "window.ketangReady").get("value"):
                 break
             time.sleep(0.5)

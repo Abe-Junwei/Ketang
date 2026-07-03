@@ -464,9 +464,9 @@ function rcActiveLodgersEnriched() {
 
 function boardReadCacheReady() {
   return (
-    typeof rcReadReady === "function" &&
-    rcReadReady() &&
-    rcBoardRooms().length > 0
+    typeof rcUseApiRead === "function" &&
+    rcUseApiRead() &&
+    rcRows("board", "rooms").length > 0
   );
 }
 
@@ -1591,6 +1591,12 @@ async function rcEnsureAppData(force, options) {
         setLocalBoardVersion(payload.board_version);
       }
     });
+    if (typeof remoteReadModelReady !== "undefined") {
+      remoteReadModelReady = true;
+    }
+    if (typeof lastRemoteSyncAt !== "undefined") {
+      lastRemoteSyncAt = Date.now();
+    }
     return;
   }
   var hydrateSql =
