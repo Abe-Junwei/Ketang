@@ -388,6 +388,62 @@ def check_baseline_graded(results: dict, baseline: dict) -> tuple[list[str], lis
     return fails, warns, infos
 
 
+def check_login_bootstrap_read_guard(
+    results: dict, baseline: dict
+) -> tuple[list[str], list[str]]:
+    """G-6：登录首屏不得再发独立 read module（board 应内嵌于 login）。"""
+    if results.get("frontend_probe_skip"):
+        return [], []
+    marks = results.get("read_module_marks")
+    if marks is None:
+        return [], []
+
+    levels = baseline.get("probe_check_levels", {})
+    fail_keys = set(levels.get("fail", []))
+    warn_keys = set(levels.get("warn", []))
+    fails: list[str] = []
+    warns: list[str] = []
+
+    bad_marks: list[str] = []
+    if isinstance(marks, list):
+        for mark in marks:
+            if not isinstance(mark, str):
+                continue
+            if not mark.startswith("ketang:read:"):
+                continue
+            if "seeded" in mark:
+                continue
+            bad_marks.append(mark)
+
+    read_board = results.get("frontend_read_board_ms")
+    has_read_board_measure = (
+        isinstance(read_board, dict) and read_board.get("p95_ms") is not None
+    )
+
+    if not bad_marks and not has_read_board_measure:
+        return [], []
+
+    parts: list[str] = []
+    if bad_marks:
+        parts.append(f"read_module_marks={bad_marks}")
+    if has_read_board_measure:
+        parts.append(f"frontend_read_board_ms={read_board.get('p95_ms')}ms")
+    msg = (
+        "login_bootstrap_extra_read_module: "
+        + "; ".join(parts)
+        + " (G-6: board embedded in login; expect no separate /read/board after submitLogin)"
+    )
+
+    key = "login_bootstrap_extra_read_module"
+    if key in fail_keys:
+        fails.append(msg)
+    elif key in warn_keys:
+        warns.append(msg)
+    else:
+        fails.append(msg)
+    return fails, warns
+
+
 def probe_frontend_metrics(frontend_base: str | None, api_base: str) -> dict:
     """CDP 前端 Phase G：login-ready、write-refresh、read module marks。"""
     if os.environ.get("KETANG_SKIP_ONLINE_E2E") == "1":
@@ -928,6 +984,11 @@ def main() -> int:
     if args.check_baseline or args.check_baseline_graded:
         if args.check_baseline_graded:
             fails, warns, infos = check_baseline_graded(results, baseline)
+            guard_fails, guard_warns = check_login_bootstrap_read_guard(
+                results, baseline
+            )
+            fails.extend(guard_fails)
+            warns.extend(guard_warns)
             if infos:
                 print("INFO baseline:")
                 for item in infos:

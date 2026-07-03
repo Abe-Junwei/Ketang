@@ -40,7 +40,8 @@
       "missing_metric",
       "write_refresh_p95_exceeds_target",
       "server_read_module_p95_exceeds_2x_target",
-      "functional_error"
+      "functional_error",
+      "login_bootstrap_extra_read_module"
     ],
     "warn": [
       "external_gap_p95_exceeds_threshold_server_ok",
@@ -78,6 +79,7 @@
     "ketang:rc:deferred:end",
     "ketang:read:board:start",
     "ketang:read:board:end",
+    "ketang:read:board:seeded",
     "ketang:write-refresh:start",
     "ketang:write-refresh:end",
     "ketang:delta:start",
@@ -87,7 +89,7 @@
   "observed_production": {
     "base": "https://wulingkt.net",
     "recorded": "2026-07-04",
-    "deploy": "board prefetch + deferred UI mounts (read-cache v26)",
+    "deploy": "G-6 login embeds board; CDP read_module_marks expect []",
     "samples": 5,
     "probe_gzip": true,
     "read_board_ms_p95": 2171,
@@ -98,8 +100,9 @@
     "read_lodgers_lookup_bytes_gzip": 3014,
     "frontend_first_view_ready_ms_cdp": 6977,
     "frontend_write_refresh_ms": 137,
-    "frontend_read_board_ms_cdp": 3308,
+    "frontend_read_board_ms_cdp": null,
+    "cdp_read_module_marks_after_login": [],
     "deferred_modules": "lodgers,lodgers_lookup,reservations,events,meals",
-    "notes": "board 登录并行 prefetch；CDP 仅 rc:bootstrap+read:board。外部 RTT 仍主导 gap。"
+    "notes": "G-6：登录内嵌 board；CDP 无独立 read:board。探针守门 login_bootstrap_extra_read_module。"
   }
 }

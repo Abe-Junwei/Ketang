@@ -19,6 +19,8 @@ def main() -> int:
         ("timing observe waitUntil", "waitUntil" in read("functions/_shared/timing.js")),
         ("history skip 304", "isHistoryPage" in read("functions/api/v1/read/[module].js")),
         ("probe ingest helper", "ingest_probe_samples" in read("test_prod_latency.py")),
+        ("login bootstrap guard", "check_login_bootstrap_read_guard" in read("test_prod_latency.py")),
+        ("guard fail level", "login_bootstrap_extra_read_module" in read("docs/ops/performance-baseline.json")),
     ]
     failed = [name for name, ok in checks if not ok]
     if failed:

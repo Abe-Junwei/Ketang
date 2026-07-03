@@ -57,6 +57,9 @@ if "--check-phase-g" not in latency or "check_phase_g" not in latency:
 if "probe_frontend_metrics" not in latency or "network_gap_ms" not in latency:
     print("FAIL test_prod_latency.py missing frontend probe or network_gap reporting")
     sys.exit(1)
+if "check_login_bootstrap_read_guard" not in latency:
+    print("FAIL test_prod_latency.py missing G-6 login bootstrap read guard")
+    sys.exit(1)
 if "DEFAULT_SAMPLES = 7" not in latency and "default=DEFAULT_SAMPLES" not in latency:
     print("FAIL test_prod_latency.py should default samples to 7")
     sys.exit(1)
