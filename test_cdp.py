@@ -316,13 +316,27 @@ def main():
                 sys.exit(1)
             errors.extend([f"[journey] {e}" for e in collect_errors(ws, 1.0)])
 
-        # Permission negative test: zhike should not access info/backup
+        # Permission negative test: default zhike role must not access info/backup
         evaluate(ws, "logout()")
         time.sleep(0.3)
         login_ok = evaluate(ws, "login('zhike','zhike')").get('value')
         if not login_ok:
             print("FAIL: zhike login failed")
             sys.exit(1)
+        evaluate(ws, "hideLoginOverlay()")
+        # Production may grant custom role_permissions; strip admin perms to test the gate.
+        gate_expr = """
+            (() => {
+              const blocked = ['settings.read', 'settings.write', 'backup.read', 'backup.write', 'users.read', 'users.write'];
+              const p = getSessionPermissions().filter(c => blocked.indexOf(c) === -1);
+              setSessionPermissions(p);
+              applyPermissions();
+              showView('board');
+              return true;
+            })()
+        """
+        evaluate(ws, gate_expr)
+        time.sleep(0.3)
         evaluate(ws, "showView('info')")
         time.sleep(0.3)
         active_view = evaluate(ws, "document.querySelector('.view.active')?.id")

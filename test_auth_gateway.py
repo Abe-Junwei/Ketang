@@ -460,12 +460,12 @@ def test_read_model_etag_and_client_304():
         print('FAIL read-model endpoint must support If-None-Match / 304')
         sys.exit(1)
     api_client = read('js/api-client.js')
-    db_js = read('js/db.js')
+    sync = read('js/sync-coordinator.js')
     if 'If-None-Match' not in api_client or 'notModified' not in api_client:
         print('FAIL api-client.js must handle read-model 304 responses')
         sys.exit(1)
-    if 'payload.notModified' not in db_js:
-        print('FAIL db.js syncRemoteReadModel must skip snapshot apply on 304')
+    if 'payload.notModified' not in sync:
+        print('FAIL sync-coordinator.js must skip module apply on 304')
         sys.exit(1)
 
 

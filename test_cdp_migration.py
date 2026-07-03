@@ -5,11 +5,46 @@ import sys
 import time
 import json
 import websocket
-from test_cdp import start_server, wait_for_cdp, cdp_ws_url, evaluate, collect_errors
+from test_cdp import start_server, wait_for_cdp, evaluate, collect_errors, recv_by_id, curl_get
 from test_file_protocol import chrome_binary
 
 PORT = 8125
 CDP_PORT = 9224
+
+
+def cdp_ws_any_page():
+    data = json.loads(curl_get(f"http://127.0.0.1:{CDP_PORT}/json", timeout=2))
+    for p in data:
+        if p.get("type") == "page" and "webSocketDebuggerUrl" in p:
+            return p["webSocketDebuggerUrl"]
+    return None
+
+
+def cdp_navigate_force_local(ws, port):
+    """Inject KETANG_FORCE_LOCAL_DB before first navigation (online-only default)."""
+    ws.send(json.dumps({"id": 100, "method": "Page.enable"}))
+    ws.recv()
+    ws.send(
+        json.dumps(
+            {
+                "id": 101,
+                "method": "Page.addScriptToEvaluateOnNewDocument",
+                "params": {"source": "window.KETANG_FORCE_LOCAL_DB = true;"},
+            }
+        )
+    )
+    ws.recv()
+    ws.send(
+        json.dumps(
+            {
+                "id": 102,
+                "method": "Page.navigate",
+                "params": {"url": f"http://127.0.0.1:{port}/index.html"},
+            }
+        )
+    )
+    ws.recv()
+
 
 def main():
     server = start_server()
@@ -22,14 +57,14 @@ def main():
         f"--remote-debugging-port={CDP_PORT}",
         "--remote-allow-origins=*",
         "--headless=new", "--disable-gpu", "--no-sandbox", "--disable-dev-shm-usage",
-        f"http://127.0.0.1:{PORT}/index.html"
+        "about:blank"
     ], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
 
     try:
         if not wait_for_cdp():
             print("FAIL: CDP not ready")
             sys.exit(1)
-        ws_url = cdp_ws_url()
+        ws_url = cdp_ws_any_page()
         if not ws_url:
             print("FAIL: no CDP page")
             sys.exit(1)
@@ -37,6 +72,7 @@ def main():
         ws = websocket.create_connection(ws_url, timeout=10)
         ws.send(json.dumps({'id': 2, 'method': 'Runtime.enable'}))
         ws.recv()
+        cdp_navigate_force_local(ws, PORT)
 
         for _ in range(30):
             res = evaluate(ws, 'window.ketangReady')
@@ -74,6 +110,7 @@ def main():
                 migrateV17toV18();
                 migrateV18toV19();
                 migrateV19toV20();
+                migrateV20toV21();
                 createIndexes();
                 seedRooms();
                 await saveDB();
@@ -93,6 +130,7 @@ def main():
                 const roomingAssignTable = db.exec("SELECT name FROM sqlite_master WHERE type='table' AND name='rooming_assignments'").length > 0;
                 const roomingQueueTable = db.exec("SELECT name FROM sqlite_master WHERE type='table' AND name='rooming_checkin_queue'").length > 0;
                 const publishedAtCol = db.exec("PRAGMA table_info(rooming_plans)")[0].values.some(c => c[1] === 'published_at');
+                const updatedAtCol = db.exec("PRAGMA table_info(lodgers)")[0].values.some(c => c[1] === 'updated_at');
                 const roomingAdjustTable = db.exec("SELECT name FROM sqlite_master WHERE type='table' AND name='rooming_adjustments'").length > 0;
                 const eventsExists = db.exec("SELECT name FROM sqlite_master WHERE type='table' AND name='events'").length > 0;
                 const usersExists = db.exec("SELECT name FROM sqlite_master WHERE type='table' AND name='users'").length > 0;
@@ -105,20 +143,20 @@ def main():
                     version, roleCheck, advancedCol, permissionsCol, dormCol, roomTypeCol,
                     bedTypeCol, eventRoomingCol, includeSpareCol, participantCol,
                     mealCol, lodgerMealCol, roomingPlansTable, roomingAssignTable,
-                    roomingQueueTable, publishedAtCol, roomingAdjustTable,
+                    roomingQueueTable, publishedAtCol, roomingAdjustTable, updatedAtCol,
                     eventsExists, usersExists, users,
                     eventCount, guests, lodgers, hk
                 };
             })()
         """
         ws.send(json.dumps({'id': 3, 'method': 'Runtime.evaluate', 'params': {'expression': import_expr, 'awaitPromise': True, 'returnByValue': True}}))
-        resp = json.loads(ws.recv())
+        resp = recv_by_id(ws, 3, 120)
         result = resp.get('result', {}).get('result', {})
         if result.get('type') == 'object' and 'value' in result:
             values = result['value']
             print('Migration result:', values)
-            if values.get('version') != 20:
-                print("FAIL: schema version not migrated to 20")
+            if values.get('version') != 21:
+                print("FAIL: schema version not migrated to 21")
                 sys.exit(1)
             if not values.get('advancedCol'):
                 print("FAIL: users.is_advanced column missing after V14→V15 migration")
@@ -168,6 +206,9 @@ def main():
             if not values.get('roomingAdjustTable'):
                 print("FAIL: rooming_adjustments table missing after V19→V20 migration")
                 sys.exit(1)
+            if not values.get('updatedAtCol'):
+                print("FAIL: lodgers.updated_at column missing after V20→V21 migration")
+                sys.exit(1)
             if not values.get('eventsExists'):
                 print("FAIL: events table missing after V5→V6 migration")
                 sys.exit(1)
@@ -180,7 +221,10 @@ def main():
             if values.get('lodgers', 0) < 1:
                 print("FAIL: lodgers not linked to guests")
                 sys.exit(1)
-            print("PASS: V3→V20 migration via app succeeded")
+            print("PASS: V3→V21 migration via app succeeded")
+        elif resp.get('result', {}).get('exceptionDetails'):
+            print("FAIL: migration threw", resp['result']['exceptionDetails'].get('text'))
+            sys.exit(1)
         else:
             print("FAIL: unexpected result", resp)
             sys.exit(1)
