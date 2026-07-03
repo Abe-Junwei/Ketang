@@ -22,6 +22,9 @@ function mergePlanNotesWithManagerAck(adjustNotes, managerAck) {
 
 function enrichAssignmentsForConflictCheck(assignments) {
   return (assignments || []).map(function (row) {
+    if (typeof roomingEnrichAssignmentRow === "function") {
+      return roomingEnrichAssignmentRow(row);
+    }
     if (!row.bed_id) return Object.assign({}, row);
     var meta = query(
       "SELECT b.id AS bed_id, b.bed_number, b.status AS bed_status, b.suitable_elder AS bed_suitable_elder, " +
@@ -124,7 +127,7 @@ function buildLocalHkByBed(bedIds) {
 }
 
 function evaluateLocalRoomingConflicts(eventId, planId, assignments) {
-  var evt = query("SELECT * FROM events WHERE id = ?", [eventId])[0];
+  var evt = roomingGetEvent(eventId);
   if (!evt) return { conflicts: [], error_count: 0, warning_count: 0 };
   var enriched = enrichAssignmentsForConflictCheck(assignments);
   var bedIds = enriched

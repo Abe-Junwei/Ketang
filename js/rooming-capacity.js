@@ -41,6 +41,51 @@ function capacityCountDemographics(people) {
 }
 
 function capacityRegisteredOnDay(eventId, day) {
+  if (roomingReadReady()) {
+    var lodgers = rcAllLodgersMerged()
+      .filter(function (l) {
+        return (
+          l.event_id == eventId &&
+          l.status === "在住" &&
+          l.check_in_date <= day &&
+          (!l.expected_check_out || l.expected_check_out > day)
+        );
+      })
+      .map(function (l) {
+        return {
+          gender: l.gender,
+          participant_identity: l.participant_identity,
+          age_group: l.age_group,
+        };
+      });
+    var reservations = rcRows("reservations", "reservations")
+      .filter(function (r) {
+        return (
+          r.event_id == eventId &&
+          (r.status === "预约" || r.status === "已确认") &&
+          r.expected_check_in <= day &&
+          (!r.expected_check_out || r.expected_check_out > day)
+        );
+      })
+      .map(function (r) {
+        return {
+          gender: r.gender,
+          participant_identity: r.participant_identity,
+          age_group: r.age_group,
+        };
+      });
+    var all = lodgers.concat(reservations);
+    return {
+      all: all,
+      male: all.filter(function (p) {
+        return p.gender === "男";
+      }).length,
+      female: all.filter(function (p) {
+        return p.gender === "女";
+      }).length,
+      demo: capacityCountDemographics(all),
+    };
+  }
   var lodgers = query(
     "SELECT gender, participant_identity, age_group FROM lodgers WHERE event_id=? AND status='在住' AND check_in_date <= ? AND (expected_check_out IS NULL OR expected_check_out > ?)",
     [eventId, day, day],
@@ -118,6 +163,24 @@ function capacityEventTargets(evt, registered) {
 }
 
 function getCapacityBedTotals(includeSpare) {
+  if (roomingReadReady()) {
+    var male = 0;
+    var female = 0;
+    var flex = 0;
+    rcBoardBeds().forEach(function (b) {
+      if (b.status === "维修" || b.status === "备用") return;
+      var room = rcBoardRooms().find(function (r) {
+        return r.id == b.room_id;
+      });
+      if (!room) return;
+      if (typeof isSpareRoom === "function" && isSpareRoom(room) && !includeSpare)
+        return;
+      if (room.dorm_type === "男寮") male++;
+      else if (room.dorm_type === "女寮") female++;
+      else if (room.dorm_type === "不限") flex++;
+    });
+    return { male: male, female: female, flex: flex, total: male + female + flex };
+  }
   var spareSql = spareRoomExcludeClause("r", !!includeSpare);
   var base =
     " FROM beds b JOIN rooms r ON r.id=b.room_id WHERE b.status!='维修' AND b.status!='备用' AND " +
@@ -137,6 +200,18 @@ function getCapacityBedTotals(includeSpare) {
 }
 
 function loadCapacityActiveEvents() {
+  if (roomingReadReady()) {
+    return rcRows("events", "events")
+      .filter(function (evt) {
+        return CAPACITY_ACTIVE_EVENT_STATUSES.indexOf(evt.status) !== -1;
+      })
+      .sort(function (a, b) {
+        var sa = a.arrival_date || a.start_date || "";
+        var sb = b.arrival_date || b.start_date || "";
+        if (sa !== sb) return sa.localeCompare(sb);
+        return (a.name || "").localeCompare(b.name || "", "zh-CN");
+      });
+  }
   return query(
     "SELECT * FROM events WHERE status IN ('筹备中','招生中','进行中') ORDER BY COALESCE(arrival_date, start_date), name",
   );
@@ -155,14 +230,50 @@ function computeDailyCapacityForecast(startDate, dayCount) {
     });
     var beds = getCapacityBedTotals(includeSpare);
 
-    var lodgers = query(
-      "SELECT gender, participant_identity, age_group, event_id FROM lodgers WHERE status='在住' AND check_in_date <= ? AND (expected_check_out IS NULL OR expected_check_out > ?)",
-      [day, day],
-    );
-    var reservations = query(
-      "SELECT gender, participant_identity, age_group, event_id FROM reservations WHERE status IN ('预约','已确认') AND expected_check_in <= ? AND (expected_check_out IS NULL OR expected_check_out > ?)",
-      [day, day],
-    );
+    var lodgers =
+      roomingReadReady()
+        ? rcAllLodgersMerged()
+            .filter(function (l) {
+              return (
+                l.status === "在住" &&
+                l.check_in_date <= day &&
+                (!l.expected_check_out || l.expected_check_out > day)
+              );
+            })
+            .map(function (l) {
+              return {
+                gender: l.gender,
+                participant_identity: l.participant_identity,
+                age_group: l.age_group,
+                event_id: l.event_id,
+              };
+            })
+        : query(
+            "SELECT gender, participant_identity, age_group, event_id FROM lodgers WHERE status='在住' AND check_in_date <= ? AND (expected_check_out IS NULL OR expected_check_out > ?)",
+            [day, day],
+          );
+    var reservations =
+      roomingReadReady()
+        ? rcRows("reservations", "reservations")
+            .filter(function (r) {
+              return (
+                (r.status === "预约" || r.status === "已确认") &&
+                r.expected_check_in <= day &&
+                (!r.expected_check_out || r.expected_check_out > day)
+              );
+            })
+            .map(function (r) {
+              return {
+                gender: r.gender,
+                participant_identity: r.participant_identity,
+                age_group: r.age_group,
+                event_id: r.event_id,
+              };
+            })
+        : query(
+            "SELECT gender, participant_identity, age_group, event_id FROM reservations WHERE status IN ('预约','已确认') AND expected_check_in <= ? AND (expected_check_out IS NULL OR expected_check_out > ?)",
+            [day, day],
+          );
     var registered = lodgers.concat(reservations);
     var male = registered.filter(function (p) {
       return p.gender === "男";

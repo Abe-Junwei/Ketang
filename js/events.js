@@ -703,8 +703,11 @@ function findEventByName(name) {
    排房建议 | Rooming Suggestion
    ============================================================ */
 
-function openRoomingSuggestion(eventId) {
-  const evt = query("SELECT * FROM events WHERE id = ?", [eventId])[0];
+async function openRoomingSuggestion(eventId) {
+  if (!roomingUseLocalRead()) {
+    await roomingEnsureEvent(eventId, false);
+  }
+  const evt = roomingGetEvent(eventId);
   if (!evt) return;
 
   const suggestion = generateRoomingSuggestion(eventId);
@@ -785,17 +788,30 @@ function closeRoomingModal() {
 }
 
 function generateRoomingSuggestion(eventId) {
-  const evt = query("SELECT * FROM events WHERE id = ?", [eventId])[0];
+  const evt = roomingGetEvent(eventId);
+  if (!evt) return null;
 
-  // 统计营期人员性别（已入住 + 预约/已确认）
-  const members = query(
-    `
+  var members = [];
+  if (roomingReadReady() && typeof rcEventMembers === "function") {
+    var pack = rcEventMembers(eventId);
+    if (pack) {
+      pack.lodgers.forEach(function (l) {
+        members.push({ gender: l.gender });
+      });
+      pack.reservations.forEach(function (r) {
+        members.push({ gender: r.gender });
+      });
+    }
+  } else {
+    members = query(
+      `
     SELECT gender FROM lodgers WHERE event_id = ? AND status = '在住'
     UNION ALL
     SELECT gender FROM reservations WHERE event_id = ? AND status IN ('预约', '已确认')
   `,
-    [eventId, eventId],
-  );
+      [eventId, eventId],
+    );
+  }
 
   const registeredMale = members.filter((m) => m.gender === "男").length;
   const registeredFemale = members.filter((m) => m.gender === "女").length;
@@ -821,13 +837,16 @@ function generateRoomingSuggestion(eventId) {
   }
 
   // 查询可用床位（按房间分组）
-  const requireInspect =
-    typeof housekeepingRequiresInspect === "function" &&
-    housekeepingRequiresInspect();
-  const hkStatuses = requireInspect ? "('可用')" : "('净房','可用')";
-  const includeSpare = !!evt.include_spare_beds;
-  const spareSql = spareRoomExcludeClause("r", includeSpare);
-  const availRooms = query(`
+  const availRooms = roomingReadReady()
+    ? roomingAvailRoomsGrouped(evt)
+    : (function () {
+        const requireInspect =
+          typeof housekeepingRequiresInspect === "function" &&
+          housekeepingRequiresInspect();
+        const hkStatuses = requireInspect ? "('可用')" : "('净房','可用')";
+        const includeSpare = !!evt.include_spare_beds;
+        const spareSql = spareRoomExcludeClause("r", includeSpare);
+        return query(`
     SELECT r.id, r.name, r.location, r.dorm_type, COUNT(b.id) as avail_beds
     FROM rooms r
     JOIN beds b ON b.room_id = r.id
@@ -839,6 +858,7 @@ function generateRoomingSuggestion(eventId) {
     HAVING avail_beds > 0
     ORDER BY CASE r.dorm_type WHEN '男寮' THEN 1 WHEN '女寮' THEN 2 ELSE 3 END, r.location, r.name
   `);
+      })();
 
   // 分配算法
   const maleRooms = availRooms.filter((r) => r.dorm_type === "男寮");

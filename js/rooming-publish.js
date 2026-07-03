@@ -161,36 +161,13 @@ async function findRoomingQueueItem(queueId, eventId) {
   return null;
 }
 
-function roomingQueueAssignAlreadyDone(item) {
-  if (!item.member_ref_id) return false;
-  if (item.member_kind === "lodger") {
-    var lodger = query(
-      "SELECT bed_id FROM lodgers WHERE id=? AND status='在住'",
-      [item.member_ref_id],
-    )[0];
-    return !!(lodger && lodger.bed_id == item.suggested_bed_id);
-  }
-  if (item.member_kind === "reservation") {
-    var resv = query("SELECT status FROM reservations WHERE id=?", [
-      item.member_ref_id,
-    ])[0];
-    return !!(resv && resv.status === "已入住");
-  }
-  return false;
-}
-
-async function markRoomingQueueItemStatus(queueId, status) {
+async function markRoomingQueueItemStatus(queueId, status, eventId) {
   if (!isLocalForceDb()) {
     var writeResult = await apiRoomingPlanAction("update_queue", {
       queue_id: queueId,
       queue_status: status,
     });
-    if (typeof refreshAfterWrite === "function") {
-      var refreshTask = refreshAfterWrite(writeResult);
-      if (refreshTask && typeof refreshTask.then === "function") {
-        await refreshTask;
-      }
-    }
+    await roomingRefreshAfterWrite(eventId, writeResult);
     return;
   }
   var processed = status === "待办理" ? null : roomingQueueProcessedAt();
@@ -269,7 +246,10 @@ async function renderRoomingCheckinQueue(eventId) {
     alert("权限不足");
     return;
   }
-  var evt = query("SELECT * FROM events WHERE id = ?", [eventId])[0];
+  if (!roomingUseLocalRead()) {
+    await roomingEnsureEvent(eventId, false);
+  }
+  var evt = roomingGetEvent(eventId);
   if (!evt) {
     alert("营期不存在");
     return;
@@ -360,12 +340,7 @@ async function handlePublishRoomingPlan(eventId) {
       var publishResult = await apiRoomingPlanAction("publish", {
         event_id: eventId,
       });
-      if (typeof refreshAfterWrite === "function") {
-        var publishRefresh = refreshAfterWrite(publishResult);
-        if (publishRefresh && typeof publishRefresh.then === "function") {
-          await publishRefresh;
-        }
-      }
+      await roomingRefreshAfterWrite(eventId, publishResult);
     } else {
       await publishLocalRoomingPlan(eventId);
     }
@@ -394,12 +369,7 @@ async function handleRepublishRoomingPlan(eventId) {
         event_id: eventId,
         confirm_republish: true,
       });
-      if (typeof refreshAfterWrite === "function") {
-        var republishRefresh = refreshAfterWrite(republishResult);
-        if (republishRefresh && typeof republishRefresh.then === "function") {
-          await republishRefresh;
-        }
-      }
+      await roomingRefreshAfterWrite(eventId, republishResult);
     } else {
       await republishLocalRoomingPlan(eventId);
     }
@@ -411,7 +381,7 @@ async function handleRepublishRoomingPlan(eventId) {
 }
 
 async function completeRoomingQueueCheckin(queueId, eventId, item) {
-  await markRoomingQueueItemStatus(queueId, "已办理");
+  await markRoomingQueueItemStatus(queueId, "已办理", eventId);
   showToast("已办理：" + item.member_name);
   await renderRoomingCheckinQueue(eventId);
 }
@@ -449,12 +419,7 @@ async function handleRoomingQueueCheckin(queueId, eventId) {
         event_id: eventId,
         queue_id: queueId,
       });
-      if (typeof refreshAfterWrite === "function") {
-        var remoteRefresh = refreshAfterWrite(queueResult);
-        if (remoteRefresh && typeof remoteRefresh.then === "function") {
-          await remoteRefresh;
-        }
-      }
+      await roomingRefreshAfterWrite(eventId, queueResult);
       showToast("已办理：" + item.member_name);
       await renderRoomingCheckinQueue(eventId);
       return;
@@ -513,7 +478,7 @@ async function handleRoomingQueueSkip(queueId, eventId) {
   var item = await findRoomingQueueItem(queueId, eventId);
   if (!item || item.queue_status !== "待办理") return;
   try {
-    await markRoomingQueueItemStatus(queueId, "已跳过");
+    await markRoomingQueueItemStatus(queueId, "已跳过", eventId);
     if (typeof logRoomingQueueSkipAdjustment === "function") {
       try {
         await logRoomingQueueSkipAdjustment(item, eventId);
@@ -532,7 +497,8 @@ async function handleRoomingQueueSkip(queueId, eventId) {
 }
 
 async function exportRoomingCheckinListCSV(eventId) {
-  var evt = query("SELECT * FROM events WHERE id = ?", [eventId])[0];
+  if (!roomingUseLocalRead()) await roomingEnsureEvent(eventId, false);
+  var evt = roomingGetEvent(eventId);
   if (!evt) return;
   var bundle = await fetchRoomingQueueBundle(eventId);
   var queue = bundle.queue || [];
@@ -580,7 +546,8 @@ async function exportRoomingCheckinListCSV(eventId) {
 }
 
 async function exportRoomingRoomTableCSV(eventId) {
-  var evt = query("SELECT * FROM events WHERE id = ?", [eventId])[0];
+  if (!roomingUseLocalRead()) await roomingEnsureEvent(eventId, false);
+  var evt = roomingGetEvent(eventId);
   if (!evt) return;
   var bundle = await fetchRoomingQueueBundle(eventId);
   var queue = (bundle.queue || []).filter(function (row) {
@@ -667,7 +634,8 @@ function groupRoomingQueueByRoom(queue) {
 }
 
 async function loadRoomingPrintQueue(eventId) {
-  var evt = query("SELECT * FROM events WHERE id = ?", [eventId])[0];
+  if (!roomingUseLocalRead()) await roomingEnsureEvent(eventId, false);
+  var evt = roomingGetEvent(eventId);
   if (!evt) {
     alert("营期不存在");
     return null;

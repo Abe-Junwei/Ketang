@@ -8,10 +8,7 @@ function roomingAdjustmentOperator() {
 }
 
 function getPublishedRoomingPlan(eventId) {
-  return query(
-    "SELECT * FROM rooming_plans WHERE event_id = ? AND published_at IS NOT NULL LIMIT 1",
-    [eventId],
-  )[0];
+  return roomingGetPublishedPlan(eventId);
 }
 
 function formatRoomingBedLabel(bedId, bedNumber, roomName, roomLocation) {
@@ -53,7 +50,7 @@ async function logRoomingAdjustment(payload) {
   };
   if (!isLocalForceDb()) {
     var writeResult = await apiRoomingPlanAction("log_adjustment", body);
-    if (typeof refreshAfterWrite === "function") refreshAfterWrite(writeResult);
+    await roomingRefreshAfterWrite(eventId, writeResult);
     return;
   }
   run(
@@ -75,9 +72,7 @@ async function logRoomingAdjustment(payload) {
 }
 
 function maybeLogRoomingChangeBed(lodgerId, oldBedId, newBedId) {
-  var lodger = query("SELECT event_id, name FROM lodgers WHERE id=?", [
-    lodgerId,
-  ])[0];
+  var lodger = roomingLodgerEventRow(lodgerId);
   if (!lodger || !lodger.event_id) return;
   var plan = getPublishedRoomingPlan(lodger.event_id);
   if (!plan) return;
@@ -189,6 +184,9 @@ async function renderRoomingRetrospective(eventId) {
   if (typeof hasPermission === "function" && !hasPermission("lodging.read")) {
     alert("权限不足");
     return;
+  }
+  if (!roomingUseLocalRead()) {
+    await roomingEnsureEvent(eventId, false);
   }
   try {
     var data = await fetchRoomingRetrospective(eventId);

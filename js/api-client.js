@@ -410,6 +410,10 @@ async function apiRoomingPlanAction(action, payload) {
   });
 }
 
+async function apiReadEventDetail(eventId) {
+  return apiFetch("/api/v1/read/event/" + encodeURIComponent(eventId));
+}
+
 async function apiBatchCheckIn(payload) {
   return apiFetch("/api/v1/batch-check-in", {
     method: "POST",

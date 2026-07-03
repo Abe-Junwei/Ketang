@@ -924,6 +924,7 @@ var RC_VIEW_MODULES = {
   forecast: ["board", "reservations", "lodgers", "events"],
   housekeeping: ["board"],
   reports: ["meals", "lodgers", "events"],
+  rooming: ["board", "events", "lodgers", "reservations"],
   info_events: ["events", "lodgers", "reservations"],
 };
 

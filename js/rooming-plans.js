@@ -311,7 +311,7 @@ function generateLocalRoomingPlan(eventId) {
 }
 
 function listAllAssignableBedOptions(event) {
-  return listLocalAssignableBeds(event, []);
+  return roomingListAssignableBeds(event, []);
 }
 
 function roomingBedLabel(row) {
@@ -450,7 +450,9 @@ async function fetchRoomingPlanBundle(eventId) {
 
 async function generateRoomingPlanDraft(eventId) {
   if (!isLocalForceDb()) {
-    return apiRoomingPlanAction("generate", { event_id: eventId });
+    var genResult = await apiRoomingPlanAction("generate", { event_id: eventId });
+    await roomingRefreshAfterWrite(eventId, genResult);
+    return genResult;
   }
   var bundle = generateLocalRoomingPlan(eventId);
   await saveDB();
@@ -475,7 +477,9 @@ async function saveRoomingPlanDraft(eventId, plan, assignments, managerAck) {
     }),
   };
   if (!isLocalForceDb()) {
-    return apiRoomingPlanAction("save", payload);
+    var saveResult = await apiRoomingPlanAction("save", payload);
+    await roomingRefreshAfterWrite(eventId, saveResult);
+    return saveResult;
   }
   run(
     "UPDATE rooming_plans SET status = ?, notes = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
@@ -547,7 +551,10 @@ async function renderRoomingPlan(eventId, options) {
     alert("权限不足");
     return;
   }
-  var evt = query("SELECT * FROM events WHERE id = ?", [eventId])[0];
+  if (!roomingUseLocalRead()) {
+    await roomingEnsureEvent(eventId, false);
+  }
+  var evt = roomingGetEvent(eventId);
   if (!evt) {
     alert("营期不存在");
     return;
@@ -557,7 +564,10 @@ async function renderRoomingPlan(eventId, options) {
   var bundle = await fetchRoomingPlanBundle(eventId);
   if (!bundle.plan && canEdit) {
     if (!isLocalForceDb()) {
-      await apiRoomingPlanAction("ensure", { event_id: eventId });
+      var ensureResult = await apiRoomingPlanAction("ensure", {
+        event_id: eventId,
+      });
+      await roomingRefreshAfterWrite(eventId, ensureResult);
     } else {
       ensureLocalRoomingPlan(eventId);
       await saveDB();
