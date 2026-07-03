@@ -12,12 +12,35 @@ from test_file_protocol import chrome_binary
 
 
 def wait_for_form(ws):
-    for _ in range(40):
-        res = evaluate(ws, "!!document.getElementById('reserve-form')")
+    for _ in range(60):
+        res = evaluate(
+            ws,
+            """
+            document.readyState === 'complete' &&
+            !!document.getElementById('reserve-form') &&
+            !!document.getElementById('rv-submit') &&
+            typeof escapeHtml === 'function' &&
+            typeof validateGuestContact === 'function'
+            """,
+        )
         if res.get("value") is True:
             return True
         time.sleep(0.15)
     return False
+
+
+def wait_for_result_text(ws, needle, timeout=8.0):
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        res = evaluate(
+            ws,
+            "document.getElementById('reserve-result').textContent || ''",
+        )
+        text = str(res.get("value", ""))
+        if needle in text:
+            return text
+        time.sleep(0.15)
+    return ""
 
 
 def main():
@@ -64,7 +87,7 @@ def main():
         evaluate(
             ws,
             """
-            (async function () {
+            (function () {
               document.getElementById('reserve-form').setAttribute('novalidate', 'novalidate');
               document.getElementById('rv-name').value = '';
               document.getElementById('rv-gender').value = '';
@@ -73,46 +96,46 @@ def main():
               document.getElementById('reserve-result').hidden = true;
               document.getElementById('reserve-result').textContent = '';
               document.getElementById('reserve-form').requestSubmit();
-              await new Promise(function (r) { setTimeout(r, 150); });
               return true;
             })()
             """,
         )
-        req = evaluate(
-            ws,
-            "({ formHidden: document.getElementById('reserve-form').hidden, err: document.getElementById('reserve-result').textContent || '' })",
-        )
-        if req.get("value", {}).get("formHidden"):
+        req_err = wait_for_result_text(ws, "必填")
+        req_hidden = evaluate(
+            ws, "document.getElementById('reserve-form').hidden"
+        ).get("value")
+        if req_hidden:
             print("FAIL: form hidden on empty required")
             sys.exit(1)
-        if "必填" not in str(req.get("value", {}).get("err", "")):
-            print("FAIL: missing required validation message:", req)
+        if not req_err:
+            print("FAIL: missing required validation message")
             sys.exit(1)
 
         evaluate(
             ws,
             """
-            (async function () {
+            (function () {
               document.getElementById('rv-name').value = '测试';
               document.getElementById('rv-gender').value = '男';
               document.getElementById('rv-idcard').value = '110101199001011234';
               document.getElementById('rv-in').value = '2026-08-10';
               document.getElementById('rv-out').value = '2026-08-01';
+              document.getElementById('reserve-result').hidden = true;
+              document.getElementById('reserve-result').textContent = '';
               document.getElementById('reserve-form').requestSubmit();
-              await new Promise(function (r) { setTimeout(r, 150); });
               return true;
             })()
             """,
         )
-        r = evaluate(
-            ws,
-            "({ formHidden: document.getElementById('reserve-form').hidden, err: document.getElementById('reserve-result').textContent || '' })",
-        )
-        if r.get("value", {}).get("formHidden"):
+        date_err = wait_for_result_text(ws, "预离日期")
+        date_hidden = evaluate(
+            ws, "document.getElementById('reserve-form').hidden"
+        ).get("value")
+        if date_hidden:
             print("FAIL: form hidden on validation error")
             sys.exit(1)
-        if "预离日期" not in str(r.get("value", {}).get("err", "")):
-            print("FAIL: missing date validation message:", r)
+        if not date_err:
+            print("FAIL: missing date validation message")
             sys.exit(1)
 
         evaluate(
@@ -132,21 +155,20 @@ def main():
         evaluate(
             ws,
             """
-            (async function () {
+            (function () {
               document.getElementById('rv-name').value = '测试';
               document.getElementById('rv-gender').value = '男';
               document.getElementById('rv-idcard').value = '110101199001011234';
               document.getElementById('rv-phone').value = '13800138000';
               document.getElementById('rv-in').value = '2026-08-01';
               document.getElementById('reserve-form').requestSubmit();
-              await new Promise(function (r) { setTimeout(r, 250); });
               return true;
             })()
             """,
         )
-        err403 = evaluate(ws, "document.getElementById('reserve-result').textContent || ''")
-        if "未开放" not in str(err403.get("value", "")):
-            print("FAIL: 403 error not shown:", err403)
+        err403 = wait_for_result_text(ws, "未开放")
+        if not err403:
+            print("FAIL: 403 error not shown")
             sys.exit(1)
 
         evaluate(
@@ -166,21 +188,20 @@ def main():
         evaluate(
             ws,
             """
-            (async function () {
+            (function () {
               document.getElementById('rv-name').value = '测试';
               document.getElementById('rv-gender').value = '女';
               document.getElementById('rv-idcard').value = '110101199001011235';
               document.getElementById('rv-phone').value = '13800138002';
               document.getElementById('rv-in').value = '2026-08-02';
               document.getElementById('reserve-form').requestSubmit();
-              await new Promise(function (r) { setTimeout(r, 250); });
               return true;
             })()
             """,
         )
-        err429 = evaluate(ws, "document.getElementById('reserve-result').textContent || ''")
-        if "频繁" not in str(err429.get("value", "")):
-            print("FAIL: 429 error not shown:", err429)
+        err429 = wait_for_result_text(ws, "频繁")
+        if not err429:
+            print("FAIL: 429 error not shown")
             sys.exit(1)
 
         evaluate(
@@ -201,25 +222,23 @@ def main():
         evaluate(
             ws,
             """
-            (async function () {
+            (function () {
               document.getElementById('rv-name').value = '成功测试';
               document.getElementById('rv-gender').value = '男';
               document.getElementById('rv-idcard').value = '110101199001011236';
               document.getElementById('rv-phone').value = '13800138001';
               document.getElementById('rv-in').value = '2026-08-03';
               document.getElementById('reserve-form').requestSubmit();
-              await new Promise(function (r) { setTimeout(r, 250); });
               return true;
             })()
             """,
         )
-        ok = evaluate(
-            ws,
-            "({ formHidden: document.getElementById('reserve-form').hidden, ok: document.getElementById('reserve-result').textContent || '' })",
-        )
-        val = ok.get("value", {})
-        if not val.get("formHidden") or "预约已提交" not in str(val.get("ok", "")):
-            print("FAIL: success state missing:", ok)
+        ok_text = wait_for_result_text(ws, "预约已提交")
+        ok_hidden = evaluate(
+            ws, "document.getElementById('reserve-form').hidden"
+        ).get("value")
+        if not ok_hidden or not ok_text:
+            print("FAIL: success state missing")
             sys.exit(1)
 
         ws.close()
