@@ -120,8 +120,26 @@ def main():
             "lodging.checkin",
             "apiBatchCheckIn",
         ),
+        (
+            "functions/api/v1/admin/operational-settings.js",
+            "users.write",
+            "saveOperationalSettings",
+        ),
+        (
+            "functions/api/v1/admin/rooming-plans.js",
+            "handleRoomingPlanAction",
+            "handleRoomingPlanAction",
+        ),
     ]
     for path, permission, shared_function in routes:
+        if path.endswith("admin/rooming-plans.js"):
+            src = read(path)
+            checks.extend([
+                (f"{path} imports requireSession", "requireSession" in src),
+                (f"{path} calls handleRoomingPlanAction", "handleRoomingPlanAction" in src),
+                (f"{path} calls handleRoomingPublishAction", "handleRoomingPublishAction" in src),
+            ])
+            continue
         checks.extend(route_uses(path, permission, shared_function))
 
     checks.extend(
@@ -271,6 +289,17 @@ def main():
             ],
         )
     )
+    checks.extend(
+        shared_write_contract(
+            "functions/_shared/operational-settings.js",
+            "saveOperationalSettings",
+            [
+                ("uses enrichWriteResponse", "enrichWriteResponse"),
+                ("finishes board", '["board"]'),
+                ("patches app_meta", "extraPatches: { app_meta:"),
+            ],
+        )
+    )
 
     frontend = [
         ("js/checkin.js", "apiCheckIn", "rcRefreshAfterWrite"),
@@ -285,6 +314,7 @@ def main():
         ("js/reservations.js", "apiUpsertReservation", "rcRefreshAfterWrite"),
         ("js/reservations.js", "apiUpdateReservationStatus", "rcRefreshAfterWrite"),
         ("js/events.js", "apiBatchEventMembers", "eventRefreshAfterWrite"),
+        ("js/housekeeping.js", "apiAdminSaveOperationalSettings", "rcRefreshAfterWrite"),
     ]
     for path, api_function, refresh_fragment in frontend:
         checks.extend(frontend_write_contract(path, api_function, refresh_fragment))

@@ -250,6 +250,7 @@ function renderAssignPickRow(kind, id, bedId, title, meta) {
     id +
     "," +
     bedId +
+    ",{source:event.currentTarget})" +
     ')">' +
     '<span class="assign-pick-text">' +
     '<span class="assign-pick-name">' +
@@ -357,29 +358,41 @@ function openAssignBedModal(bedId) {
 }
 
 async function assignExistingLodgerToBed(lodgerId, bedId, opts) {
-  const quiet = opts && opts.quiet;
+  opts = opts || {};
+  const quiet = opts.quiet;
+  var finishPending = opts.source
+    ? beginActionPending(opts.source, "保存中…")
+    : null;
+  if (opts.source && !finishPending) return false;
   const l = query("SELECT * FROM lodgers WHERE id=? AND status='在住'", [
     lodgerId,
   ])[0];
   if (!l) {
     alert("挂单不存在或已不在住");
+    if (finishPending) finishPending();
     return false;
   }
   if (l.bed_id) {
     alert("该挂单已有床位");
+    if (finishPending) finishPending();
     return false;
   }
   const bed = query(
     "SELECT b.*, r.dorm_type FROM beds b JOIN rooms r ON r.id=b.room_id WHERE b.id=?",
     [bedId],
   )[0];
-  if (!bed) return false;
+  if (!bed) {
+    if (finishPending) finishPending();
+    return false;
+  }
   if (!dormMatchGender(bed.dorm_type, l.gender)) {
     alert("该床位所在房间寮类型不符");
+    if (finishPending) finishPending();
     return false;
   }
   if (!isBedAssignable(bedId)) {
     alert("该床位当前不可分配");
+    if (finishPending) finishPending();
     return false;
   }
   try {
@@ -424,27 +437,40 @@ async function assignExistingLodgerToBed(lodgerId, bedId, opts) {
     console.error(e);
     alert("分配床位失败：" + e.message);
     return false;
+  } finally {
+    if (finishPending) finishPending();
   }
 }
 
 async function assignReservationToBed(resvId, bedId, opts) {
-  const quiet = opts && opts.quiet;
+  opts = opts || {};
+  const quiet = opts.quiet;
+  var finishPending = opts.source
+    ? beginActionPending(opts.source, "保存中…")
+    : null;
+  if (opts.source && !finishPending) return false;
   const r = query("SELECT * FROM reservations WHERE id=?", [resvId])[0];
   if (!r || (r.status !== "预约" && r.status !== "已确认")) {
     alert("该预约当前不可分配床位");
+    if (finishPending) finishPending();
     return false;
   }
   const bed = query(
     "SELECT b.*, r.dorm_type FROM beds b JOIN rooms r ON r.id=b.room_id WHERE b.id=?",
     [bedId],
   )[0];
-  if (!bed) return false;
+  if (!bed) {
+    if (finishPending) finishPending();
+    return false;
+  }
   if (!dormMatchGender(bed.dorm_type, r.gender)) {
     alert("该床位所在房间寮类型不符");
+    if (finishPending) finishPending();
     return false;
   }
   if (!isBedAssignable(bedId)) {
     alert("该床位当前不可分配");
+    if (finishPending) finishPending();
     return false;
   }
   const checkIn = r.expected_check_in || todayStr();
@@ -538,6 +564,8 @@ async function assignReservationToBed(resvId, bedId, opts) {
     console.error(e);
     alert("分配床位失败：" + e.message);
     return false;
+  } finally {
+    if (finishPending) finishPending();
   }
 }
 
@@ -953,6 +981,14 @@ function findAssignableBed(gender, roomPreference) {
 async function importBatchCSV(input) {
   const file = input.files[0];
   if (!file) return;
+  const triggerBtn = document.getElementById("batch-import-btn");
+  const finishPending = triggerBtn
+    ? beginActionPending(triggerBtn, "导入中…")
+    : null;
+  if (triggerBtn && !finishPending) {
+    input.value = "";
+    return;
+  }
   const resultDiv = document.getElementById("batch-result");
   resultDiv.innerHTML = "<p>正在解析...</p>";
   const reader = new FileReader();
@@ -1127,10 +1163,12 @@ async function importBatchCSV(input) {
         '<p style="color:var(--color-danger)">导入出错：' +
         escapeHtml(err.message) +
         "</p>";
+    } finally {
+      if (finishPending) finishPending();
+      input.value = "";
     }
   };
   reader.readAsText(file);
-  input.value = "";
 }
 
 function downloadBatchTemplate() {

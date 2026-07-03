@@ -16,6 +16,7 @@ def main():
     meals = read("js/meals.js")
     events = read("js/events.js")
     info = read("js/info.js")
+    housekeeping = read("js/housekeeping.js")
     rooming_plans = read("js/rooming-plans.js")
     rooming_publish = read("js/rooming-publish.js")
 
@@ -27,6 +28,9 @@ def main():
         ("helper uses saving label", "保存中" in utils),
         ("helper restores in finally", "finally" in utils and "finishPending()" in utils),
         ("checkin guarded", "beginActionPending(e" in checkin),
+        ("assign bed guarded", "{source:event.currentTarget}" in checkin and "beginActionPending(opts.source" in checkin),
+        ("batch import guarded", "batch-import-btn" in read("index.html") and "导入中" in checkin),
+        ("operational settings guarded", "saveOperationalSettings(event.currentTarget)" in housekeeping and "withActionPending(source" in housekeeping),
         ("reservation guarded", "beginActionPending(e" in reservations),
         ("extend guarded", "withActionPending(event" in lodger and "submitExtend" in lodger),
         ("edit lodger guarded", "submitEditLodger(event" in lodger),

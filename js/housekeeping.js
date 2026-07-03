@@ -314,7 +314,7 @@ function renderOperationalSettingsPanel() {
         "分配床位前必须经过「查房→可入住」（关闭时「净房」即可分配）" +
         "</label>" +
         '<div class="btn-bar" style="margin-top: var(--space-3);">' +
-        '<button type="button" class="btn btn-primary" onclick="saveOperationalSettings()">保存运营配置</button>' +
+        '<button type="button" class="btn btn-primary" onclick="saveOperationalSettings(event.currentTarget)">保存运营配置</button>' +
         "</div>";
     })
     .catch(function (e) {
@@ -332,33 +332,35 @@ function loadOperationalSettings() {
   });
 }
 
-async function saveOperationalSettings() {
+async function saveOperationalSettings(source) {
   if (typeof requireAdmin === "function" && !requireAdmin()) return;
-  const requireInspect =
-    !!document.getElementById("hk-require-inspect")?.checked;
-  try {
-    var writeResult = null;
-    if (isLocalForceDb()) {
-      setAppMetaValue(APP_META_HK_REQUIRE_INSPECT, requireInspect ? "1" : "0");
-      await saveDB();
-    } else {
-      writeResult = await apiAdminSaveOperationalSettings({
-        housekeeping_require_inspect: requireInspect,
-      });
-      setAppMetaValue(APP_META_HK_REQUIRE_INSPECT, requireInspect ? "1" : "0");
+  return withActionPending(source, "保存中…", async function () {
+    const requireInspect =
+      !!document.getElementById("hk-require-inspect")?.checked;
+    try {
+      var writeResult = null;
+      if (isLocalForceDb()) {
+        setAppMetaValue(APP_META_HK_REQUIRE_INSPECT, requireInspect ? "1" : "0");
+        await saveDB();
+      } else {
+        writeResult = await apiAdminSaveOperationalSettings({
+          housekeeping_require_inspect: requireInspect,
+        });
+        setAppMetaValue(APP_META_HK_REQUIRE_INSPECT, requireInspect ? "1" : "0");
+      }
+      showToast("运营配置已保存");
+      renderOperationalSettingsPanel();
+      if (typeof rcRefreshAfterWrite === "function") {
+        rcRefreshAfterWrite(writeResult);
+      } else if (typeof refreshAfterWrite === "function") {
+        refreshAfterWrite(writeResult);
+      }
+      if (
+        document.getElementById("view-housekeeping")?.classList.contains("active")
+      )
+        renderHousekeeping();
+    } catch (e) {
+      alert("保存失败：" + e.message);
     }
-    showToast("运营配置已保存");
-    renderOperationalSettingsPanel();
-    if (typeof rcRefreshAfterWrite === "function") {
-      rcRefreshAfterWrite(writeResult);
-    } else if (typeof refreshAfterWrite === "function") {
-      refreshAfterWrite(writeResult);
-    }
-    if (
-      document.getElementById("view-housekeeping")?.classList.contains("active")
-    )
-      renderHousekeeping();
-  } catch (e) {
-    alert("保存失败：" + e.message);
-  }
+  });
 }

@@ -51,7 +51,7 @@ jobs:
         run: npm run format:check
 
       - name: Check Python test syntax
-        run: python -m py_compile test_api_structure.py test_auth_gateway.py test_headless.py test_cdp.py test_cdp_migration.py test_file_protocol.py test_write_patches.py test_write_after_refresh.py test_online_write_response_contract.py test_action_pending_guard.py test_meals_optimistic.py test_housekeeping_optimistic.py test_reservation_status_optimistic.py test_event_members_optimistic.py test_rooming_write_patches.py test_online_query_boundaries.py test_view_read_modules.py test_rc_parity.py
+        run: python -m py_compile test_api_structure.py test_auth_gateway.py test_headless.py test_cdp.py test_cdp_migration.py test_file_protocol.py test_write_patches.py test_write_after_refresh.py test_online_write_response_contract.py test_action_pending_guard.py test_meals_optimistic.py test_housekeeping_optimistic.py test_reservation_status_optimistic.py test_event_members_optimistic.py test_rooming_write_patches.py test_rooming_online_journey.py test_online_query_boundaries.py test_view_read_modules.py test_rc_parity.py
 
       - name: Verify online API structure
         run: python test_api_structure.py
@@ -77,6 +77,9 @@ jobs:
 
       - name: Rooming write patches
         run: python test_rooming_write_patches.py
+
+      - name: Rooming online journey
+        run: python test_rooming_online_journey.py
 
       - name: Online query boundaries
         run: python test_online_query_boundaries.py

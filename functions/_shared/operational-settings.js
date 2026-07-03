@@ -1,5 +1,5 @@
 import { insertAudit, queryD1, runD1 } from "./d1.js";
-import { finishWrite } from "./write-response.js";
+import { enrichWriteResponse, finishWrite } from "./write-response.js";
 
 export const HK_REQUIRE_INSPECT_KEY = "housekeeping_require_inspect_v1";
 
@@ -69,10 +69,20 @@ export async function saveOperationalSettings(env, session, body) {
     { housekeeping_require_inspect: requireInspect },
     session,
   );
-  return finishWrite(
+  const metaRow = {
+    key: HK_REQUIRE_INSPECT_KEY,
+    value: requireInspect ? "1" : "0",
+  };
+  return enrichWriteResponse(
     env,
-    { housekeeping_require_inspect: requireInspect },
-    ["settings", "board"],
-    ["board"],
+    await finishWrite(
+      env,
+      { housekeeping_require_inspect: requireInspect },
+      ["settings", "board"],
+      ["board"],
+    ),
+    {
+      extraPatches: { app_meta: [metaRow] },
+    },
   );
 }

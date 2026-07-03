@@ -38,9 +38,11 @@ function rcApplyDeltaPatches(patches, deletions) {
         if (!Array.isArray(mod.tables[table])) mod.tables[table] = [];
         var arr = mod.tables[table];
         rows.forEach(function (row) {
-          if (!row || row.id == null) return;
+          if (!row) return;
+          var rowKey = table === "app_meta" ? row.key : row.id;
+          if (rowKey == null) return;
           var idx = arr.findIndex(function (r) {
-            return r.id == row.id;
+            return table === "app_meta" ? r.key === row.key : r.id == row.id;
           });
           if (idx >= 0) arr[idx] = row;
           else arr.push(row);

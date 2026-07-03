@@ -163,11 +163,12 @@ export async function enrichWriteResponse(env, response, options) {
       if (!Array.isArray(rows) || !rows.length) return;
       if (!patches[table]) patches[table] = [];
       rows.forEach(function (row) {
+        if (!row) return;
+        var rowKey = table === "app_meta" ? row.key : row.id;
+        if (rowKey == null) return;
         if (
-          row &&
-          row.id != null &&
           !patches[table].some(function (r) {
-            return r.id == row.id;
+            return table === "app_meta" ? r.key === row.key : r.id == row.id;
           })
         ) {
           patches[table].push(row);
