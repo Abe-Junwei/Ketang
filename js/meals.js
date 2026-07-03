@@ -252,13 +252,35 @@ function setMealNeedPreset(bfId, lcId, dnId, preset) {
   }
 }
 
+/** 挂单 + 床位房间信息 | Lodger with bed/room for meal UI */
+function mealLodgerEnrichedById(lodgerId) {
+  if (typeof rcReadReady === "function" && rcReadReady()) {
+    var row = rcLodgerById(lodgerId);
+    return row && typeof rcEnrichLodgerRow === "function"
+      ? rcEnrichLodgerRow(row)
+      : row;
+  }
+  if (isLocalForceDb()) {
+    return (
+      query(
+        "SELECT l.*, r.name as room_name, b.bed_number FROM lodgers l " +
+          "LEFT JOIN beds b ON b.id=l.bed_id LEFT JOIN rooms r ON r.id=b.room_id WHERE l.id=?",
+        [lodgerId],
+      )[0] || null
+    );
+  }
+  return null;
+}
+
 function getLodgerMealDefaults(lodgerOrId) {
   const l =
     typeof lodgerOrId === "object"
       ? lodgerOrId
       : typeof rcReadReady === "function" && rcReadReady()
         ? rcLodgerById(lodgerOrId)
-        : query("SELECT * FROM lodgers WHERE id=?", [lodgerOrId])[0];
+        : isLocalForceDb()
+          ? query("SELECT * FROM lodgers WHERE id=?", [lodgerOrId])[0]
+          : null;
   if (!l) return { breakfast: 1, lunch: 1, dinner: 1 };
   if (
     l.meal_default_breakfast == null &&
@@ -270,10 +292,12 @@ function getLodgerMealDefaults(lodgerOrId) {
         ? rcRows("meals", "meals").find(function (m) {
             return m.lodger_id == l.id;
           })
-        : query(
-            "SELECT breakfast, lunch, dinner FROM meals WHERE lodger_id=? ORDER BY date LIMIT 1",
-            [l.id],
-          )[0];
+        : isLocalForceDb()
+          ? query(
+              "SELECT breakfast, lunch, dinner FROM meals WHERE lodger_id=? ORDER BY date LIMIT 1",
+              [l.id],
+            )[0]
+          : null;
     if (row) {
       return {
         breakfast: row.breakfast ? 1 : 0,
@@ -305,7 +329,10 @@ function mealRowsForLodgerRender(lodgerId) {
   ) {
     return rcMealsForLodger(lodgerId);
   }
-  return query("SELECT * FROM meals WHERE lodger_id=?", [lodgerId]);
+  if (isLocalForceDb()) {
+    return query("SELECT * FROM meals WHERE lodger_id=?", [lodgerId]);
+  }
+  return [];
 }
 
 function applyMealsOptimistic(lodger, defaults, days) {
@@ -421,10 +448,12 @@ function getMealFlagsForDate(lodgerId, date) {
       ? rcRows("meals", "meals").find(function (m) {
           return m.lodger_id == lodgerId && m.date === date;
         })
-      : query(
-          "SELECT breakfast, lunch, dinner FROM meals WHERE lodger_id=? AND date=?",
-          [lodgerId, date],
-        )[0];
+      : isLocalForceDb()
+        ? query(
+            "SELECT breakfast, lunch, dinner FROM meals WHERE lodger_id=? AND date=?",
+            [lodgerId, date],
+          )[0]
+        : null;
   if (row)
     return { breakfast: row.breakfast, lunch: row.lunch, dinner: row.dinner };
   return {
@@ -511,14 +540,16 @@ function getMealDayDetail(date) {
       ? rcAllLodgersMerged().filter(function (l) {
           return l.status === "在住" && l.check_in_date <= date;
         })
-      : query(
-          `
+      : isLocalForceDb()
+        ? query(
+            `
     SELECT * FROM lodgers
     WHERE status = '在住' AND check_in_date <= ?
     ORDER BY role, name
   `,
-          [date],
-        );
+            [date],
+          )
+        : [];
   const skipped = [];
   let lodgerBf = 0;
   let lodgerLc = 0;
@@ -569,14 +600,16 @@ function getMealDayDetail(date) {
             (r.status === "预约" || r.status === "已确认")
           );
         })
-      : query(
-          `
+      : isLocalForceDb()
+        ? query(
+            `
     SELECT * FROM reservations
     WHERE expected_check_in = ? AND status IN ('预约', '已确认')
     ORDER BY role, name
   `,
-          [date],
-        );
+            [date],
+          )
+        : [];
   dayReservations.forEach(function (r) {
     const mf = reservationMealFlags(r);
     const role = r.role || "未分类";
@@ -652,16 +685,18 @@ function getMealDayByRoom(date) {
           }
           return l;
         })
-    : query(
-        `
+    : isLocalForceDb()
+      ? query(
+          `
     SELECT l.*, r.name as room_name, r.id as room_id
     FROM lodgers l
     LEFT JOIN beds b ON b.id = l.bed_id
     LEFT JOIN rooms r ON r.id = b.room_id
     WHERE l.status = '在住' AND l.check_in_date <= ?
   `,
-        [date],
-      )
+          [date],
+        )
+      : []
   ).forEach(function (l) {
     if (!isLodgerInHouseOnDate(l, date)) return;
     const flags = getMealFlagsForDate(l.id, date);
@@ -685,13 +720,15 @@ function getMealDayByRoom(date) {
             (r.status === "预约" || r.status === "已确认")
           );
         })
-      : query(
-          `
+      : isLocalForceDb()
+        ? query(
+            `
     SELECT * FROM reservations
     WHERE expected_check_in = ? AND status IN ('预约', '已确认')
   `,
-          [date],
-        );
+            [date],
+          )
+        : [];
   dayReservations.forEach(function (r) {
     const mf = reservationMealFlags(r);
     const eatsAny = !!(mf.breakfast || mf.lunch || mf.dinner);
@@ -911,16 +948,11 @@ function renderMealsPanelCharts(byRole) {
 }
 
 function openMealModal(lodgerId) {
-  const l = query(
-    `
-    SELECT l.*, r.name as room_name, b.bed_number
-    FROM lodgers l
-    LEFT JOIN beds b ON b.id=l.bed_id
-    LEFT JOIN rooms r ON r.id=b.room_id
-    WHERE l.id=?`,
-    [lodgerId],
-  )[0];
-  if (!l) return;
+  const l = mealLodgerEnrichedById(lodgerId);
+  if (!l) {
+    alert(isLocalForceDb() ? "找不到该挂单记录" : "数据加载中，请稍候再试");
+    return;
+  }
   const defaults = getLodgerMealDefaults(l);
   const label = escapeHtml(
     (l.room_name || "-") + (l.bed_number ? " / " + l.bed_number : ""),
@@ -975,7 +1007,7 @@ function readMealModalDefaults() {
 function renderMealGrid(lodgerId) {
   const tbody = document.getElementById("meal-grid-body");
   if (!tbody) return;
-  const l = query("SELECT * FROM lodgers WHERE id=?", [lodgerId])[0];
+  const l = mealLodgerEnrichedById(lodgerId);
   if (!l) return;
   const dates = getLodgerStayDates(l);
   if (!dates.length) {
@@ -1090,7 +1122,9 @@ async function submitMeals(event, lodgerId) {
     const l =
       typeof rcReadReady === "function" && rcReadReady()
         ? rcLodgerById(lodgerId)
-        : query("SELECT * FROM lodgers WHERE id=?", [lodgerId])[0];
+        : isLocalForceDb()
+          ? query("SELECT * FROM lodgers WHERE id=?", [lodgerId])[0]
+          : null;
     if (!l) {
       alert("找不到该挂单记录");
       return;
@@ -1191,8 +1225,9 @@ function generateMeals(lodgerId, startDate, endDate, breakfast, lunch, dinner) {
   }
 }
 
-/** 挂单尚无 meals 记录时补生成（如仅登记未分床） */
+/** 挂单尚无 meals 记录时补生成（如仅登记未分床）| Local-only meal bootstrap */
 async function ensureLodgerMeals(lodgerId, breakfast, lunch, dinner) {
+  if (!isLocalForceDb()) return;
   const l = query("SELECT * FROM lodgers WHERE id=?", [lodgerId])[0];
   if (!l || l.status !== "在住") return;
   const count =
@@ -1215,7 +1250,14 @@ async function ensureLodgerMeals(lodgerId, breakfast, lunch, dinner) {
 
 function getMealSummary(lodgerId) {
   const defaults = getLodgerMealDefaults(lodgerId);
-  const rows = query("SELECT * FROM meals WHERE lodger_id=?", [lodgerId]);
+  const rows =
+    typeof rcReadReady === "function" &&
+    rcReadReady() &&
+    typeof rcMealsForLodger === "function"
+      ? rcMealsForLodger(lodgerId)
+      : isLocalForceDb()
+        ? query("SELECT * FROM meals WHERE lodger_id=?", [lodgerId])
+        : [];
   let bf = 0;
   let lc = 0;
   let dn = 0;

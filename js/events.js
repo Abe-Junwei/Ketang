@@ -70,27 +70,28 @@ function eventGetById(id) {
   if (eventReadReady() && typeof rcEventById === "function") {
     return rcEventById(id);
   }
+  if (!isLocalForceDb()) return null;
   return query("SELECT * FROM events WHERE id = ?", [id])[0];
 }
 
 function eventMemberEventId(item) {
   if (!item) return null;
   if (item.kind === "reservation") {
-    if (eventReadReady()) {
-      var r = rcRows("reservations", "reservations").find(function (x) {
-        return x.id == item.id;
-      });
-      return r ? r.event_id : null;
+    if (typeof rcReservationById === "function") {
+      var resv = rcReservationById(item.id);
+      if (resv) return resv.event_id;
     }
+    if (!isLocalForceDb()) return null;
     var row = query("SELECT event_id FROM reservations WHERE id = ?", [
       item.id,
     ])[0];
     return row ? row.event_id : null;
   }
-  if (eventReadReady() && typeof rcLodgerById === "function") {
+  if (typeof rcLodgerById === "function") {
     var lodger = rcLodgerById(item.id);
-    return lodger ? lodger.event_id : null;
+    if (lodger) return lodger.event_id;
   }
+  if (!isLocalForceDb()) return null;
   var lrow = query("SELECT event_id FROM lodgers WHERE id = ?", [item.id])[0];
   return lrow ? lrow.event_id : null;
 }
@@ -193,6 +194,7 @@ function eventRelatedCount(eventId) {
     }).length;
     return lodgers + resvs;
   }
+  if (!isLocalForceDb()) return 0;
   return (
     (query("SELECT COUNT(*) as c FROM lodgers WHERE event_id = ?", [eventId])[0]
       ?.c || 0) +
@@ -208,6 +210,31 @@ function renderEventList() {
     updateTopbarForInfoTab("events");
   }
   const f = infoGetFilters("events");
+  const canSettingsWrite =
+    typeof hasPermission === "function" && hasPermission("settings.write");
+  const canRoomingPlan =
+    typeof hasPermission === "function" && hasPermission("settings.read");
+  if (typeof rcReadReady !== "function" || !rcReadReady()) {
+    if (!isLocalForceDb()) {
+      infoPageShell(
+        infoToolbarHtml(
+          `${infoSearchBox("events", "搜索营期名称…")}
+     ${infoFilterSelect(
+       "events",
+       "eventType",
+       "类型筛选",
+       EVENT_TYPE_OPTIONS.map((t) => [t, t]),
+       "类型筛选",
+     )}`,
+          canSettingsWrite
+            ? `<button type="button" class="btn btn-primary" onclick="openEventModal()">+ 新增营期</button>`
+            : "",
+        ),
+        '<p class="empty-tip">数据加载中，请稍候…</p>',
+      );
+      return;
+    }
+  }
   const events =
     typeof rcReadReady === "function" && rcReadReady()
       ? rcEventListWithStats()
@@ -233,11 +260,6 @@ function renderEventList() {
     }
     return true;
   });
-
-  const canSettingsWrite =
-    typeof hasPermission === "function" && hasPermission("settings.write");
-  const canRoomingPlan =
-    typeof hasPermission === "function" && hasPermission("settings.read");
 
   const toolbar = infoToolbarHtml(
     `${infoSearchBox("events", "搜索营期名称…")}
@@ -335,14 +357,26 @@ function renderEventMembers(eventId) {
       ? rcEventMembers(eventId)
       : null;
   const evt = pack ? pack.evt : eventGetById(eventId);
-  if (!evt) return;
+  if (!evt) {
+    if (!isLocalForceDb()) {
+      infoSetToolbar(
+        infoToolbarHtml(
+          "",
+          `<button type="button" class="btn btn-default" onclick="renderEventList()">← 返回营期列表</button>`,
+        ),
+      );
+      infoPageShell("", '<p class="empty-tip">数据加载中，请稍候…</p>');
+    }
+    return;
+  }
   if (typeof updateTopbarTitle === "function") {
     updateTopbarTitle("info", (evt.name || "营期") + " · 成员");
   }
 
   const lodgers = pack
     ? pack.lodgers
-    : query(
+    : isLocalForceDb()
+      ? query(
         `
     SELECT l.id, l.name, l.dharma_name, l.gender, l.check_in_date, l.expected_check_out, l.role, l.class_name, l.participant_identity, l.age_group, l.status, r.name as room_name, b.bed_number, 'lodger' as kind
     FROM lodgers l
@@ -352,11 +386,13 @@ function renderEventMembers(eventId) {
     ORDER BY l.status, l.name
   `,
         [eventId],
-      );
+      )
+      : [];
 
   const reservations = pack
     ? pack.reservations
-    : query(
+    : isLocalForceDb()
+      ? query(
         `
     SELECT r.id, r.name, r.dharma_name, r.gender, r.expected_check_in, r.expected_check_out, r.role, r.class_name, r.participant_identity, r.age_group, r.status, r.room_preference, 'reservation' as kind
     FROM reservations r
@@ -364,7 +400,8 @@ function renderEventMembers(eventId) {
     ORDER BY r.expected_check_in, r.name
   `,
         [eventId],
-      );
+      )
+      : [];
 
   const members = [...lodgers, ...reservations];
 
@@ -623,6 +660,10 @@ function openEventModal(id) {
   }
   const isEdit = !!id;
   const e = isEdit ? eventGetById(id) : null;
+  if (isEdit && !e) {
+    alert(isLocalForceDb() ? "营期不存在" : "数据加载中，请稍候再试");
+    return;
+  }
 
   document.getElementById("modal-title").textContent = isEdit
     ? "编辑营期"
@@ -843,9 +884,11 @@ function getEventOptionsHtml(selectedId, allowEmpty) {
   const events =
     eventReadReady() && typeof rcEventsForSelect === "function"
       ? rcEventsForSelect()
-      : query(
-          "SELECT id, name, event_type, status FROM events WHERE status != '已取消' ORDER BY start_date DESC, id DESC",
-        );
+      : isLocalForceDb()
+        ? query(
+            "SELECT id, name, event_type, status FROM events WHERE status != '已取消' ORDER BY start_date DESC, id DESC",
+          )
+        : [];
   let html = allowEmpty ? '<option value="">散客 / 不归属营期</option>' : "";
   events.forEach((e) => {
     const selected = e.id == selectedId ? "selected" : "";
@@ -857,11 +900,14 @@ function getEventOptionsHtml(selectedId, allowEmpty) {
 // 根据营期 ID 返回营期对象（用于批量导入时按名称匹配）
 function findEventByName(name) {
   if (!name) return null;
+  if (typeof rcReadReady === "function" && rcReadReady()) {
+    return rcFindEventByName(name);
+  }
+  if (!isLocalForceDb()) return null;
   const rows = query("SELECT * FROM events WHERE name = ? LIMIT 1", [
     name.trim(),
   ]);
   if (rows.length) return rows[0];
-  // 尝试模糊匹配
   const fuzzy = query("SELECT * FROM events WHERE name LIKE ? LIMIT 1", [
     `%${name.trim()}%`,
   ]);
@@ -971,7 +1017,7 @@ function generateRoomingSuggestion(eventId) {
         members.push({ gender: r.gender });
       });
     }
-  } else {
+  } else if (isLocalForceDb()) {
     members = query(
       `
     SELECT gender FROM lodgers WHERE event_id = ? AND status = '在住'
@@ -1008,7 +1054,8 @@ function generateRoomingSuggestion(eventId) {
   // 查询可用床位（按房间分组）
   const availRooms = roomingReadReady()
     ? roomingAvailRoomsGrouped(evt)
-    : (function () {
+    : isLocalForceDb()
+      ? (function () {
         const requireInspect =
           typeof housekeepingRequiresInspect === "function" &&
           housekeepingRequiresInspect();
@@ -1027,7 +1074,8 @@ function generateRoomingSuggestion(eventId) {
     HAVING avail_beds > 0
     ORDER BY CASE r.dorm_type WHEN '男寮' THEN 1 WHEN '女寮' THEN 2 ELSE 3 END, r.location, r.name
   `);
-      })();
+      })()
+      : [];
 
   // 分配算法
   const maleRooms = availRooms.filter((r) => r.dorm_type === "男寮");
@@ -1117,8 +1165,9 @@ function renderRoomingSuggestionTable(plan, gap) {
 }
 
 function exportRoomingSuggestionCSV(eventId) {
-  const evt = query("SELECT * FROM events WHERE id = ?", [eventId])[0];
+  const evt = roomingGetEvent(eventId) || eventGetById(eventId);
   const s = generateRoomingSuggestion(eventId);
+  if (!evt || !s) return;
   const lines = [
     "\uFEFF" +
       ["营期", "性别需求", "房间", "位置", "类型", "分配人数"]
@@ -1237,11 +1286,35 @@ function renderEventProgressChart(events) {
 
 // 导出营期成员名单
 function exportEventMembersCSV(eventId) {
-  const evt = query("SELECT * FROM events WHERE id = ?", [eventId])[0];
-  if (!evt) return;
-
-  const lodgers = query(
-    `
+  var evt;
+  var members;
+  if (eventReadReady() && typeof rcEventMembers === "function") {
+    var pack = rcEventMembers(eventId);
+    if (!pack) return;
+    evt = pack.evt;
+    members = pack.lodgers
+      .map(function (l) {
+        return Object.assign({}, l, {
+          kind: "在住",
+          room_name: l.room_name || "",
+          bed_number: l.bed_number || "",
+        });
+      })
+      .concat(
+        pack.reservations.map(function (r) {
+          return Object.assign({}, r, {
+            kind: "预约",
+            room_name: "",
+            bed_number: "",
+            check_in_date: r.expected_check_in,
+          });
+        }),
+      );
+  } else if (isLocalForceDb()) {
+    evt = query("SELECT * FROM events WHERE id = ?", [eventId])[0];
+    if (!evt) return;
+    const lodgers = query(
+      `
     SELECT l.name, l.dharma_name, l.gender, l.phone, l.check_in_date, l.expected_check_out, l.role, l.class_name, l.participant_identity, l.age_group, l.special_needs, l.status, r.name as room_name, b.bed_number, '在住' as kind
     FROM lodgers l
     LEFT JOIN beds b ON b.id = l.bed_id
@@ -1249,20 +1322,21 @@ function exportEventMembersCSV(eventId) {
     WHERE l.event_id = ? AND l.status = '在住'
     ORDER BY l.name
   `,
-    [eventId],
-  );
-
-  const reservations = query(
-    `
+      [eventId],
+    );
+    const reservations = query(
+      `
     SELECT r.name, r.dharma_name, r.gender, r.phone, r.expected_check_in, r.expected_check_out, r.role, r.class_name, r.participant_identity, r.age_group, r.special_needs, r.status, '' as room_name, '' as bed_number, '预约' as kind
     FROM reservations r
     WHERE r.event_id = ?
     ORDER BY r.status, r.name
   `,
-    [eventId],
-  );
-
-  const members = [...lodgers, ...reservations];
+      [eventId],
+    );
+    members = [...lodgers, ...reservations];
+  } else {
+    return;
+  }
   const headers = [
     "姓名 / 法名",
     "性别",

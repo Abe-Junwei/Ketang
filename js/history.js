@@ -153,10 +153,12 @@ function exportCSV() {
     const meal = getMealSummary(r.id);
     const bedLabel =
       (r.room_name || "") + (r.bed_number ? "/" + r.bed_number : "");
-    const pay = query(
-      "SELECT COALESCE(SUM(CASE WHEN type='押金' THEN amount ELSE 0 END),0) as deposit, COALESCE(SUM(CASE WHEN type='房费' THEN amount ELSE 0 END),0) as room_fee, COALESCE(SUM(CASE WHEN type='退款' THEN amount ELSE 0 END),0) as refund FROM payments WHERE lodger_id=?",
-      [r.id],
-    )[0];
+    const pay = isLocalForceDb()
+      ? query(
+          "SELECT COALESCE(SUM(CASE WHEN type='押金' THEN amount ELSE 0 END),0) as deposit, COALESCE(SUM(CASE WHEN type='房费' THEN amount ELSE 0 END),0) as room_fee, COALESCE(SUM(CASE WHEN type='退款' THEN amount ELSE 0 END),0) as refund FROM payments WHERE lodger_id=?",
+          [r.id],
+        )[0]
+      : rcLodgerPaymentTotals(r.id);
     const net = (pay.deposit + pay.room_fee - pay.refund).toFixed(2);
     const cols = [
       idx + 1,

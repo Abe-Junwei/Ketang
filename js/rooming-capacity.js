@@ -86,6 +86,9 @@ function capacityRegisteredOnDay(eventId, day) {
       demo: capacityCountDemographics(all),
     };
   }
+  if (!roomingUseLocalRead()) {
+    return { all: [], male: 0, female: 0, demo: capacityCountDemographics([]) };
+  }
   var lodgers = query(
     "SELECT gender, participant_identity, age_group FROM lodgers WHERE event_id=? AND status='在住' AND check_in_date <= ? AND (expected_check_out IS NULL OR expected_check_out > ?)",
     [eventId, day, day],
@@ -190,6 +193,9 @@ function getCapacityBedTotals(includeSpare) {
       total: male + female + flex,
     };
   }
+  if (!roomingUseLocalRead()) {
+    return { male: 0, female: 0, flex: 0, total: 0 };
+  }
   var spareSql = spareRoomExcludeClause("r", !!includeSpare);
   var base =
     " FROM beds b JOIN rooms r ON r.id=b.room_id WHERE b.status!='维修' AND b.status!='备用' AND " +
@@ -221,6 +227,7 @@ function loadCapacityActiveEvents() {
         return (a.name || "").localeCompare(b.name || "", "zh-CN");
       });
   }
+  if (!roomingUseLocalRead()) return [];
   return query(
     "SELECT * FROM events WHERE status IN ('筹备中','招生中','进行中') ORDER BY COALESCE(arrival_date, start_date), name",
   );
@@ -256,10 +263,12 @@ function computeDailyCapacityForecast(startDate, dayCount) {
               event_id: l.event_id,
             };
           })
-      : query(
+      : roomingUseLocalRead()
+        ? query(
           "SELECT gender, participant_identity, age_group, event_id FROM lodgers WHERE status='在住' AND check_in_date <= ? AND (expected_check_out IS NULL OR expected_check_out > ?)",
           [day, day],
-        );
+        )
+        : [];
     var reservations = roomingReadReady()
       ? rcRows("reservations", "reservations")
           .filter(function (r) {
@@ -277,10 +286,12 @@ function computeDailyCapacityForecast(startDate, dayCount) {
               event_id: r.event_id,
             };
           })
-      : query(
+      : roomingUseLocalRead()
+        ? query(
           "SELECT gender, participant_identity, age_group, event_id FROM reservations WHERE status IN ('预约','已确认') AND expected_check_in <= ? AND (expected_check_out IS NULL OR expected_check_out > ?)",
           [day, day],
-        );
+        )
+        : [];
     var registered = lodgers.concat(reservations);
     var male = registered.filter(function (p) {
       return p.gender === "男";

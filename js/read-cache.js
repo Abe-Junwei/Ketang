@@ -738,6 +738,55 @@ function rcPaymentSummary(lodgerId) {
   };
 }
 
+/** 历史台账 CSV 款项分列 | Ledger CSV payment columns */
+function rcLodgerPaymentTotals(lodgerId) {
+  var deposit = 0;
+  var room_fee = 0;
+  var refund = 0;
+  rcPaymentsForLodger(lodgerId).forEach(function (p) {
+    var amt = parseFloat(p.amount) || 0;
+    if (p.type === "押金") deposit += amt;
+    else if (p.type === "房费") room_fee += amt;
+    else if (p.type === "退款") refund += amt;
+  });
+  return { deposit: deposit, room_fee: room_fee, refund: refund };
+}
+
+/** 按名称匹配营期 | Find event by exact/fuzzy name */
+function rcFindEventByName(name) {
+  if (!name) return null;
+  var trimmed = String(name).trim();
+  if (!trimmed) return null;
+  var rows = rcRows("events", "events");
+  var exact = rows.find(function (e) {
+    return e.name === trimmed;
+  });
+  if (exact) return exact;
+  var lower = trimmed.toLowerCase();
+  var fuzzy = rows.find(function (e) {
+    return e.name && String(e.name).toLowerCase().indexOf(lower) !== -1;
+  });
+  return fuzzy || null;
+}
+
+/** 营期预分房方案 | Rooming plan row for event */
+function rcRoomingPlanByEventId(eventId) {
+  if (!eventId) return null;
+  var detailPlans = rcRoomingEventTables(eventId).rooming_plans || [];
+  if (detailPlans.length) {
+    return (
+      detailPlans.find(function (p) {
+        return p.event_id == eventId;
+      }) || detailPlans[0]
+    );
+  }
+  return (
+    rcRows("events", "rooming_plans").find(function (p) {
+      return p.event_id == eventId;
+    }) || null
+  );
+}
+
 function rcMealsForLodger(lodgerId) {
   return rcRows("meals", "meals").filter(function (m) {
     return m.lodger_id == lodgerId;

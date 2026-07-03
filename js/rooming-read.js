@@ -60,6 +60,9 @@ function roomingGetPlan(eventId) {
       }) || null
     );
   }
+  if (!roomingUseLocalRead()) {
+    return rcRoomingPlanByEventId(eventId);
+  }
   return query("SELECT * FROM rooming_plans WHERE event_id = ? LIMIT 1", [
     eventId,
   ])[0];
@@ -97,7 +100,7 @@ function roomingBedMeta(bedId) {
 
 function roomingEnrichAssignmentRow(row) {
   if (!row || !row.bed_id) return Object.assign({}, row);
-  if (roomingReadReady()) {
+  if (roomingReadReady() || !roomingUseLocalRead()) {
     return Object.assign({}, row, roomingBedMeta(row.bed_id) || {});
   }
   var meta = query(
@@ -112,7 +115,7 @@ function roomingEnrichAssignmentRow(row) {
 function roomingEnrichQueueRow(row) {
   if (!row) return row;
   if (!row.suggested_bed_id) return Object.assign({}, row);
-  if (roomingReadReady()) {
+  if (roomingReadReady() || !roomingUseLocalRead()) {
     var meta = roomingBedMeta(row.suggested_bed_id);
     return Object.assign({}, row, meta || {});
   }
@@ -135,6 +138,7 @@ function roomingAssignmentsForEvent(eventId, planId) {
         return (a.id || 0) - (b.id || 0);
       });
   }
+  if (!roomingUseLocalRead()) return [];
   return query(
     "SELECT ra.*, r.name AS room_name, r.location AS room_location, r.dorm_type, b.bed_number " +
       "FROM rooming_assignments ra " +
@@ -159,6 +163,7 @@ function roomingCheckinQueueForEvent(eventId) {
         return (a.id || 0) - (b.id || 0);
       });
   }
+  if (!roomingUseLocalRead()) return [];
   return query(
     "SELECT q.*, r.name AS room_name, r.location AS room_location, r.dorm_type, b.bed_number " +
       "FROM rooming_checkin_queue q " +
@@ -193,6 +198,7 @@ function roomingAdjustmentsForEvent(eventId) {
         );
       });
   }
+  if (!roomingUseLocalRead()) return [];
   return query(
     "SELECT a.*, " +
       "fb.bed_number AS from_bed_number, fr.name AS from_room_name, fr.location AS from_room_location, " +
@@ -254,6 +260,7 @@ function roomingListEventMembersForPlan(eventId) {
     }
     return members;
   }
+  if (!roomingUseLocalRead()) return [];
   return listLocalEventMembersForPlan(eventId);
 }
 
@@ -287,6 +294,7 @@ function roomingListDraftReservedBedIds(eventId, planId, event) {
       return parseInt(id, 10);
     });
   }
+  if (!roomingUseLocalRead()) return [];
   return listLocalDraftReservedBedIds(eventId, planId, event);
 }
 
@@ -340,6 +348,7 @@ function roomingListAssignableBeds(event, excludeBedIds) {
     });
     return rows;
   }
+  if (!roomingUseLocalRead()) return [];
   return listLocalAssignableBeds(event, excludeBedIds);
 }
 
@@ -376,6 +385,7 @@ function roomingQueueAssignAlreadyDone(item) {
         lodger.bed_id == item.suggested_bed_id
       );
     }
+    if (!roomingUseLocalRead()) return false;
     var lrow = query(
       "SELECT bed_id FROM lodgers WHERE id=? AND status='在住'",
       [item.member_ref_id],
@@ -389,6 +399,7 @@ function roomingQueueAssignAlreadyDone(item) {
       });
       return !!(resv && resv.status === "已入住");
     }
+    if (!roomingUseLocalRead()) return false;
     var rrow = query("SELECT status FROM reservations WHERE id=?", [
       item.member_ref_id,
     ])[0];
@@ -398,7 +409,7 @@ function roomingQueueAssignAlreadyDone(item) {
 }
 
 function roomingLodgerEventRow(lodgerId) {
-  if (roomingReadReady()) {
+  if (roomingReadReady() || !roomingUseLocalRead()) {
     return rcLodgerById(lodgerId);
   }
   return query("SELECT event_id, name FROM lodgers WHERE id=?", [lodgerId])[0];
