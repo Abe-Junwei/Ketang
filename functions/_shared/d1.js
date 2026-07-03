@@ -57,6 +57,34 @@ async function runSchemaSql(env, schemaSql) {
 
 let remoteInitPromise = null;
 let remoteInitReady = false;
+/** 本 isolate 已跑过轻量 auth ensure | Per-isolate auth ensure cache */
+let authEnsureReady = false;
+const AUTH_SCHEMA_READY_VERSION = 22;
+
+/** 生产库已初始化：用 schema_version + rooms 哨兵，避免冷 Worker 逐列 PRAGMA | Production DB ready probe */
+async function probeProductionDatabaseReady(env) {
+  try {
+    const rows = await queryD1(
+      env,
+      "SELECT MIN(version) AS v FROM schema_version",
+      [],
+    );
+    const version = parseInt(rows[0]?.v, 10) || 0;
+    if (version < AUTH_SCHEMA_READY_VERSION) return false;
+    const count = await queryD1(env, "SELECT COUNT(*) AS c FROM rooms", []);
+    return (count[0]?.c || 0) > 0;
+  } catch (e) {
+    return false;
+  }
+}
+
+async function ensureDatabaseForAuthLight(env) {
+  await ensureSyncMetaSchema(env);
+  await ensureRowSyncSchema(env);
+  remoteInitReady = true;
+  authEnsureReady = true;
+  return false;
+}
 
 async function repairUsersTableState(env) {
   await runD1(env, "DROP TABLE IF EXISTS users_new", []);
@@ -184,6 +212,12 @@ export async function initRemoteDatabase(env) {
 
 /** 登录前轻量探测：已有业务数据则跳过全量 schema 重放 | Fast path before login */
 export async function ensureDatabaseForAuth(env) {
+  if (authEnsureReady) return false;
+
+  if (remoteInitReady || (await probeProductionDatabaseReady(env))) {
+    return ensureDatabaseForAuthLight(env);
+  }
+
   await ensureRoomingSchemaColumnsIfTablesExist(env);
   await ensureSyncMetaSchema(env);
   await ensureRowSyncSchema(env);
@@ -202,6 +236,7 @@ export async function ensureDatabaseForAuth(env) {
       await ensureEventColumns(env);
       await ensureRowSyncSchema(env);
       remoteInitReady = true;
+      authEnsureReady = true;
       return false;
     }
   }
@@ -406,6 +441,7 @@ async function initRemoteDatabaseOnce(env) {
       await ensureEventColumns(env);
       await ensureRowSyncSchema(env);
       remoteInitReady = true;
+      authEnsureReady = true;
       return false;
     }
   }
@@ -429,6 +465,7 @@ async function initRemoteDatabaseOnce(env) {
   const count = await queryD1(env, "SELECT COUNT(*) AS c FROM rooms", []);
   if ((count[0]?.c || 0) > 0) {
     remoteInitReady = true;
+    authEnsureReady = true;
     return false;
   }
   for (const item of SEED_ROOMS) await runD1(env, item.sql, item.params);
@@ -445,6 +482,7 @@ async function initRemoteDatabaseOnce(env) {
     );
   }
   remoteInitReady = true;
+  authEnsureReady = true;
   return true;
 }
 

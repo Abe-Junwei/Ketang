@@ -23,8 +23,9 @@ export async function onRequestGet({ request, env }) {
     const session = await timer.stage("auth_ms", () =>
       requireSession(request, env, (sql, p) => queryD1(env, sql, p)),
     );
-    await timer.stage("init_ms", () => ensureDatabaseForAuth(env));
-    const currentVersion = await getBoardVersion(env);
+    const currentVersion = await timer.stage("version_ms", () =>
+      getBoardVersion(env),
+    );
     const ifNoneMatch = request.headers.get("If-None-Match");
     if (
       ifNoneMatch != null &&
@@ -34,6 +35,7 @@ export async function onRequestGet({ request, env }) {
     ) {
       return timer.finish304(request, currentVersion);
     }
+    await timer.stage("init_ms", () => ensureDatabaseForAuth(env));
     const payload = await timer.stage("delta_ms", () =>
       buildSyncDelta(env, session, since, { skipInit: true }),
     );

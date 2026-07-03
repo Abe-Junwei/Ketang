@@ -477,6 +477,9 @@ def test_read_model_etag_and_client_304():
     ):
         print('FAIL read-model endpoint must support If-None-Match / 304')
         sys.exit(1)
+    if read_model_api.find('ensureDatabaseForAuth') > read_model_api.find('finish304'):
+        print('FAIL read-model must check 304 before ensureDatabaseForAuth')
+        sys.exit(1)
     api_client = read('js/api-client.js')
     sync = read('js/sync-coordinator.js')
     if 'If-None-Match' not in api_client or 'notModified' not in api_client:
@@ -507,6 +510,9 @@ def test_login_uses_lightweight_auth_init():
     d1 = read('functions/_shared/d1.js')
     if 'ensureDatabaseForAuth' not in d1:
         print('FAIL d1.js missing ensureDatabaseForAuth helper')
+        sys.exit(1)
+    if 'probeProductionDatabaseReady' not in d1 or 'authEnsureReady' not in d1:
+        print('FAIL d1.js must cache auth ensure with schema_version probe')
         sys.exit(1)
     login_role = re.search(
         r'if \(payload\.action === "login_role"\) \{([\s\S]*?)\n    \}',

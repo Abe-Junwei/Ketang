@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import gzip
 import http.cookiejar
 import json
 import os
@@ -42,10 +43,18 @@ def summarize_samples(samples: list[int]) -> dict:
     }
 
 
-def request_json(url, method="GET", headers=None, body=None, timeout=60):
+def decode_response_body(raw: bytes, headers: dict) -> str:
+    encoding = (headers.get("Content-Encoding") or headers.get("content-encoding") or "").lower()
+    if encoding == "gzip":
+        raw = gzip.decompress(raw)
+    return raw.decode("utf-8")
+
+
+def request_json(url, method="GET", headers=None, body=None, timeout=120):
     data = None
     req_headers = {
         "Accept": "application/json",
+        "Accept-Encoding": "gzip, identity",
         "User-Agent": "KetangLatencyProbe/1.0",
     }
     if headers:
@@ -57,18 +66,34 @@ def request_json(url, method="GET", headers=None, body=None, timeout=60):
     started = time.perf_counter()
     try:
         with _URL_OPENER.open(req, timeout=timeout) as resp:
-            raw = resp.read().decode("utf-8")
+            chunks: list[bytes] = []
+            while True:
+                chunk = resp.read(65536)
+                if not chunk:
+                    break
+                chunks.append(chunk)
+            raw = b"".join(chunks)
             elapsed_ms = int((time.perf_counter() - started) * 1000)
-            payload = json.loads(raw or "{}") if raw else {}
-            return resp.status, payload, elapsed_ms, dict(resp.headers)
+            hdrs = dict(resp.headers)
+            text = decode_response_body(raw, hdrs)
+            payload = json.loads(text or "{}") if text else {}
+            return resp.status, payload, elapsed_ms, hdrs
     except urllib.error.HTTPError as exc:
-        raw = exc.read().decode("utf-8")
+        chunks: list[bytes] = []
+        while True:
+            chunk = exc.read(65536)
+            if not chunk:
+                break
+            chunks.append(chunk)
+        raw = b"".join(chunks)
         elapsed_ms = int((time.perf_counter() - started) * 1000)
+        hdrs = dict(exc.headers)
         try:
-            payload = json.loads(raw or "{}") if raw else {}
-        except json.JSONDecodeError:
-            payload = {"error": raw[:200]}
-        return exc.code, payload, elapsed_ms, dict(exc.headers)
+            text = decode_response_body(raw, hdrs)
+            payload = json.loads(text or "{}") if text else {}
+        except (json.JSONDecodeError, UnicodeDecodeError):
+            payload = {"error": raw[:200].decode("utf-8", errors="replace")}
+        return exc.code, payload, elapsed_ms, hdrs
 
 
 def ttfb_ms(url, timeout=60):
@@ -76,7 +101,10 @@ def ttfb_ms(url, timeout=60):
     req = urllib.request.Request(
         url,
         method="GET",
-        headers={"User-Agent": "KetangLatencyProbe/1.0"},
+        headers={
+            "User-Agent": "KetangLatencyProbe/1.0",
+            "Accept-Encoding": "gzip, identity",
+        },
     )
     with urllib.request.urlopen(req, timeout=timeout) as resp:
         resp.read(256)
@@ -180,7 +208,7 @@ def check_baseline(results: dict, baseline: dict) -> list[str]:
 def probe_frontend_write_refresh() -> dict | None:
     """CDP: login + rcRefreshAfterWrite → ketang:write-refresh measure (local dev + cloud API)."""
     if os.environ.get("KETANG_SKIP_ONLINE_E2E") == "1":
-        return None
+        return {"_skip": "KETANG_SKIP_ONLINE_E2E=1"}
     try:
         import subprocess
         import time
@@ -189,12 +217,12 @@ def probe_frontend_write_refresh() -> dict | None:
 
         from test_cdp import CDP_PORT, PORT, cdp_ws_url, evaluate, recv_by_id, start_server, wait_for_cdp
         from test_file_protocol import chrome_binary
-    except ImportError:
-        return None
+    except ImportError as exc:
+        return {"_skip": f"import:{exc}"}
 
     chrome = chrome_binary()
     if not chrome:
-        return None
+        return {"_skip": "chrome_not_found"}
 
     server = start_server()
     proc = subprocess.Popen(
@@ -214,10 +242,10 @@ def probe_frontend_write_refresh() -> dict | None:
     )
     try:
         if not wait_for_cdp():
-            return None
+            return {"_skip": "cdp_not_ready"}
         ws_url = cdp_ws_url()
         if not ws_url:
-            return None
+            return {"_skip": "cdp_no_page"}
         ws = websocket.create_connection(ws_url, timeout=30)
         ws.send(json.dumps({"id": 1, "method": "Runtime.enable"}))
         ws.recv()
@@ -226,13 +254,18 @@ def probe_frontend_write_refresh() -> dict | None:
                 break
             time.sleep(0.5)
         else:
-            return None
+            return {"_skip": "app_init_timeout"}
+
         online = evaluate(
             ws,
-            "typeof useRemoteWriteApi === 'function' && useRemoteWriteApi()",
-        ).get("value")
-        if not online:
-            return None
+            """({
+              isRemoteDB: typeof isRemoteDB === 'function' && isRemoteDB(),
+              useRemoteWriteApi: typeof useRemoteWriteApi === 'function' && useRemoteWriteApi(),
+              forceLocal: typeof isLocalForceDb === 'function' && isLocalForceDb(),
+            })""",
+        ).get("value", {})
+        if not online.get("isRemoteDB"):
+            return {"_skip": "not_remote_db", "detail": online}
 
         expr = """
         (async () => {
@@ -241,7 +274,7 @@ def probe_frontend_write_refresh() -> dict | None:
           document.getElementById('login-username').value = 'admin';
           document.getElementById('login-password').value = 'admin';
           await submitLogin();
-          for (let i = 0; i < 60; i++) {
+          for (let i = 0; i < 80; i++) {
             if (typeof isLoggedIn === 'function' && isLoggedIn()) break;
             await new Promise(r => setTimeout(r, 250));
           }
@@ -254,11 +287,11 @@ def probe_frontend_write_refresh() -> dict | None:
           performance.clearMarks();
           performance.clearMeasures();
           const task = rcRefreshAfterWrite(
-            { patches: {}, deletions: {} },
+            { patches: {}, deletions: [] },
             { scope: 'board', skipViewRefresh: false },
           );
           if (task && typeof task.then === 'function') await task;
-          await new Promise(r => setTimeout(r, 500));
+          await new Promise(r => setTimeout(r, 1000));
           const entries = performance.getEntriesByType('measure')
             .filter(e => e.name === 'ketang:write-refresh');
           const loginReady = performance.getEntriesByType('measure')
@@ -271,6 +304,7 @@ def probe_frontend_write_refresh() -> dict | None:
               ? Math.round(loginReady[loginReady.length - 1].duration)
               : null,
             hasWriteRefresh: entries.length > 0,
+            marks: performance.getEntriesByType('mark').map(m => m.name),
           };
         })().catch(e => ({ error: e.message || String(e) }))
         """
@@ -288,17 +322,19 @@ def probe_frontend_write_refresh() -> dict | None:
             )
         )
         result = (
-            recv_by_id(ws, 2, 180)
+            recv_by_id(ws, 2, 240)
             .get("result", {})
             .get("result", {})
             .get("value", {})
         )
         ws.close()
-        if result.get("error") or not result.get("hasWriteRefresh"):
-            return None
+        if result.get("error"):
+            return {"_skip": result["error"], "detail": result}
+        if not result.get("hasWriteRefresh"):
+            return {"_skip": "write_refresh_mark_missing", "detail": result}
         ms = result.get("writeRefreshMs")
         if ms is None:
-            return None
+            return {"_skip": "write_refresh_ms_null", "detail": result}
         return {
             "samples": [ms],
             "p50_ms": ms,
@@ -504,11 +540,21 @@ def main() -> int:
 
     if probe_frontend:
         frontend = probe_frontend_write_refresh()
-        if frontend:
+        if frontend and frontend.get("_skip"):
+            results["frontend_probe_skip"] = frontend
+            print(f"WARN frontend probe skipped: {frontend.get('_skip')}")
+        elif frontend:
             results["frontend_write_refresh_ms"] = frontend
-            results["frontend_login_ready_ms"] = frontend.get("login_ready_ms")
+            if frontend.get("login_ready_ms") is not None:
+                results["frontend_login_ready_ms"] = {
+                    "samples": [frontend["login_ready_ms"]],
+                    "p50_ms": frontend["login_ready_ms"],
+                    "p95_ms": frontend["login_ready_ms"],
+                    "max_ms": frontend["login_ready_ms"],
+                    "source": "cdp_ketang:login-ready",
+                }
         else:
-            print("WARN frontend probe skipped (Chrome/CDP or online mode unavailable)")
+            print("WARN frontend probe skipped (unknown)")
 
     print(json.dumps(results, ensure_ascii=False, indent=2))
 
