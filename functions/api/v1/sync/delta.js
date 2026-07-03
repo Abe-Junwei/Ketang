@@ -32,10 +32,7 @@ export async function onRequestGet({ request, env }) {
       String(parseInt(ifNoneMatch, 10)) === String(currentVersion) &&
       since >= currentVersion
     ) {
-      return new Response(null, {
-        status: 304,
-        headers: { ETag: String(currentVersion) },
-      });
+      return timer.finish304(request, currentVersion);
     }
     const payload = await timer.stage("delta_ms", () =>
       buildSyncDelta(env, session, since, { skipInit: true }),

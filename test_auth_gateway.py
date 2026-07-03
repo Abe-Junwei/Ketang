@@ -54,13 +54,29 @@ def test_users_action_skips_init():
 
 def test_login_action_has_timing():
     db_api = read('functions/api/db.js')
-    login_action = re.search(r'if \(payload\.action === "login"\) \{([\s\S]*?)\n    \}', db_api)
-    if not login_action:
-        print('FAIL api/db.js missing login action')
+    for action in ('login', 'login_role'):
+        login_action = re.search(
+            rf'if \(payload\.action === "{action}"\) \{{([\s\S]*?)\n    \}}',
+            db_api,
+        )
+        if not login_action:
+            print(f'FAIL api/db.js missing {action} action')
+            sys.exit(1)
+        block = login_action.group(1)
+        if 'createRequestTimer' not in block or 'buildLoginSuccess' not in block:
+            print(f'FAIL {action} action must use staged timing and buildLoginSuccess')
+            sys.exit(1)
+
+    auth_response = read('functions/_shared/auth-response.js')
+    timing_js = read('functions/_shared/timing.js')
+    if 'finishWithCookies' not in timing_js:
+        print('FAIL timing.js missing finishWithCookies for login _timing')
         sys.exit(1)
-    block = login_action.group(1)
-    if 'createRequestTimer' not in block or 'buildLoginSuccess' not in block:
-        print('FAIL login action must use staged timing and shared login success builder')
+    if 'finish304' not in timing_js:
+        print('FAIL timing.js missing finish304 for 304 X-Ketang-Timing')
+        sys.exit(1)
+    if 'finishWithCookies' not in auth_response:
+        print('FAIL buildDualAuthSuccess must use timer.finishWithCookies')
         sys.exit(1)
 
 
@@ -456,7 +472,9 @@ def test_read_model_parallel_and_no_audit_logs():
 
 def test_read_model_etag_and_client_304():
     read_model_api = read('functions/api/v1/read-model.js')
-    if 'If-None-Match' not in read_model_api or 'status: 304' not in read_model_api:
+    if 'If-None-Match' not in read_model_api or (
+        'status: 304' not in read_model_api and 'finish304' not in read_model_api
+    ):
         print('FAIL read-model endpoint must support If-None-Match / 304')
         sys.exit(1)
     api_client = read('js/api-client.js')

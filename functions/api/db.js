@@ -70,8 +70,7 @@ async function buildLoginSuccess(env, request, freshUser, timer) {
     ip: clientIp(request),
     userAgent: request.headers.get("user-agent") || "",
   };
-  if (timer) await timer.stage("token_ms", async () => null);
-  return buildDualAuthSuccess(env, request, freshUser, meta);
+  return buildDualAuthSuccess(env, request, freshUser, meta, null, timer);
 }
 
 async function authenticateUsername(env, ip, username, password) {

@@ -1,7 +1,7 @@
 {
   "version": 2,
   "updated": "2026-07-03",
-  "notes": "Phase G 前端 performance.mark 埋点 + 生产延迟阈值。P95 超过阈值则 test_prod_latency.py 失败。行级 delta 依赖 v22。1000+ 挂单 patch 基准见 test_lodger_patch_benchmark.py。D1 只读副本：当 D1 配额或慢查询告警持续时再评估。",
+  "notes": "Phase G 前端 performance.mark 埋点 + 生产延迟阈值。P95 超过 thresholds_ms 则 test_prod_latency --check-baseline 失败；phase_g_targets_ms 为稳定目标（非当前生产现状）。外部耗时 = 探针端到端；server_total_ms = 响应 _timing.total_ms 或 304 的 X-Ketang-Timing。行级 delta 依赖 v22。",
   "thresholds_ms": {
     "index_ttfb_ms": 5000,
     "login_role_ms": 15000,
@@ -22,6 +22,13 @@
     "reports_history_query_p95_ms": 800,
     "extra_module_fetch_after_write_max": 1,
     "d1_error_rate_max_pct": 0.1
+  },
+  "phase_g_metric_sources": {
+    "login_to_ready_p95_ms": "代理：max(login_role_ms.p95, read_board_ms.p95)；真实首屏见 frontend_login_ready_ms（CDP ketang:login-ready）",
+    "write_refresh_p95_ms": "frontend_write_refresh_ms：CDP rcRefreshAfterWrite（--probe-frontend / --check-phase-g）",
+    "delta_sync_p95_ms": "sync_delta_ms 外部端到端；server 见 sync_delta_timing.total_ms",
+    "read_module_p95_ms": "read_lodgers_records_ms 外部端到端（非 read_board）；server 见 read_lodgers_records_timing",
+    "reports_history_query_p95_ms": "read_events_ms 外部端到端"
   },
   "frontend_marks": [
     "ketang:login:start",
@@ -44,6 +51,8 @@
     "read_board_ms_p95": null,
     "sync_delta_ms_p95": 16038,
     "read_lodgers_records_ms_p95": 3931,
-    "notes": "phase_g_targets_ms 为目标值；巡检见 .github/workflows/prod-latency.yml"
+    "read_board_server_total_ms": 1404,
+    "read_lodgers_records_server_total_ms": 1224,
+    "notes": "外部 P95 含 CF/网络 RTT；server_total_ms 为 2026-07-03 单次 timing=1 样本。phase_g_targets_ms 为上线稳定目标。"
   }
 }

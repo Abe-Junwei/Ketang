@@ -54,6 +54,9 @@ if "read_model_304_ms" not in latency or "--check-baseline" not in latency:
 if "--check-phase-g" not in latency or "check_phase_g" not in latency:
     print("FAIL test_prod_latency.py missing phase G check")
     sys.exit(1)
+if "probe_frontend_write_refresh" not in latency or "X-Ketang-Timing" not in latency:
+    print("FAIL test_prod_latency.py missing frontend probe or 304 timing header parse")
+    sys.exit(1)
 
 patrol = (ROOT / "scripts/post_deploy_check.py").read_text(encoding="utf-8")
 if "--allow-access-block" not in patrol:

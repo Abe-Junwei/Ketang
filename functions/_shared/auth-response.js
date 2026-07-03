@@ -36,6 +36,7 @@ export async function buildDualAuthSuccess(
   freshUser,
   meta,
   extraBody,
+  timer,
 ) {
   const sessionShape = {
     role: freshUser.role,
@@ -43,13 +44,26 @@ export async function buildDualAuthSuccess(
     sub: freshUser.id,
     is_advanced: !!freshUser.is_advanced,
   };
-  const permissions = await getSessionPermissions(env, sessionShape);
-  const access_token = await signAccessToken(env, freshUser);
-  const refresh = await createRefreshSession(env, freshUser, meta);
-  return jsonWithCookies(sessionBody(freshUser, permissions, extraBody), 200, [
+  const stage = async (name, fn) =>
+    timer ? timer.stage(name, fn) : fn();
+  const permissions = await stage("permissions_ms", () =>
+    getSessionPermissions(env, sessionShape),
+  );
+  const access_token = await stage("access_token_ms", () =>
+    signAccessToken(env, freshUser),
+  );
+  const refresh = await stage("refresh_session_ms", () =>
+    createRefreshSession(env, freshUser, meta),
+  );
+  const cookies = [
     accessCookieHeader(access_token, ACCESS_TTL_SEC),
     refreshCookieHeader(refresh.token, REFRESH_TTL_SEC),
-  ]);
+  ];
+  const body = sessionBody(freshUser, permissions, extraBody);
+  if (timer) {
+    return timer.finishWithCookies(body, request, 200, cookies);
+  }
+  return jsonWithCookies(body, 200, cookies);
 }
 
 /** 续期成功：新 access + 旋转 refresh Cookie | Refresh rotation response */

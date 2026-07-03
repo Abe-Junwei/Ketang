@@ -1,4 +1,4 @@
-import { json } from "./http.js";
+import { json, jsonWithCookies } from "./http.js";
 
 /** 是否返回阶段耗时 | Include stage timing in response */
 export function wantTiming(request) {
@@ -33,6 +33,23 @@ export function createRequestTimer() {
         return json({ ...body, _timing: stages }, status);
       }
       return json(body, status);
+    },
+    finishWithCookies(body, request, status, cookieHeaders) {
+      stages.total_ms = Date.now() - startedAt;
+      const payload = wantTiming(request) ? { ...body, _timing: stages } : body;
+      if (wantTiming(request)) {
+        console.log("ketang_timing", JSON.stringify(stages));
+      }
+      return jsonWithCookies(payload, status, cookieHeaders);
+    },
+    finish304(request, etag) {
+      stages.total_ms = Date.now() - startedAt;
+      const headers = new globalThis.Headers({ ETag: String(etag) });
+      if (wantTiming(request)) {
+        console.log("ketang_timing", JSON.stringify(stages));
+        headers.set("X-Ketang-Timing", JSON.stringify(stages));
+      }
+      return new Response(null, { status: 304, headers });
     },
   };
 }

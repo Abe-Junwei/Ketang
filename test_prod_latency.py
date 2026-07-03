@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import http.cookiejar
 import json
+import os
 import sys
 import time
 import urllib.error
@@ -96,8 +97,28 @@ PHASE_G_METRIC_MAP = {
 }
 
 
+def parse_timing_header(headers: dict) -> dict | None:
+    raw = headers.get("X-Ketang-Timing") or headers.get("x-ketang-timing")
+    if not raw:
+        return None
+    try:
+        return json.loads(raw)
+    except json.JSONDecodeError:
+        return None
+
+
+def attach_server_timing(metric: dict, timing: dict | None) -> None:
+    if not isinstance(metric, dict) or not isinstance(timing, dict):
+        return
+    total = timing.get("total_ms")
+    if total is not None:
+        metric["server_total_ms"] = int(total)
+    metric["server_timing"] = timing
+
+
 def phase_g_actual_ms(key: str, results: dict) -> int | None:
     if key == "login_to_ready_p95_ms":
+        # 代理口径：max(登录, 首屏 board 读)；非浏览器 login-ready mark
         parts = []
         for src in ("login_role_ms", "read_board_ms"):
             metric = results.get(src)
@@ -130,6 +151,11 @@ def check_phase_g(results: dict, baseline: dict) -> list[str]:
             continue
         actual = phase_g_actual_ms(key, results)
         if actual is None:
+            if key == "write_refresh_p95_ms":
+                failures.append(
+                    "write_refresh_p95_ms not collected (needs --probe-frontend with Chrome/CDP)"
+                )
+                continue
             failures.append(f"missing phase G metric {key}")
             continue
         if actual > limit:
@@ -149,6 +175,149 @@ def check_baseline(results: dict, baseline: dict) -> list[str]:
         if actual > limit:
             failures.append(f"{key} p95={actual}ms exceeds {limit}ms")
     return failures
+
+
+def probe_frontend_write_refresh() -> dict | None:
+    """CDP: login + rcRefreshAfterWrite → ketang:write-refresh measure (local dev + cloud API)."""
+    if os.environ.get("KETANG_SKIP_ONLINE_E2E") == "1":
+        return None
+    try:
+        import subprocess
+        import time
+
+        import websocket
+
+        from test_cdp import CDP_PORT, PORT, cdp_ws_url, evaluate, recv_by_id, start_server, wait_for_cdp
+        from test_file_protocol import chrome_binary
+    except ImportError:
+        return None
+
+    chrome = chrome_binary()
+    if not chrome:
+        return None
+
+    server = start_server()
+    proc = subprocess.Popen(
+        [
+            chrome,
+            f"--remote-debugging-port={CDP_PORT}",
+            "--remote-allow-origins=*",
+            "--headless=new",
+            "--disable-gpu",
+            "--no-sandbox",
+            "--disable-dev-shm-usage",
+            f"http://127.0.0.1:{PORT}/index.html",
+        ],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    try:
+        if not wait_for_cdp():
+            return None
+        ws_url = cdp_ws_url()
+        if not ws_url:
+            return None
+        ws = websocket.create_connection(ws_url, timeout=30)
+        ws.send(json.dumps({"id": 1, "method": "Runtime.enable"}))
+        ws.recv()
+        for _ in range(40):
+            if evaluate(ws, "window.ketangReady").get("value"):
+                break
+            time.sleep(0.5)
+        else:
+            return None
+        online = evaluate(
+            ws,
+            "typeof useRemoteWriteApi === 'function' && useRemoteWriteApi()",
+        ).get("value")
+        if not online:
+            return None
+
+        expr = """
+        (async () => {
+          performance.clearMarks();
+          performance.clearMeasures();
+          document.getElementById('login-username').value = 'admin';
+          document.getElementById('login-password').value = 'admin';
+          await submitLogin();
+          for (let i = 0; i < 60; i++) {
+            if (typeof isLoggedIn === 'function' && isLoggedIn()) break;
+            await new Promise(r => setTimeout(r, 250));
+          }
+          if (!(typeof isLoggedIn === 'function' && isLoggedIn())) {
+            return { error: 'login failed' };
+          }
+          if (typeof rcRefreshAfterWrite !== 'function') {
+            return { error: 'rcRefreshAfterWrite missing' };
+          }
+          performance.clearMarks();
+          performance.clearMeasures();
+          const task = rcRefreshAfterWrite(
+            { patches: {}, deletions: {} },
+            { scope: 'board', skipViewRefresh: false },
+          );
+          if (task && typeof task.then === 'function') await task;
+          await new Promise(r => setTimeout(r, 500));
+          const entries = performance.getEntriesByType('measure')
+            .filter(e => e.name === 'ketang:write-refresh');
+          const loginReady = performance.getEntriesByType('measure')
+            .filter(e => e.name === 'ketang:login-ready');
+          return {
+            writeRefreshMs: entries.length
+              ? Math.round(entries[entries.length - 1].duration)
+              : null,
+            loginReadyMs: loginReady.length
+              ? Math.round(loginReady[loginReady.length - 1].duration)
+              : null,
+            hasWriteRefresh: entries.length > 0,
+          };
+        })().catch(e => ({ error: e.message || String(e) }))
+        """
+        ws.send(
+            json.dumps(
+                {
+                    "id": 2,
+                    "method": "Runtime.evaluate",
+                    "params": {
+                        "expression": expr,
+                        "awaitPromise": True,
+                        "returnByValue": True,
+                    },
+                }
+            )
+        )
+        result = (
+            recv_by_id(ws, 2, 180)
+            .get("result", {})
+            .get("result", {})
+            .get("value", {})
+        )
+        ws.close()
+        if result.get("error") or not result.get("hasWriteRefresh"):
+            return None
+        ms = result.get("writeRefreshMs")
+        if ms is None:
+            return None
+        return {
+            "samples": [ms],
+            "p50_ms": ms,
+            "p95_ms": ms,
+            "max_ms": ms,
+            "login_ready_ms": result.get("loginReadyMs"),
+            "source": "cdp_rcRefreshAfterWrite",
+        }
+    finally:
+        proc.terminate()
+        try:
+            proc.wait(timeout=3)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+        server.terminate()
+        try:
+            server.wait(timeout=3)
+        except subprocess.TimeoutExpired:
+            server.kill()
 
 
 def main() -> int:
@@ -173,6 +342,11 @@ def main() -> int:
         help="Fail when P95 exceeds phase_g_targets_ms in baseline",
     )
     parser.add_argument(
+        "--probe-frontend",
+        action="store_true",
+        help="CDP probe for ketang:write-refresh (requires Chrome; skipped if unavailable)",
+    )
+    parser.add_argument(
         "--write-report",
         help="Optional path to write JSON report",
     )
@@ -180,6 +354,7 @@ def main() -> int:
     base = args.base.rstrip("/")
     timing_q = "?timing=1"
     sample_n = max(1, args.samples)
+    probe_frontend = args.probe_frontend or args.check_phase_g
 
     print(f"Target: {base} (samples={sample_n})")
     results: dict = {}
@@ -193,9 +368,10 @@ def main() -> int:
         return 1
 
     login_samples: list[int] = []
+    login_timing = None
     for _ in range(sample_n):
         status, body, ms, _ = request_json(
-            f"{base}/api/db",
+            f"{base}/api/db{timing_q}",
             method="POST",
             body={"action": "login_role", "role": args.role, "password": args.password},
         )
@@ -203,8 +379,10 @@ def main() -> int:
         if status != 200 or not body.get("user"):
             print(f"FAIL login_role status={status} body={body}")
             return 1
+        login_timing = body.get("_timing")
     results["login_role_ms"] = summarize_samples(login_samples)
-    results["login_role_timing"] = body.get("_timing")
+    results["login_role_timing"] = login_timing
+    attach_server_timing(results["login_role_ms"], login_timing)
 
     session_samples: list[int] = []
     for _ in range(sample_n):
@@ -217,6 +395,7 @@ def main() -> int:
             return 1
     results["session_ms"] = summarize_samples(session_samples)
     results["session_timing"] = body.get("_timing")
+    attach_server_timing(results["session_ms"], body.get("_timing"))
 
     read_samples: list[int] = []
     etag = None
@@ -231,12 +410,14 @@ def main() -> int:
         etag = headers.get("ETag") or headers.get("etag") or body.get("version")
     results["read_model_ms"] = summarize_samples(read_samples)
     results["read_model_timing"] = body.get("_timing")
+    attach_server_timing(results["read_model_ms"], body.get("_timing"))
 
     if etag is not None:
         etag_text = str(etag)
         samples_304: list[int] = []
+        timing_304 = None
         for _ in range(sample_n):
-            status, _, ms, _ = request_json(
+            status, _, ms, headers = request_json(
                 f"{base}/api/v1/read-model{timing_q}",
                 headers={"If-None-Match": etag_text},
             )
@@ -244,7 +425,10 @@ def main() -> int:
             if status != 304:
                 print(f"FAIL read-model 304 expected, got {status}")
                 return 1
+            timing_304 = parse_timing_header(headers) or timing_304
         results["read_model_304_ms"] = summarize_samples(samples_304)
+        results["read_model_304_timing"] = timing_304
+        attach_server_timing(results["read_model_304_ms"], timing_304)
     else:
         print("WARN read-model missing ETag; skipped 304 probe")
 
@@ -270,6 +454,7 @@ def main() -> int:
             return 1
     results["read_lodgers_records_ms"] = summarize_samples(module_samples)
     results["read_lodgers_records_timing"] = body.get("_timing")
+    attach_server_timing(results["read_lodgers_records_ms"], body.get("_timing"))
 
     board_mod_samples: list[int] = []
     for _ in range(sample_n):
@@ -282,6 +467,7 @@ def main() -> int:
             return 1
     results["read_board_ms"] = summarize_samples(board_mod_samples)
     results["read_board_timing"] = body.get("_timing")
+    attach_server_timing(results["read_board_ms"], body.get("_timing"))
 
     events_mod_samples: list[int] = []
     for _ in range(sample_n):
@@ -294,11 +480,13 @@ def main() -> int:
             return 1
     results["read_events_ms"] = summarize_samples(events_mod_samples)
     results["read_events_timing"] = body.get("_timing")
+    attach_server_timing(results["read_events_ms"], body.get("_timing"))
 
     delta_samples: list[int] = []
     version = body.get("board_version")
+    delta_timing = None
     for _ in range(sample_n):
-        status, payload, ms, _ = request_json(
+        status, payload, ms, headers = request_json(
             f"{base}/api/v1/sync/delta{timing_q}",
             headers={"If-None-Match": str(version or 0)},
         )
@@ -306,7 +494,21 @@ def main() -> int:
         if status not in (200, 304):
             print(f"FAIL sync/delta status={status} body={payload}")
             return 1
+        if status == 200:
+            delta_timing = payload.get("_timing") or delta_timing
+        else:
+            delta_timing = parse_timing_header(headers) or delta_timing
     results["sync_delta_ms"] = summarize_samples(delta_samples)
+    results["sync_delta_timing"] = delta_timing
+    attach_server_timing(results["sync_delta_ms"], delta_timing)
+
+    if probe_frontend:
+        frontend = probe_frontend_write_refresh()
+        if frontend:
+            results["frontend_write_refresh_ms"] = frontend
+            results["frontend_login_ready_ms"] = frontend.get("login_ready_ms")
+        else:
+            print("WARN frontend probe skipped (Chrome/CDP or online mode unavailable)")
 
     print(json.dumps(results, ensure_ascii=False, indent=2))
 
