@@ -208,7 +208,7 @@ async function setHkAndRender(bedId, status) {
       });
     }
     renderHousekeeping();
-    refreshAfterWrite(writeResult);
+    rcRefreshAfterWrite(writeResult);
   } catch (e) {
     console.error(e);
     alert("房务状态变更失败：" + e.message);
@@ -269,8 +269,10 @@ async function saveOperationalSettings() {
     }
     showToast("运营配置已保存");
     renderOperationalSettingsPanel();
-    if (typeof refreshAfterWrite === "function") {
-      await refreshAfterWrite(writeResult);
+    if (typeof rcRefreshAfterWrite === "function") {
+      rcRefreshAfterWrite(writeResult);
+    } else if (typeof refreshAfterWrite === "function") {
+      refreshAfterWrite(writeResult);
     }
     if (
       document.getElementById("view-housekeeping")?.classList.contains("active")

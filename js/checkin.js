@@ -405,7 +405,7 @@ async function assignExistingLodgerToBed(lodgerId, bedId, opts) {
       closeModal();
       showToast("已分配床位");
     }
-    var refreshTask = refreshAfterWrite(writeResult);
+    var refreshTask = rcRefreshAfterWrite(writeResult, { scope: "stay" });
     if (
       opts &&
       opts.awaitRefresh &&
@@ -518,7 +518,7 @@ async function assignReservationToBed(resvId, bedId, opts) {
       closeModal();
       showToast("已分配床位");
     }
-    var refreshTask = refreshAfterWrite(writeResult);
+    var refreshTask = rcRefreshAfterWrite(writeResult, { scope: "stay" });
     if (
       opts &&
       opts.awaitRefresh &&
@@ -789,7 +789,7 @@ document
       showToast("入住登记成功");
       resetCheckin();
       showView("board");
-      refreshAfterWrite(writeResult);
+      rcRefreshAfterWrite(writeResult, { scope: "lodging" });
     } catch (err) {
       console.error(err);
       alert("入住登记失败：" + err.message);
@@ -982,7 +982,14 @@ async function importBatchCSV(input) {
         ${failedRows.length ? "<details><summary>失败明细</summary><pre>" + escapeHtml(failedRows.join("\n")) + "</pre></details>" : ""}
       `;
         showToast(`批量导入完成：成功 ${success} 条`);
-        refreshAfterWrite(result, { fullRefresh: true });
+        rcRefreshAfterWrite(result, {
+          skipModuleSync: false,
+          viewRefresh: function () {
+            if (typeof renderLodgers === "function") renderLodgers();
+            if (typeof renderBoard === "function") renderBoard();
+            if (typeof renderRooms === "function") renderRooms();
+          },
+        });
         return;
       }
 
@@ -1090,7 +1097,14 @@ async function importBatchCSV(input) {
         ${failedRows.length ? "<details><summary>失败明细</summary><pre>" + escapeHtml(failedRows.join("\n")) + "</pre></details>" : ""}
       `;
       showToast(`批量导入完成：成功 ${success} 条`);
-      refreshAfterWrite(writeResult, { fullRefresh: true });
+      rcRefreshAfterWrite(writeResult, {
+        skipModuleSync: false,
+        viewRefresh: function () {
+          if (typeof renderLodgers === "function") renderLodgers();
+          if (typeof renderBoard === "function") renderBoard();
+          if (typeof renderRooms === "function") renderRooms();
+        },
+      });
     } catch (err) {
       resultDiv.innerHTML =
         '<p style="color:var(--color-danger)">导入出错：' +

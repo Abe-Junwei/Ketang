@@ -451,12 +451,12 @@ function applyRemoteLocalPatch(patchFn) {
 }
 
 function touchBoardVersionFromWrite(writeResult) {
-  if (
-    writeResult &&
-    writeResult.board_version != null &&
-    typeof lastBoardVersion !== "undefined"
-  ) {
-    lastBoardVersion = writeResult.board_version;
+  if (writeResult && writeResult.board_version != null) {
+    if (typeof setLocalBoardVersion === "function") {
+      setLocalBoardVersion(writeResult.board_version);
+    } else if (typeof lastBoardVersion !== "undefined") {
+      lastBoardVersion = writeResult.board_version;
+    }
   }
 }
 

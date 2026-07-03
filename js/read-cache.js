@@ -77,6 +77,57 @@ function rcInvalidateMany(keys) {
   });
 }
 
+/** 模块是否已在内存缓存 | Module payload cached in _rcStore */
+function rcModuleCached(moduleKey) {
+  return !!(moduleKey && _rcStore[moduleKey]);
+}
+
+/** 写 API 响应直接 patch 缓存（Directus read-after-write 对齐）| Apply write response patches */
+function rcApplyWriteResult(writeResult) {
+  if (!writeResult || typeof rcApplyDeltaPatches !== "function") return;
+  rcApplyDeltaPatches(writeResult.patches, writeResult.deletions);
+}
+
+/**
+ * 统一写后刷新：patch rc → touch version → 刷新当前视图 → 后台 defer 对账
+ * Unified post-write refresh (ERPNext / Directus pattern)
+ */
+function rcRefreshAfterWrite(writeResult, options) {
+  options = options || {};
+  rcApplyWriteResult(writeResult);
+  if (typeof touchBoardVersionFromWrite === "function") {
+    touchBoardVersionFromWrite(writeResult);
+  }
+  if (!options.skipViewRefresh) {
+    if (typeof options.viewRefresh === "function") {
+      options.viewRefresh();
+    } else if (typeof refreshViewForScope === "function") {
+      refreshViewForScope(
+        options.scope != null
+          ? options.scope
+          : typeof getActiveViewId === "function"
+            ? getActiveViewId()
+            : null,
+        options,
+      );
+    }
+  }
+  if (typeof isRemoteDB !== "function" || !isRemoteDB()) return;
+  if (typeof refreshAfterWrite !== "function") return;
+  return refreshAfterWrite(
+    writeResult,
+    Object.assign(
+      {
+        deferSyncRender: true,
+        quietSync: true,
+        skipViewRefresh: true,
+        skipModuleSync: true,
+      },
+      options,
+    ),
+  );
+}
+
 async function rcFetch(moduleKey, force) {
   if (!rcUseApiRead()) return null;
   if (!moduleKey) return null;

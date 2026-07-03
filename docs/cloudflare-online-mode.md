@@ -6,7 +6,9 @@
 
 - 前端仍由 Cloudflare Pages 托管 `index.html`、`styles.css`、`js/`。
 - HTTPS 线上访问会自动进入远程数据库模式。
-- **读**：登录后 `GET /api/v1/read/:module` 按模块拉取 → `read-cache.js` 单一内存缓存（`_rcStore`）；写后优先 `/api/v1/sync/delta` 增量 patch。在线模式**默认不灌 sql.js**（仅 `KETANG_FORCE_LOCAL_DB` 或「强制同步」可选灌库）。
+- **读**：登录后 `GET /api/v1/read/:module` 按模块拉取 → `read-cache.js` 单一内存缓存（`_rcStore`）；在线模式**默认不灌 sql.js**（仅 `KETANG_FORCE_LOCAL_DB` 或「强制同步」可选灌库）。
+- **写后刷新**（对齐 ERPNext / Directus）：写 API 返回 `patches`（完整行）+ `deletions`（墓碑）+ `board_version`；全站统一 `rcRefreshAfterWrite()`：即时 patch `_rcStore`、刷新当前视图、后台 defer 对账（自己的写默认 skip delta）。
+- **多端同步**：其他终端靠 `board_version` + `/api/v1/sync/delta` / SSE 拉变更。
 - **公开预约**：`reserve.html` → `POST /api/public/reservations`（无需登录）。
 - **写**：业务操作走 `/api/v1/*`，由 Worker 写入 D1。
 - **登录/改密/用户列表**：仍走 `POST /api/db` 与 `/api/v1/admin/users`。

@@ -1,5 +1,5 @@
 import { batchD1, insertAudit, queryD1, runD1 } from "./d1.js";
-import { finishWrite } from "./write-response.js";
+import { finishWrite, enrichWriteResponse } from "./write-response.js";
 
 function stayDateRange(startDate, endDate) {
   if (!startDate) return [];
@@ -65,5 +65,9 @@ export async function apiSaveMeals(env, session, body) {
     { name: l.name, defaults, affected_dates: Object.keys(map).length },
     session,
   );
-  return finishWrite(env, {}, ["meals"], ["meals"]);
+  return enrichWriteResponse(
+    env,
+    await finishWrite(env, {}, ["meals"], ["meals"]),
+    { patchTable: "lodgers", rowId: lodgerId },
+  );
 }

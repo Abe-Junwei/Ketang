@@ -421,15 +421,21 @@ async function roomingRefreshAfterWrite(eventId, writeResult, options) {
       console.warn("rooming refetch failed:", e.message || e);
     }
   }
+  if (typeof rcRefreshAfterWrite === "function") {
+    return rcRefreshAfterWrite(
+      writeResult,
+      Object.assign(
+        {
+          infoOnly: true,
+          infoTab: "events",
+          quietSync: true,
+          skipModuleSync: true,
+          skipViewRefresh: true,
+        },
+        options || {},
+      ),
+    );
+  }
   if (typeof refreshAfterWrite !== "function") return;
-  var opts = Object.assign(
-    {
-      infoOnly: true,
-      infoTab: "events",
-      quietSync: true,
-      skipModuleSync: true,
-    },
-    options || {},
-  );
-  return refreshAfterWrite(writeResult, opts);
+  return refreshAfterWrite(writeResult, options);
 }

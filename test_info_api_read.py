@@ -14,11 +14,13 @@ def main():
     checks = [
         ("infoUseApiData", "function infoUseApiData" in src),
         ("infoEnsureModuleData", "async function infoEnsureModuleData" in src),
-        ("apiReadModule usage", "apiReadModule(moduleKey" in src),
+        ("rcFetch usage", "rcFetch(moduleKey" in src),
         ("no useRemoteWriteApi", "useRemoteWriteApi" not in src),
         ("no saveDB", "saveDB" not in src),
         ("no applyRemoteLocalPatch", "applyRemoteLocalPatch" not in src),
-        ("no infoOptimisticUpsert", "infoOptimisticUpsert" not in src),
+        ("server write patches", "infoApplyWritePatches" in src),
+        ("cache-first render", "infoRcTabDataReady" in src),
+        ("no blocking delta await", "await syncRemoteDeltaSince" not in src),
     ]
     failed = [name for name, ok in checks if not ok]
     if failed:

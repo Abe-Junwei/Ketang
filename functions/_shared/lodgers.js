@@ -1,5 +1,5 @@
 import { batchD1, insertAudit, queryD1, runD1 } from "./d1.js";
-import { finishWrite, recordSyncDeletion } from "./write-response.js";
+import { finishWrite, recordSyncDeletion, enrichWriteResponse } from "./write-response.js";
 import { parsePersonNameInput, mergePersonNameFields } from "./person.js";
 import { assertGuestIdentityFields, normalizePhone } from "./validation.js";
 import { housekeepingRequiresInspect } from "./operational-settings.js";
@@ -7,6 +7,36 @@ import { parseParticipantTagFields } from "./rooming-tags.js";
 import { nowIso } from "./sync-timestamp.js";
 
 const BOARD_SYNC_MODULES = ["board"];
+
+function uniqIds(ids) {
+  const out = [];
+  (ids || []).forEach(function (id) {
+    if (id == null || id === "") return;
+    if (out.indexOf(id) === -1) out.push(id);
+  });
+  return out;
+}
+
+function buildPatchRowIds(patch) {
+  patch = patch || {};
+  const rowIds = {};
+  if (patch.lodgerId != null) rowIds.lodgers = [patch.lodgerId];
+  const beds = uniqIds(patch.bedIds);
+  if (beds.length) rowIds.beds = beds;
+  const resv = uniqIds(patch.reservationIds);
+  if (resv.length) rowIds.reservations = resv;
+  const guests = uniqIds(patch.guestIds);
+  if (guests.length) rowIds.guests = guests;
+  return rowIds;
+}
+
+async function lodgerFinishWrite(env, response, patch) {
+  return enrichWriteResponse(env, response, {
+    patchRowIds: buildPatchRowIds(patch),
+    deletion: patch?.deletion,
+    extraPatches: patch?.extraPatches,
+  });
+}
 
 function participantTagValues(body) {
   const tags = parseParticipantTagFields(body);
@@ -330,11 +360,20 @@ export async function apiCheckIn(env, session, body) {
       { lodger_id: finalLodgerId },
       session,
     );
-  return finishWrite(
+  return lodgerFinishWrite(
     env,
-    { lodger_id: finalLodgerId },
-    ["lodging", "board"],
-    BOARD_SYNC_MODULES,
+    await finishWrite(
+      env,
+      { lodger_id: finalLodgerId },
+      ["lodging", "board"],
+      BOARD_SYNC_MODULES,
+    ),
+    {
+      lodgerId: finalLodgerId,
+      bedIds: [bedId],
+      guestIds: [guestId],
+      reservationIds: body.reservation_id ? [body.reservation_id] : [],
+    },
   );
 }
 
@@ -409,11 +448,15 @@ export async function apiCheckout(env, session, body) {
       },
       session,
     );
-  return finishWrite(
+  return lodgerFinishWrite(
     env,
-    {},
-    ["lodging", "board", "housekeeping"],
-    BOARD_SYNC_MODULES,
+    await finishWrite(
+      env,
+      {},
+      ["lodging", "board", "housekeeping"],
+      BOARD_SYNC_MODULES,
+    ),
+    { lodgerId: id, bedIds: l.bed_id ? [l.bed_id] : [] },
   );
 }
 
@@ -470,11 +513,18 @@ export async function apiChangeBed(env, session, body) {
     },
     session,
   );
-  return finishWrite(
+  return lodgerFinishWrite(
     env,
-    {},
-    ["lodging", "board", "housekeeping"],
-    BOARD_SYNC_MODULES,
+    await finishWrite(
+      env,
+      {},
+      ["lodging", "board", "housekeeping"],
+      BOARD_SYNC_MODULES,
+    ),
+    {
+      lodgerId: lodgerId,
+      bedIds: uniqIds([l.bed_id, bedId]),
+    },
   );
 }
 
@@ -528,11 +578,15 @@ export async function apiExtendStay(env, session, body) {
     { guest_id: l.guest_id, name: l.name, new_check_out: date },
     session,
   );
-  return finishWrite(
+  return lodgerFinishWrite(
     env,
-    {},
-    ["lodging", "board", "housekeeping"],
-    BOARD_SYNC_MODULES,
+    await finishWrite(
+      env,
+      {},
+      ["lodging", "board", "housekeeping"],
+      BOARD_SYNC_MODULES,
+    ),
+    { lodgerId: id },
   );
 }
 
@@ -587,11 +641,15 @@ export async function apiAssignBed(env, session, body, options) {
   if (options && options.deferFinishWrite) {
     return { ok: true, deferred: true };
   }
-  return finishWrite(
+  return lodgerFinishWrite(
     env,
-    {},
-    ["lodging", "board", "housekeeping"],
-    BOARD_SYNC_MODULES,
+    await finishWrite(
+      env,
+      {},
+      ["lodging", "board", "housekeeping"],
+      BOARD_SYNC_MODULES,
+    ),
+    { lodgerId: lodgerId, bedIds: [bedId] },
   );
 }
 
@@ -688,11 +746,20 @@ export async function apiAssignReservationToBed(env, session, body, options) {
   if (options && options.deferFinishWrite) {
     return { ok: true, deferred: true, lodger_id: lodgerId };
   }
-  return finishWrite(
+  return lodgerFinishWrite(
     env,
-    { lodger_id: lodgerId },
-    ["lodging", "board"],
-    BOARD_SYNC_MODULES,
+    await finishWrite(
+      env,
+      { lodger_id: lodgerId },
+      ["lodging", "board"],
+      BOARD_SYNC_MODULES,
+    ),
+    {
+      lodgerId: lodgerId,
+      bedIds: [bedId],
+      reservationIds: [resvId],
+      guestIds: guestId ? [guestId] : [],
+    },
   );
 }
 
@@ -793,11 +860,18 @@ export async function apiEditLodger(env, session, body) {
     { guest_id: l.guest_id, name: person.name },
     session,
   );
-  return finishWrite(
+  return lodgerFinishWrite(
     env,
-    {},
-    ["lodging", "board", "housekeeping"],
-    BOARD_SYNC_MODULES,
+    await finishWrite(
+      env,
+      {},
+      ["lodging", "board", "housekeeping"],
+      BOARD_SYNC_MODULES,
+    ),
+    {
+      lodgerId: id,
+      guestIds: l.guest_id ? [l.guest_id] : [],
+    },
   );
 }
 
@@ -837,7 +911,10 @@ export async function apiDeleteLodger(env, session, body) {
     BOARD_SYNC_MODULES,
   );
   await recordSyncDeletion(env, "lodgers", id, result.board_version);
-  return result;
+  return lodgerFinishWrite(env, result, {
+    deletion: { table_name: "lodgers", row_id: id },
+    bedIds: l.bed_id ? [l.bed_id] : [],
+  });
 }
 
 export async function apiPublicReservation(env, body) {
@@ -893,11 +970,15 @@ export async function apiPublicReservation(env, body) {
       body.notes || null,
     ],
   );
-  return finishWrite(
+  return enrichWriteResponse(
     env,
-    { reservation_id: meta.last_row_id },
-    ["reservations"],
-    ["reservations"],
+    await finishWrite(
+      env,
+      { reservation_id: meta.last_row_id },
+      ["reservations"],
+      ["reservations"],
+    ),
+    { patchTable: "reservations", rowId: meta.last_row_id },
   );
 }
 

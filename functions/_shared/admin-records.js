@@ -2,6 +2,7 @@ import { batchD1, insertAudit, queryD1, runD1 } from "./d1.js";
 import {
   atomicWriteBatch,
   auditLogStatement,
+  enrichWriteResponse,
   finishWrite,
 } from "./write-response.js";
 import { parsePersonNameInput } from "./person.js";
@@ -111,7 +112,11 @@ async function upsertRoom(env, session, body) {
       ],
     );
     await insertAudit(env, "更新房间", "room", id, { name }, session);
-    return finishWrite(env, { room_id: id }, ["settings"], ["settings_rooms"]);
+    return enrichWriteResponse(
+      env,
+      await finishWrite(env, { room_id: id }, ["settings"], ["settings_rooms"]),
+      { patchTable: "rooms", rowId: id },
+    );
   }
 
   const tags = parseRoomTagFields(body);
@@ -139,11 +144,15 @@ async function upsertRoom(env, session, body) {
     { name },
     session,
   );
-  return finishWrite(
+  return enrichWriteResponse(
     env,
-    { room_id: meta.last_row_id },
-    ["settings"],
-    ["settings_rooms"],
+    await finishWrite(
+      env,
+      { room_id: meta.last_row_id },
+      ["settings"],
+      ["settings_rooms"],
+    ),
+    { patchTable: "rooms", rowId: meta.last_row_id },
   );
 }
 
@@ -165,16 +174,20 @@ async function deleteRoom(env, session, body) {
     throw new Error(
       `该房间下还有 ${beds[0].c} 张床位，请先删除床位后再删除房间`,
     );
-  return atomicWriteBatch(
+  return enrichWriteResponse(
     env,
-    [
-      { sql: "DELETE FROM rooms WHERE id = ?", params: [id] },
-      auditLogStatement("删除房间", "room", id, { name: room.name }, session),
-    ],
-    {},
-    ["settings"],
-    { table_name: "rooms", row_id: id },
-    ["settings_rooms"],
+    await atomicWriteBatch(
+      env,
+      [
+        { sql: "DELETE FROM rooms WHERE id = ?", params: [id] },
+        auditLogStatement("删除房间", "room", id, { name: room.name }, session),
+      ],
+      {},
+      ["settings"],
+      { table_name: "rooms", row_id: id },
+      ["settings_rooms"],
+    ),
+    { deletion: { table_name: "rooms", row_id: id } },
   );
 }
 
@@ -252,7 +265,11 @@ async function upsertBed(env, session, body) {
       { room_id: roomId, bed_number: bedNumber, status },
       session,
     );
-    return finishWrite(env, { bed_id: id }, ["settings"], ["settings_beds"]);
+    return enrichWriteResponse(
+      env,
+      await finishWrite(env, { bed_id: id }, ["settings"], ["settings_beds"]),
+      { patchTable: "beds", rowId: id },
+    );
   }
 
   const meta = await runD1(
@@ -281,11 +298,15 @@ async function upsertBed(env, session, body) {
     { room_id: roomId, bed_number: bedNumber, status },
     session,
   );
-  return finishWrite(
+  return enrichWriteResponse(
     env,
-    { bed_id: meta.last_row_id },
-    ["settings"],
-    ["settings_beds"],
+    await finishWrite(
+      env,
+      { bed_id: meta.last_row_id },
+      ["settings"],
+      ["settings_beds"],
+    ),
+    { patchTable: "beds", rowId: meta.last_row_id },
   );
 }
 
@@ -302,23 +323,43 @@ async function deleteBed(env, session, body) {
   if (!bed) throw new Error("床位不存在");
   if ((bed.occupant_count || 0) > 0)
     throw new Error("该床位当前有在住住客，无法删除");
-  return atomicWriteBatch(
+  return enrichWriteResponse(
     env,
-    [
-      { sql: "DELETE FROM housekeeping WHERE bed_id = ?", params: [id] },
-      { sql: "DELETE FROM beds WHERE id = ?", params: [id] },
-      auditLogStatement(
-        "删除床位",
-        "bed",
-        id,
-        { room_id: bed.room_id, bed_number: bed.bed_number },
-        session,
-      ),
-    ],
-    {},
-    ["settings"],
-    { table_name: "beds", row_id: id },
-    ["settings_beds"],
+    await atomicWriteBatch(
+      env,
+      [
+        {
+          sql: "UPDATE rooming_assignments SET bed_id = NULL WHERE bed_id = ?",
+          params: [id],
+        },
+        {
+          sql: "UPDATE rooming_checkin_queue SET suggested_bed_id = NULL WHERE suggested_bed_id = ?",
+          params: [id],
+        },
+        {
+          sql: "UPDATE rooming_adjustments SET from_bed_id = NULL WHERE from_bed_id = ?",
+          params: [id],
+        },
+        {
+          sql: "UPDATE rooming_adjustments SET to_bed_id = NULL WHERE to_bed_id = ?",
+          params: [id],
+        },
+        { sql: "DELETE FROM housekeeping WHERE bed_id = ?", params: [id] },
+        { sql: "DELETE FROM beds WHERE id = ?", params: [id] },
+        auditLogStatement(
+          "删除床位",
+          "bed",
+          id,
+          { room_id: bed.room_id, bed_number: bed.bed_number },
+          session,
+        ),
+      ],
+      {},
+      ["settings"],
+      { table_name: "beds", row_id: id },
+      ["settings_beds"],
+    ),
+    { deletion: { table_name: "beds", row_id: id } },
   );
 }
 
@@ -388,11 +429,15 @@ async function upsertGuest(env, session, body) {
       { name: person.name, phone },
       session,
     );
-    return finishWrite(
+    return enrichWriteResponse(
       env,
-      { guest_id: id },
-      ["settings"],
-      ["settings_guests"],
+      await finishWrite(
+        env,
+        { guest_id: id },
+        ["settings"],
+        ["settings_guests"],
+      ),
+      { patchTable: "guests", rowId: id },
     );
   }
 
@@ -421,11 +466,15 @@ async function upsertGuest(env, session, body) {
     { name: person.name, phone },
     session,
   );
-  return finishWrite(
+  return enrichWriteResponse(
     env,
-    { guest_id: meta.last_row_id },
-    ["settings"],
-    ["settings_guests"],
+    await finishWrite(
+      env,
+      { guest_id: meta.last_row_id },
+      ["settings"],
+      ["settings_guests"],
+    ),
+    { patchTable: "guests", rowId: meta.last_row_id },
   );
 }
 
@@ -442,22 +491,26 @@ async function deleteGuest(env, session, body) {
   );
   if ((refs[0]?.c || 0) > 0)
     throw new Error(`该档案已被 ${refs[0].c} 条挂单记录引用，无法删除`);
-  return atomicWriteBatch(
+  return enrichWriteResponse(
     env,
-    [
-      { sql: "DELETE FROM guests WHERE id = ?", params: [id] },
-      auditLogStatement(
-        "删除住客档案",
-        "guest",
-        id,
-        { name: guest.name },
-        session,
-      ),
-    ],
-    {},
-    ["settings"],
-    { table_name: "guests", row_id: id },
-    ["settings_guests"],
+    await atomicWriteBatch(
+      env,
+      [
+        { sql: "DELETE FROM guests WHERE id = ?", params: [id] },
+        auditLogStatement(
+          "删除住客档案",
+          "guest",
+          id,
+          { name: guest.name },
+          session,
+        ),
+      ],
+      {},
+      ["settings"],
+      { table_name: "guests", row_id: id },
+      ["settings_guests"],
+    ),
+    { deletion: { table_name: "guests", row_id: id } },
   );
 }
 
@@ -558,7 +611,11 @@ async function upsertEvent(env, session, body) {
     }
     await batchD1(env, statements);
     await insertAudit(env, "更新营期", "event", id, { name }, session);
-    return finishWrite(env, { event_id: id }, ["events"], ["events"]);
+    return enrichWriteResponse(
+      env,
+      await finishWrite(env, { event_id: id }, ["events"], ["events"]),
+      { patchTable: "events", rowId: id },
+    );
   }
 
   const meta = await runD1(
@@ -585,11 +642,15 @@ async function upsertEvent(env, session, body) {
     { name },
     session,
   );
-  return finishWrite(
+  return enrichWriteResponse(
     env,
-    { event_id: meta.last_row_id },
-    ["events"],
-    ["events"],
+    await finishWrite(
+      env,
+      { event_id: meta.last_row_id },
+      ["events"],
+      ["events"],
+    ),
+    { patchTable: "events", rowId: meta.last_row_id },
   );
 }
 
@@ -608,16 +669,20 @@ async function deleteEvent(env, session, body) {
     throw new Error(
       `该营期下还有 ${refs[0].c} 条记录，无法删除。请先取消或转移这些记录。`,
     );
-  return atomicWriteBatch(
+  return enrichWriteResponse(
     env,
-    [
-      { sql: "DELETE FROM events WHERE id = ?", params: [id] },
-      auditLogStatement("删除营期", "event", id, { name: event.name }, session),
-    ],
-    {},
-    ["events"],
-    { table_name: "events", row_id: id },
-    ["events"],
+    await atomicWriteBatch(
+      env,
+      [
+        { sql: "DELETE FROM events WHERE id = ?", params: [id] },
+        auditLogStatement("删除营期", "event", id, { name: event.name }, session),
+      ],
+      {},
+      ["events"],
+      { table_name: "events", row_id: id },
+      ["events"],
+    ),
+    { deletion: { table_name: "events", row_id: id } },
   );
 }
 
@@ -799,7 +864,11 @@ async function updateLodgerRecord(env, session, body) {
     { name: person.name, bed_id: finalBedId, status },
     session,
   );
-  return finishWrite(env, {}, ["lodging"], ["lodgers_records"]);
+  return enrichWriteResponse(
+    env,
+    await finishWrite(env, {}, ["lodging"], ["lodgers_records"]),
+    { patchTable: "lodgers", rowId: id },
+  );
 }
 
 export async function handleAdminRecord(env, session, body) {

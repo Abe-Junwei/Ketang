@@ -1,5 +1,5 @@
 import { batchD1, insertAudit, queryD1 } from "./d1.js";
-import { finishWrite } from "./write-response.js";
+import { finishWrite, enrichWriteResponse } from "./write-response.js";
 import {
   housekeepingRequiresInspect,
   isHousekeepingTransitionAllowed,
@@ -66,5 +66,17 @@ export async function apiSetHouseStatus(env, session, body) {
   }
   await batchD1(env, statements);
   await insertAudit(env, "房务状态变更", "bed", bedId, { status }, session);
-  return finishWrite(env, {}, ["board", "housekeeping"], ["board"]);
+  const hkRows = await queryD1(
+    env,
+    "SELECT * FROM housekeeping WHERE bed_id = ? ORDER BY changed_at DESC LIMIT 1",
+    [bedId],
+  );
+  return enrichWriteResponse(
+    env,
+    await finishWrite(env, {}, ["board", "housekeeping"], ["board"]),
+    {
+      patchRowIds: { beds: [bedId] },
+      extraPatches: hkRows[0] ? { housekeeping: [hkRows[0]] } : {},
+    },
+  );
 }

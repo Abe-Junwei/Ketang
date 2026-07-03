@@ -183,7 +183,7 @@ async function submitExtend(id) {
       });
     }    closeModal();
     showToast("续住成功");
-    refreshAfterWrite(writeResult);
+    rcRefreshAfterWrite(writeResult);
   } catch (e) {
     console.error(e);
     alert("续住失败：" + e.message);
@@ -327,7 +327,7 @@ async function submitChangeBed(lodgerId, gender) {
       }
     }    closeModal();
     showToast("换床成功");
-    refreshAfterWrite(writeResult);
+    rcRefreshAfterWrite(writeResult);
   } catch (e) {
     console.error(e);
     alert("换床失败：" + e.message);
@@ -574,7 +574,7 @@ async function submitEditLodger(id) {
       });
     }    closeModal();
     showToast("修改成功");
-    refreshAfterWrite(writeResult);
+    rcRefreshAfterWrite(writeResult);
   } catch (e) {
     console.error(e);
     alert("保存修改失败：" + e.message);
@@ -613,7 +613,7 @@ async function deleteLodger(id) {
     } else {
       writeResult = await apiDeleteLodger({ lodger_id: id });
     }    showToast("已删除");
-    refreshAfterWrite(writeResult);
+    rcRefreshAfterWrite(writeResult);
   } catch (e) {
     console.error(e);
     alert("删除失败：" + e.message);
@@ -728,7 +728,7 @@ async function submitCheckout(id) {
       });
     }    closeModal();
     showToast("退房成功");
-    refreshAfterWrite(writeResult);
+    rcRefreshAfterWrite(writeResult);
   } catch (e) {
     console.error(e);
     alert("退房失败：" + e.message);

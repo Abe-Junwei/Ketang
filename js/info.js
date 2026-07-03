@@ -20,7 +20,8 @@ const INFO_GENDER_OPTIONS = ["男", "女"];
 const INFO_LODGER_STATUS_OPTIONS = ["在住", "已退"];
 const INFO_SOURCE_OPTIONS = ["现场", "电话", "微信", "法会预约"];
 
-function renderInfo(tab) {
+function renderInfo(tab, options) {
+  options = options || {};
   if (tab && tab !== infoCurrentTab) {
     _infoLastToolbarHash = {};
   }
@@ -34,16 +35,43 @@ function renderInfo(tab) {
   if (typeof updateTopbarForInfoTab === "function") {
     updateTopbarForInfoTab(infoCurrentTab);
   }
-  infoLoadAndRenderCurrentTab();
+  if (!options.forceFetch && infoRcTabDataReady(infoCurrentTab)) {
+    infoRenderCurrentTabLists();
+    return;
+  }
+  infoLoadAndRenderCurrentTab(options);
 }
 
-async function infoLoadAndRenderCurrentTab() {
+function infoRcTabDataReady(tab) {
+  if (!infoUseApiData() || typeof rcModuleCached !== "function") return false;
+  if (tab === "events") return rcModuleCached("events");
+  var mod = INFO_READ_MODULES[tab];
+  if (!mod) return false;
+  if (!rcModuleCached(mod)) return false;
+  if (tab === "beds" || tab === "lodgers") {
+    return rcModuleCached("lodgers");
+  }
+  return true;
+}
+
+function infoRenderCurrentTabLists() {
+  if (infoCurrentTab === "events") renderEventList();
+  else if (infoCurrentTab === "rooms") renderRoomList();
+  else if (infoCurrentTab === "beds") renderBedList();
+  else if (infoCurrentTab === "guests") renderGuestList();
+  else if (infoCurrentTab === "lodgers") renderLodgerList();
+}
+
+async function infoLoadAndRenderCurrentTab(options) {
+  options = options || {};
   if (infoCurrentTab === "events") {
     if (typeof rcUseApiRead === "function" && rcUseApiRead()) {
-      infoSetToolbar("");
-      infoSetHtml('<div class="empty-tip">加载中…</div>');
+      if (!options.skipLoading) {
+        infoSetToolbar("");
+        infoSetHtml('<div class="empty-tip">加载中…</div>');
+      }
       try {
-        await rcEnsureViewModules("info_events", false);
+        await rcEnsureViewModules("info_events", !!options.forceFetch);
       } catch (e) {
         infoSetHtml(
           '<div class="empty-tip">加载失败：' +
@@ -57,10 +85,12 @@ async function infoLoadAndRenderCurrentTab() {
     return;
   }
   if (infoUseApiData()) {
-    infoSetToolbar("");
-    infoSetHtml('<div class="empty-tip">加载中…</div>');
+    if (!options.skipLoading) {
+      infoSetToolbar("");
+      infoSetHtml('<div class="empty-tip">加载中…</div>');
+    }
     try {
-      await infoEnsureTabData(infoCurrentTab, false);
+      await infoEnsureTabData(infoCurrentTab, !!options.forceFetch);
     } catch (e) {
       infoSetHtml(
         '<div class="empty-tip">加载失败：' +
@@ -70,10 +100,7 @@ async function infoLoadAndRenderCurrentTab() {
       return;
     }
   }
-  if (infoCurrentTab === "rooms") renderRoomList();
-  else if (infoCurrentTab === "beds") renderBedList();
-  else if (infoCurrentTab === "guests") renderGuestList();
-  else if (infoCurrentTab === "lodgers") renderLodgerList();
+  infoRenderCurrentTabLists();
 }
 
 function infoToolbarEl() {
@@ -102,7 +129,8 @@ function infoOnFilter(tab, key, value) {
   clearTimeout(_infoFilterTimer);
   _infoFilterTimer = setTimeout(function () {
     _infoLastToolbarHash[tab] = "";
-    renderInfo(tab);
+    if (infoRcTabDataReady(tab)) infoRenderCurrentTabLists();
+    else renderInfo(tab);
   }, 200);
 }
 
@@ -248,11 +276,28 @@ async function infoEnsureTabData(tab, force) {
   }
 }
 
+var _infoLodgerOnBedMap = null;
+var _infoLodgerMapVersion = -1;
+
+function infoLodgerOnBedMap() {
+  var version =
+    typeof getLocalBoardVersion === "function" ? getLocalBoardVersion() : 0;
+  if (_infoLodgerOnBedMap && _infoLodgerMapVersion === version) {
+    return _infoLodgerOnBedMap;
+  }
+  var map = {};
+  (infoModuleTables("lodgers").lodgers || []).forEach(function (l) {
+    if (l.bed_id && l.status === "在住") {
+      map[l.bed_id] = (map[l.bed_id] || 0) + 1;
+    }
+  });
+  _infoLodgerOnBedMap = map;
+  _infoLodgerMapVersion = version;
+  return map;
+}
+
 function infoActiveLodgerCount(bedId) {
-  var lodgers = infoModuleTables("lodgers").lodgers || [];
-  return lodgers.filter(function (l) {
-    return l.bed_id == bedId && l.status === "在住";
-  }).length;
+  return infoLodgerOnBedMap()[bedId] || 0;
 }
 
 function infoRoomRows() {
@@ -469,71 +514,64 @@ function infoBedsForRoom(roomId) {
     });
 }
 
-/** 写后：API 重拉模块并渲染，不再写 sql.js | Post-write: refetch module JSON */
+/** 写后：服务端 patches + 缓存直绘 + 后台对账 | Post-write: server patches + instant render */
 var INFO_WRITE_SYNC = {
   upsertModuleSync: false,
   skipModuleSync: true,
 };
 
-async function infoRefreshAfterWrite(writeResult, tab, syncOptions) {
-  tab = tab || infoCurrentTab;
-  var useRc =
-    infoUseApiData() &&
-    typeof rcReadReady === "function" &&
-    rcReadReady();
-  if (!useRc) {
-    infoInvalidateForTab(tab);
+function infoApplyWritePatches(writeResult, syncOptions) {
+  if (
+    writeResult &&
+    typeof rcApplyWriteResult === "function" &&
+    (writeResult.patches || writeResult.deletions)
+  ) {
+    rcApplyWriteResult(writeResult);
+    return;
   }
-  if (infoUseApiData()) {
-    var prevVersion =
-      typeof getLocalBoardVersion === "function" ? getLocalBoardVersion() : null;
-    var writeVersion =
-      writeResult && writeResult.board_version != null
-        ? writeResult.board_version
-        : null;
-    if (
-      prevVersion != null &&
-      writeVersion != null &&
-      writeVersion > prevVersion &&
-      typeof syncRemoteDeltaSince === "function"
-    ) {
-      try {
-        await syncRemoteDeltaSince(prevVersion, { quiet: true, skipNotify: true });
-      } catch (e) {
-        console.warn("info delta sync failed:", e.message || e);
-        infoInvalidateForTab(tab);
-        try {
-          await infoEnsureTabData(tab, true);
-        } catch (e2) {
-          console.warn("info refetch failed:", e2.message || e2);
-        }
-      }
-    } else if (!useRc) {
-      try {
-        await infoEnsureTabData(tab, true);
-      } catch (e) {
-        console.warn("info refetch failed:", e.message || e);
-      }
-    }
-    if (typeof touchBoardVersionFromWrite === "function") {
-      touchBoardVersionFromWrite(writeResult);
-    }
+  var opt = syncOptions && syncOptions.optimistic;
+  if (!opt || typeof rcApplyDeltaPatches !== "function") return;
+  try {
+    rcApplyDeltaPatches(opt.patches || {}, opt.deletions || []);
+  } catch (e) {
+    console.warn("info optimistic patch failed:", e.message || e);
+  }
+}
+
+function infoRefreshAfterWrite(writeResult, tab, syncOptions) {
+  tab = tab || infoCurrentTab;
+  syncOptions = syncOptions || {};
+  if (!infoUseApiData()) {
+    infoInvalidateForTab(tab);
+    renderInfo(tab);
+    return;
+  }
+  if (typeof rcRefreshAfterWrite === "function") {
+    rcRefreshAfterWrite(
+      writeResult,
+      Object.assign(
+        {
+          infoOnly: true,
+          infoTab: tab,
+          skipViewRefresh: true,
+        },
+        INFO_WRITE_SYNC,
+        syncOptions,
+        {
+          skipViewRefresh: false,
+          viewRefresh: function () {
+            renderInfo(tab);
+          },
+        },
+      ),
+    );
+    return;
+  }
+  infoApplyWritePatches(writeResult, syncOptions);
+  if (typeof touchBoardVersionFromWrite === "function") {
+    touchBoardVersionFromWrite(writeResult);
   }
   renderInfo(tab);
-  if (!infoUseApiData()) return Promise.resolve();
-  return refreshAfterWrite(
-    writeResult,
-    Object.assign(
-      {
-        infoOnly: true,
-        infoTab: tab,
-        quietSync: true,
-        skipModuleSync: true,
-      },
-      INFO_WRITE_SYNC,
-      syncOptions || {},
-    ),
-  );
 }
 
 function infoConfirm(msg) {
@@ -738,7 +776,7 @@ async function submitRoom(id) {
     });
     closeModal();
     infoToast(id ? "房间已更新" : "房间已新增");
-    await infoRefreshAfterWrite(writeResult, "rooms");
+    infoRefreshAfterWrite(writeResult, "rooms");
   } catch (e) {
     console.error(e);
     infoToast("保存失败：" + e.message);
@@ -762,7 +800,7 @@ async function deleteRoom(id) {
   try {
     var writeResult = await apiAdminRecord("room", "delete", { room_id: id });
     infoToast("房间已删除");
-    await infoRefreshAfterWrite(writeResult, "rooms");
+    infoRefreshAfterWrite(writeResult, "rooms");
   } catch (e) {
     console.error(e);
     infoToast("删除失败：" + e.message);
@@ -933,7 +971,7 @@ async function submitBed(id) {
     });
     closeModal();
     infoToast(id ? "床位已更新" : "床位已新增");
-    await infoRefreshAfterWrite(writeResult, "beds");
+    infoRefreshAfterWrite(writeResult, "beds");
   } catch (e) {
     console.error(e);
     infoToast("保存失败：" + e.message);
@@ -957,7 +995,7 @@ async function deleteBed(id) {
   try {
     var writeResult = await apiAdminRecord("bed", "delete", { bed_id: id });
     infoToast("床位已删除");
-    await infoRefreshAfterWrite(writeResult, "beds");
+    infoRefreshAfterWrite(writeResult, "beds");
   } catch (e) {
     console.error(e);
     infoToast("删除失败：" + e.message);
@@ -1132,7 +1170,7 @@ async function submitGuest(id) {
     });
     closeModal();
     infoToast(id ? "住客档案已更新" : "住客档案已新增");
-    await infoRefreshAfterWrite(writeResult, "guests");
+    infoRefreshAfterWrite(writeResult, "guests");
   } catch (e) {
     console.error(e);
     infoToast("保存失败：" + e.message);
@@ -1155,7 +1193,7 @@ async function deleteGuest(id) {
   try {
     var writeResult = await apiAdminRecord("guest", "delete", { guest_id: id });
     infoToast("住客档案已删除");
-    await infoRefreshAfterWrite(writeResult, "guests");
+    infoRefreshAfterWrite(writeResult, "guests");
   } catch (e) {
     console.error(e);
     infoToast("删除失败：" + e.message);
@@ -1414,7 +1452,7 @@ async function submitLodger(id) {
     });
     closeModal();
     infoToast("挂单记录已更新");
-    await infoRefreshAfterWrite(writeResult, "lodgers");
+    infoRefreshAfterWrite(writeResult, "lodgers");
   } catch (e) {
     console.error(e);
     infoToast("保存失败：" + e.message);
@@ -1429,7 +1467,7 @@ async function deleteInfoLodger(id) {
   try {
     var writeResult = await apiDeleteLodger({ lodger_id: id });
     infoToast("已删除");
-    await infoRefreshAfterWrite(writeResult, "lodgers");
+    infoRefreshAfterWrite(writeResult, "lodgers");
   } catch (e) {
     console.error(e);
     infoToast("删除失败：" + e.message);

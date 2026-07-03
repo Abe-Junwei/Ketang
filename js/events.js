@@ -9,9 +9,44 @@ const EVENT_STATUS_OPTIONS = ["筹备中", "招生中", "进行中", "已结束"
 
 function eventWriteRefreshOptions() {
   if (document.getElementById("view-info")?.classList.contains("active")) {
-    return { infoOnly: true, infoTab: "events" };
+    return {
+      infoOnly: true,
+      infoTab: "events",
+      deferSyncRender: true,
+      skipModuleSync: true,
+      quietSync: true,
+      skipViewRefresh: true,
+    };
   }
-  return null;
+  return {
+    deferSyncRender: true,
+    skipModuleSync: true,
+    quietSync: true,
+    skipViewRefresh: true,
+  };
+}
+
+/** 营期写后：服务端 patches + 即时列表 + 后台对账 | Event post-write refresh */
+function eventRefreshAfterWrite(writeResult, options) {
+  if (typeof rcRefreshAfterWrite !== "function") return;
+  rcRefreshAfterWrite(
+    writeResult,
+    Object.assign({}, eventWriteRefreshOptions(), options || {}, {
+      skipViewRefresh: false,
+      viewRefresh: function () {
+        if (
+          document.getElementById("view-info")?.classList.contains("active") &&
+          typeof infoCurrentTab !== "undefined" &&
+          infoCurrentTab === "events" &&
+          typeof infoRenderCurrentTabLists === "function"
+        ) {
+          infoRenderCurrentTabLists();
+        } else if (typeof renderEventList === "function") {
+          renderEventList();
+        }
+      },
+    }),
+  );
 }
 
 function eventReadReady() {
@@ -376,12 +411,8 @@ async function batchCancelEventMembers() {
     return;
   }
   showToast(`已取消 ${selected.length} 人`);
-  var refreshTask = refreshAfterWrite(writeResult, eventWriteRefreshOptions());
-  if (refreshTask && typeof refreshTask.then === "function") {
-    await refreshTask;
-  }
+  eventRefreshAfterWrite(writeResult);
   if (eventId) renderEventMembers(eventId);
-  else renderEventList();
 }
 
 async function batchNoShowEventMembers() {
@@ -431,12 +462,8 @@ async function batchNoShowEventMembers() {
     return;
   }
   showToast(`已标记 ${resvOnly.length} 人为 No-show`);
-  var refreshTask = refreshAfterWrite(writeResult, eventWriteRefreshOptions());
-  if (refreshTask && typeof refreshTask.then === "function") {
-    await refreshTask;
-  }
+  eventRefreshAfterWrite(writeResult);
   if (eventId) renderEventMembers(eventId);
-  else renderEventList();
 }
 
 // 营期编辑弹窗
@@ -628,12 +655,7 @@ async function submitEvent(e) {
   if (isLocalForceDb()) await saveDB();
   closeEventModal();
   showToast("营期保存成功");
-  var eventRefreshOpts = eventWriteRefreshOptions();
-  var refreshTask = refreshAfterWrite(writeResult, eventRefreshOpts);
-  if (refreshTask && typeof refreshTask.then === "function") {
-    await refreshTask;
-  }
-  if (!eventRefreshOpts) renderEventList();
+  eventRefreshAfterWrite(writeResult);
 }
 
 async function deleteEvent(id) {
@@ -657,12 +679,7 @@ async function deleteEvent(id) {
       deleteResult = await apiAdminRecord("event", "delete", { event_id: id });
     }
     showToast("营期已删除");
-    var eventRefreshOpts = eventWriteRefreshOptions();
-    var refreshTask = refreshAfterWrite(deleteResult, eventRefreshOpts);
-    if (refreshTask && typeof refreshTask.then === "function") {
-      await refreshTask;
-    }
-    if (!eventRefreshOpts) renderEventList();
+    eventRefreshAfterWrite(deleteResult);
   } catch (e) {
     console.error(e);
     alert("删除营期失败：" + e.message);

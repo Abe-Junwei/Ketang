@@ -1,4 +1,4 @@
-import { batchD1, bumpBoardVersion, getBoardVersion } from "./d1.js";
+import { batchD1, bumpBoardVersion, getBoardVersion, queryD1 } from "./d1.js";
 import {
   logSyncDomains,
   logSyncVersion,
@@ -83,6 +83,96 @@ export async function atomicWriteBatch(
     changed_modules: resolveChangedModules(changed_domains, changedModules),
     ...(data && typeof data === "object" ? data : {}),
   };
+}
+
+const WRITE_PATCH_TABLE_RE = /^[a-z_][a-z0-9_]*$/i;
+
+/**
+ * 写响应附带 patches/deletions（对齐 Directus read-after-write、Frappe 返回完整 document）
+ * Attach row patches / tombstones so clients can update rc cache without refetch.
+ */
+export async function enrichWriteResponse(env, response, options) {
+  options = options || {};
+  const out = { ...response };
+  if (options.deletion?.table_name && options.deletion?.row_id != null) {
+    out.deletions = [
+      {
+        table_name: options.deletion.table_name,
+        row_id: options.deletion.row_id,
+      },
+    ];
+  } else if (Array.isArray(options.deletions)) {
+    out.deletions = options.deletions;
+  }
+  const tables = options.patchTables?.length
+    ? options.patchTables
+    : options.patchTable
+      ? [options.patchTable]
+      : [];
+  const rowIds = options.rowIds || {};
+  const defaultRowId = options.rowId;
+  const patches = {};
+  for (const table of tables) {
+    if (!WRITE_PATCH_TABLE_RE.test(table)) continue;
+    const rowId = rowIds[table] ?? defaultRowId;
+    if (rowId == null) continue;
+    const rows = await queryD1(
+      env,
+      `SELECT * FROM ${table} WHERE id = ? LIMIT 1`,
+      [rowId],
+    );
+    if (rows[0]) patches[table] = [rows[0]];
+  }
+  if (options.patchRowIds && typeof options.patchRowIds === "object") {
+    for (const table of Object.keys(options.patchRowIds)) {
+      if (!WRITE_PATCH_TABLE_RE.test(table)) continue;
+      const ids = [
+        ...new Set(
+          (options.patchRowIds[table] || []).filter(function (id) {
+            return id != null && id !== "";
+          }),
+        ),
+      ];
+      if (!ids.length) continue;
+      const placeholders = ids.map(function () {
+        return "?";
+      }).join(",");
+      const rows = await queryD1(
+        env,
+        `SELECT * FROM ${table} WHERE id IN (${placeholders})`,
+        ids,
+      );
+      if (!rows.length) continue;
+      if (!patches[table]) patches[table] = [];
+      rows.forEach(function (row) {
+        if (!patches[table].some(function (r) {
+          return r.id == row.id;
+        })) {
+          patches[table].push(row);
+        }
+      });
+    }
+  }
+  if (options.extraPatches && typeof options.extraPatches === "object") {
+    Object.keys(options.extraPatches).forEach(function (table) {
+      const rows = options.extraPatches[table];
+      if (!Array.isArray(rows) || !rows.length) return;
+      if (!patches[table]) patches[table] = [];
+      rows.forEach(function (row) {
+        if (
+          row &&
+          row.id != null &&
+          !patches[table].some(function (r) {
+            return r.id == row.id;
+          })
+        ) {
+          patches[table].push(row);
+        }
+      });
+    });
+  }
+  if (Object.keys(patches).length) out.patches = patches;
+  return out;
 }
 
 export { recordSyncDeletion };
