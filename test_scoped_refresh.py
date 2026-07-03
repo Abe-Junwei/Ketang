@@ -17,7 +17,7 @@ REQUIRED_SNIPPETS = [
     "lodgingModuleForView",
     "domainsToModules(domains, options)",
     'module: "board"',
-    "lodgers_records",
+    "lodgers_active",
 ]
 
 

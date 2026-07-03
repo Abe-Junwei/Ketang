@@ -1,4 +1,5 @@
 import { json, jsonWithCookies } from "./http.js";
+import { recordPerfObservation } from "./perf-ae.js";
 
 /** 是否返回阶段耗时 | Include stage timing in response */
 export function wantTiming(request) {
@@ -112,6 +113,18 @@ export function createRequestTimer() {
         console.log("ketang_timing", JSON.stringify(stages));
       }
       return new Response(null, { status: 204, headers });
+    },
+    observe(env, request, meta) {
+      if (!env || !request) return;
+      stages.total_ms = Date.now() - startedAt;
+      recordPerfObservation(env, request, {
+        endpoint: meta?.endpoint || "unknown",
+        server_ms: stages.total_ms,
+        request_id: requestId,
+        server_timing: { ...stages },
+        source: meta?.source || "server",
+        bytes: meta?.bytes,
+      });
     },
   };
 }

@@ -872,7 +872,7 @@ async function updateLodgerRecord(env, session, body) {
   );
   return enrichWriteResponse(
     env,
-    await finishWrite(env, {}, ["lodging"], ["lodgers_records"]),
+    await finishWrite(env, {}, ["lodging"], ["lodgers_active", "lodgers"]),
     { patchTable: "lodgers", rowId: id },
   );
 }

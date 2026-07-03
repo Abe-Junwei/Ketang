@@ -13,7 +13,7 @@ on:
       samples:
         description: "Sample count for P50/P95"
         required: false
-        default: "7"
+        default: "9"
 
 permissions:
   contents: read
@@ -22,7 +22,7 @@ jobs:
   latency:
     name: API latency vs baseline
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
 
     steps:
       - name: Check out repository
@@ -40,11 +40,14 @@ jobs:
           set +e
           python test_prod_latency.py \
             --base "$LATENCY_BASE" \
-            --samples "${{ github.event.inputs.samples || '7' }}" \
+            --samples "${{ github.event.inputs.samples || '9' }}" \
+            --warmup 2 \
             --write-report /tmp/ketang-latency-report.json \
+            --write-history \
+            --ingest-probe \
             --probe-frontend \
             --frontend-base "$LATENCY_BASE" \
-            --check-baseline docs/ops/performance-baseline.json \
+            --check-baseline-graded \
             --check-phase-g
           code=$?
           if [ "$code" != "0" ]; then
@@ -57,7 +60,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: ketang-latency-report
-          path: /tmp/ketang-latency-report.json
+          path: |
+            /tmp/ketang-latency-report.json
+            docs/ops/perf-history/*.json
           if-no-files-found: ignore
 
   frontend-perf:

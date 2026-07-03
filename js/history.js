@@ -17,12 +17,14 @@ async function historyLoadAndRender() {
     }
     return;
   }
-  renderHistory();
+  await renderHistory();
 }
 
-function renderHistory() {
+async function renderHistory() {
   const tbody = document.getElementById("history-table");
-  tbody.innerHTML = "";
+  if (!tbody) return;
+  tbody.innerHTML =
+    '<tr><td colspan="12" class="empty-tip">加载中…</td></tr>';
   const start = document.getElementById("h-start").value;
   const end = document.getElementById("h-end").value;
   const kw = document.getElementById("h-keyword").value.trim();
@@ -66,15 +68,25 @@ function renderHistory() {
     params.push("%" + kw + "%", "%" + kw + "%", "%" + kw + "%");
   }
   sql += " ORDER BY l.check_in_date DESC, l.id DESC";
-  const rows = isLocalForceDb()
-    ? query(sql, params)
-    : rcHistorySearch({
-        start: start,
-        end: end,
-        kw: kw,
-        room: room,
-        role: role,
-      });
+  let rows;
+  try {
+    rows = isLocalForceDb()
+      ? query(sql, params)
+      : await rcFetchHistoryRows({
+          start: start,
+          end: end,
+          kw: kw,
+          room: room,
+          role: role,
+        });
+  } catch (e) {
+    tbody.innerHTML =
+      '<tr><td colspan="12" class="empty-tip">加载失败：' +
+      escapeHtml(e.message || "未知错误") +
+      "</td></tr>";
+    return;
+  }
+  tbody.innerHTML = "";
   rows.forEach((r) => {
     const meal = getMealSummary(r.id);
     const mealLabel = `早${meal.breakfast} 午${meal.lunch} 晚${meal.dinner}`;
@@ -113,9 +125,11 @@ function resetHistoryFilter() {
   renderHistory();
 }
 
-function exportCSV() {
-  const rows = isLocalForceDb()
-    ? query(`
+async function exportCSV() {
+  let rows;
+  try {
+    rows = isLocalForceDb()
+      ? query(`
     SELECT l.*, r.name as room_name, b.bed_number, e.name as event_name
     FROM lodgers l
     LEFT JOIN beds b ON b.id=l.bed_id
@@ -123,7 +137,11 @@ function exportCSV() {
     LEFT JOIN events e ON e.id=l.event_id
     ORDER BY l.check_in_date DESC, l.id DESC
   `)
-    : rcHistorySearch({});
+      : await rcFetchHistoryRows({});
+  } catch (e) {
+    showToast("导出失败：" + (e.message || "未知错误"));
+    return;
+  }
   const headers = [
     "序号",
     "房间/床位",

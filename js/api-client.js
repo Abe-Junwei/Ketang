@@ -358,6 +358,24 @@ async function apiFetchEtag(path, ifNoneMatch) {
   return data;
 }
 
+async function apiReadHistoryPage(filters) {
+  filters = filters || {};
+  var q = new URLSearchParams();
+  if (filters.start) q.set("start", filters.start);
+  if (filters.end) q.set("end", filters.end);
+  if (filters.kw) q.set("kw", filters.kw);
+  if (filters.room) q.set("room", filters.room);
+  if (filters.role && typeof lodgerRoleMatchValues === "function") {
+    lodgerRoleMatchValues(filters.role).forEach(function (v) {
+      q.append("roles", v);
+    });
+  }
+  q.set("limit", String(filters.limit || 2000));
+  return apiFetch(
+    "/api/v1/read/lodgers_history_page?" + q.toString(),
+  );
+}
+
 async function apiReadModule(moduleName, ifNoneMatch) {
   return apiFetchEtag(
     "/api/v1/read/" + encodeURIComponent(moduleName),

@@ -1,7 +1,7 @@
 /** 域 → 默认读模块 | Domain to default read modules (fallback when write omits changed_modules) */
 export const DOMAIN_DEFAULT_MODULES = {
   board: ["board"],
-  lodging: ["lodgers_records"],
+  lodging: ["lodgers_active", "lodgers_lookup"],
   events: ["events"],
   reservations: ["reservations"],
   meals: ["meals"],
@@ -29,7 +29,7 @@ export function dedupeReadModules(modules) {
   });
   if (keys.indexOf("board") !== -1) {
     return keys.filter(function (k) {
-      return k !== "lodgers_records" && k !== "lodgers" && k !== "settings";
+      return k !== "lodgers_active" && k !== "lodgers_records" && k !== "lodgers" && k !== "settings";
     });
   }
   return keys;

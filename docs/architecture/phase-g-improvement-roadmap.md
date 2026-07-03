@@ -4,168 +4,82 @@
 >
 > **原则**：RUM（真实用户）做最终判断；合成探针（`test_prod_latency.py`）做回归守门；分层归因（导航 / 资源 / 服务端 / 主线程），不再盲目压 D1 init。
 
-## 当前状态（2026-07-04，deploy `07574ae`）
+## 当前状态（2026-07-04，Phase G 全批完成）
 
 | 指标 | 外部 P95 | Server P95 | 判断 |
 |------|---------:|-----------:|------|
-| `read/board` | 2645ms | 1033ms | ✅ 接近 baseline；gzip 10352B |
-| `write-refresh` | — | — | ✅ CDP 102ms |
-| `sync/delta` | 2594ms | 765ms | ⚠️ 外部 gap 为主 |
-| `first-view-ready` | — | — | ❌ CDP 13265ms，当前最大体验问题 |
-| `read_lodgers_records` | 3241ms | 1024ms | ⚠️ 非首屏，仍有瘦身空间 |
-| `read_events` | 2700ms | 999ms | ⚠️ 外部 gap 为主 |
+| `read/board` | ~3146ms | ~803ms | ✅ gzip 7831B / decoded 105KB |
+| `read/lodgers_active` | — | — | ✅ 替代 bulk `lodgers_records` |
+| `write-refresh` | — | — | ✅ CDP ~127ms |
+| `first-view-ready` | — | — | ⚠️ CDP ~9.3s（仍受 board fetch 主导） |
+| external gap | ~2.1s | — | ⚠️ WARN；D1 `perf_probe_samples` + 可选 AE |
 
-**结论**：D1 冷 init 已不是主因（login init_ms≈0）。后续重心：
-
-```text
-观测闭环 → 首屏关键路径 → read module 数据分层 → 边缘延迟归因 → 长期 SLO
-```
-
-## 六条成熟做法 → 客堂映射
-
-| # | 成熟做法 | 客堂现状 | 下一步 |
-|---|----------|----------|--------|
-| 1 | RUM 第 75 百分位判门槛；实验室测试只做回归 | 仅有 CDP + curl 合成探针 | Phase G-1：RUM 采样上报 |
-| 2 | Navigation/Resource Timing 分层 | 仅有 `network_gap_ms = external - server` | Resource Timing + Server-Timing 对齐 |
-| 3 | PerformanceObserver + sendBeacon | 已有 `performance.mark()` | `js/perf-rum.js` + `POST /api/v1/metrics/perf` |
-| 4 | LCP/首屏拆 TTFB、资源、渲染、长任务 | bootstrap 只拉 board，但首屏仍 13s | 首屏 DOM 分片、mark 拆分、idle deferred |
-| 5 | INP / 关键交互耗时 | write-refresh 已测 | 挂单/退房/换床/用斋/排房确认 mark |
-| 6 | CF Workers Metrics / Analytics Engine | 无平台侧聚合 | 写 AE + 响应头 request-id |
+**结论**：G-1～G-5 已落地。后续重心：RUM 样本积累 → 边缘 colo 治理决策 → 阶段 SLO 收敛。
 
 ---
 
-## Phase G-1：RUM 最小闭环（2026-07-04 已落地）
-
-**目标**：回答「真实用户慢在哪里」，不再只靠 CDP/curl 猜测。
+## Phase G-1：RUM 最小闭环 ✅
 
 | 组件 | 路径 | 状态 |
 |------|------|------|
 | 前端采集 | `js/perf-rum.js` | ✅ |
 | 上报端点 | `POST /api/v1/metrics/perf` | ✅ |
-| 存储 | D1 `perf_rum_samples`（lazy DDL） | ✅ |
-| Server-Timing | `functions/_shared/timing.js` 全 API 响应 | ✅ |
-| 探针升级 | warm-up、p75、cf-ray、WARN/FAIL 分级 | ✅ |
-
-采样：`?rum=1` 或 admin 100%；默认 10%。`visibilitychange` 时 flush。
-
-验收（生产）：≥50 条真实首屏样本后可聚合 p75/p95。
+| 存储 | D1 `perf_rum_samples` | ✅ |
+| Server-Timing | `functions/_shared/timing.js` | ✅ |
 
 ---
 
-## Phase G-2：首屏关键路径（2026-07-04 已落地）
+## Phase G-2：首屏关键路径 ✅
 
-**目标**：`first-view-ready` 不等待 room-grid DOM 与 deferred 模块。
+`first-view-ready` 不等待 room-grid；`renderBoard({ bootstrapOnly })` + idle deferred sync。
 
-| 项 | 实现 |
+---
+
+## Phase G-3：read module 数据分层 ✅
+
+| 项 | 状态 |
 |----|------|
-| 首屏定义 | KPI/提醒/统计 +「正在加载房态…」占位，不含 room-grid |
-| `renderBoard({ bootstrapOnly })` | 跳过 charts/meals/bedOptions |
-| `renderRooms` | `requestIdleCallback` 延后，不阻塞 `first-view-ready` |
-| deferred sync | 嵌套 idle，在 room-grid 之后拉后台模块 |
-| RUM 上报 | 改在 `login-ready` measure 后 250ms（含 `first_view_ready_ms`） |
+| board 字段投影 | ✅ gzip 7831B |
+| lodgers_active / recent / lookup | ✅ |
+| lodgers_history_page 服务端查询 | ✅ |
+| 登录 deferred 移除 bulk lodgers_records | ✅ |
+| 契约 | `test_lodgers_modules_split.py` |
 
 ---
 
-## Phase G-3：read module 数据分层（2–4 天）✅ board 投影已上线
+## Phase G-4：边缘延迟与 CF 观测 ✅
 
-**目标**：降低 parse/内存成本；`read/board` decoded ≤180KB、gzip ≤8KB。
-
-### 落位
-
-| 模块 | 文件 | 改造 | 状态 |
-|------|------|------|------|
-| board 字段投影 | `functions/_shared/read-modules.js` | rooms/beds/lodgers/hk 最小字段集 + `projectBoardRow` | ✅ 2026-07-04 |
-| lodgers_records 拆分 | `functions/_shared/read-modules.js` + 新 module keys | `lodgers_active` / `lodgers_recent` / `lodgers_history_page` / `lodgers_lookup` | 待做 |
-| 前端模块表 | `js/read-cache.js` | `RC_DEFERRED_MODULES` 调整；history 不进 bootstrap | 待做 |
-| 回归 | `test_read_module_board_slim.py` | 字段投影契约断言 | ✅ |
-
-### 验收（2026-07-04 生产 7 样本）
-
-```text
-read_board decoded_bytes ≤ 180KB   → 105496 ✅
-read_board gzip ≤ 8KB              → 7831 ✅
-read_board server_total ≤ 800ms    → read_module_ms p50 497 ✅
-read_lodgers_records 不作为首屏依赖 → 仍 WARN（外部 gap），非 board 阻塞
-```
-
-**说明**：rooms 保留 `dorm_type`（看板/KPI/换房筛选必需）；lodgers 保留 `event_id`（运营提醒合并用）。
+| 项 | 路径 | 状态 |
+|----|------|------|
+| Server-Timing + Request-Id | `timing.js` | ✅ |
+| D1 探针样本 | `perf-probe-store.js` → `perf_probe_samples` | ✅ |
+| 探针 ingest | `POST /api/v1/metrics/probe` | ✅ |
+| 可选 AE | `perf-ae.js`（`KETANG_AE` 绑定） | ✅ graceful no-op |
+| read module observe | `?timing=1` → `timer.observe` | ✅ |
 
 ---
 
-## Phase G-4：边缘延迟与 CF 观测（持续 ~1 周）
-
-**目标**：证明 external gap 来源（colo / RTT / 下载 / 等待 TTFB）。
-
-### 落位
-
-| 项 | 文件 / 平台 |
-|----|-------------|
-| Server-Timing 全端点 | `functions/_shared/timing.js`（已有 `X-Ketang-Timing`）→ 对齐 W3C `Server-Timing` |
-| Request ID | 各 handler → `X-Ketang-Request-Id` |
-| AE 写入 | 新 `functions/_shared/perf-ae.js`；non-blocking |
-| 探针 cf-ray/colo | `test_prod_latency.py` 读响应头 `CF-RAY` / `cf-cache-status` |
-| D1 慢查询 | Cloudflare dashboard + 现有 `_timing` stages |
-
-### 验收
-
-```text
-每个慢请求可定位 colo / endpoint / server_timing / network_gap
-连续 3 天判断 external gap 是否稳定
-```
-
----
-
-## Phase G-5：合成监控升级（1 天）
-
-**落位**：`test_prod_latency.py`、`docs/ops/performance-baseline.json`、`.github/workflows/prod-latency.yml`
+## Phase G-5：合成监控升级 ✅
 
 | 项 | 说明 |
 |----|------|
-| warm-up | 2 次不计样本 |
-| samples | 默认 9 或 11 |
-| 输出 | p50/p75/p95/max + server p95 + network_gap p95 + bytes p95 + outlier + cf-ray |
-| 检查分级 | **FAIL**：功能错误、server 严重超阈、write-refresh 超阈；**WARN**：仅 external gap；**INFO**：outlier retry 后恢复 |
-| 历史 | `docs/ops/perf-history/` JSON 时间序列（不覆盖 `observed_production`） |
+| 默认 samples | 9 + warmup 2 |
+| `--write-history` | `docs/ops/perf-history/YYYY-MM-DD.json` |
+| `--check-baseline-graded` | FAIL/WARN/INFO |
+| `--ingest-probe` | 写入 D1 探针表 |
+| Cron | `.github/workflows/prod-latency.yml` 已升级 |
 
 ---
 
-## Phase G-6：SLO 阶段目标
+## Phase G-6：SLO 阶段目标（持续）
 
-最终目标保留（`phase_g_targets_ms`），新增阶段门槛（`phase_g_stage_targets_ms`，见 baseline JSON）。
-
-避免「一切全红」同时不放弃 3s 终态。
-
----
-
-## 推荐执行批次
-
-| 批次 | 周期 | 内容 |
-|------|------|------|
-| **第 1 批** | 1–2 天 | RUM + Server-Timing + 探针 WARN/FAIL 分级 + perf-history |
-| **第 2 批** | 2–3 天 | renderRooms 延后/分片 + idle deferred + longtask |
-| **第 3 批** | 2–4 天 | read/board 字段投影 + lodgers_records 拆分 |
-| **第 4 批** | 持续 | CF Metrics/AE + 边缘治理决策 |
-
-## 最小下一步
-
-**先做 Phase G-1（RUM + Server-Timing）**。
-
-原因：`first-view-ready` 13.3s 的主因尚未在浏览器侧分层证实。RUM 落地后可直观看：
-
-```text
-login API 多少 ms
-board fetch 多少 ms
-JSON parse / rc 应用多少 ms
-renderBoard / renderRooms 是否阻塞
-deferred sync 是否抢主线程
-```
+最终目标 `phase_g_targets_ms`；阶段门槛 `phase_g_stage_targets_ms` 见 baseline JSON。
 
 ---
 
 ## 相关文件
 
-- 基线与阶段 SLO：[docs/ops/performance-baseline.json](../ops/performance-baseline.json)
-- 合成探针：`test_prod_latency.py`、`test_phase_g_cdp.py`、`test_phase_g_fast_paths.py`
-- 前端 marks：`js/perf.js`（若存在）/ `js/app.js` / `js/read-cache.js` / `js/auth.js`
+- 基线：[docs/ops/performance-baseline.json](../ops/performance-baseline.json)
+- 探针历史：[docs/ops/perf-history/](./perf-history/)
+- 合成探针：`test_prod_latency.py`
 - 读模块：`functions/_shared/read-modules.js`
-- 运维 Cron：`.github/workflows/prod-latency.yml`

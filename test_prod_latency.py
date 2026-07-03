@@ -16,7 +16,7 @@ from typing import Any, Callable
 
 ROOT = Path(__file__).resolve().parent
 DEFAULT_BASELINE = ROOT / "docs/ops/performance-baseline.json"
-DEFAULT_SAMPLES = 7
+DEFAULT_SAMPLES = 9
 DEFAULT_WARMUP = 2
 OUTLIER_RETRY_MS = 12000
 OUTLIER_P50_FACTOR = 2.5
@@ -157,7 +157,7 @@ def load_baseline(path: Path) -> dict:
 
 PHASE_G_METRIC_MAP = {
     "delta_sync_p95_ms": "sync_delta_ms",
-    "read_module_p95_ms": "read_lodgers_records_ms",
+    "read_module_p95_ms": "read_lodgers_active_ms",
     "reports_history_query_p95_ms": "read_events_ms",
 }
 
@@ -593,6 +593,46 @@ def probe_frontend_metrics(frontend_base: str | None, api_base: str) -> dict:
                 server.kill()
 
 
+def ingest_probe_samples(base: str, results: dict) -> None:
+    """POST synthetic probe summary to metrics/probe (best-effort)."""
+    samples = []
+    for key, endpoint in (
+        ("read_board_ms", "read/board"),
+        ("read_lodgers_active_ms", "read/lodgers_active"),
+        ("read_lodgers_lookup_ms", "read/lodgers_lookup"),
+        ("read_events_ms", "read/events"),
+        ("sync_delta_ms", "sync/delta"),
+        ("login_role_ms", "auth/login"),
+    ):
+        metric = results.get(key)
+        if not metric:
+            continue
+        timing = metric.get("server_timing") or results.get(key.replace("_ms", "_timing"))
+        server_ms = metric.get("server_total_ms")
+        if server_ms is None and isinstance(timing, dict):
+            server_ms = timing.get("total_ms")
+        samples.append(
+            {
+                "endpoint": endpoint,
+                "external_ms": metric.get("p95_ms"),
+                "server_ms": server_ms,
+                "network_gap_ms": metric.get("network_gap_ms"),
+                "bytes": metric.get("bytes"),
+                "cf_colo": metric.get("cf_colo"),
+                "source": "prod_probe",
+            }
+        )
+    if not samples:
+        return
+    status, body, _, _, _ = request_json(
+        f"{base.rstrip('/')}/api/v1/metrics/probe",
+        method="POST",
+        body={"kind": "probe", "samples": samples},
+    )
+    if status not in (200, 204):
+        print(f"WARN probe ingest status={status} body={body}")
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Ketang production latency probe")
     parser.add_argument(
@@ -642,6 +682,17 @@ def main() -> int:
     parser.add_argument(
         "--write-report",
         help="Optional path to write JSON report",
+    )
+    parser.add_argument(
+        "--write-history",
+        nargs="?",
+        const="auto",
+        help="Append to docs/ops/perf-history/YYYY-MM-DD.json (default path when flag alone)",
+    )
+    parser.add_argument(
+        "--ingest-probe",
+        action="store_true",
+        help="POST probe summary to /api/v1/metrics/probe (uses login session)",
     )
     args = parser.parse_args()
     base = args.base.rstrip("/")
@@ -786,7 +837,8 @@ def main() -> int:
         return _fetch
 
     for path, key in (
-        ("/api/v1/read/lodgers_records", "read_lodgers_records_ms"),
+        ("/api/v1/read/lodgers_active", "read_lodgers_active_ms"),
+        ("/api/v1/read/lodgers_lookup", "read_lodgers_lookup_ms"),
         ("/api/v1/read/board", "read_board_ms"),
         ("/api/v1/read/events", "read_events_ms"),
     ):
@@ -855,6 +907,23 @@ def main() -> int:
         report_path.parent.mkdir(parents=True, exist_ok=True)
         report_path.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
         print(f"Report written: {report_path}")
+
+    history_path = None
+    if args.write_history:
+        if args.write_history == "auto":
+            history_path = ROOT / "docs/ops/perf-history" / f"{time.strftime('%Y-%m-%d')}.json"
+        else:
+            history_path = Path(args.write_history)
+        history_path.parent.mkdir(parents=True, exist_ok=True)
+        history_path.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
+        print(f"History written: {history_path}")
+
+    if args.ingest_probe:
+        try:
+            ingest_probe_samples(base, results)
+            print("OK probe samples ingested")
+        except Exception as exc:
+            print(f"WARN probe ingest failed: {exc}")
 
     if args.check_baseline or args.check_baseline_graded:
         if args.check_baseline_graded:

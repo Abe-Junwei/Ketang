@@ -17,7 +17,7 @@ var INFO_TAB_MODULES = {
   rooms: "settings_rooms",
   beds: "settings_beds",
   guests: "settings_guests",
-  lodgers: "lodgers_records",
+  lodgers: "lodgers",
   events: "events",
 };
 
@@ -31,7 +31,7 @@ var VIEW_SYNC_SCOPES = {
     },
   },
   lodgers: {
-    module: "lodgers_records",
+    module: "lodgers_active",
     refresh: function () {
       if (typeof renderLodgersPage === "function") renderLodgersPage();
     },
@@ -83,9 +83,9 @@ var VIEW_SYNC_SCOPES = {
     },
   },
   history: {
-    module: "lodgers_records",
     refresh: function () {
-      if (typeof renderHistory === "function") renderHistory();
+      if (typeof historyLoadAndRender === "function") historyLoadAndRender();
+      else if (typeof renderHistory === "function") renderHistory();
     },
   },
   info: {
@@ -222,7 +222,7 @@ function refreshViewForScope(scopeKey, options) {
 }
 
 function lodgingModuleForView(active) {
-  if (active === "lodgers" || active === "history") return "lodgers_records";
+  if (active === "lodgers") return "lodgers_active";
   if (
     active === "board" ||
     active === "lodging" ||
@@ -232,8 +232,8 @@ function lodgingModuleForView(active) {
     return "board";
   }
   if (active === "info" && typeof infoCurrentTab !== "undefined") {
-    return INFO_TAB_MODULES[infoCurrentTab] === "lodgers_records"
-      ? "lodgers_records"
+    return INFO_TAB_MODULES[infoCurrentTab] === "lodgers"
+      ? "lodgers"
       : null;
   }
   return "lodgers";
@@ -258,7 +258,7 @@ function domainsToModules(domains, options) {
   });
   if (keys.indexOf("board") !== -1) {
     return keys.filter(function (k) {
-      return k !== "lodgers_records" && k !== "lodgers";
+      return k !== "lodgers_active" && k !== "lodgers_records" && k !== "lodgers";
     });
   }
   return keys;
@@ -271,7 +271,7 @@ function dedupeReadModules(modules) {
   });
   if (keys.indexOf("board") !== -1) {
     return keys.filter(function (k) {
-      return k !== "lodgers_records" && k !== "lodgers" && k !== "settings";
+      return k !== "lodgers_active" && k !== "lodgers_records" && k !== "lodgers" && k !== "settings";
     });
   }
   return keys;

@@ -621,11 +621,15 @@ function rcEventsById() {
 
 function rcAllLodgersMerged() {
   var byId = {};
-  rcBoardLodgers().forEach(function (l) {
-    byId[l.id] = l;
-  });
-  rcRows("lodgers", "lodgers").forEach(function (l) {
-    byId[l.id] = l;
+  [
+    rcBoardLodgers(),
+    rcRows("lodgers", "lodgers"),
+    rcRows("lodgers_active", "lodgers"),
+    rcRows("lodgers_recent", "lodgers"),
+  ].forEach(function (arr) {
+    arr.forEach(function (l) {
+      byId[l.id] = l;
+    });
   });
   return Object.values(byId);
 }
@@ -676,7 +680,7 @@ var RC_INFO_TAB_MODULES = {
   rooms: ["settings_rooms", "settings_beds", "board"],
   beds: ["settings_beds", "lodgers", "board"],
   guests: ["settings_guests"],
-  lodgers: ["lodgers", "lodgers_records", "board"],
+  lodgers: ["lodgers", "lodgers_active", "board"],
   events: ["events", "lodgers", "reservations", "board"],
 };
 
@@ -942,6 +946,15 @@ function rcHistorySearch(filters) {
     return (b.id || 0) - (a.id || 0);
   });
   return rows;
+}
+
+/** 历史台账服务端查询 | Server-side history query (Phase G-3) */
+async function rcFetchHistoryRows(filters) {
+  if (!rcUseApiRead() || typeof apiReadHistoryPage !== "function") {
+    return rcHistorySearch(filters || {});
+  }
+  var payload = await apiReadHistoryPage(filters || {});
+  return (payload.tables && payload.tables.lodgers) || [];
 }
 
 function rcEventById(id) {
@@ -1520,7 +1533,7 @@ var RC_VIEW_MODULES = {
   lodging: ["board"],
   lodgers: ["lodgers", "board"],
   stay: ["board", "reservations", "events"],
-  history: ["lodgers", "events", "meals"],
+  history: ["events", "meals"],
   forecast: ["board", "reservations", "lodgers", "events"],
   housekeeping: ["board"],
   reports: ["meals", "lodgers", "events"],
@@ -1538,7 +1551,7 @@ async function rcEnsureViewModules(viewName, force) {
 var RC_APP_MODULES = [
   "board",
   "lodgers",
-  "lodgers_records",
+  "lodgers_lookup",
   "reservations",
   "events",
   "meals",
@@ -1547,10 +1560,10 @@ var RC_APP_MODULES = [
 /** 登录首屏最小模块 | Login bootstrap modules (board only) */
 var RC_BOOTSTRAP_MODULES = ["board"];
 
-/** 登录后后台拉取 | Deferred after first-view-ready */
+/** 登录后后台拉取 | Deferred after first-view-ready (no history bulk) */
 var RC_DEFERRED_MODULES = [
   "lodgers",
-  "lodgers_records",
+  "lodgers_lookup",
   "reservations",
   "events",
   "meals",

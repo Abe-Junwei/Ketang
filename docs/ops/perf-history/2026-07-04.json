@@ -1,0 +1,387 @@
+{
+  "base": "https://wulingkt.net",
+  "frontend_base": "https://wulingkt.net",
+  "samples": 7,
+  "probe_gzip": true,
+  "results": {
+    "index_ttfb_ms": {
+      "samples": [
+        1995,
+        2379,
+        1366,
+        1714,
+        1701,
+        1201,
+        2030
+      ],
+      "p50_ms": 1714,
+      "p75_ms": 2012,
+      "p95_ms": 2274,
+      "max_ms": 2379,
+      "content_encoding": "gzip",
+      "bytes": 256,
+      "decoded_bytes": 256,
+      "cf_ray": "a1577f3af975a244-YYZ",
+      "cf_colo": "YYZ"
+    },
+    "login_role_ms": {
+      "samples": [
+        3232,
+        2826,
+        3429,
+        2406,
+        2880,
+        3054,
+        3879
+      ],
+      "p50_ms": 3054,
+      "p75_ms": 3330,
+      "p95_ms": 3744,
+      "max_ms": 3879,
+      "network_gap_ms": 1500,
+      "server_total_ms": 2444,
+      "content_encoding": "gzip",
+      "bytes": 340,
+      "decoded_bytes": 640,
+      "cf_ray": "a1577fdc9ea2aaf4-YYZ",
+      "cf_colo": "YYZ",
+      "server_timing": {
+        "init_ms": 618,
+        "rate_limit_ms": 156,
+        "d1_query_ms": 157,
+        "password_ms": 0,
+        "permissions_ms": 312,
+        "access_token_ms": 0,
+        "refresh_session_ms": 629,
+        "total_ms": 2180
+      }
+    },
+    "login_role_timing": {
+      "init_ms": 618,
+      "rate_limit_ms": 156,
+      "d1_query_ms": 157,
+      "password_ms": 0,
+      "permissions_ms": 312,
+      "access_token_ms": 0,
+      "refresh_session_ms": 629,
+      "total_ms": 2180
+    },
+    "session_ms": {
+      "samples": [
+        2611,
+        1344,
+        1493,
+        1234,
+        1827,
+        1216,
+        1185
+      ],
+      "p50_ms": 1344,
+      "p75_ms": 1660,
+      "p95_ms": 2376,
+      "max_ms": 2611,
+      "content_encoding": "gzip",
+      "bytes": 254,
+      "decoded_bytes": 478,
+      "cf_ray": "a157802b99ababfa-YYZ",
+      "cf_colo": "YYZ"
+    },
+    "session_timing": null,
+    "read_model_ms": {
+      "samples": [
+        2372,
+        2998,
+        1951,
+        1688,
+        1871,
+        1700,
+        1901
+      ],
+      "p50_ms": 1901,
+      "p75_ms": 2162,
+      "p95_ms": 2810,
+      "max_ms": 2998,
+      "network_gap_ms": 1624,
+      "server_total_ms": 1417,
+      "content_encoding": "gzip",
+      "bytes": 14028,
+      "decoded_bytes": 379405,
+      "cf_ray": "a15780824fb84bcf-BUF",
+      "cf_colo": "BUF",
+      "server_timing": {
+        "auth_ms": 196,
+        "version_ms": 195,
+        "init_ms": 0,
+        "read_model_ms": 706,
+        "total_ms": 1097
+      }
+    },
+    "read_model_timing": {
+      "auth_ms": 196,
+      "version_ms": 195,
+      "init_ms": 0,
+      "read_model_ms": 706,
+      "total_ms": 1097
+    },
+    "read_model_304_ms": {
+      "samples": [
+        1384,
+        1160,
+        1324,
+        1254,
+        1010,
+        1267,
+        1089
+      ],
+      "p50_ms": 1254,
+      "p75_ms": 1296,
+      "p95_ms": 1366,
+      "max_ms": 1384,
+      "network_gap_ms": 1001,
+      "server_total_ms": 419,
+      "content_encoding": "identity",
+      "bytes": 0,
+      "decoded_bytes": 0,
+      "cf_ray": "a15780bcb95a180e-YYZ",
+      "cf_colo": "YYZ",
+      "server_timing": {
+        "auth_ms": 154,
+        "version_ms": 152,
+        "total_ms": 306
+      }
+    },
+    "read_model_304_timing": {
+      "auth_ms": 154,
+      "version_ms": 152,
+      "total_ms": 306
+    },
+    "board_version_ms": {
+      "samples": [
+        1321,
+        1177,
+        1085,
+        1229,
+        987,
+        1319,
+        1248
+      ],
+      "p50_ms": 1229,
+      "p75_ms": 1284,
+      "p95_ms": 1320,
+      "max_ms": 1321,
+      "content_encoding": "identity",
+      "bytes": 15,
+      "decoded_bytes": 15,
+      "cf_ray": "a15780f0eeb85577-YYZ",
+      "cf_colo": "YYZ"
+    },
+    "read_lodgers_active_ms": {
+      "samples": [
+        2075,
+        2321,
+        1713,
+        1617,
+        2515,
+        2556,
+        1778
+      ],
+      "p50_ms": 2075,
+      "p75_ms": 2418,
+      "p95_ms": 2544,
+      "max_ms": 2556,
+      "network_gap_ms": 1650,
+      "server_total_ms": 1176,
+      "content_encoding": "gzip",
+      "bytes": 7298,
+      "decoded_bytes": 187890,
+      "cf_ray": "a15781474f2573db-ORD",
+      "cf_colo": "ORD",
+      "server_timing": {
+        "auth_ms": 184,
+        "version_ms": 161,
+        "read_module_ms": 719,
+        "total_ms": 1064
+      }
+    },
+    "read_lodgers_active_timing": {
+      "auth_ms": 184,
+      "version_ms": 161,
+      "read_module_ms": 719,
+      "total_ms": 1064
+    },
+    "read_lodgers_lookup_ms": {
+      "samples": [
+        1550,
+        1978,
+        1469,
+        1805,
+        1493,
+        2150,
+        1667
+      ],
+      "p50_ms": 1667,
+      "p75_ms": 1892,
+      "p95_ms": 2098,
+      "max_ms": 2150,
+      "network_gap_ms": 1160,
+      "server_total_ms": 975,
+      "content_encoding": "gzip",
+      "bytes": 2985,
+      "decoded_bytes": 33453,
+      "cf_ray": "a1578194fbae5163-YYZ",
+      "cf_colo": "YYZ",
+      "server_timing": {
+        "auth_ms": 152,
+        "version_ms": 154,
+        "read_module_ms": 476,
+        "total_ms": 782
+      }
+    },
+    "read_lodgers_lookup_timing": {
+      "auth_ms": 152,
+      "version_ms": 154,
+      "read_module_ms": 476,
+      "total_ms": 782
+    },
+    "read_board_ms": {
+      "samples": [
+        1893,
+        1737,
+        2060,
+        1722,
+        1803,
+        1477,
+        1909
+      ],
+      "p50_ms": 1803,
+      "p75_ms": 1901,
+      "p95_ms": 2015,
+      "max_ms": 2060,
+      "network_gap_ms": 1005,
+      "server_total_ms": 1043,
+      "content_encoding": "gzip",
+      "bytes": 7828,
+      "decoded_bytes": 105497,
+      "cf_ray": "a15781e27ed14bbd-BUF",
+      "cf_colo": "BUF",
+      "server_timing": {
+        "auth_ms": 194,
+        "version_ms": 192,
+        "read_module_ms": 624,
+        "total_ms": 1010
+      }
+    },
+    "read_board_timing": {
+      "auth_ms": 194,
+      "version_ms": 192,
+      "read_module_ms": 624,
+      "total_ms": 1010
+    },
+    "read_events_ms": {
+      "samples": [
+        1473,
+        1666,
+        2085,
+        1573,
+        1754,
+        1983,
+        2209
+      ],
+      "p50_ms": 1754,
+      "p75_ms": 2034,
+      "p95_ms": 2172,
+      "max_ms": 2209,
+      "network_gap_ms": 1262,
+      "server_total_ms": 978,
+      "content_encoding": "gzip",
+      "bytes": 195,
+      "decoded_bytes": 276,
+      "cf_ray": "a157822f88b1c48a-YYZ",
+      "cf_colo": "YYZ",
+      "server_timing": {
+        "auth_ms": 153,
+        "version_ms": 295,
+        "read_module_ms": 473,
+        "total_ms": 921
+      }
+    },
+    "read_events_timing": {
+      "auth_ms": 153,
+      "version_ms": 295,
+      "read_module_ms": 473,
+      "total_ms": 921
+    },
+    "sync_delta_ms": {
+      "samples": [
+        2051,
+        1813,
+        2145,
+        1523,
+        1718,
+        1693,
+        1403
+      ],
+      "p50_ms": 1718,
+      "p75_ms": 1932,
+      "p95_ms": 2117,
+      "max_ms": 2145,
+      "network_gap_ms": 1287,
+      "server_total_ms": 967,
+      "content_encoding": "gzip",
+      "bytes": 171,
+      "decoded_bytes": 223,
+      "cf_ray": "a157828cb95337a1-YYZ",
+      "cf_colo": "YYZ",
+      "server_timing": {
+        "auth_ms": 153,
+        "version_ms": 154,
+        "init_ms": 0,
+        "delta_ms": 461,
+        "total_ms": 768
+      }
+    },
+    "sync_delta_timing": {
+      "auth_ms": 153,
+      "version_ms": 154,
+      "init_ms": 0,
+      "delta_ms": 461,
+      "total_ms": 768
+    },
+    "frontend_login_ready_ms": {
+      "samples": [
+        6984
+      ],
+      "p50_ms": 6984,
+      "p95_ms": 6984,
+      "max_ms": 6984,
+      "source": "cdp_ketang:first-view-ready"
+    },
+    "frontend_write_refresh_ms": {
+      "samples": [
+        133
+      ],
+      "p50_ms": 133,
+      "p95_ms": 133,
+      "max_ms": 133,
+      "source": "cdp_rcRefreshAfterWrite"
+    },
+    "frontend_read_board_ms": {
+      "samples": [
+        2378
+      ],
+      "p50_ms": 2378,
+      "p95_ms": 2378,
+      "max_ms": 2378,
+      "source": "cdp_ketang:read:board"
+    },
+    "read_module_marks": [
+      "ketang:read:board",
+      "ketang:read:lodgers_lookup",
+      "ketang:read:reservations",
+      "ketang:read:lodgers",
+      "ketang:read:events",
+      "ketang:read:meals"
+    ],
+    "frontend_base": "https://wulingkt.net"
+  }
+}

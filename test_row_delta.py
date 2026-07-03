@@ -28,7 +28,7 @@ def static_checks() -> bool:
         ("db.js", "patch_mode", db_js),
         ("db.js", "invalid payload", db_js),
         ("schema.js", "SELECT 22", schema),
-        ("sync-modules.js", 'lodging: ["lodgers_records"]', (ROOT / "functions/_shared/sync-modules.js").read_text(encoding="utf-8")),
+        ("sync-modules.js", 'lodging: ["lodgers_active", "lodgers_lookup"]', (ROOT / "functions/_shared/sync-modules.js").read_text(encoding="utf-8")),
         ("sync-coordinator.js", "refreshViewForScope(getActiveViewId(), options)", (ROOT / "js/sync-coordinator.js").read_text(encoding="utf-8")),
     ]
     ok = True

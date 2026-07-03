@@ -22,14 +22,16 @@ def main():
         ("db sync uses rcEnsureAppData", "rcEnsureAppData" in db),
         ("rcEnsureAppData defined", "async function rcEnsureAppData" in rc),
         ("board module in bootstrap", '"board"' in rc and "RC_APP_MODULES" in rc),
-        ("lodgers_records in bootstrap", "lodgers_records" in rc),
+        ("lodgers_lookup in deferred", '"lodgers_lookup"' in rc and "RC_DEFERRED_MODULES" in rc),
+        ("lodgers_records not in deferred", "RC_DEFERRED_MODULES" in rc and
+         '"lodgers_records"' not in rc.split("RC_DEFERRED_MODULES")[1].split("];")[0]),
         (
             "write patch does not pre-touch board version",
             "touchBoardVersionFromWrite(writeResult)" not in rc,
         ),
         (
             "write refresh rerenders after background sync",
-            "syncTask.then(refreshOnce)" in rc,
+            "syncTask" in rc and "refreshOnce()" in rc and ".then(function" in rc,
         ),
     ]
     failed = [name for name, ok in checks if not ok]

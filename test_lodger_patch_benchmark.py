@@ -204,9 +204,9 @@ def production_delta_benchmark() -> bool:
         )
         return True
 
-    status, body, _, _ = request_json(f"{base}/api/v1/read/lodgers_records?timing=1")
+    status, body, _, _ = request_json(f"{base}/api/v1/read/lodgers_active?timing=1")
     if status != 200:
-        print(f"FAIL read/lodgers_records status={status}")
+        print(f"FAIL read/lodgers_active status={status}")
         return False
     lodgers = (body.get("tables") or {}).get("lodgers") or []
     lodger_count = len(lodgers)

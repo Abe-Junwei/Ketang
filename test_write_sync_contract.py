@@ -21,11 +21,16 @@ def static_server_checks() -> bool:
     required = [
         ("write-response.js", "changed_modules", write_resp),
         ("sync-modules.js", "resolveChangedModules", sync_mod),
-        ("sync-modules.js", 'lodging: ["lodgers_records"]', sync_mod),
+        ("sync-modules.js", 'lodging: ["lodgers_active", "lodgers_lookup"]', sync_mod),
         ("sync-coordinator.js", "writeResultToModules", client),
         ("sync-coordinator.js", "syncRemoteByModules", client),
     ]
-    dedupe_needles = ['k !== "lodgers_records"', 'k !== "lodgers"', 'k !== "settings"']
+    dedupe_needles = [
+        'k !== "lodgers_active"',
+        'k !== "lodgers_records"',
+        'k !== "lodgers"',
+        'k !== "settings"',
+    ]
     ok = True
     for label, needle, text in required:
         if needle not in text:
@@ -123,7 +128,7 @@ def cdp_checks() -> bool:
                 changed_domains: ['settings'],
               }).indexOf('settings') !== -1,
               dedupe: writeResultToModules({
-                changed_modules: ['board', 'lodgers_records'],
+                changed_modules: ['board', 'lodgers_active'],
               }).join(',') === 'board',
             })
             """,
