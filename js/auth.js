@@ -367,15 +367,19 @@ async function loginByRole(role, password) {
   if (typeof isRemoteDB === "function" && isRemoteDB()) {
     let result;
     try {
-      result = await apiAuthLogin({ role: role, password: password });
+      result = await apiAuthLogin({
+        role: role,
+        password: password,
+        bootstrap_board: true,
+      });
     } catch (err) {
       console.warn("云端身份登录失败 | Remote role login failed:", err);
       throw err;
     }
     if (!result.user) throw new Error("登录成功但未收到用户信息，请刷新后重试");
     applySessionRefresh(result);
-    if (typeof rcKickoffBoardBootstrap === "function") {
-      rcKickoffBoardBootstrap(true);
+    if (typeof rcApplyLoginBootstrap === "function") {
+      rcApplyLoginBootstrap(result);
     }
     logAudit("用户登录", "user", result.user.id, {
       username: result.user.username,

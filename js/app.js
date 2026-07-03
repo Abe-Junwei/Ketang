@@ -872,8 +872,12 @@ async function renderAll(options) {
     const forceSync = !!(options && options.forceSync);
     try {
       if (forceSync || !remoteReadModelReady) {
+        var hasLoginBoard =
+          loginBootstrap &&
+          typeof rcHasSeededBoard === "function" &&
+          rcHasSeededBoard();
         await syncRemoteReadModel({
-          force: true,
+          force: !hasLoginBoard,
           bootstrapOnly: loginBootstrap,
         });
       } else {

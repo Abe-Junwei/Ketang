@@ -175,14 +175,7 @@ async function rcFetch(moduleKey, force) {
     ketangPerfMark("read:" + moduleKey + ":start");
   _rcInflight[moduleKey] = apiReadModule(moduleKey, null)
     .then(function (payload) {
-      _rcStore[moduleKey] = payload || {};
-      if (
-        payload &&
-        payload.board_version != null &&
-        typeof setLocalBoardVersion === "function"
-      ) {
-        setLocalBoardVersion(payload.board_version);
-      }
+      rcSeedModule(moduleKey, payload);
       return payload;
     })
     .finally(function () {
@@ -197,6 +190,36 @@ async function rcFetch(moduleKey, force) {
       delete _rcInflight[moduleKey];
     });
   return _rcInflight[moduleKey];
+}
+
+/** 登录内嵌 board 是否已在缓存 | Login-embedded board present in rc store */
+function rcHasSeededBoard() {
+  var payload = _rcStore.board;
+  return !!(payload && payload.tables);
+}
+
+/** 写入 rc 缓存（登录内嵌 board 等）| Seed rc store without network */
+function rcSeedModule(moduleKey, payload) {
+  if (!moduleKey) return;
+  _rcStore[moduleKey] = payload || {};
+  if (
+    payload &&
+    payload.board_version != null &&
+    typeof setLocalBoardVersion === "function"
+  ) {
+    setLocalBoardVersion(payload.board_version);
+  }
+}
+
+/** 登录响应内嵌 read_modules → rc 缓存 | Apply login-embedded board bootstrap */
+function rcApplyLoginBootstrap(result) {
+  if (!result || !rcUseApiRead()) return;
+  var modules = result.read_modules;
+  if (!modules || !modules.board) return;
+  rcSeedModule("board", modules.board);
+  if (typeof ketangPerfMark === "function") {
+    ketangPerfMark("read:board:seeded");
+  }
 }
 
 /** 登录/恢复会话后立即拉 board（与 UI 准备并行）| Kick off board fetch before renderAll */
@@ -1594,7 +1617,9 @@ var RC_DEFERRED_MODULES = [
 async function rcEnsureAppData(force, options) {
   if (!rcUseApiRead()) return;
   options = options || {};
-  if (force) rcInvalidate();
+  if (force && !(options.bootstrapOnly && rcHasSeededBoard())) {
+    rcInvalidate();
+  }
   var keys = RC_APP_MODULES;
   var perfLabel = "rc:app";
   if (options.bootstrapOnly) {
