@@ -1,5 +1,5 @@
 import { batchD1, insertAudit, queryD1, runD1 } from "./d1.js";
-import { finishWrite } from "./write-response.js";
+import { enrichWriteResponse, finishWrite } from "./write-response.js";
 import { apiAssignBed, apiAssignReservationToBed } from "./lodgers.js";
 import { requirePermission } from "./permissions.js";
 import { checkRoomingPlanConflicts } from "./rooming-plans.js";
@@ -26,6 +26,44 @@ function requireId(value, label) {
 function assertInSet(value, allowed, message) {
   if (!allowed.has(value)) throw new Error(message);
   return value;
+}
+
+async function roomingPublishPatches(env, eventId) {
+  const plans = await queryD1(
+    env,
+    "SELECT * FROM rooming_plans WHERE event_id = ? LIMIT 1",
+    [eventId],
+  );
+  const plan = plans[0];
+  const queue = await getRoomingCheckinQueue(env, eventId);
+  return {
+    rooming_plans: plan ? [plan] : [],
+    rooming_checkin_queue: queue,
+  };
+}
+
+async function roomingQueuePatches(env, queueId) {
+  const rows = await queryD1(
+    env,
+    "SELECT * FROM rooming_checkin_queue WHERE id = ? LIMIT 1",
+    [queueId],
+  );
+  return { rooming_checkin_queue: rows };
+}
+
+async function roomingAdjustmentPatches(env, adjustmentId) {
+  const rows = await queryD1(
+    env,
+    "SELECT * FROM rooming_adjustments WHERE id = ? LIMIT 1",
+    [adjustmentId],
+  );
+  return { rooming_adjustments: rows };
+}
+
+function roomingQueueDeletions(rows) {
+  return (rows || []).map(function (row) {
+    return { table_name: "rooming_checkin_queue", row_id: row.id };
+  });
 }
 
 function roomingQueueProcessedAt() {
@@ -126,6 +164,11 @@ export async function publishRoomingPlan(env, session, eventId) {
   }
 
   const publishedAt = roomingQueueProcessedAt();
+  const oldQueue = await queryD1(
+    env,
+    "SELECT id FROM rooming_checkin_queue WHERE plan_id = ?",
+    [plan.id],
+  );
   await runAtomicRoomingBatch(env, [
     {
       sql: "DELETE FROM rooming_checkin_queue WHERE plan_id = ?",
@@ -157,7 +200,10 @@ export async function publishRoomingPlan(env, session, eventId) {
     ["events", "lodging"],
     ["events", "board"],
   );
-  return { ...payload, ...writeMeta };
+  return enrichWriteResponse(env, { ...payload, ...writeMeta }, {
+    deletions: roomingQueueDeletions(oldQueue),
+    extraPatches: await roomingPublishPatches(env, eventId),
+  });
 }
 
 export async function republishRoomingPlan(env, session, eventId, body) {
@@ -207,6 +253,11 @@ export async function republishRoomingPlan(env, session, eventId, body) {
   const pendingAssignments = assignments.filter(function (row) {
     return !finalizedAssignmentIds.has(row.id);
   });
+  const pendingQueue = await queryD1(
+    env,
+    "SELECT id FROM rooming_checkin_queue WHERE plan_id = ? AND queue_status = '待办理'",
+    [plan.id],
+  );
 
   await runAtomicRoomingBatch(env, [
     {
@@ -239,7 +290,10 @@ export async function republishRoomingPlan(env, session, eventId, body) {
     ["events", "lodging"],
     ["events", "board"],
   );
-  return { ...payload, ...writeMeta };
+  return enrichWriteResponse(env, { ...payload, ...writeMeta }, {
+    deletions: roomingQueueDeletions(pendingQueue),
+    extraPatches: await roomingPublishPatches(env, eventId),
+  });
 }
 
 export async function updateRoomingQueueItem(env, session, body) {
@@ -271,7 +325,11 @@ export async function updateRoomingQueueItem(env, session, body) {
     session,
   );
   const writeMeta = await finishWrite(env, {}, ["events"], ["events"]);
-  return { ...rows[0], ...writeMeta };
+  const extraPatches = await roomingQueuePatches(env, queueId);
+  const updatedRow = extraPatches.rooming_checkin_queue[0] || rows[0];
+  return enrichWriteResponse(env, { ...updatedRow, ...writeMeta }, {
+    extraPatches: extraPatches,
+  });
 }
 
 async function roomingQueueAssignAlreadyDoneServer(env, item) {
@@ -336,6 +394,7 @@ export async function processRoomingQueueCheckin(env, session, body) {
   if (!item.member_ref_id) throw new Error("该条目缺少关联人员");
 
   let assigned = await roomingQueueAssignAlreadyDoneServer(env, item);
+  let assignedLodgerId = item.member_kind === "lodger" ? item.member_ref_id : null;
   const deferOpts = { deferFinishWrite: true };
   if (!assigned) {
     try {
@@ -350,7 +409,7 @@ export async function processRoomingQueueCheckin(env, session, body) {
           deferOpts,
         );
       } else {
-        await apiAssignReservationToBed(
+        const assignResult = await apiAssignReservationToBed(
           env,
           session,
           {
@@ -359,6 +418,7 @@ export async function processRoomingQueueCheckin(env, session, body) {
           },
           deferOpts,
         );
+        assignedLodgerId = assignResult?.lodger_id || null;
       }
       assigned = true;
     } catch (err) {
@@ -387,14 +447,26 @@ export async function processRoomingQueueCheckin(env, session, body) {
     item.member_kind === "reservation"
       ? ["events", "board", "reservations", "meals"]
       : ["events", "board", "meals"];
-  return finishWrite(
+  return enrichWriteResponse(
     env,
+    await finishWrite(
+      env,
+      {
+        member_name: item.member_name,
+        queue_id: queueId,
+      },
+      changedDomains,
+      changedModules,
+    ),
     {
-      member_name: item.member_name,
-      queue_id: queueId,
+      patchRowIds: {
+        beds: item.suggested_bed_id ? [item.suggested_bed_id] : [],
+        lodgers: assignedLodgerId ? [assignedLodgerId] : [],
+        reservations:
+          item.member_kind === "reservation" ? [item.member_ref_id] : [],
+      },
+      extraPatches: await roomingQueuePatches(env, queueId),
     },
-    changedDomains,
-    changedModules,
   );
 }
 
@@ -416,7 +488,7 @@ export async function logRoomingAdjustment(env, session, body) {
     text(session?.display_name) ||
     text(session?.username) ||
     null;
-  await runD1(
+  const meta = await runD1(
     env,
     `INSERT INTO rooming_adjustments
       (event_id, plan_id, queue_id, lodger_id, adjustment_kind, member_name,
@@ -443,7 +515,11 @@ export async function logRoomingAdjustment(env, session, body) {
     { adjustment_kind: kind, member_name: text(body.member_name) },
     session,
   );
-  return finishWrite(env, {}, ["events"], ["events"]);
+  return enrichWriteResponse(
+    env,
+    await finishWrite(env, {}, ["events"], ["events"]),
+    { extraPatches: await roomingAdjustmentPatches(env, meta.last_row_id) },
+  );
 }
 
 export async function getRoomingRetrospective(env, session, eventId) {

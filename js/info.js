@@ -739,7 +739,7 @@ function openRoomModal(id) {
     ? "编辑房间"
     : "新增房间";
   setModalBody(`
-    <form id="room-form" class="form-grid" onsubmit="event.preventDefault(); submitRoom(${id || "null"});">
+    <form id="room-form" class="form-grid" onsubmit="event.preventDefault(); submitRoom(event, ${id || "null"});">
       ${infoField("房间名 *", `<input type="text" id="info-room-name" value="${infoEscape(r.name)}">`, "info-room-name")}
       ${infoField("位置", `<input type="text" id="info-room-location" value="${infoEscape(r.location)}">`, "info-room-location")}
       ${infoField("楼层", `<input type="number" id="info-room-floor" value="${r.floor}">`, "info-room-floor")}
@@ -748,14 +748,15 @@ function openRoomModal(id) {
       ${infoField("备注", `<textarea id="info-room-notes" rows="2">${infoEscape(r.notes)}</textarea>`, "info-room-notes")}
     </form>
     <div class="btn-bar" style="margin-top: var(--space-4);">
-      <button class="btn btn-primary" onclick="submitRoom(${id || "null"})">保存</button>
+      <button class="btn btn-primary" onclick="submitRoom(event, ${id || "null"})">保存</button>
       <button class="btn btn-default" onclick="closeModal()">取消</button>
     </div>
   `);
   document.getElementById("modal").classList.add("active");
 }
 
-async function submitRoom(id) {
+async function submitRoom(event, id) {
+  return withActionPending(event, "保存中…", async function () {
   infoClearErrors("info-room-");
   const name = infoGetValue("info-room-name");
   const location = infoGetValue("info-room-location");
@@ -825,6 +826,7 @@ async function submitRoom(id) {
     if (infoUseApiData()) await infoRevertTab("rooms");
     infoToast("保存失败：" + e.message);
   }
+  });
 }
 
 async function deleteRoom(id) {
@@ -955,7 +957,7 @@ function openBedModal(id) {
     ? "编辑床位"
     : "新增床位";
   setModalBody(`
-    <form id="bed-form" class="form-grid" onsubmit="event.preventDefault(); submitBed(${id || "null"});">
+    <form id="bed-form" class="form-grid" onsubmit="event.preventDefault(); submitBed(event, ${id || "null"});">
       ${infoField("所属房间 *", infoSelectHtml("info-bed-room", roomOptions, b.room_id, "required"), "info-bed-room")}
       ${infoField("床位号 *", `<input type="text" id="info-bed-number" value="${infoEscape(b.bed_number)}">`, "info-bed-number")}
       ${infoField("状态", infoSelectHtml("info-bed-status", statusOptions, statusValue, occupied ? "disabled" : ""), "info-bed-status")}
@@ -963,14 +965,15 @@ function openBedModal(id) {
       ${infoField("备注", `<textarea id="info-bed-notes" rows="2">${infoEscape(b.notes)}</textarea>`, "info-bed-notes")}
     </form>
     <div class="btn-bar" style="margin-top: var(--space-4);">
-      <button class="btn btn-primary" onclick="submitBed(${id || "null"})">保存</button>
+      <button class="btn btn-primary" onclick="submitBed(event, ${id || "null"})">保存</button>
       <button class="btn btn-default" onclick="closeModal()">取消</button>
     </div>
   `);
   document.getElementById("modal").classList.add("active");
 }
 
-async function submitBed(id) {
+async function submitBed(event, id) {
+  return withActionPending(event, "保存中…", async function () {
   infoClearErrors("info-bed-");
   const roomId = infoGetInt("info-bed-room");
   const number = infoGetValue("info-bed-number");
@@ -1050,6 +1053,7 @@ async function submitBed(id) {
     if (infoUseApiData()) await infoRevertTab("beds");
     infoToast("保存失败：" + e.message);
   }
+  });
 }
 
 async function deleteBed(id) {
@@ -1172,7 +1176,7 @@ function openGuestModal(id) {
     ? "编辑住客档案"
     : "新增住客档案";
   setModalBody(`
-    <form id="guest-form" class="form-grid" onsubmit="event.preventDefault(); submitGuest(${id || "null"});">
+    <form id="guest-form" class="form-grid" onsubmit="event.preventDefault(); submitGuest(event, ${id || "null"});">
       ${infoField("姓名 / 法名 *", `<input type="text" id="info-guest-name" value="${infoEscape(personNameInputValue(g))}" placeholder="姓名或法名">`, "info-guest-name")}
       ${infoField("性别", infoSelectHtml("info-guest-gender", INFO_GENDER_OPTIONS, g.gender), "info-guest-gender")}
       ${infoField("手机号", `<input type="tel" id="info-guest-phone" maxlength="11" value="${infoEscape(g.phone)}">`, "info-guest-phone")}
@@ -1182,14 +1186,15 @@ function openGuestModal(id) {
       ${infoField("备注", `<textarea id="info-guest-notes" rows="2">${infoEscape(g.notes)}</textarea>`, "info-guest-notes")}
     </form>
     <div class="btn-bar" style="margin-top: var(--space-4);">
-      <button class="btn btn-primary" onclick="submitGuest(${id || "null"})">保存</button>
+      <button class="btn btn-primary" onclick="submitGuest(event, ${id || "null"})">保存</button>
       <button class="btn btn-default" onclick="closeModal()">取消</button>
     </div>
   `);
   document.getElementById("modal").classList.add("active");
 }
 
-async function submitGuest(id) {
+async function submitGuest(event, id) {
+  return withActionPending(event, "保存中…", async function () {
   infoClearErrors("info-guest-");
   const person = parsePersonNameInput(infoGetValue("info-guest-name"));
   const name = person.name;
@@ -1281,6 +1286,7 @@ async function submitGuest(id) {
     if (infoUseApiData()) await infoRevertTab("guests");
     infoToast("保存失败：" + e.message);
   }
+  });
 }
 
 async function deleteGuest(id) {
@@ -1427,7 +1433,7 @@ function openLodgerModal(id) {
 
   document.getElementById("modal-title").textContent = "编辑挂单记录";
   setModalBody(`
-    <form id="lodger-form" class="form-grid" onsubmit="event.preventDefault(); submitLodger(${id});">
+    <form id="lodger-form" class="form-grid" onsubmit="event.preventDefault(); submitLodger(event, ${id});">
       ${infoField("姓名 / 法名 *", `<input type="text" id="info-lodger-name" value="${infoEscape(personNameInputValue(l))}" placeholder="姓名或法名">`, "info-lodger-name")}
       ${infoField("性别", infoSelectHtml("info-lodger-gender", INFO_GENDER_OPTIONS, l.gender), "info-lodger-gender")}
       ${infoField("手机号", `<input type="tel" id="info-lodger-phone" maxlength="11" value="${infoEscape(l.phone)}">`, "info-lodger-phone")}
@@ -1441,7 +1447,7 @@ function openLodgerModal(id) {
       ${infoField("备注", `<textarea id="info-lodger-notes" rows="2">${infoEscape(l.notes)}</textarea>`, "info-lodger-notes")}
     </form>
     <div class="btn-bar" style="margin-top: var(--space-4);">
-      <button class="btn btn-primary" onclick="submitLodger(${id})">保存</button>
+      <button class="btn btn-primary" onclick="submitLodger(event, ${id})">保存</button>
       <button class="btn btn-default" onclick="closeModal()">取消</button>
     </div>
   `);
@@ -1463,7 +1469,8 @@ function infoReloadBedOptions(roomSelectId, bedSelectId, selectedBedId) {
   bedSelect.innerHTML = html;
 }
 
-async function submitLodger(id) {
+async function submitLodger(event, id) {
+  return withActionPending(event, "保存中…", async function () {
   infoClearErrors("info-lodger-");
   const l = infoFindLodger(id);
   if (!l) return infoToast("挂单记录不存在");
@@ -1593,6 +1600,7 @@ async function submitLodger(id) {
     if (infoUseApiData()) await infoRevertTab("lodgers");
     infoToast("保存失败：" + e.message);
   }
+  });
 }
 
 async function deleteInfoLodger(id) {

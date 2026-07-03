@@ -120,14 +120,15 @@ function openExtendModal(id) {
         <input type="date" id="ext-date" value="${escapeHtml(l.expected_check_out) || ""}" min="${escapeHtml(l.check_in_date)}">
       </div>
       <div class="modal-actions">
-        <button type="button" class="btn btn-primary" onclick="submitExtend(${l.id})">确认续住</button>
+        <button type="button" class="btn btn-primary" onclick="submitExtend(event, ${l.id})">确认续住</button>
       </div>
     </div>
   `);
   modal.classList.add("active");
 }
 
-async function submitExtend(id) {
+async function submitExtend(event, id) {
+  return withActionPending(event, "保存中…", async function () {
   const date = document.getElementById("ext-date").value;
   if (!date) {
     alert("请选择新的预离日期");
@@ -189,6 +190,7 @@ async function submitExtend(id) {
     console.error(e);
     alert("续住失败：" + e.message);
   }
+  });
 }
 
 function openChangeBedModal(id) {
@@ -214,7 +216,7 @@ function openChangeBedModal(id) {
         <input type="hidden" id="chg-bed" value="">
       </div>
       <div class="modal-actions">
-        <button type="button" class="btn btn-warning" onclick="submitChangeBed(${l.id}, '${escapeHtml(l.gender || "")}')">确认换床</button>
+        <button type="button" class="btn btn-warning" onclick="submitChangeBed(event, ${l.id}, '${escapeHtml(l.gender || "")}')">确认换床</button>
       </div>
     </div>
   `);
@@ -256,7 +258,8 @@ function selectChangeBed(e, bedId) {
   if (picker) picker.classList.remove("open");
 }
 
-async function submitChangeBed(lodgerId, gender) {
+async function submitChangeBed(event, lodgerId, gender) {
+  return withActionPending(event, "保存中…", async function () {
   const bedId = document.getElementById("chg-bed").value;
   if (!bedId) {
     alert("请选择新床位");
@@ -334,6 +337,7 @@ async function submitChangeBed(lodgerId, gender) {
     console.error(e);
     alert("换床失败：" + e.message);
   }
+  });
 }
 
 function openEditLodgerModal(id) {
@@ -393,7 +397,7 @@ function openEditLodgerModal(id) {
       </div>
       <div class="field"><label>备注</label><textarea id="edit-notes" rows="2">${escapeHtml(l.notes || "")}</textarea></div>
       <div class="modal-actions">
-        <button type="button" class="btn btn-primary" onclick="submitEditLodger(${l.id})">保存修改</button>
+        <button type="button" class="btn btn-primary" onclick="submitEditLodger(event, ${l.id})">保存修改</button>
       </div>
     </div>
   `);
@@ -406,7 +410,8 @@ function openEditLodgerModal(id) {
   modal.classList.add("active");
 }
 
-async function submitEditLodger(id) {
+async function submitEditLodger(event, id) {
+  return withActionPending(event, "保存中…", async function () {
   if (
     !validateFields([
       "edit-name",
@@ -582,6 +587,7 @@ async function submitEditLodger(id) {
     console.error(e);
     alert("保存修改失败：" + e.message);
   }
+  });
 }
 
 async function deleteLodger(id) {
@@ -661,14 +667,15 @@ function openCheckoutModal(id) {
         <textarea id="co-notes" rows="2" placeholder="物品损坏/加床收费等"></textarea>
       </div>
       <div class="modal-actions">
-        <button type="button" class="btn btn-primary" onclick="submitCheckout(${l.id})">确认退房</button>
+        <button type="button" class="btn btn-primary" onclick="submitCheckout(event, ${l.id})">确认退房</button>
       </div>
     </div>
   `);
   modal.classList.add("active");
 }
 
-async function submitCheckout(id) {
+async function submitCheckout(event, id) {
+  return withActionPending(event, "保存中…", async function () {
   const refund = parseFloat(document.getElementById("co-refund").value) || 0;
   const method = document.getElementById("co-refund-method").value;
   const notes = document.getElementById("co-notes").value.trim() || null;
@@ -738,6 +745,7 @@ async function submitCheckout(id) {
     console.error(e);
     alert("退房失败：" + e.message);
   }
+  });
 }
 
 function printVoucher(id) {

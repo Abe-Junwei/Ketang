@@ -208,7 +208,7 @@ function rcLodgerOnBed(bedId) {
 function rcLatestHkStatus(bedId) {
   if (!bedId) return "净房";
   var rows = rcBoardHousekeeping().filter(function (h) {
-    return h.bed_id == bedId;
+    return h.bed_id == bedId && !h._optimistic;
   });
   rows.sort(function (a, b) {
     return String(b.changed_at || "").localeCompare(String(a.changed_at || ""));

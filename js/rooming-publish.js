@@ -197,14 +197,14 @@ function renderRoomingQueueTable(eventId, queue, canProcess) {
     if (canProcess && row.queue_status === "待办理") {
       if (row.suggested_bed_id) {
         actions +=
-          '<button type="button" class="btn btn-sm btn-primary" onclick="handleRoomingQueueCheckin(' +
+          '<button type="button" class="btn btn-sm btn-primary" onclick="handleRoomingQueueCheckin(event.currentTarget, ' +
           row.id +
           "," +
           eventId +
           ')">按预分床办理</button> ';
       }
       actions +=
-        '<button type="button" class="btn btn-sm btn-default" onclick="handleRoomingQueueSkip(' +
+        '<button type="button" class="btn btn-sm btn-default" onclick="handleRoomingQueueSkip(event.currentTarget, ' +
         row.id +
         "," +
         eventId +
@@ -274,7 +274,7 @@ async function renderRoomingCheckinQueue(eventId) {
     eventId +
     ')">← 返回预分房</button>' +
     (canRepublish
-      ? ' <button class="btn btn-warning" onclick="handleRepublishRoomingPlan(' +
+      ? ' <button class="btn btn-warning" onclick="handleRepublishRoomingPlan(event.currentTarget, ' +
         eventId +
         ')">重新发布清单</button>'
       : "") +
@@ -323,7 +323,8 @@ async function renderRoomingCheckinQueue(eventId) {
   infoPageShell(toolbar, bodyHtml);
 }
 
-async function handlePublishRoomingPlan(eventId) {
+async function handlePublishRoomingPlan(source, eventId) {
+  return withActionPending(source, "保存中…", async function () {
   if (typeof hasPermission === "function" && !hasPermission("settings.write")) {
     alert("权限不足");
     return;
@@ -349,9 +350,11 @@ async function handlePublishRoomingPlan(eventId) {
   } catch (err) {
     alert("发布失败：" + (err.message || err));
   }
+  });
 }
 
-async function handleRepublishRoomingPlan(eventId) {
+async function handleRepublishRoomingPlan(source, eventId) {
+  return withActionPending(source, "保存中…", async function () {
   if (typeof hasPermission === "function" && !hasPermission("settings.write")) {
     alert("权限不足");
     return;
@@ -378,6 +381,7 @@ async function handleRepublishRoomingPlan(eventId) {
   } catch (err) {
     alert("重新发布失败：" + (err.message || err));
   }
+  });
 }
 
 async function completeRoomingQueueCheckin(queueId, eventId, item) {
@@ -386,7 +390,8 @@ async function completeRoomingQueueCheckin(queueId, eventId, item) {
   await renderRoomingCheckinQueue(eventId);
 }
 
-async function handleRoomingQueueCheckin(queueId, eventId) {
+async function handleRoomingQueueCheckin(source, queueId, eventId) {
+  return withActionPending(source, "保存中…", async function () {
   if (
     typeof hasPermission === "function" &&
     !hasPermission("lodging.checkin")
@@ -464,9 +469,11 @@ async function handleRoomingQueueCheckin(queueId, eventId) {
     }
     alert("办理失败：" + (err.message || err));
   }
+  });
 }
 
-async function handleRoomingQueueSkip(queueId, eventId) {
+async function handleRoomingQueueSkip(source, queueId, eventId) {
+  return withActionPending(source, "保存中…", async function () {
   if (
     typeof hasPermission === "function" &&
     !hasPermission("lodging.checkin")
@@ -494,6 +501,7 @@ async function handleRoomingQueueSkip(queueId, eventId) {
   } catch (err) {
     alert("操作失败：" + (err.message || err));
   }
+  });
 }
 
 async function exportRoomingCheckinListCSV(eventId) {

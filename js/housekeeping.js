@@ -1,3 +1,5 @@
+var HOUSEKEEPING_PENDING_BEDS = {};
+
 function getHouseStatus(bedId) {
   if (
     typeof boardReadCacheReady === "function" &&
@@ -18,6 +20,55 @@ function setHouseStatus(bedId, status, notes, operator) {
     "INSERT INTO housekeeping (bed_id, status, operator, notes) VALUES (?, ?, ?, ?)",
     [bedId, status, operator || null, notes || null],
   );
+}
+
+function applyHousekeepingOptimistic(bedId, status) {
+  if (
+    isLocalForceDb() ||
+    typeof boardReadCacheReady !== "function" ||
+    !boardReadCacheReady() ||
+    typeof rcApplyDeltaPatches !== "function"
+  ) {
+    return null;
+  }
+  var rowId = -Date.now();
+  var row = {
+    id: rowId,
+    bed_id: bedId,
+    status: status,
+    operator: "optimistic",
+    notes: "前端临时房务状态",
+    changed_at: new Date().toISOString(),
+    _optimistic: true,
+  };
+  rcApplyDeltaPatches({ housekeeping: [row] }, []);
+  return { rowId: rowId };
+}
+
+function rollbackHousekeepingOptimistic(optimistic) {
+  if (!optimistic || typeof rcApplyDeltaPatches !== "function") return true;
+  try {
+    rcApplyDeltaPatches(null, [
+      { table_name: "housekeeping", row_id: optimistic.rowId },
+    ]);
+    return true;
+  } catch (e) {
+    console.warn("housekeeping optimistic rollback failed:", e.message || e);
+    return false;
+  }
+}
+
+async function forceRefreshHousekeeping() {
+  if (typeof rcEnsureViewModules === "function") {
+    try {
+      await rcEnsureViewModules("housekeeping", true);
+      return true;
+    } catch (e) {
+      console.warn("housekeeping force refresh failed:", e.message || e);
+      return false;
+    }
+  }
+  return true;
 }
 
 function isBedAssignable(bedId) {
@@ -109,14 +160,38 @@ function renderHousekeeping() {
     const bedWrap = group.querySelector(".hk-room-beds");
 
     beds.forEach((b) => {
-      const hk = useRc
+      const pendingStatus = HOUSEKEEPING_PENDING_BEDS[b.id];
+      const hk = pendingStatus
+        ? pendingStatus
+        : useRc
         ? b.hk_status || getHouseStatus(b.id)
         : getHouseStatus(b.id);
       const occupied = !!b.lodger_id;
+      const pending = !!pendingStatus;
       const card = document.createElement("article");
       card.className =
         "hk-bed-card hk-bed-" +
         (hk === "脏房" ? "dirty" : occupied ? "occupied" : "ready");
+      var actionsHtml = pending
+        ? '<button type="button" class="btn btn-sm" disabled>保存中…</button>'
+        : (hk === "脏房"
+            ? `<button type="button" class="btn btn-success btn-sm" onclick="setHkAndRender(event.currentTarget, ${b.id}, '净房')">已净房</button>`
+            : "") +
+          (hk === "净房" && housekeepingRequiresInspect()
+            ? `<button type="button" class="btn btn-primary btn-sm" onclick="setHkAndRender(event.currentTarget, ${b.id}, '查房')">查房</button>`
+            : "") +
+          (hk === "净房" && !housekeepingRequiresInspect()
+            ? `<button type="button" class="btn btn-success btn-sm" onclick="setHkAndRender(event.currentTarget, ${b.id}, '可用')">可入住</button>`
+            : "") +
+          (hk === "查房"
+            ? `<button type="button" class="btn btn-success btn-sm" onclick="setHkAndRender(event.currentTarget, ${b.id}, '可用')">可入住</button>`
+            : "") +
+          (!b.lodger_id && hk !== "维修"
+            ? `<button type="button" class="btn btn-warning btn-sm" onclick="setHkAndRender(event.currentTarget, ${b.id}, '维修')">报修</button>`
+            : "") +
+          (hk === "维修"
+            ? `<button type="button" class="btn btn-default btn-sm" onclick="setHkAndRender(event.currentTarget, ${b.id}, '净房')">维修完成</button>`
+            : "");
       card.innerHTML =
         '<div class="hk-bed-card-head">' +
         '<strong class="hk-bed-label">' +
@@ -130,24 +205,7 @@ function renderHousekeeping() {
         (b.lodger_id ? escapeHtml(personDisplayName(b)) + " 在住" : "无人") +
         "</div>" +
         '<div class="hk-bed-card-actions">' +
-        (hk === "脏房"
-          ? `<button type="button" class="btn btn-success btn-sm" onclick="setHkAndRender(${b.id}, '净房')">已净房</button>`
-          : "") +
-        (hk === "净房" && housekeepingRequiresInspect()
-          ? `<button type="button" class="btn btn-primary btn-sm" onclick="setHkAndRender(${b.id}, '查房')">查房</button>`
-          : "") +
-        (hk === "净房" && !housekeepingRequiresInspect()
-          ? `<button type="button" class="btn btn-success btn-sm" onclick="setHkAndRender(${b.id}, '可用')">可入住</button>`
-          : "") +
-        (hk === "查房"
-          ? `<button type="button" class="btn btn-success btn-sm" onclick="setHkAndRender(${b.id}, '可用')">可入住</button>`
-          : "") +
-        (!b.lodger_id && hk !== "维修"
-          ? `<button type="button" class="btn btn-warning btn-sm" onclick="setHkAndRender(${b.id}, '维修')">报修</button>`
-          : "") +
-        (hk === "维修"
-          ? `<button type="button" class="btn btn-default btn-sm" onclick="setHkAndRender(${b.id}, '净房')">维修完成</button>`
-          : "") +
+        actionsHtml +
         "</div>";
       bedWrap.appendChild(card);
     });
@@ -160,7 +218,8 @@ function renderHousekeeping() {
   }
 }
 
-async function setHkAndRender(bedId, status) {
+async function setHkAndRender(source, bedId, status) {
+  if (HOUSEKEEPING_PENDING_BEDS[bedId]) return;
   if (status === "维修") {
     const occupied =
       typeof boardReadCacheReady === "function" && boardReadCacheReady()
@@ -184,8 +243,14 @@ async function setHkAndRender(bedId, status) {
     );
     return;
   }
+  var finishPending = beginActionPending(source, "保存中…");
+  if (!finishPending) return;
+  HOUSEKEEPING_PENDING_BEDS[bedId] = status;
+  var optimistic = applyHousekeepingOptimistic(bedId, status);
+  var optimisticRolledBack = false;
+  renderHousekeeping();
+  var writeResult = null;
   try {
-    var writeResult = null;
     if (isLocalForceDb()) {
       await withTransaction(async () => {
         setHouseStatus(bedId, status, `手动设置${status}`);
@@ -203,6 +268,7 @@ async function setHkAndRender(bedId, status) {
         logAudit("房务状态变更", "bed", bedId, { status: status });
       });
       await saveDB();
+      writeResult = { ok: true, local: true };
     } else {
       writeResult = await apiSetHouseStatus({
         bed_id: bedId,
@@ -210,11 +276,22 @@ async function setHkAndRender(bedId, status) {
         notes: `手动设置${status}`,
       });
     }
-    renderHousekeeping();
-    rcRefreshAfterWrite(writeResult);
+    optimisticRolledBack = rollbackHousekeepingOptimistic(optimistic);
+    rcRefreshAfterWrite(writeResult, { skipViewRefresh: true });
   } catch (e) {
     console.error(e);
-    alert("房务状态变更失败：" + e.message);
+    if (!optimisticRolledBack) rollbackHousekeepingOptimistic(optimistic);
+    var refreshOk = await forceRefreshHousekeeping();
+    if (writeResult) {
+      if (refreshOk) showToast("房务状态已保存");
+      else alert("房务状态已保存，但刷新失败，请手动刷新页面查看最新数据");
+    } else {
+      alert("房务状态变更失败：" + e.message);
+    }
+  } finally {
+    delete HOUSEKEEPING_PENDING_BEDS[bedId];
+    finishPending();
+    renderHousekeeping();
   }
 }
 

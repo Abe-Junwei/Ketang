@@ -14,6 +14,7 @@ def main():
     info = read("js/info.js")
     rc = read("js/read-cache.js")
     checkin = read("js/checkin.js")
+    events = read("js/events.js")
 
     checks = [
         ("enrichWriteResponse", "export async function enrichWriteResponse" in wr),
@@ -42,6 +43,12 @@ def main():
             'showView("board")' in checkin
             and "rcRefreshAfterWrite(writeResult" in checkin
             and "renderBoard" in checkin,
+        ),
+        (
+            "event member writes stay on member view",
+            "function eventMemberViewRefresh" in events
+            and "viewRefresh: eventMemberViewRefresh(eventId)" in events
+            and events.count("viewRefresh: eventMemberViewRefresh(eventId)") >= 2,
         ),
     ]
     failed = [name for name, ok in checks if not ok]

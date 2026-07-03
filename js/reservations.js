@@ -1,3 +1,5 @@
+var RESERVATION_STATUS_PENDING = {};
+
 document.getElementById("resv-form").addEventListener("submit", async (e) => {
   e.preventDefault();
   const name = document.getElementById("resv-name").value.trim();
@@ -55,6 +57,8 @@ document.getElementById("resv-form").addEventListener("submit", async (e) => {
   }
 
   const resvId = document.getElementById("resv-id").value;
+  const finishPending = beginActionPending(e, "保存中…");
+  if (!finishPending) return;
   try {
     var writeResult = null;
     if (isLocalForceDb()) {
@@ -179,15 +183,16 @@ document.getElementById("resv-form").addEventListener("submit", async (e) => {
         meal_dinner: meal.dinner,
       });
     }
+    showToast(resvId ? "预约更新成功" : "预约添加成功");
+    resetResvForm();
+    renderReservations("全部");
+    rcRefreshAfterWrite(writeResult);
   } catch (e) {
     console.error(e);
     alert("保存预约失败：" + e.message);
-    return;
+  } finally {
+    finishPending();
   }
-  showToast(resvId ? "预约更新成功" : "预约添加成功");
-  resetResvForm();
-  renderReservations("全部");
-  rcRefreshAfterWrite(writeResult);
 });
 
 function resetResvForm() {
@@ -265,15 +270,18 @@ function renderReservations(filterStatus) {
   populateEventSelect("resv-event", null);
   const tbody = document.getElementById("resv-table");
   tbody.innerHTML = "";
-  let sql = "SELECT * FROM reservations WHERE 1=1";
-  const params = [];
-  if (filterStatus && filterStatus !== "全部") {
-    sql += " AND status = ?";
-    params.push(filterStatus);
-  }
-  sql += " ORDER BY expected_check_in DESC, id DESC";
-  const rows = query(sql, params);
+  const rows = reservationRowsForRender(filterStatus);
   rows.forEach((r) => {
+    const pendingStatus = RESERVATION_STATUS_PENDING[r.id];
+    const displayStatus = pendingStatus || r.status;
+    const isPending = !!pendingStatus;
+    const actionCell = isPending
+      ? '<button type="button" class="btn btn-sm" disabled>保存中…</button>'
+      : `${r.status === "预约" ? `<button class="btn btn-success btn-sm" onclick="updateResvStatus(event.currentTarget, ${r.id}, '已确认')">确认</button>` : ""}
+        ${r.status === "预约" || r.status === "已确认" ? `<button class="btn btn-primary btn-sm" onclick="checkInFromResv(${r.id})">转入住</button>` : ""}
+        ${r.status !== "已入住" && r.status !== "已取消" ? `<button class="btn btn-danger btn-sm" onclick="updateResvStatus(event.currentTarget, ${r.id}, '已取消')">取消</button>` : ""}
+        ${r.status === "预约" || r.status === "已确认" ? `<button class="btn btn-warning btn-sm" onclick="updateResvStatus(event.currentTarget, ${r.id}, 'No-show')">No-show</button>` : ""}
+        ${r.status === "预约" || r.status === "已确认" ? `<button class="btn btn-default btn-sm" onclick="editResv(${r.id})">编辑</button>` : ""}`;
     const mf = reservationMealFlags(r);
     const mealLabel = formatMealNeedLabel(mf.breakfast, mf.lunch, mf.dinner);
     const tr = document.createElement("tr");
@@ -286,15 +294,9 @@ function renderReservations(filterStatus) {
       <td>${escapeHtml(mealLabel)}</td>
       <td>${escapeHtml(r.role) || "-"}</td>
       <td>${escapeHtml(r.room_preference) || "-"}</td>
-      <td>${escapeHtml(r.status)}</td>
+      <td>${escapeHtml(displayStatus)}</td>
       <td>${escapeHtml(r.source) || "-"}</td>
-      <td>
-        ${r.status === "预约" ? `<button class="btn btn-success btn-sm" onclick="updateResvStatus(${r.id}, '已确认')">确认</button>` : ""}
-        ${r.status === "预约" || r.status === "已确认" ? `<button class="btn btn-primary btn-sm" onclick="checkInFromResv(${r.id})">转入住</button>` : ""}
-        ${r.status !== "已入住" && r.status !== "已取消" ? `<button class="btn btn-danger btn-sm" onclick="updateResvStatus(${r.id}, '已取消')">取消</button>` : ""}
-        ${r.status === "预约" || r.status === "已确认" ? `<button class="btn btn-warning btn-sm" onclick="updateResvStatus(${r.id}, 'No-show')">No-show</button>` : ""}
-        ${r.status === "预约" || r.status === "已确认" ? `<button class="btn btn-default btn-sm" onclick="editResv(${r.id})">编辑</button>` : ""}
-      </td>
+      <td>${actionCell}</td>
     `;
     tbody.appendChild(tr);
   });
@@ -304,12 +306,97 @@ function renderReservations(filterStatus) {
   }
 }
 
-async function updateResvStatus(id, status) {
-  const r = query("SELECT * FROM reservations WHERE id=?", [id])[0];
+function reservationRowsForRender(filterStatus) {
+  if (
+    !isLocalForceDb() &&
+    typeof rcReadReady === "function" &&
+    rcReadReady() &&
+    typeof rcRows === "function"
+  ) {
+    return rcRows("reservations", "reservations")
+      .filter(function (r) {
+        return !filterStatus || filterStatus === "全部" || r.status === filterStatus;
+      })
+      .slice()
+      .sort(function (a, b) {
+        var da = a.expected_check_in || "";
+        var db = b.expected_check_in || "";
+        if (da !== db) return db.localeCompare(da);
+        return (b.id || 0) - (a.id || 0);
+      });
+  }
+  let sql = "SELECT * FROM reservations WHERE 1=1";
+  const params = [];
+  if (filterStatus && filterStatus !== "全部") {
+    sql += " AND status = ?";
+    params.push(filterStatus);
+  }
+  sql += " ORDER BY expected_check_in DESC, id DESC";
+  return query(sql, params);
+}
+
+function reservationForStatus(id) {
+  if (
+    !isLocalForceDb() &&
+    typeof rcReservationById === "function" &&
+    typeof rcReadReady === "function" &&
+    rcReadReady()
+  ) {
+    return rcReservationById(id);
+  }
+  return query("SELECT * FROM reservations WHERE id=?", [id])[0];
+}
+
+function applyReservationStatusOptimistic(row, status) {
+  if (
+    isLocalForceDb() ||
+    !row ||
+    typeof rcApplyDeltaPatches !== "function" ||
+    typeof rcReadReady !== "function" ||
+    !rcReadReady()
+  ) {
+    return null;
+  }
+  var original = Object.assign({}, row);
+  rcApplyDeltaPatches(
+    { reservations: [Object.assign({}, row, { status: status })] },
+    [],
+  );
+  return original;
+}
+
+function rollbackReservationStatusOptimistic(original) {
+  if (!original || typeof rcApplyDeltaPatches !== "function") return true;
+  try {
+    rcApplyDeltaPatches({ reservations: [original] }, []);
+    return true;
+  } catch (e) {
+    console.warn("reservation optimistic rollback failed:", e.message || e);
+    return false;
+  }
+}
+
+async function forceRefreshReservations() {
+  if (typeof rcEnsureReservations !== "function") return false;
+  try {
+    await rcEnsureReservations(true);
+    return true;
+  } catch (e) {
+    console.warn("reservation force refresh failed:", e.message || e);
+    return false;
+  }
+}
+
+async function updateResvStatus(source, id, status) {
+  if (RESERVATION_STATUS_PENDING[id]) return;
+  const r = reservationForStatus(id);
   if (!r) return;
   const oldStatus = r.status;
+  RESERVATION_STATUS_PENDING[id] = status;
+  var original = applyReservationStatusOptimistic(r, status);
+  renderReservations("全部");
+  var writeResult = null;
   try {
-    var writeResult = null;
     if (isLocalForceDb()) {
       await withTransaction(async () => {
         run("UPDATE reservations SET status=? WHERE id=?", [status, id]);
@@ -320,18 +407,29 @@ async function updateResvStatus(id, status) {
         });
       });
       await saveDB();
+      writeResult = { ok: true, local: true };
     } else {
       writeResult = await apiUpdateReservationStatus({
         reservation_id: id,
         status: status,
       });
     }
+    var rollbackOk = original ? rollbackReservationStatusOptimistic(original) : true;
+    if (!rollbackOk) await forceRefreshReservations();
     showToast(`预约已标记为「${status}」`);
-    renderReservations("全部");
-    rcRefreshAfterWrite(writeResult);
+    if (rollbackOk) rcRefreshAfterWrite(writeResult, { skipViewRefresh: true });
   } catch (e) {
     console.error(e);
-    alert("更新预约状态失败：" + e.message);
+    var rollbackOk = rollbackReservationStatusOptimistic(original);
+    var refreshOk = await forceRefreshReservations();
+    if (!rollbackOk && !refreshOk) {
+      alert("更新预约状态失败，且无法恢复最新数据，请手动刷新页面：" + e.message);
+    } else {
+      alert("更新预约状态失败：" + e.message);
+    }
+  } finally {
+    delete RESERVATION_STATUS_PENDING[id];
+    renderReservations("全部");
   }
 }
 

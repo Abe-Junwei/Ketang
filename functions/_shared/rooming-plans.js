@@ -1,5 +1,5 @@
 import { batchD1, insertAudit, queryD1, runD1 } from "./d1.js";
-import { finishWrite } from "./write-response.js";
+import { enrichWriteResponse, finishWrite } from "./write-response.js";
 import { housekeepingRequiresInspect } from "./operational-settings.js";
 import { requirePermission } from "./permissions.js";
 import {
@@ -27,6 +27,31 @@ function requireId(value, label) {
 function assertInSet(value, allowed, message) {
   if (!allowed.has(value)) throw new Error(message);
   return value;
+}
+
+async function roomingWritePatches(env, eventId) {
+  const plans = await queryD1(
+    env,
+    "SELECT * FROM rooming_plans WHERE event_id = ? LIMIT 1",
+    [eventId],
+  );
+  const plan = plans[0];
+  if (!plan) return {};
+  const assignments = await queryD1(
+    env,
+    "SELECT * FROM rooming_assignments WHERE plan_id = ? ORDER BY sort_order, id",
+    [plan.id],
+  );
+  return {
+    rooming_plans: [plan],
+    rooming_assignments: assignments,
+  };
+}
+
+function roomingAssignmentDeletions(rows) {
+  return (rows || []).map(function (row) {
+    return { table_name: "rooming_assignments", row_id: row.id };
+  });
 }
 
 export function dormMatchesGender(dormType, gender) {
@@ -332,6 +357,11 @@ export async function generateRoomingPlanAssignments(env, session, eventId) {
   );
   const beds = await listAssignableBeds(env, event, reservedBedIds);
   const draft = buildAutoBedAssignments(members, beds);
+  const oldAssignments = await queryD1(
+    env,
+    "SELECT id FROM rooming_assignments WHERE plan_id = ?",
+    [plan.id],
+  );
 
   await runD1(env, "DELETE FROM rooming_assignments WHERE plan_id = ?", [
     plan.id,
@@ -374,7 +404,10 @@ export async function generateRoomingPlanAssignments(env, session, eventId) {
   );
   const bundle = await getRoomingPlanBundle(env, eventId);
   const writeMeta = await finishWrite(env, {}, ["events"], ["events"]);
-  return { ...bundle, ...writeMeta };
+  return enrichWriteResponse(env, { ...bundle, ...writeMeta }, {
+    deletions: roomingAssignmentDeletions(oldAssignments),
+    extraPatches: await roomingWritePatches(env, eventId),
+  });
 }
 
 export async function saveRoomingPlan(env, session, body) {
@@ -448,7 +481,9 @@ export async function saveRoomingPlan(env, session, body) {
   );
   const bundle = await getRoomingPlanBundle(env, plan.event_id);
   const writeMeta = await finishWrite(env, {}, ["events"], ["events"]);
-  return { ...bundle, ...writeMeta };
+  return enrichWriteResponse(env, { ...bundle, ...writeMeta }, {
+    extraPatches: await roomingWritePatches(env, plan.event_id),
+  });
 }
 
 async function enrichAssignmentsForConflict(env, assignments) {

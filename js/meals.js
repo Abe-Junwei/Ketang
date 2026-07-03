@@ -297,6 +297,123 @@ function setLodgerMealDefaults(lodgerId, breakfast, lunch, dinner) {
   );
 }
 
+function mealRowsForLodgerRender(lodgerId) {
+  if (
+    typeof rcReadReady === "function" &&
+    rcReadReady() &&
+    typeof rcMealsForLodger === "function"
+  ) {
+    return rcMealsForLodger(lodgerId);
+  }
+  return query("SELECT * FROM meals WHERE lodger_id=?", [lodgerId]);
+}
+
+function applyMealsOptimistic(lodger, defaults, days) {
+  if (
+    isLocalForceDb() ||
+    !lodger ||
+    typeof rcApplyDeltaPatches !== "function" ||
+    typeof rcReadReady !== "function" ||
+    !rcReadReady()
+  ) {
+    return null;
+  }
+  var original = {
+    lodger: Object.assign({}, lodger),
+    meals: mealRowsForLodgerRender(lodger.id).map(function (m) {
+      return Object.assign({}, m);
+    }),
+    tempIds: [],
+  };
+  var byDate = {};
+  original.meals.forEach(function (m) {
+    byDate[m.date] = m;
+  });
+  var tempBase = -Date.now();
+  var mealRows = Object.keys(days).map(function (date, idx) {
+    var vals = days[date];
+    var existing = byDate[date];
+    var rowId = existing ? existing.id : tempBase - idx;
+    if (!existing) original.tempIds.push(rowId);
+    return Object.assign({}, existing || {}, {
+      id: rowId,
+      lodger_id: lodger.id,
+      date: date,
+      breakfast: vals.breakfast ? 1 : 0,
+      lunch: vals.lunch ? 1 : 0,
+      dinner: vals.dinner ? 1 : 0,
+    });
+  });
+  rcApplyDeltaPatches(
+    {
+      lodgers: [
+        Object.assign({}, lodger, {
+          meal_default_breakfast: defaults.breakfast ? 1 : 0,
+          meal_default_lunch: defaults.lunch ? 1 : 0,
+          meal_default_dinner: defaults.dinner ? 1 : 0,
+        }),
+      ],
+      meals: mealRows,
+    },
+    [],
+  );
+  return original;
+}
+
+function rollbackMealsOptimistic(original) {
+  if (!original || typeof rcApplyDeltaPatches !== "function") return true;
+  try {
+    rcApplyDeltaPatches(
+      {
+        lodgers: [original.lodger],
+        meals: original.meals || [],
+      },
+      (original.tempIds || []).map(function (id) {
+        return { table_name: "meals", row_id: id };
+      }),
+    );
+    return true;
+  } catch (e) {
+    console.warn("meals optimistic rollback failed:", e.message || e);
+    return false;
+  }
+}
+
+async function forceRefreshMeals() {
+  var ok = true;
+  if (typeof rcEnsureMeals === "function") {
+    try {
+      await rcEnsureMeals(true);
+    } catch (e) {
+      console.warn("meals force refresh failed:", e.message || e);
+      ok = false;
+    }
+  }
+  if (typeof rcEnsureLodgersModule === "function") {
+    try {
+      await rcEnsureLodgersModule(true);
+    } catch (e) {
+      console.warn("lodger meal-default force refresh failed:", e.message || e);
+      ok = false;
+    }
+  }
+  return ok;
+}
+
+function refreshMealsVisibleSurfaces() {
+  if (typeof renderTodayMealsPanel === "function") {
+    renderTodayMealsPanel();
+  }
+  if (typeof refreshViewForScope === "function") {
+    refreshViewForScope(
+      typeof getActiveViewId === "function" ? getActiveViewId() : null,
+      { quietSync: true },
+    );
+  } else if (typeof renderLodgers === "function") {
+    renderLodgers();
+  }
+}
+
 function getMealFlagsForDate(lodgerId, date) {
   const defaults = getLodgerMealDefaults(lodgerId);
   var row =
@@ -814,7 +931,7 @@ function openMealModal(lodgerId) {
         </table>
       </div>
       <div class="modal-actions">
-        <button type="button" class="btn btn-primary" onclick="submitMeals(${lodgerId})">保存用斋</button>
+        <button type="button" class="btn btn-primary" onclick="submitMeals(event, ${lodgerId})">保存用斋</button>
       </div>
     </div>
   `);
@@ -843,11 +960,9 @@ function renderMealGrid(lodgerId) {
   }
   const defaults = readMealModalDefaults();
   const meals = {};
-  query("SELECT * FROM meals WHERE lodger_id=?", [lodgerId]).forEach(
-    function (m) {
-      meals[m.date] = m;
-    },
-  );
+  mealRowsForLodgerRender(lodgerId).forEach(function (m) {
+    meals[m.date] = m;
+  });
   const today = todayStr();
   tbody.innerHTML = dates
     .map(function (d) {
@@ -917,87 +1032,96 @@ function mealGridSkipToday() {
     });
 }
 
-async function submitMeals(lodgerId) {
-  const defaults = readMealModalDefaults();
-  if (isLocalForceDb()) {
-    setLodgerMealDefaults(
-      lodgerId,
-      defaults.breakfast,
-      defaults.lunch,
-      defaults.dinner,
-    );
-  }
-  const l =
-    typeof rcReadReady === "function" && rcReadReady()
-      ? rcLodgerById(lodgerId)
-      : query("SELECT * FROM lodgers WHERE id=?", [lodgerId])[0];
-  if (!l) {
-    alert("找不到该挂单记录");
-    return;
-  }
-  const map = {};
+function buildMealDaysFromModal(lodger, defaults) {
+  const days = {};
   document.querySelectorAll(".meal-skip-cb").forEach(function (cb) {
     const d = cb.dataset.date;
     const t = cb.dataset.type;
-    if (!map[d]) map[d] = { breakfast: 0, lunch: 0, dinner: 0 };
-    map[d][t] = defaults[t] && !cb.checked ? 1 : 0;
+    if (!days[d]) days[d] = { breakfast: 0, lunch: 0, dinner: 0 };
+    days[d][t] = defaults[t] && !cb.checked ? 1 : 0;
   });
-  getLodgerStayDates(l).forEach(function (d) {
-    if (map[d]) return;
-    map[d] = {
+  getLodgerStayDates(lodger).forEach(function (d) {
+    if (days[d]) return;
+    days[d] = {
       breakfast: defaults.breakfast ? 1 : 0,
       lunch: defaults.lunch ? 1 : 0,
       dinner: defaults.dinner ? 1 : 0,
     };
   });
-  try {
-    var writeResult = null;
+  return days;
+}
+
+async function submitMeals(event, lodgerId) {
+  return withActionPending(event, "保存中…", async function () {
+    const defaults = readMealModalDefaults();
     if (isLocalForceDb()) {
-      await withTransaction(async () => {
-        Object.entries(map).forEach(function (entry) {
-          const date = entry[0];
-          const vals = entry[1];
-          run(
-            "INSERT OR REPLACE INTO meals (lodger_id, date, breakfast, lunch, dinner) VALUES (?, ?, ?, ?, ?)",
-            [lodgerId, date, vals.breakfast, vals.lunch, vals.dinner],
-          );
-        });
-        logAudit("保存用斋设置", "lodger", lodgerId, {
-          name: personDisplayName(l),
-          defaults: defaults,
-          affected_dates: Object.keys(map).length,
-        });
-      });
-      await saveDB();
-    } else {
-      const days = {};
-      document.querySelectorAll(".meal-skip-cb").forEach(function (cb) {
-        const d = cb.dataset.date;
-        const t = cb.dataset.type;
-        if (!days[d]) days[d] = { breakfast: 0, lunch: 0, dinner: 0 };
-        days[d][t] = defaults[t] && !cb.checked ? 1 : 0;
-      });
-      getLodgerStayDates(l).forEach(function (d) {
-        if (days[d]) return;
-        days[d] = {
-          breakfast: defaults.breakfast ? 1 : 0,
-          lunch: defaults.lunch ? 1 : 0,
-          dinner: defaults.dinner ? 1 : 0,
-        };
-      });
-      writeResult = await apiSaveMeals({
-        lodger_id: lodgerId,
-        defaults: defaults,
-        days: days,
-      });
+      setLodgerMealDefaults(
+        lodgerId,
+        defaults.breakfast,
+        defaults.lunch,
+        defaults.dinner,
+      );
     }
-    closeModal();
-    showToast("用斋设置已保存");
-    rcRefreshAfterWrite(writeResult);
-  } catch (e) {
-    console.error(e);
-    alert("保存用斋设置失败：" + e.message);
-  }
+    const l =
+      typeof rcReadReady === "function" && rcReadReady()
+        ? rcLodgerById(lodgerId)
+        : query("SELECT * FROM lodgers WHERE id=?", [lodgerId])[0];
+    if (!l) {
+      alert("找不到该挂单记录");
+      return;
+    }
+    const days = buildMealDaysFromModal(l, defaults);
+    var original = applyMealsOptimistic(l, defaults, days);
+    try {
+      var writeResult = null;
+      if (isLocalForceDb()) {
+        await withTransaction(async () => {
+          Object.entries(days).forEach(function (entry) {
+            const date = entry[0];
+            const vals = entry[1];
+            run(
+              "INSERT OR REPLACE INTO meals (lodger_id, date, breakfast, lunch, dinner) VALUES (?, ?, ?, ?, ?)",
+              [lodgerId, date, vals.breakfast, vals.lunch, vals.dinner],
+            );
+          });
+          logAudit("保存用斋设置", "lodger", lodgerId, {
+            name: personDisplayName(l),
+            defaults: defaults,
+            affected_dates: Object.keys(days).length,
+          });
+        });
+        await saveDB();
+        writeResult = { ok: true, local: true };
+      } else {
+        writeResult = await apiSaveMeals({
+          lodger_id: lodgerId,
+          defaults: defaults,
+          days: days,
+        });
+      }
+      var rollbackOk = original ? rollbackMealsOptimistic(original) : true;
+      if (!rollbackOk) await forceRefreshMeals();
+      closeModal();
+      showToast("用斋设置已保存");
+      if (rollbackOk) {
+        rcRefreshAfterWrite(writeResult, {
+          viewRefresh: refreshMealsVisibleSurfaces,
+        });
+      } else {
+        refreshMealsVisibleSurfaces();
+      }
+    } catch (e) {
+      console.error(e);
+      rollbackOk = rollbackMealsOptimistic(original);
+      var refreshOk = await forceRefreshMeals();
+      refreshMealsVisibleSurfaces();
+      if (!rollbackOk && !refreshOk) {
+        alert("保存用斋设置失败，且无法恢复最新用斋数据，请手动刷新页面：" + e.message);
+      } else {
+        alert("保存用斋设置失败：" + e.message);
+      }
+    }
+  });
 }
 
 function generateMeals(lodgerId, startDate, endDate, breakfast, lunch, dinner) {

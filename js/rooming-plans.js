@@ -608,23 +608,23 @@ async function renderRoomingPlan(eventId, options) {
   var toolbar =
     '<button class="btn btn-default" onclick="renderInfo(\'events\')">← 返回营期</button>' +
     (canEdit && !isPublished
-      ? ' <button class="btn btn-primary" onclick="handleGenerateRoomingPlan(' +
+      ? ' <button class="btn btn-primary" onclick="handleGenerateRoomingPlan(event.currentTarget, ' +
         eventId +
         ')">自动生成</button>' +
         ' <button class="btn btn-default" onclick="handleRefreshRoomingConflicts(' +
         eventId +
         ')">刷新冲突检查</button>' +
-        ' <button class="btn btn-success" onclick="handleSaveRoomingPlan(' +
+        ' <button class="btn btn-success" onclick="handleSaveRoomingPlan(event.currentTarget, ' +
         eventId +
         ')">保存草稿</button>'
       : "") +
     (canPublish
-      ? ' <button class="btn btn-warning" onclick="handlePublishRoomingPlan(' +
+      ? ' <button class="btn btn-warning" onclick="handlePublishRoomingPlan(event.currentTarget, ' +
         eventId +
         ')">发布待入住清单</button>'
       : "") +
     (canRepublish
-      ? ' <button class="btn btn-warning" onclick="handleRepublishRoomingPlan(' +
+      ? ' <button class="btn btn-warning" onclick="handleRepublishRoomingPlan(event.currentTarget, ' +
         eventId +
         ')">重新发布清单</button>'
       : "") +
@@ -723,7 +723,8 @@ async function renderRoomingPlan(eventId, options) {
   infoPageShell(toolbar, bodyHtml);
 }
 
-async function handleGenerateRoomingPlan(eventId) {
+async function handleGenerateRoomingPlan(source, eventId) {
+  return withActionPending(source, "保存中…", async function () {
   if (typeof hasPermission === "function" && !hasPermission("settings.write")) {
     alert("权限不足");
     return;
@@ -742,6 +743,7 @@ async function handleGenerateRoomingPlan(eventId) {
   } catch (err) {
     alert("生成失败：" + (err.message || err));
   }
+  });
 }
 
 async function handleRefreshRoomingConflicts(eventId) {
@@ -754,7 +756,8 @@ async function handleRefreshRoomingConflicts(eventId) {
   await renderRoomingPlan(eventId, { formState: state });
 }
 
-async function handleSaveRoomingPlan(eventId) {
+async function handleSaveRoomingPlan(source, eventId) {
+  return withActionPending(source, "保存中…", async function () {
   if (typeof hasPermission === "function" && !hasPermission("settings.write")) {
     alert("权限不足");
     return;
@@ -807,4 +810,5 @@ async function handleSaveRoomingPlan(eventId) {
   } catch (err) {
     alert("保存失败：" + (err.message || err));
   }
+  });
 }

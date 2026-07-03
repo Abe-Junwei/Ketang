@@ -11,6 +11,7 @@ import { parseParticipantTagFields } from "./rooming-tags.js";
 import { nowIso } from "./sync-timestamp.js";
 
 const BOARD_SYNC_MODULES = ["board"];
+const BOARD_MEALS_SYNC_MODULES = ["board", "meals"];
 
 function uniqIds(ids) {
   const out = [];
@@ -369,8 +370,8 @@ export async function apiCheckIn(env, session, body) {
     await finishWrite(
       env,
       { lodger_id: finalLodgerId },
-      ["lodging", "board"],
-      BOARD_SYNC_MODULES,
+      ["lodging", "board", "meals"],
+      BOARD_MEALS_SYNC_MODULES,
     ),
     {
       lodgerId: finalLodgerId,
@@ -587,8 +588,8 @@ export async function apiExtendStay(env, session, body) {
     await finishWrite(
       env,
       {},
-      ["lodging", "board", "housekeeping"],
-      BOARD_SYNC_MODULES,
+      ["lodging", "board", "housekeeping", "meals"],
+      BOARD_MEALS_SYNC_MODULES,
     ),
     { lodgerId: id },
   );
@@ -650,8 +651,8 @@ export async function apiAssignBed(env, session, body, options) {
     await finishWrite(
       env,
       {},
-      ["lodging", "board", "housekeeping"],
-      BOARD_SYNC_MODULES,
+      ["lodging", "board", "housekeeping", "meals"],
+      BOARD_MEALS_SYNC_MODULES,
     ),
     { lodgerId: lodgerId, bedIds: [bedId] },
   );
@@ -755,8 +756,8 @@ export async function apiAssignReservationToBed(env, session, body, options) {
     await finishWrite(
       env,
       { lodger_id: lodgerId },
-      ["lodging", "board"],
-      BOARD_SYNC_MODULES,
+      ["lodging", "board", "meals"],
+      BOARD_MEALS_SYNC_MODULES,
     ),
     {
       lodgerId: lodgerId,
@@ -869,8 +870,8 @@ export async function apiEditLodger(env, session, body) {
     await finishWrite(
       env,
       {},
-      ["lodging", "board", "housekeeping"],
-      BOARD_SYNC_MODULES,
+      ["lodging", "board", "housekeeping", "meals"],
+      BOARD_MEALS_SYNC_MODULES,
     ),
     {
       lodgerId: id,
@@ -911,8 +912,8 @@ export async function apiDeleteLodger(env, session, body) {
   const result = await finishWrite(
     env,
     {},
-    ["lodging", "board"],
-    BOARD_SYNC_MODULES,
+    ["lodging", "board", "meals"],
+    BOARD_MEALS_SYNC_MODULES,
   );
   await recordSyncDeletion(env, "lodgers", id, result.board_version);
   return lodgerFinishWrite(env, result, {

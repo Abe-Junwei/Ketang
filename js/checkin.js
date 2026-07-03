@@ -642,6 +642,8 @@ document
       return;
     }
 
+    const finishPending = beginActionPending(e, "保存中…");
+    if (!finishPending) return;
     try {
       var writeResult = null;
       if (isLocalForceDb()) {
@@ -806,6 +808,8 @@ document
     } catch (err) {
       console.error(err);
       alert("入住登记失败：" + err.message);
+    } finally {
+      finishPending();
     }
   });
 

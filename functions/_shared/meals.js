@@ -18,6 +18,14 @@ function stayDateRange(startDate, endDate) {
   return dates;
 }
 
+async function saveMealPatches(env, lodgerId) {
+  return queryD1(
+    env,
+    "SELECT * FROM meals WHERE lodger_id=? ORDER BY date, id",
+    [lodgerId],
+  );
+}
+
 export async function apiSaveMeals(env, session, body) {
   const lodgerId = parseInt(body.lodger_id, 10);
   const rows = await queryD1(
@@ -65,9 +73,14 @@ export async function apiSaveMeals(env, session, body) {
     { name: l.name, defaults, affected_dates: Object.keys(map).length },
     session,
   );
+  const mealRows = await saveMealPatches(env, lodgerId);
   return enrichWriteResponse(
     env,
     await finishWrite(env, {}, ["meals"], ["meals"]),
-    { patchTable: "lodgers", rowId: lodgerId },
+    {
+      patchTable: "lodgers",
+      rowId: lodgerId,
+      extraPatches: { meals: mealRows },
+    },
   );
 }

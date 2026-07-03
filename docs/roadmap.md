@@ -742,7 +742,7 @@ bash scripts/run_p1_checklist.sh https://wulingkt.net https://<pages-preview>.ke
 
 - **当前执行：Phase 9 夏季活动排房**（活动标签 → 容量预测 → 预分房草稿 → 冲突检查 → 发布交接）。
 - **Phase 12 同步与读模型 v2**（主体已完成）：12.1 写契约与热修复 → 12.2 视图注册 → 12.3 模块读 API → 12.4 增量同步 → 12.5 看板 SSE。详见 [architecture/sync-read-model-v2.md](architecture/sync-read-model-v2.md)。
-- **Phase 13 在线读路径瘦身**：先清理 reports/forecast 在线 `query()` 尾巴，再评估 D1 读副本、SSE/WebSocket 优化、Normalized Store、最终去 sql.js。
+- **Phase 13 在线读路径瘦身**：先清理 reports/forecast 在线 `query()` 尾巴，再评估 D1 读副本、SSE/WebSocket 优化、Normalized Store、最终去 sql.js。完整 CRUD / 读写链路迁移蓝图见 [architecture/crud-read-write-migration-plan.md](architecture/crud-read-write-migration-plan.md)。
 - **Phase 4 公开预约**：建议 Phase 13 的 P1 尾巴 A/B 至少完成后再开放；企业微信通知随公开预约一并接入。
 - **最终总验收**：Phase 4 收尾后、正式对外大规模使用前一次性执行（见 §19.6）。
 - AI 辅助排房：等规则引擎、脱敏策略和活动排房数据稳定后再评估。
@@ -758,25 +758,26 @@ bash scripts/run_p1_checklist.sh https://wulingkt.net https://<pages-preview>.ke
 - 轮询仍是可靠兜底：active 视图 3s、idle 20s 轮询 `/api/v1/board-version`，hidden 跳过。
 - WebSocket 未实现：仓库当前没有 WebSocket/DO 广播。
 - `index.html` 仍无条件加载 `./lib/sql-wasm.js`；`initSqlite()` 按需 fetch wasm，但在线热路径仍可能通过 `query()` 触发 hydrate。
-- `query()` 未清零：`reports.js`、`forecast.js`、`events.js`、`meals.js`、`checkin.js`、`rooming-*` 等仍有在线路径调用。
+- `query()` 未清零：`reports.js`、`forecast.js`、`history.js`、`events.js`、`rooming-*`、`auth.js` 等仍有在线读或旧聚合路径；`meals.js`、`checkin.js` 多数为 `rc*` 优先 + `query()` 兜底，后续重点是消除在线 fallback 到 sql.js；`info.js` 在线读主路径已基本迁到 read-module，后续以验收和防回归为主。
 - `_rcStore` 已能跨模块 patch 重复表；当前 `event:<id>` 短期陈旧风险主要来自写响应 patch 范围不足，而不是 normalized store 缺失。
 
 #### 19.7.2 修正后的执行顺序
 
-1. **P1 尾巴清零（前置，不归入 P4）**：先处理 `reports.js`、`forecast.js` 在线 `query()`，再处理 `events.js`、`rooming-*`、`info.js` 剩余调用。
-2. **P4-② D1 只读副本**：仅当报表/历史查询 P95 > 800ms 或 D1 读配额告警时启动；客户端零改动。
-3. **P4-① SSE/WebSocket 优化**：终端数 <30 时优先优化 SSE 检测间隔、后台重连与 changed domains；WebSocket 仅在 DO 可用且推送延迟/连接数成为瓶颈时启动。
-4. **P4-③ Normalized Store**：触发式启动；先补写响应 patch 范围，只有 moduleKey >10 且同表 patch bug 复现 2 次以上，或 `event:<id>` 陈旧造成用户可见错误时才做。
-5. **P4-④ 完全去 sql.js**：必须等 P1 尾巴清零、本地 `file://` 边界确认后再实施，预计 7–10 天，不再估算为 1 周以内的小改。
+1. **CRUD 写链路补洞（与 P1 尾巴并行）**：先补排房写路径 patches，并给入住/退房/换床/用斋/预约等高频操作增加保存中与防重复提交；这部分按 [CRUD 与在线读写链路迁移计划](architecture/crud-read-write-migration-plan.md) Phase B + Phase C-L1 执行。
+2. **P1 尾巴清零（前置，不归入 P4）**：并行启动 `reports.js`、`forecast.js` 在线 `query()` 清理；随后处理 `history.js`、`events.js`、`rooming-*`、`auth.js` 的在线读路径与 fallback；`info.js` 仅做在线读防回归验收。
+3. **P4-② D1 只读副本**：仅当报表/历史查询 P95 > 800ms 或 D1 读配额告警时启动；客户端零改动。
+4. **P4-① SSE/WebSocket 优化**：终端数 <30 时优先优化 SSE 检测间隔、后台重连与 changed domains；WebSocket 仅在 DO 可用且推送延迟/连接数成为瓶颈时启动。
+5. **P4-③ Normalized Store**：触发式启动；先补写响应 patch 范围，只有 moduleKey >10 且同表 patch bug 复现 2 次以上，或 `event:<id>` 陈旧造成用户可见错误时才做。
+6. **P4-④ 完全去 sql.js**：必须等 P1 尾巴清零、本地 `file://` 边界确认后再实施，预计 7–10 天，不再估算为 1 周以内的小改。
 
 #### 19.7.3 P1 尾巴清零批次
 
-| 批次 | 范围                                  | 工作                                          | 完成标准                                           |
-| ---- | ------------------------------------- | --------------------------------------------- | -------------------------------------------------- |
-| A    | `reports.js`                          | 日报/月报/事件报表改为 read API 或 `rc*` 聚合 | 在线路径不直接调用 `query()`                       |
-| B    | `forecast.js`                         | 今日房态/预测改为 `rc*` + 内存计算            | 预测页不触发 sql.js hydrate                        |
-| C    | `events.js`、`rooming-*`、`info.js`   | 剩余在线读分支迁到 `rc*` / `read-shim`        | `rg 'query\(' js/` 在线路径仅存在本地或灾备分支    |
-| D    | `index.html`、`db.js`、发布白名单脚本 | `sql-wasm.js` 改为本地模式/灾备路径动态加载   | 在线 bundle 不加载 `sql-wasm.js` / `sql-wasm.wasm` |
+| 批次 | 范围                                              | 工作                                                        | 完成标准                                           |
+| ---- | ------------------------------------------------- | ----------------------------------------------------------- | -------------------------------------------------- |
+| A    | `reports.js`                                      | 日报/月报/事件报表改为 read API 或 `rc*` 聚合               | 在线路径不直接调用 `query()`                       |
+| B    | `forecast.js`                                     | 今日房态/预测改为 `rc*` + 内存计算                          | 预测页不触发 sql.js hydrate                        |
+| C    | `history.js`、`events.js`、`rooming-*`、`auth.js` | 剩余在线读分支迁到 `rc*` / read API；`info.js` 做防回归验收 | `rg 'query\(' js/` 在线路径仅存在本地或灾备分支    |
+| D    | `index.html`、`db.js`、发布白名单脚本             | `sql-wasm.js` 改为本地模式/灾备路径动态加载                 | 在线 bundle 不加载 `sql-wasm.js` / `sql-wasm.wasm` |
 
 #### 19.7.4 P4 技术专项触发门槛
 
@@ -789,15 +790,16 @@ bash scripts/run_p1_checklist.sh https://wulingkt.net https://<pages-preview>.ke
 
 #### 19.7.5 下一步建议
 
-| 优先级 | 动作                                                           | 估算   |
-| ------ | -------------------------------------------------------------- | ------ |
-| P0     | 完成 P1 尾巴 A/B：`reports.js`、`forecast.js` 在线零 `query()` | 3–4 天 |
-| P0     | `index.html` 动态加载 `sql-wasm.js`，仅本地模式/灾备路径加载   | 0.5 天 |
-| P1     | 补推送延迟、delta 次数、read P95 度量基线                      | 0.5 天 |
-| P2     | spike D1 读副本 + Pages WebSocket / Durable Object 可行性      | 0.5 天 |
-| P3     | 根据 spike 结果启动 D1 读副本或 SSE 优化                       | 待决策 |
+| 优先级  | 动作                                                                                             | 估算   |
+| ------- | ------------------------------------------------------------------------------------------------ | ------ |
+| P0      | Phase B 排房写路径 patches + Phase C-L1 高频操作保存中/防重复                                    | 1 周   |
+| P0 并行 | 完成 P1 尾巴 A/B：`reports.js`、`forecast.js` 在线零 `query()`                                   | 3–4 天 |
+| P1      | `index.html` 动态加载 `sql-wasm.js`，仅本地模式/灾备路径加载（最终去 sql.js 仍依赖 P1 尾巴清零） | 0.5 天 |
+| P1      | 补推送延迟、delta 次数、read P95 度量基线                                                        | 0.5 天 |
+| P2      | spike D1 读副本 + Pages WebSocket / Durable Object 可行性                                        | 0.5 天 |
+| P3      | 根据 spike 结果启动 D1 读副本或 SSE 优化                                                         | 待决策 |
 
-结论：P4 四项仍然不阻塞正式上线；当前真正阻塞 P4-④ 的是 P1 尾巴，尤其 `reports.js` 与 `forecast.js` 在线 `query()`。
+结论：P4 四项仍然不阻塞正式上线；当前真正阻塞 P4-④ 的是 P1 尾巴，尤其 `reports.js` 与 `forecast.js` 在线 `query()`。后续按 [CRUD 与在线读写链路迁移计划](architecture/crud-read-write-migration-plan.md) 执行，先补排房 patches 与高频操作保存中状态，再迁读路径并最终去 sql.js。
 
 ### 19.6 最终总验收（排期最后执行）
 

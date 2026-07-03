@@ -49,6 +49,60 @@ function showToast(msg) {
   setTimeout(() => (t.style.display = "none"), 2500);
 }
 
+function actionPendingTarget(source) {
+  var node = source && (source.currentTarget || source.target || source);
+  if (!node || !node.nodeType) return null;
+  if (node.tagName === "FORM") {
+    var active = document.activeElement;
+    var button =
+      active &&
+      node.contains(active) &&
+      active.matches("button[type='submit'], input[type='submit']")
+        ? active
+        : node.querySelector("button[type='submit']:not([hidden])") ||
+          node.querySelector("button[type='submit'], input[type='submit']");
+    return { scope: node, control: button };
+  }
+  var control =
+    node.matches && node.matches("button, input")
+      ? node
+      : node.closest && node.closest("button, input");
+  return control ? { scope: control, control: control } : null;
+}
+
+/** 写操作按钮保护：禁用并显示保存中 | Guard write action buttons with pending state */
+function beginActionPending(source, pendingText) {
+  var target = actionPendingTarget(source);
+  if (!target || !target.scope) return null;
+  if (target.scope.dataset.actionPending === "1") return null;
+  var control = target.control;
+  if (control && control.disabled) return null;
+  target.scope.dataset.actionPending = "1";
+  var oldText = control ? control.textContent : null;
+  var oldDisabled = control ? control.disabled : false;
+  if (control) {
+    control.disabled = true;
+    control.textContent = pendingText || "保存中…";
+  }
+  return function finishPending() {
+    if (control) {
+      control.disabled = oldDisabled;
+      if (oldText != null) control.textContent = oldText;
+    }
+    delete target.scope.dataset.actionPending;
+  };
+}
+
+async function withActionPending(source, pendingText, action) {
+  var finishPending = beginActionPending(source, pendingText);
+  if (!finishPending) return false;
+  try {
+    return await action();
+  } finally {
+    finishPending();
+  }
+}
+
 // 主题切换 | Theme toggle
 
 function getTheme() {

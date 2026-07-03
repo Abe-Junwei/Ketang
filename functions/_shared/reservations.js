@@ -300,8 +300,8 @@ export async function apiBatchEventMembers(env, session, body) {
     await finishWrite(
       env,
       { count: items.length },
-      ["reservations", "lodging"],
-      ["reservations", "board"],
+      ["reservations", "lodging", "meals"],
+      ["reservations", "board", "meals"],
     ),
     { patchRowIds: patchRowIds },
   );

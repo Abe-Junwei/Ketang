@@ -29,7 +29,7 @@ ketang.db
 *.db-journal
 backup/
 .release/
-data/ketang-cloud-import.json
+data/
 
 # Chrome / test artifacts
 chrome_debug.log

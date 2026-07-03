@@ -406,13 +406,14 @@ function roomingLodgerEventRow(lodgerId) {
 
 /** 排房写后刷新 event 读模型 | Post rooming write refresh */
 async function roomingRefreshAfterWrite(eventId, writeResult, options) {
-  if (typeof rcInvalidateEventRooming === "function") {
+  var hasPatches = roomingWriteHasPatches(writeResult);
+  if (!hasPatches && typeof rcInvalidateEventRooming === "function") {
     rcInvalidateEventRooming(eventId);
   }
-  if (typeof rcInvalidate === "function") {
+  if (!hasPatches && typeof rcInvalidate === "function") {
     rcInvalidate("events");
   }
-  if (eventId && roomingReadReady()) {
+  if (!hasPatches && eventId && roomingReadReady()) {
     try {
       await rcEnsureEventRooming(eventId, true);
     } catch (e) {
@@ -436,4 +437,12 @@ async function roomingRefreshAfterWrite(eventId, writeResult, options) {
   }
   if (typeof refreshAfterWrite !== "function") return;
   return refreshAfterWrite(writeResult, options);
+}
+
+function roomingWriteHasPatches(writeResult) {
+  return !!(
+    writeResult &&
+    ((writeResult.patches && Object.keys(writeResult.patches).length) ||
+      (Array.isArray(writeResult.deletions) && writeResult.deletions.length))
+  );
 }

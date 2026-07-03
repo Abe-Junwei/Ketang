@@ -6,6 +6,7 @@
 const EVENT_TYPE_OPTIONS = ["禅营", "禅七", "法会", "修道班", "其他"];
 const EVENT_GENDER_OPTIONS = ["男众", "女众", "混合"];
 const EVENT_STATUS_OPTIONS = ["筹备中", "招生中", "进行中", "已结束", "已取消"];
+var EVENT_MEMBER_BATCH_PENDING = null;
 
 function eventWriteRefreshOptions() {
   if (document.getElementById("view-info")?.classList.contains("active")) {
@@ -31,22 +32,34 @@ function eventRefreshAfterWrite(writeResult, options) {
   if (typeof rcRefreshAfterWrite !== "function") return;
   rcRefreshAfterWrite(
     writeResult,
-    Object.assign({}, eventWriteRefreshOptions(), options || {}, {
-      skipViewRefresh: false,
-      viewRefresh: function () {
-        if (
-          document.getElementById("view-info")?.classList.contains("active") &&
-          typeof infoCurrentTab !== "undefined" &&
-          infoCurrentTab === "events" &&
-          typeof infoRenderCurrentTabLists === "function"
-        ) {
-          infoRenderCurrentTabLists();
-        } else if (typeof renderEventList === "function") {
-          renderEventList();
-        }
+    Object.assign(
+      {},
+      eventWriteRefreshOptions(),
+      {
+        skipViewRefresh: false,
+        viewRefresh: function () {
+          if (
+            document.getElementById("view-info")?.classList.contains("active") &&
+            typeof infoCurrentTab !== "undefined" &&
+            infoCurrentTab === "events" &&
+            typeof infoRenderCurrentTabLists === "function"
+          ) {
+            infoRenderCurrentTabLists();
+          } else if (typeof renderEventList === "function") {
+            renderEventList();
+          }
+        },
       },
-    }),
+      options || {},
+    ),
   );
+}
+
+function eventMemberViewRefresh(eventId) {
+  return function () {
+    if (eventId) renderEventMembers(eventId);
+    else if (typeof renderEventList === "function") renderEventList();
+  };
 }
 
 function eventReadReady() {
@@ -80,6 +93,94 @@ function eventMemberEventId(item) {
   }
   var lrow = query("SELECT event_id FROM lodgers WHERE id = ?", [item.id])[0];
   return lrow ? lrow.event_id : null;
+}
+
+function applyEventMembersOptimistic(items, action) {
+  if (
+    isLocalForceDb() ||
+    !items ||
+    !items.length ||
+    typeof rcApplyDeltaPatches !== "function" ||
+    typeof rcReadReady !== "function" ||
+    !rcReadReady()
+  ) {
+    return null;
+  }
+  var original = { reservations: [], lodgers: [] };
+  var patches = { reservations: [], lodgers: [] };
+  items.forEach(function (item) {
+    if (item.kind === "reservation") {
+      var row = rcRows("reservations", "reservations").find(function (r) {
+        return r.id == item.id;
+      });
+      if (!row) return;
+      original.reservations.push(Object.assign({}, row));
+      patches.reservations.push(
+        Object.assign({}, row, {
+          status: action === "noshow" ? "No-show" : "已取消",
+        }),
+      );
+      return;
+    }
+    if (item.kind === "lodger" && action === "cancel") {
+      var lodger =
+        typeof rcLodgerById === "function"
+          ? rcLodgerById(item.id)
+          : rcAllLodgersMerged().find(function (l) {
+              return l.id == item.id;
+            });
+      if (!lodger) return;
+      original.lodgers.push(Object.assign({}, lodger));
+      patches.lodgers.push(
+        Object.assign({}, lodger, {
+          status: "已取消",
+          bed_id: null,
+          actual_check_out: typeof todayStr === "function" ? todayStr() : null,
+        }),
+      );
+    }
+  });
+  if (!patches.reservations.length && !patches.lodgers.length) return null;
+  rcApplyDeltaPatches(patches, []);
+  return original;
+}
+
+function rollbackEventMembersOptimistic(original) {
+  if (!original || typeof rcApplyDeltaPatches !== "function") return true;
+  try {
+    rcApplyDeltaPatches(
+      {
+        reservations: original.reservations || [],
+        lodgers: original.lodgers || [],
+      },
+      [],
+    );
+    return true;
+  } catch (e) {
+    console.warn("event members optimistic rollback failed:", e.message || e);
+    return false;
+  }
+}
+
+async function forceRefreshEventMembers() {
+  var ok = true;
+  if (typeof rcEnsureEvents === "function") {
+    try {
+      await rcEnsureEvents(true);
+    } catch (e) {
+      console.warn("event members events refresh failed:", e.message || e);
+      ok = false;
+    }
+  }
+  if (typeof rcEnsureViewModules === "function") {
+    try {
+      await rcEnsureViewModules("info_events", true);
+    } catch (e) {
+      console.warn("event members force refresh failed:", e.message || e);
+      ok = false;
+    }
+  }
+  return ok;
 }
 
 function eventRelatedCount(eventId) {
@@ -285,10 +386,12 @@ function renderEventMembers(eventId) {
     return;
   }
 
+  const batchPending =
+    EVENT_MEMBER_BATCH_PENDING && EVENT_MEMBER_BATCH_PENDING.eventId == eventId;
   html += `
     <div class="btn-bar" style="margin-bottom: var(--space-3);">
-      <button class="btn btn-warning" onclick="batchNoShowEventMembers()">批量标记 No-show</button>
-      <button class="btn btn-danger" onclick="batchCancelEventMembers()">批量取消</button>
+      <button class="btn btn-warning" onclick="batchNoShowEventMembers(event.currentTarget)" ${batchPending ? "disabled>保存中…" : ">批量标记 No-show"}</button>
+      <button class="btn btn-danger" onclick="batchCancelEventMembers(event.currentTarget)" ${batchPending ? "disabled>保存中…" : ">批量取消"}</button>
       <button class="btn btn-success" onclick="exportEventMembersCSV(${eventId})">导出名单</button>
       <label style="margin-left:auto"><input type="checkbox" id="event-member-select-all" onchange="toggleSelectAllEventMembers(this)"> 全选</label>
     </div>
@@ -341,12 +444,13 @@ function toggleSelectAllEventMembers(source) {
 function getSelectedEventMembers() {
   const selected = [];
   document.querySelectorAll(".event-member-checkbox:checked").forEach((cb) => {
-    selected.push({ id: parseInt(cb.dataset.id), kind: cb.dataset.kind });
+    selected.push({ id: parseInt(cb.dataset.id, 10), kind: cb.dataset.kind });
   });
   return selected;
 }
 
-async function batchCancelEventMembers() {
+async function batchCancelEventMembers(source) {
+  if (EVENT_MEMBER_BATCH_PENDING) return;
   const selected = getSelectedEventMembers();
   if (!selected.length) {
     alert("请先勾选要取消的成员");
@@ -359,6 +463,13 @@ async function batchCancelEventMembers() {
   const first = selected[0];
   eventId = eventMemberEventId(first);
 
+  EVENT_MEMBER_BATCH_PENDING = {
+    eventId: eventId,
+    action: "cancel",
+    count: selected.length,
+  };
+  var original = applyEventMembersOptimistic(selected, "cancel");
+  if (eventId) renderEventMembers(eventId);
   try {
     var writeResult = null;
     if (isLocalForceDb()) {
@@ -398,6 +509,7 @@ async function batchCancelEventMembers() {
         }
       });
       await saveDB();
+      writeResult = { ok: true, local: true };
     } else {
       writeResult = await apiBatchEventMembers({
         action: "cancel",
@@ -405,17 +517,28 @@ async function batchCancelEventMembers() {
         event_id: eventId,
       });
     }
+    var rollbackOk = original ? rollbackEventMembersOptimistic(original) : true;
+    if (!rollbackOk) await forceRefreshEventMembers();
+    if (rollbackOk) rcRefreshAfterWrite(writeResult, { skipViewRefresh: true });
   } catch (e) {
     console.error(e);
-    alert("批量取消失败：" + e.message);
+    var rollbackOk = rollbackEventMembersOptimistic(original);
+    var refreshOk = await forceRefreshEventMembers();
+    if (!rollbackOk && !refreshOk) {
+      alert("批量取消失败，且无法恢复最新成员数据，请手动刷新页面：" + e.message);
+    } else {
+      alert("批量取消失败：" + e.message);
+    }
     return;
+  } finally {
+    EVENT_MEMBER_BATCH_PENDING = null;
+    if (eventId) renderEventMembers(eventId);
   }
   showToast(`已取消 ${selected.length} 人`);
-  eventRefreshAfterWrite(writeResult);
-  if (eventId) renderEventMembers(eventId);
 }
 
-async function batchNoShowEventMembers() {
+async function batchNoShowEventMembers(source) {
+  if (EVENT_MEMBER_BATCH_PENDING) return;
   const selected = getSelectedEventMembers();
   // No-show 仅适用于预约，过滤掉在住挂单
   const resvOnly = selected.filter((item) => item.kind === "reservation");
@@ -430,6 +553,13 @@ async function batchNoShowEventMembers() {
   const first = resvOnly[0];
   eventId = eventMemberEventId(first);
 
+  EVENT_MEMBER_BATCH_PENDING = {
+    eventId: eventId,
+    action: "noshow",
+    count: resvOnly.length,
+  };
+  var original = applyEventMembersOptimistic(resvOnly, "noshow");
+  if (eventId) renderEventMembers(eventId);
   try {
     var writeResult = null;
     if (isLocalForceDb()) {
@@ -449,6 +579,7 @@ async function batchNoShowEventMembers() {
         }
       });
       await saveDB();
+      writeResult = { ok: true, local: true };
     } else {
       writeResult = await apiBatchEventMembers({
         action: "noshow",
@@ -456,14 +587,24 @@ async function batchNoShowEventMembers() {
         event_id: eventId,
       });
     }
+    var rollbackOk = original ? rollbackEventMembersOptimistic(original) : true;
+    if (!rollbackOk) await forceRefreshEventMembers();
+    if (rollbackOk) rcRefreshAfterWrite(writeResult, { skipViewRefresh: true });
   } catch (e) {
     console.error(e);
-    alert("批量标记 No-show 失败：" + e.message);
+    var rollbackOk = rollbackEventMembersOptimistic(original);
+    var refreshOk = await forceRefreshEventMembers();
+    if (!rollbackOk && !refreshOk) {
+      alert("批量标记 No-show 失败，且无法恢复最新成员数据，请手动刷新页面：" + e.message);
+    } else {
+      alert("批量标记 No-show 失败：" + e.message);
+    }
     return;
+  } finally {
+    EVENT_MEMBER_BATCH_PENDING = null;
+    if (eventId) renderEventMembers(eventId);
   }
   showToast(`已标记 ${resvOnly.length} 人为 No-show`);
-  eventRefreshAfterWrite(writeResult);
-  if (eventId) renderEventMembers(eventId);
 }
 
 // 营期编辑弹窗
@@ -550,6 +691,8 @@ async function submitEvent(e) {
     return;
   }
 
+  const finishPending = beginActionPending(e, "保存中…");
+  if (!finishPending) return;
   try {
     var writeResult = null;
     if (isLocalForceDb()) {
@@ -647,15 +790,16 @@ async function submitEvent(e) {
         ...rooming,
       });
     }
+    if (isLocalForceDb()) await saveDB();
+    closeEventModal();
+    showToast("营期保存成功");
+    eventRefreshAfterWrite(writeResult);
   } catch (e) {
     console.error(e);
     alert("保存营期失败：" + e.message);
-    return;
+  } finally {
+    finishPending();
   }
-  if (isLocalForceDb()) await saveDB();
-  closeEventModal();
-  showToast("营期保存成功");
-  eventRefreshAfterWrite(writeResult);
 }
 
 async function deleteEvent(id) {
