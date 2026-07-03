@@ -8,14 +8,20 @@ const REFRESH_BLOCK_KEY = "ketang_block_refresh";
 const REMOTE_DB_ENABLED = (() => {
   if (typeof window === "undefined" || !window.location) return false;
   if (window.KETANG_FORCE_LOCAL_DB === true) return false;
-  if (window.KETANG_REMOTE_DB === true) return true;
-  const host = window.location.hostname;
-  return (
-    window.location.protocol === "https:" &&
-    host !== "localhost" &&
-    host !== "127.0.0.1"
-  );
+  if (window.KETANG_REMOTE_DB === false) return false;
+  // 在线-only：除 CI 强制本地库外一律走云端 API + 读模型
+  return true;
 })();
+
+/** file:// 便携打开已废弃 | Portable file:// open is deprecated */
+function isDeprecatedFileOpen() {
+  return (
+    typeof window !== "undefined" &&
+    window.location &&
+    window.location.protocol === "file:" &&
+    window.KETANG_FORCE_LOCAL_DB !== true
+  );
+}
 
 let remoteLastInsertId = 0;
 let remoteLocalSchemaReady = false;
@@ -273,7 +279,7 @@ function ensureRemoteLocalSchema() {
   remoteLocalSchemaReady = true;
 }
 
-function insertSnapshotRow(table, row, options) {
+function normalizeSnapshotRow(table, row) {
   const data = { ...(row || {}) };
   // 读模型永不下发 password；占位以满足 NOT NULL | Read-model never ships password
   if (
@@ -284,17 +290,53 @@ function insertSnapshotRow(table, row, options) {
   ) {
     data.password = "remote_sync_placeholder";
   }
+  return data;
+}
+
+function snapshotRowExists(table, rowId) {
+  if (rowId == null || !REMOTE_SNAPSHOT_TABLE_RE.test(table)) return false;
+  return !!query("SELECT id FROM " + table + " WHERE id = ?", [rowId])[0];
+}
+
+function insertSnapshotRow(table, row, options) {
+  const data = normalizeSnapshotRow(table, row);
   const columns = Object.keys(data);
   if (!columns.length) return;
   const placeholders = columns.map(() => "?").join(", ");
-  const verb =
-    options && options.upsertOnly ? "INSERT OR REPLACE INTO" : "INSERT INTO";
-  const sql = `${verb} ${table} (${columns.join(", ")}) VALUES (${placeholders})`;
+  const sql = `INSERT INTO ${table} (${columns.join(", ")}) VALUES (${placeholders})`;
   const values = columns.map((col) => {
     const value = data[col];
     return value === undefined ? null : value;
   });
   run(sql, values);
+}
+
+/** 模块 upsert：UPDATE/INSERT，避免 REPLACE 触发 FK 级联 | Module upsert without REPLACE */
+function upsertSnapshotRow(table, row) {
+  const data = normalizeSnapshotRow(table, row);
+  const rowId = data.id;
+  if (rowId == null) {
+    insertSnapshotRow(table, row);
+    return;
+  }
+  if (snapshotRowExists(table, rowId)) {
+    const columns = Object.keys(data).filter(function (col) {
+      return col !== "id";
+    });
+    if (!columns.length) return;
+    const sets = columns
+      .map(function (col) {
+        return col + " = ?";
+      })
+      .join(", ");
+    const values = columns.map(function (col) {
+      return data[col] === undefined ? null : data[col];
+    });
+    values.push(rowId);
+    run("UPDATE " + table + " SET " + sets + " WHERE id = ?", values);
+    return;
+  }
+  insertSnapshotRow(table, row);
 }
 
 function applyRemoteSnapshot(payload) {
@@ -420,7 +462,11 @@ function applyModuleTablesInner(tables, options) {
       }
     }
     rows.forEach(function (row) {
-      insertSnapshotRow(table, row, { upsertOnly: upsertOnly });
+      if (upsertOnly) {
+        upsertSnapshotRow(table, row);
+      } else {
+        insertSnapshotRow(table, row);
+      }
     });
   });
 }
@@ -497,6 +543,10 @@ async function syncRemoteReadModel(options) {
   remoteSyncPromise = (async function () {
     setRemoteSyncStatus("loading");
     try {
+      if (typeof rcEnsureAppData === "function") {
+        await rcEnsureAppData(force);
+        return;
+      }
       const etag = force ? null : lastBoardVersion;
       const payload = await apiReadModel(etag);
       if (payload && payload.notModified) {
@@ -2445,8 +2495,8 @@ function query(sql, params) {
 }
 
 function run(sql, params) {
-  if (isRemoteDB() && !_remoteHydrating) {
-    throw new Error("远程模式请使用业务 API 写入");
+  if (isRemoteDB() && !_remoteHydrating && !window.KETANG_FORCE_LOCAL_DB) {
+    throw new Error("在线模式请使用业务 API 写入");
   }
   const stmt = db.prepare(sql);
   stmt.run(safeParams(params));

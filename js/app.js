@@ -4,6 +4,15 @@ document.addEventListener("DOMContentLoaded", async () => {
   initMobileShell();
   if (typeof initStayFormWizards === "function") initStayFormWizards();
   if (typeof bootAuthUI === "function") bootAuthUI();
+
+  if (
+    typeof isDeprecatedFileOpen === "function" &&
+    isDeprecatedFileOpen()
+  ) {
+    showDeprecatedFileOpenScreen();
+    return;
+  }
+
   if (typeof applyDeploymentModeUI === "function") applyDeploymentModeUI();
 
   const remoteSessionTask =
@@ -20,7 +29,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       await initRolePermissionDefaults();
     }
     await loadDB();
-    if (!isRemoteDB()) {
+    if (window.KETANG_FORCE_LOCAL_DB === true) {
       initSchema();
       migrateV1toV2();
       migrateV2toV3();
@@ -889,26 +898,33 @@ function applyDeploymentModeUI() {
   const backupDesc = document.getElementById("backup-mode-desc");
   const backupSteps = document.getElementById("backup-mode-steps");
   const loginHint = document.getElementById("login-hint");
-  const isRemote = typeof isRemoteDB === "function" && isRemoteDB();
-  if (isRemote) {
-    if (backupDesc)
-      backupDesc.textContent =
-        "数据保存在 Cloudflare D1 云端。管理员可在系统设置导出 JSON 备份；日常写操作后自动增量同步，全量同步请使用下方按钮。";
-    const forceSyncBtn = document.getElementById("force-remote-sync-btn");
-    if (forceSyncBtn) forceSyncBtn.hidden = false;
-    if (backupSteps)
-      backupSteps.innerHTML =
-        "<li>点击「导出数据库」，保存 JSON 备份到 U 盘或桌面。</li><li>如需恢复：使用「从文件恢复数据」导入 JSON 备份（仅管理员）。</li><li>也可在 Cloudflare D1 控制台执行数据库级备份。</li>";
-    if (loginHint) {
-      loginHint.hidden = false;
-      loginHint.textContent =
-        "首次使用：选「管理员」密码 admin，选「知客师」密码 zhike。";
-    }
-  } else if (loginHint) {
+  if (backupDesc)
+    backupDesc.textContent =
+      "数据保存在 Cloudflare D1 云端。管理员可在系统设置导出 JSON 备份；日常写操作后自动增量同步，全量同步请使用下方按钮。";
+  const forceSyncBtn = document.getElementById("force-remote-sync-btn");
+  if (forceSyncBtn) forceSyncBtn.hidden = false;
+  if (backupSteps)
+    backupSteps.innerHTML =
+      "<li>点击「导出数据库」，保存 JSON 备份到 U 盘或桌面。</li><li>如需恢复：使用「从文件恢复数据」导入 JSON 备份（仅管理员）。</li><li>也可在 Cloudflare D1 控制台执行数据库级备份。</li>";
+  if (loginHint) {
     loginHint.hidden = false;
     loginHint.textContent =
-      "本地演示：选「管理员」密码 admin，选「知客师」密码 zhike";
+      "首次使用：选「管理员」密码 admin，选「知客师」密码 zhike。";
   }
+}
+
+function showDeprecatedFileOpenScreen() {
+  const onlineUrl =
+    (typeof window !== "undefined" && window.KETANG_ONLINE_URL) ||
+    "https://wulingkt.net";
+  document.body.innerHTML =
+    '<main class="card" style="max-width:640px;margin:48px auto;padding:var(--space-8);text-align:center;">' +
+    "<h1>请使用在线地址</h1>" +
+    '<p style="color:var(--color-muted);">单机便携版已停用。请通过浏览器访问部署好的客堂系统，或使用 <code>python3 scripts/dev_server.py</code> 在本地调试前端（API 代理到云端）。</p>' +
+    '<p><a class="btn btn-primary" href="' +
+    escapeHtml(onlineUrl) +
+    '">打开在线系统</a></p>' +
+    "</main>";
 }
 
 function handleBoardSearch(q) {

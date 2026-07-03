@@ -38,6 +38,10 @@ def chrome_binary():
 
 
 def main():
+    print("SKIP: online-only mode — file:// portable open is deprecated")
+    print("Use https://wulingkt.net or: python3 scripts/dev_server.py")
+    sys.exit(0)
+
     chrome = chrome_binary()
     if not chrome:
         print('SKIP: Chrome not found')

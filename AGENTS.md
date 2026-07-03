@@ -11,9 +11,9 @@ applies_to: ["cursor", "github-copilot", "kimi-cli"]
 
 ## 项目特殊性（先理解再动手）
 
-- **无服务器、免安装、免商店认证**：产品形态是「便携文件夹 + 浏览器」。
+- **在线-only 部署**：生产访问 `https://wulingkt.net`（或 dev：`python3 scripts/dev_server.py`）；`file://` 便携打开已废弃。
 - **多文件原生架构**：`index.html`（入口壳）+ `styles.css` + `js/*.js`（普通 `<script src>` 加载，非 ES Module）+ `lib/sql-wasm.*`。
-- **本地优先**：数据存在浏览器 IndexedDB，备份靠导出 `ketang.db`。
+- **读写分离**：写走 `/api/v1/*` → D1 权威；读走 `/api/v1/read/*` + `js/read-cache.js`，sql.js 仅作遗留 `query()` 过渡缓存。
 - **目标用户**：寺院客堂非 IT 人员，UI 必须大按钮、低学习成本。
 - **验证方式**：Chrome Headless 渲染测试 + 手动跑完整业务路径。
 

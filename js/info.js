@@ -31,14 +31,35 @@ function renderInfo(tab) {
       btn.classList.toggle("active", btn.dataset.tab === infoCurrentTab);
     });
   }
+  if (typeof updateTopbarForInfoTab === "function") {
+    updateTopbarForInfoTab(infoCurrentTab);
+  }
+  infoLoadAndRenderCurrentTab();
+}
+
+async function infoLoadAndRenderCurrentTab() {
+  if (infoCurrentTab === "events") {
+    renderEventList();
+    return;
+  }
+  if (infoUseApiData()) {
+    infoSetToolbar("");
+    infoSetHtml('<div class="empty-tip">加载中…</div>');
+    try {
+      await infoEnsureTabData(infoCurrentTab, false);
+    } catch (e) {
+      infoSetHtml(
+        '<div class="empty-tip">加载失败：' +
+          infoEscape(e.message || "未知错误") +
+          "</div>",
+      );
+      return;
+    }
+  }
   if (infoCurrentTab === "rooms") renderRoomList();
   else if (infoCurrentTab === "beds") renderBedList();
   else if (infoCurrentTab === "guests") renderGuestList();
   else if (infoCurrentTab === "lodgers") renderLodgerList();
-  else if (infoCurrentTab === "events") renderEventList();
-  if (typeof updateTopbarForInfoTab === "function") {
-    updateTopbarForInfoTab(infoCurrentTab);
-  }
 }
 
 function infoToolbarEl() {
@@ -160,56 +181,328 @@ function infoFinishListRender(tab, toolbar, tableHtml, rowsHtml, emptyHtml) {
   infoPageShell(toolbar, rowsHtml ? tableHtml : emptyHtml);
 }
 
-function infoRowExists(table, rowId) {
-  if (!rowId) return false;
-  return !!query("SELECT id FROM " + table + " WHERE id = ?", [rowId])[0];
+const INFO_READ_MODULES = {
+  rooms: "settings_beds",
+  beds: "settings_beds",
+  guests: "settings_guests",
+  lodgers: "lodgers",
+  events: "events",
+};
+
+var _infoModuleData = {};
+var _infoModuleInflight = {};
+
+function infoUseApiData() {
+  return typeof isRemoteDB === "function" && isRemoteDB();
 }
 
-function infoRoomExists(roomId) {
-  if (!roomId) return false;
-  return !!query("SELECT id FROM rooms WHERE id = ?", [roomId])[0];
+function infoModuleTables(moduleKey) {
+  return (_infoModuleData[moduleKey] && _infoModuleData[moduleKey].tables) || {};
 }
 
-function infoBedExists(bedId) {
-  if (!bedId) return true;
-  return !!query("SELECT id FROM beds WHERE id = ?", [bedId])[0];
+function infoInvalidateModules(moduleKeys) {
+  (moduleKeys || []).forEach(function (key) {
+    delete _infoModuleData[key];
+  });
 }
 
-/** 乐观 upsert：避免 INSERT OR REPLACE 触发 FK 删除 | Optimistic upsert without REPLACE */
-function infoOptimisticUpsert(table, rowId, updateSql, updateParams, insertSql, insertParams) {
-  if (!rowId) return;
-  if (infoRowExists(table, rowId)) {
-    run(updateSql, updateParams);
-  } else {
-    run(insertSql, insertParams);
+function infoInvalidateForTab(tab) {
+  var mod = INFO_READ_MODULES[tab];
+  if (mod) infoInvalidateModules([mod]);
+  if (tab === "rooms" || tab === "beds") {
+    infoInvalidateModules(["settings_beds", "lodgers"]);
   }
 }
 
-/** 信息管理写后：乐观本地 + 立即渲染 + 后台 upsert 同步 | Optimistic info refresh */
-function infoRefreshAfterWrite(writeResult, tab, optimisticFn) {
+async function infoEnsureModuleData(moduleKey, force) {
+  if (!infoUseApiData()) return null;
+  if (!force && _infoModuleData[moduleKey]) return _infoModuleData[moduleKey];
+  if (_infoModuleInflight[moduleKey]) return _infoModuleInflight[moduleKey];
+  _infoModuleInflight[moduleKey] = apiReadModule(moduleKey, null)
+    .then(function (payload) {
+      _infoModuleData[moduleKey] = payload || {};
+      if (
+        payload &&
+        payload.board_version != null &&
+        typeof setLocalBoardVersion === "function"
+      ) {
+        setLocalBoardVersion(payload.board_version);
+      }
+      return payload;
+    })
+    .finally(function () {
+      delete _infoModuleInflight[moduleKey];
+    });
+  return _infoModuleInflight[moduleKey];
+}
+
+async function infoEnsureTabData(tab, force) {
+  if (!infoUseApiData()) return;
+  var mod = INFO_READ_MODULES[tab];
+  if (!mod) return;
+  await infoEnsureModuleData(mod, force);
+  if (tab === "beds" || tab === "guests" || tab === "lodgers") {
+    await infoEnsureModuleData("lodgers", force);
+  }
+  if (tab === "lodgers") {
+    await infoEnsureModuleData("settings_beds", force);
+  }
+}
+
+function infoActiveLodgerCount(bedId) {
+  var lodgers = infoModuleTables("lodgers").lodgers || [];
+  return lodgers.filter(function (l) {
+    return l.bed_id == bedId && l.status === "在住";
+  }).length;
+}
+
+function infoRoomRows() {
+  if (!infoUseApiData()) {
+    return query(`
+      SELECT r.*, (SELECT COUNT(*) FROM beds WHERE room_id = r.id AND status != '备用') AS bed_count
+      FROM rooms r ORDER BY r.name
+    `);
+  }
+  var rooms = infoModuleTables("settings_beds").rooms || [];
+  var beds = infoModuleTables("settings_beds").beds || [];
+  return rooms
+    .slice()
+    .sort(function (a, b) {
+      return String(a.name).localeCompare(String(b.name));
+    })
+    .map(function (r) {
+      return Object.assign({}, r, {
+        bed_count: beds.filter(function (b) {
+          return b.room_id === r.id && b.status !== "备用";
+        }).length,
+      });
+    });
+}
+
+function infoBedRowsJoined() {
+  if (!infoUseApiData()) {
+    return query(`
+      SELECT b.*, r.name AS room_name, r.dorm_type,
+             (SELECT COUNT(*) FROM lodgers WHERE bed_id = b.id AND status = '在住') AS occupant_count
+      FROM beds b JOIN rooms r ON r.id = b.room_id
+      ORDER BY r.name, b.bed_number
+    `);
+  }
+  var beds = infoModuleTables("settings_beds").beds || [];
+  var rooms = infoModuleTables("settings_beds").rooms || [];
+  var roomById = {};
+  rooms.forEach(function (r) {
+    roomById[r.id] = r;
+  });
+  return beds
+    .slice()
+    .sort(function (a, b) {
+      var ra = roomById[a.room_id];
+      var rb = roomById[b.room_id];
+      var cmp = String(ra && ra.name).localeCompare(String(rb && rb.name));
+      if (cmp !== 0) return cmp;
+      return String(a.bed_number).localeCompare(String(b.bed_number));
+    })
+    .map(function (b) {
+      var room = roomById[b.room_id] || {};
+      var occupantCount = infoActiveLodgerCount(b.id);
+      return Object.assign({}, b, {
+        room_name: room.name || "",
+        dorm_type: room.dorm_type || "",
+        occupant_count: occupantCount,
+      });
+    });
+}
+
+function infoRoomOptions() {
+  if (!infoUseApiData()) {
+    return query("SELECT id, name FROM rooms ORDER BY name");
+  }
+  return (infoModuleTables("settings_beds").rooms || [])
+    .slice()
+    .sort(function (a, b) {
+      return String(a.name).localeCompare(String(b.name));
+    });
+}
+
+function infoGuestRows() {
+  if (!infoUseApiData()) {
+    return query(`
+      SELECT g.*,
+             (SELECT COUNT(*) FROM lodgers WHERE guest_id = g.id) AS lodger_count
+      FROM guests g ORDER BY g.updated_at DESC, g.id DESC
+    `);
+  }
+  var guests = infoModuleTables("settings_guests").guests || [];
+  var lodgers = infoModuleTables("lodgers").lodgers || [];
+  return guests
+    .slice()
+    .sort(function (a, b) {
+      var ta = String(a.updated_at || "");
+      var tb = String(b.updated_at || "");
+      if (ta !== tb) return tb.localeCompare(ta);
+      return (b.id || 0) - (a.id || 0);
+    })
+    .map(function (g) {
+      return Object.assign({}, g, {
+        lodger_count: lodgers.filter(function (l) {
+          return l.guest_id === g.id;
+        }).length,
+      });
+    });
+}
+
+function infoLodgerRowsJoined() {
+  if (!infoUseApiData()) {
+    return query(`
+      SELECT l.*, r.name AS room_name, b.bed_number
+      FROM lodgers l
+      LEFT JOIN beds b ON b.id = l.bed_id
+      LEFT JOIN rooms r ON r.id = b.room_id
+      ORDER BY l.check_in_date DESC, l.id DESC
+    `);
+  }
+  var lodgers = infoModuleTables("lodgers").lodgers || [];
+  var beds = infoModuleTables("lodgers").beds || [];
+  var rooms = infoModuleTables("lodgers").rooms || [];
+  var bedById = {};
+  var roomById = {};
+  beds.forEach(function (b) {
+    bedById[b.id] = b;
+  });
+  rooms.forEach(function (r) {
+    roomById[r.id] = r;
+  });
+  return lodgers
+    .slice()
+    .sort(function (a, b) {
+      var da = String(a.check_in_date || "");
+      var db = String(b.check_in_date || "");
+      if (da !== db) return db.localeCompare(da);
+      return (b.id || 0) - (a.id || 0);
+    })
+    .map(function (l) {
+      var bed = l.bed_id ? bedById[l.bed_id] : null;
+      var room = bed && bed.room_id ? roomById[bed.room_id] : null;
+      return Object.assign({}, l, {
+        room_name: room ? room.name : "",
+        bed_number: bed ? bed.bed_number : "",
+      });
+    });
+}
+
+function infoFindRoom(id) {
+  return infoRoomRows().find(function (r) {
+    return r.id == id;
+  });
+}
+
+function infoFindBed(id) {
+  return (infoModuleTables("settings_beds").beds || []).find(function (b) {
+    return b.id == id;
+  });
+}
+
+function infoFindGuest(id) {
+  return (infoModuleTables("settings_guests").guests || []).find(function (g) {
+    return g.id == id;
+  });
+}
+
+function infoFindLodger(id) {
+  return (infoModuleTables("lodgers").lodgers || []).find(function (l) {
+    return l.id == id;
+  });
+}
+
+function infoLodgerContextRooms() {
+  return (
+    infoModuleTables("lodgers").rooms ||
+    infoModuleTables("settings_beds").rooms ||
+    []
+  );
+}
+
+function infoLodgerContextBeds() {
+  return (
+    infoModuleTables("lodgers").beds ||
+    infoModuleTables("settings_beds").beds ||
+    []
+  );
+}
+
+function infoLodgerPaymentBalance(lodgerId) {
+  var payments = infoModuleTables("lodgers").payments || [];
+  var income = 0;
+  var refund = 0;
+  payments.forEach(function (p) {
+    if (p.lodger_id != lodgerId) return;
+    if (p.type === "押金" || p.type === "房费") income += p.amount || 0;
+    if (p.type === "退款") refund += p.amount || 0;
+  });
+  return income - refund;
+}
+
+function infoBedWithRoom(bedId) {
+  var bed = infoLodgerContextBeds().find(function (b) {
+    return b.id == bedId;
+  });
+  if (!bed) return null;
+  var room = infoLodgerContextRooms().find(function (r) {
+    return r.id == bed.room_id;
+  });
+  return Object.assign({}, bed, { dorm_type: room ? room.dorm_type : "" });
+}
+
+function infoBedsForRoom(roomId) {
+  if (!infoUseApiData()) {
+    return query(
+      "SELECT id, bed_number, status FROM beds WHERE room_id = ? ORDER BY bed_number",
+      [roomId],
+    );
+  }
+  return infoLodgerContextBeds()
+    .filter(function (b) {
+      return String(b.room_id) === String(roomId);
+    })
+    .sort(function (a, b) {
+      return String(a.bed_number).localeCompare(String(b.bed_number));
+    });
+}
+
+/** 写后：API 重拉模块并渲染，不再写 sql.js | Post-write: refetch module JSON */
+var INFO_WRITE_SYNC = {
+  upsertModuleSync: false,
+  skipModuleSync: true,
+};
+
+async function infoRefreshAfterWrite(writeResult, tab, syncOptions) {
   tab = tab || infoCurrentTab;
   if (typeof touchBoardVersionFromWrite === "function") {
     touchBoardVersionFromWrite(writeResult);
   }
-  if (!isRemoteDB()) {
-    renderInfo(tab);
-    return Promise.resolve();
-  }
-  if (typeof applyRemoteLocalPatch === "function" && typeof optimisticFn === "function") {
+  infoInvalidateForTab(tab);
+  if (infoUseApiData()) {
     try {
-      applyRemoteLocalPatch(optimisticFn);
+      await infoEnsureTabData(tab, true);
     } catch (e) {
-      console.warn("info optimistic patch skipped:", e.message || e);
+      console.warn("info refetch failed:", e.message || e);
     }
   }
   renderInfo(tab);
-  return refreshAfterWrite(writeResult, {
-    infoOnly: true,
-    infoTab: tab,
-    upsertModuleSync: true,
-    deferSyncRender: true,
-    quietSync: true,
-  });
+  if (!infoUseApiData()) return Promise.resolve();
+  return refreshAfterWrite(
+    writeResult,
+    Object.assign(
+      {
+        infoOnly: true,
+        infoTab: tab,
+        quietSync: true,
+      },
+      INFO_WRITE_SYNC,
+      syncOptions || {},
+    ),
+  );
 }
 
 function infoConfirm(msg) {
@@ -273,11 +566,7 @@ function infoGetInt(id) {
 
 function renderRoomList() {
   const f = infoGetFilters("rooms");
-  const rooms = query(`
-    SELECT r.*, (SELECT COUNT(*) FROM beds WHERE room_id = r.id AND status != '备用') AS bed_count
-    FROM rooms r
-    ORDER BY r.name
-  `);
+  const rooms = infoRoomRows();
   const locations = [
     ...new Set(
       rooms.map((r) => r.location).filter((loc) => loc && String(loc).trim()),
@@ -351,7 +640,7 @@ function openRoomModal(id) {
   const isEdit = !!id;
   let r = { name: "", location: "", floor: 1, dorm_type: "不限", notes: "" };
   if (isEdit) {
-    const row = query("SELECT * FROM rooms WHERE id = ?", [id])[0];
+    const row = infoFindRoom(id);
     if (!row) return infoToast("房间不存在");
     r = row;
   }
@@ -398,107 +687,27 @@ async function submitRoom(id) {
     infoShowFieldError("info-room-dorm", "请选择有效的寮房类型");
     return;
   }
-  const dup = query("SELECT id FROM rooms WHERE name = ? AND id IS NOT ?", [
-    name,
-    id || 0,
-  ])[0];
+  const dup = infoRoomRows().find(function (r) {
+    return r.name === name && r.id != (id || 0);
+  });
   if (dup) {
     infoShowFieldError("info-room-name", "房间名已存在");
     return;
   }
 
   try {
-    var writeResult = null;
-    if (useRemoteWriteApi()) {
-      writeResult = await apiAdminRecord("room", id ? "update" : "create", {
-        room_id: id,
-        name: name,
-        location: location,
-        floor: floor || 1,
-        dorm_type: dorm,
-        notes: notes,
-        ...roomTags,
-      });
-    } else {
-      await withTransaction(async () => {
-        if (id) {
-          run(
-            "UPDATE rooms SET name=?, location=?, floor=?, dorm_type=?, notes=?, room_type=?, suitable_elder=?, suitable_child=?, near_zen_hall=?, flexible_use=? WHERE id=?",
-            [
-              name,
-              location,
-              floor || 1,
-              dorm,
-              notes,
-              roomTags.room_type,
-              roomTags.suitable_elder,
-              roomTags.suitable_child,
-              roomTags.near_zen_hall,
-              roomTags.flexible_use,
-              id,
-            ],
-          );
-          logAudit("更新房间", "room", id, { name });
-        } else {
-          const result = run(
-            "INSERT INTO rooms (name, location, floor, dorm_type, notes, room_type, suitable_elder, suitable_child, near_zen_hall, flexible_use) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-            [
-              name,
-              location,
-              floor || 1,
-              dorm,
-              notes,
-              roomTags.room_type,
-              roomTags.suitable_elder,
-              roomTags.suitable_child,
-              roomTags.near_zen_hall,
-              roomTags.flexible_use,
-            ],
-          );
-          const newId = result.lastInsertId;
-          logAudit("新增房间", "room", newId, { name });
-        }
-      });
-      await saveDB();
-    }
+    var writeResult = await apiAdminRecord("room", id ? "update" : "create", {
+      room_id: id,
+      name: name,
+      location: location,
+      floor: floor || 1,
+      dorm_type: dorm,
+      notes: notes,
+      ...roomTags,
+    });
     closeModal();
     infoToast(id ? "房间已更新" : "房间已新增");
-    await infoRefreshAfterWrite(writeResult, "rooms", function () {
-      var rid = (writeResult && writeResult.room_id) || id;
-      if (!rid) return;
-      infoOptimisticUpsert(
-        "rooms",
-        rid,
-        "UPDATE rooms SET name=?, location=?, floor=?, dorm_type=?, notes=?, room_type=?, suitable_elder=?, suitable_child=?, near_zen_hall=?, flexible_use=?, updated_at=datetime('now') WHERE id=?",
-        [
-          name,
-          location,
-          floor || 1,
-          dorm,
-          notes,
-          roomTags.room_type,
-          roomTags.suitable_elder,
-          roomTags.suitable_child,
-          roomTags.near_zen_hall,
-          roomTags.flexible_use,
-          rid,
-        ],
-        "INSERT INTO rooms (id, name, location, floor, dorm_type, notes, room_type, suitable_elder, suitable_child, near_zen_hall, flexible_use, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))",
-        [
-          rid,
-          name,
-          location,
-          floor || 1,
-          dorm,
-          notes,
-          roomTags.room_type,
-          roomTags.suitable_elder,
-          roomTags.suitable_child,
-          roomTags.near_zen_hall,
-          roomTags.flexible_use,
-        ],
-      );
-    });
+    await infoRefreshAfterWrite(writeResult, "rooms");
   } catch (e) {
     console.error(e);
     infoToast("保存失败：" + e.message);
@@ -506,10 +715,13 @@ async function submitRoom(id) {
 }
 
 async function deleteRoom(id) {
-  const r = query("SELECT name FROM rooms WHERE id = ?", [id])[0];
+  const r = infoFindRoom(id);
   if (!r) return infoToast("房间不存在");
-  const bedCount =
-    query("SELECT COUNT(*) as c FROM beds WHERE room_id = ?", [id])[0]?.c || 0;
+  const bedCount = (infoModuleTables("settings_beds").beds || []).filter(
+    function (b) {
+      return b.room_id == id;
+    },
+  ).length;
   if (bedCount > 0) {
     return infoToast(
       `该房间下还有 ${bedCount} 张床位，请先删除床位后再删除房间`,
@@ -517,20 +729,9 @@ async function deleteRoom(id) {
   }
   if (!infoConfirm(`确定删除房间「${r.name}」吗？此操作不可恢复。`)) return;
   try {
-    var writeResult = null;
-    if (useRemoteWriteApi()) {
-      writeResult = await apiAdminRecord("room", "delete", { room_id: id });
-    } else {
-      await withTransaction(async () => {
-        run("DELETE FROM rooms WHERE id = ?", [id]);
-        logAudit("删除房间", "room", id, { name: r.name });
-      });
-      await saveDB();
-    }
+    var writeResult = await apiAdminRecord("room", "delete", { room_id: id });
     infoToast("房间已删除");
-    await infoRefreshAfterWrite(writeResult, "rooms", function () {
-      run("DELETE FROM rooms WHERE id = ?", [id]);
-    });
+    await infoRefreshAfterWrite(writeResult, "rooms");
   } catch (e) {
     console.error(e);
     infoToast("删除失败：" + e.message);
@@ -541,14 +742,8 @@ async function deleteRoom(id) {
 
 function renderBedList() {
   const f = infoGetFilters("beds");
-  const beds = query(`
-    SELECT b.*, r.name AS room_name, r.dorm_type,
-           (SELECT COUNT(*) FROM lodgers WHERE bed_id = b.id AND status = '在住') AS occupant_count
-    FROM beds b
-    JOIN rooms r ON r.id = b.room_id
-    ORDER BY r.name, b.bed_number
-  `);
-  const rooms = query("SELECT id, name FROM rooms ORDER BY name");
+  const beds = infoBedRowsJoined();
+  const rooms = infoRoomOptions();
   const filtered = beds.filter((b) => {
     const statusLabel = b.occupant_count > 0 ? "占用" : b.status;
     if (f.roomId && String(b.room_id) !== String(f.roomId)) return false;
@@ -621,15 +816,14 @@ function openBedModal(id) {
   let b = { room_id: "", bed_number: "", status: "可用", notes: "" };
   let occupied = false;
   if (isEdit) {
-    const row = query(
-      "SELECT b.*, (SELECT COUNT(*) FROM lodgers WHERE bed_id = b.id AND status = '在住') AS occupant_count FROM beds b WHERE b.id = ?",
-      [id],
-    )[0];
+    const row = infoBedRowsJoined().find(function (b) {
+      return b.id == id;
+    });
     if (!row) return infoToast("床位不存在");
     b = row;
     occupied = row.occupant_count > 0;
   }
-  const rooms = query("SELECT id, name FROM rooms ORDER BY name");
+  const rooms = infoRoomOptions();
   const roomOptions = rooms.map((r) => [r.id, r.name]);
   const statusOptions = occupied ? ["占用"] : INFO_BED_STATUS_OPTIONS;
   const statusValue = occupied ? "占用" : b.status;
@@ -679,20 +873,16 @@ async function submitBed(id) {
     infoShowFieldError("info-bed-status", "请选择有效的床位状态");
     return;
   }
-  const dup = query(
-    "SELECT id FROM beds WHERE room_id = ? AND bed_number = ? AND id IS NOT ?",
-    [roomId, number, id || 0],
-  )[0];
+  const dup = (infoModuleTables("settings_beds").beds || []).find(function (b) {
+    return (
+      b.room_id == roomId && b.bed_number === number && b.id != (id || 0)
+    );
+  });
   if (dup) {
     infoShowFieldError("info-bed-number", "该房间下已存在相同床位号");
     return;
   }
-  const occupantCount = id
-    ? query(
-        "SELECT COUNT(*) as c FROM lodgers WHERE bed_id = ? AND status = '在住'",
-        [id],
-      )[0]?.c || 0
-    : 0;
+  const occupantCount = id ? infoActiveLodgerCount(id) : 0;
   if (occupantCount > 0 && (status === "维修" || status === "备用")) {
     infoShowFieldError(
       "info-bed-status",
@@ -702,97 +892,17 @@ async function submitBed(id) {
   }
 
   try {
-    var writeResult = null;
-    if (useRemoteWriteApi()) {
-      writeResult = await apiAdminRecord("bed", id ? "update" : "create", {
-        bed_id: id,
-        room_id: roomId,
-        bed_number: number,
-        status: status,
-        notes: notes,
-        ...bedTags,
-      });
-    } else {
-      await withTransaction(async () => {
-        if (id) {
-          const old = query("SELECT status FROM beds WHERE id = ?", [id])[0];
-          run(
-            "UPDATE beds SET room_id=?, bed_number=?, status=?, notes=?, bed_type=?, suitable_elder=?, is_flexible=? WHERE id=?",
-            [
-              roomId,
-              number,
-              status,
-              notes,
-              bedTags.bed_type,
-              bedTags.suitable_elder,
-              bedTags.is_flexible,
-              id,
-            ],
-          );
-          if (old && old.status !== status) {
-            setHouseStatus(id, status, `信息管理修改床位状态：${status}`);
-          }
-          logAudit("更新床位", "bed", id, {
-            room_id: roomId,
-            bed_number: number,
-            status,
-          });
-        } else {
-          const result = run(
-            "INSERT INTO beds (room_id, bed_number, status, notes, bed_type, suitable_elder, is_flexible) VALUES (?, ?, ?, ?, ?, ?, ?)",
-            [
-              roomId,
-              number,
-              status,
-              notes,
-              bedTags.bed_type,
-              bedTags.suitable_elder,
-              bedTags.is_flexible,
-            ],
-          );
-          const newId = result.lastInsertId;
-          setHouseStatus(newId, status, "新增床位");
-          logAudit("新增床位", "bed", newId, {
-            room_id: roomId,
-            bed_number: number,
-            status,
-          });
-        }
-      });
-      await saveDB();
-    }
+    var writeResult = await apiAdminRecord("bed", id ? "update" : "create", {
+      bed_id: id,
+      room_id: roomId,
+      bed_number: number,
+      status: status,
+      notes: notes,
+      ...bedTags,
+    });
     closeModal();
     infoToast(id ? "床位已更新" : "床位已新增");
-    await infoRefreshAfterWrite(writeResult, "beds", function () {
-      var bid = (writeResult && writeResult.bed_id) || id;
-      if (!bid || !infoRoomExists(roomId)) return;
-      infoOptimisticUpsert(
-        "beds",
-        bid,
-        "UPDATE beds SET room_id=?, bed_number=?, status=?, notes=?, bed_type=?, suitable_elder=?, is_flexible=?, updated_at=datetime('now') WHERE id=?",
-        [
-          roomId,
-          number,
-          status,
-          notes,
-          bedTags.bed_type,
-          bedTags.suitable_elder,
-          bedTags.is_flexible,
-          bid,
-        ],
-        "INSERT INTO beds (id, room_id, bed_number, status, notes, bed_type, suitable_elder, is_flexible, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))",
-        [
-          bid,
-          roomId,
-          number,
-          status,
-          notes,
-          bedTags.bed_type,
-          bedTags.suitable_elder,
-          bedTags.is_flexible,
-        ],
-      );
-    });
+    await infoRefreshAfterWrite(writeResult, "beds");
   } catch (e) {
     console.error(e);
     infoToast("保存失败：" + e.message);
@@ -800,15 +910,9 @@ async function submitBed(id) {
 }
 
 async function deleteBed(id) {
-  const b = query(
-    `
-    SELECT b.*, r.name AS room_name,
-           (SELECT COUNT(*) FROM lodgers WHERE bed_id = b.id AND status = '在住') AS occupant_count
-    FROM beds b JOIN rooms r ON r.id = b.room_id
-    WHERE b.id = ?
-  `,
-    [id],
-  )[0];
+  const b = infoBedRowsJoined().find(function (row) {
+    return row.id == id;
+  });
   if (!b) return infoToast("床位不存在");
   if (b.occupant_count > 0) {
     return infoToast("该床位当前有在住住客，无法删除");
@@ -820,27 +924,9 @@ async function deleteBed(id) {
   )
     return;
   try {
-    var writeResult = null;
-    if (useRemoteWriteApi()) {
-      writeResult = await apiAdminRecord("bed", "delete", { bed_id: id });
-    } else {
-      await withTransaction(async () => {
-        run("UPDATE rooming_assignments SET bed_id = NULL WHERE bed_id = ?", [id]);
-        run("DELETE FROM housekeeping WHERE bed_id = ?", [id]);
-        run("DELETE FROM beds WHERE id = ?", [id]);
-        logAudit("删除床位", "bed", id, {
-          room_id: b.room_id,
-          bed_number: b.bed_number,
-        });
-      });
-      await saveDB();
-    }
+    var writeResult = await apiAdminRecord("bed", "delete", { bed_id: id });
     infoToast("床位已删除");
-    await infoRefreshAfterWrite(writeResult, "beds", function () {
-      run("UPDATE rooming_assignments SET bed_id = NULL WHERE bed_id = ?", [id]);
-      run("DELETE FROM housekeeping WHERE bed_id = ?", [id]);
-      run("DELETE FROM beds WHERE id = ?", [id]);
-    });
+    await infoRefreshAfterWrite(writeResult, "beds");
   } catch (e) {
     console.error(e);
     infoToast("删除失败：" + e.message);
@@ -851,12 +937,7 @@ async function deleteBed(id) {
 
 function renderGuestList() {
   const f = infoGetFilters("guests");
-  const guests = query(`
-    SELECT g.*,
-           (SELECT COUNT(*) FROM lodgers WHERE guest_id = g.id) AS lodger_count
-    FROM guests g
-    ORDER BY g.updated_at DESC, g.id DESC
-  `);
+  const guests = infoGuestRows();
   const filtered = guests.filter((g) => {
     if (f.gender && g.gender !== f.gender) return false;
     if (
@@ -930,7 +1011,7 @@ function openGuestModal(id) {
     notes: "",
   };
   if (isEdit) {
-    const row = query("SELECT * FROM guests WHERE id = ?", [id])[0];
+    const row = infoFindGuest(id);
     if (!row) return infoToast("住客档案不存在");
     g = row;
   }
@@ -988,139 +1069,39 @@ async function submitGuest(id) {
     }
     return;
   }
-  const dupPhone = contact.phone
-    ? query(
-        'SELECT id FROM guests WHERE phone = ? AND phone <> "" AND id IS NOT ?',
-        [contact.phone, id || 0],
-      )[0]
-    : null;
+  const dupPhone =
+    contact.phone &&
+    infoGuestRows().find(function (g) {
+      return g.phone === contact.phone && g.id != (id || 0);
+    });
   if (dupPhone) {
     infoShowFieldError("info-guest-phone", "该手机号已存在");
     return;
   }
-  const dupIdCard = contact.idCard
-    ? query(
-        'SELECT id FROM guests WHERE id_card = ? AND id_card <> "" AND id IS NOT ?',
-        [contact.idCard, id || 0],
-      )[0]
-    : null;
+  const dupIdCard =
+    contact.idCard &&
+    infoGuestRows().find(function (g) {
+      return g.id_card === contact.idCard && g.id != (id || 0);
+    });
   if (dupIdCard) {
     infoShowFieldError("info-guest-idcard", "该身份证已存在");
     return;
   }
 
-  const now = new Date().toISOString();
   try {
-    var writeResult = null;
-    if (useRemoteWriteApi()) {
-      writeResult = await apiAdminRecord("guest", id ? "update" : "create", {
-        guest_id: id,
-        name: name,
-        gender: gender,
-        phone: contact.phone,
-        id_card: contact.idCard,
-        emergency_contact: contact.emergencyName,
-        emergency_phone: contact.emergencyPhone,
-        notes: notes,
-      });
-    } else {
-      await withTransaction(async () => {
-        if (id) {
-          run(
-            `UPDATE guests SET name=?, dharma_name=?, gender=?, phone=?, id_card=?,
-             emergency_contact=?, emergency_phone=?, notes=?, updated_at=?
-             WHERE id=?`,
-            [
-              name,
-              person.dharma_name,
-              gender,
-              contact.phone,
-              contact.idCard,
-              contact.emergencyName,
-              contact.emergencyPhone,
-              notes,
-              now,
-              id,
-            ],
-          );
-          // 同步更新关联挂单快照字段，避免同一人在不同页面信息分裂
-          run(
-            `UPDATE lodgers SET name=?, dharma_name=?, gender=?, phone=?, id_card=?
-             WHERE guest_id=?`,
-            [
-              name,
-              person.dharma_name,
-              gender,
-              contact.phone,
-              contact.idCard,
-              id,
-            ],
-          );
-          logAudit("更新住客档案", "guest", id, { name, phone: contact.phone });
-        } else {
-          const result = run(
-            `INSERT INTO guests (name, dharma_name, gender, phone, id_card,
-             emergency_contact, emergency_phone, notes, created_at, updated_at)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-            [
-              name,
-              person.dharma_name,
-              gender,
-              contact.phone,
-              contact.idCard,
-              contact.emergencyName,
-              contact.emergencyPhone,
-              notes,
-              now,
-              now,
-            ],
-          );
-          const newId = result.lastInsertId;
-          logAudit("新增住客档案", "guest", newId, {
-            name,
-            phone: contact.phone,
-          });
-        }
-      });
-      await saveDB();
-    }
+    var writeResult = await apiAdminRecord("guest", id ? "update" : "create", {
+      guest_id: id,
+      name: name,
+      gender: gender,
+      phone: contact.phone,
+      id_card: contact.idCard,
+      emergency_contact: contact.emergencyName,
+      emergency_phone: contact.emergencyPhone,
+      notes: notes,
+    });
     closeModal();
     infoToast(id ? "住客档案已更新" : "住客档案已新增");
-    await infoRefreshAfterWrite(writeResult, "guests", function () {
-      var gid = (writeResult && writeResult.guest_id) || id;
-      if (!gid) return;
-      var ts = new Date().toISOString().slice(0, 19).replace("T", " ");
-      infoOptimisticUpsert(
-        "guests",
-        gid,
-        "UPDATE guests SET name=?, dharma_name=?, gender=?, phone=?, id_card=?, emergency_contact=?, emergency_phone=?, notes=?, updated_at=? WHERE id=?",
-        [
-          name,
-          person.dharma_name,
-          gender,
-          contact.phone,
-          contact.idCard,
-          contact.emergencyName,
-          contact.emergencyPhone,
-          notes,
-          ts,
-          gid,
-        ],
-        "INSERT INTO guests (id, name, dharma_name, gender, phone, id_card, emergency_contact, emergency_phone, notes, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-        [
-          gid,
-          name,
-          person.dharma_name,
-          gender,
-          contact.phone,
-          contact.idCard,
-          contact.emergencyName,
-          contact.emergencyPhone,
-          notes,
-          ts,
-        ],
-      );
-    });
+    await infoRefreshAfterWrite(writeResult, "guests");
   } catch (e) {
     console.error(e);
     infoToast("保存失败：" + e.message);
@@ -1128,11 +1109,9 @@ async function submitGuest(id) {
 }
 
 async function deleteGuest(id) {
-  const g = query("SELECT name, dharma_name FROM guests WHERE id = ?", [id])[0];
+  const g = infoFindGuest(id);
   if (!g) return infoToast("住客档案不存在");
-  const refCount =
-    query("SELECT COUNT(*) as c FROM lodgers WHERE guest_id = ?", [id])[0]?.c ||
-    0;
+  const refCount = g.lodger_count || 0;
   if (refCount > 0) {
     return infoToast(`该档案已被 ${refCount} 条挂单记录引用，无法删除`);
   }
@@ -1143,20 +1122,9 @@ async function deleteGuest(id) {
   )
     return;
   try {
-    var writeResult = null;
-    if (useRemoteWriteApi()) {
-      writeResult = await apiAdminRecord("guest", "delete", { guest_id: id });
-    } else {
-      await withTransaction(async () => {
-        run("DELETE FROM guests WHERE id = ?", [id]);
-        logAudit("删除住客档案", "guest", id, { name: g.name });
-      });
-      await saveDB();
-    }
+    var writeResult = await apiAdminRecord("guest", "delete", { guest_id: id });
     infoToast("住客档案已删除");
-    await infoRefreshAfterWrite(writeResult, "guests", function () {
-      run("DELETE FROM guests WHERE id = ?", [id]);
-    });
+    await infoRefreshAfterWrite(writeResult, "guests");
   } catch (e) {
     console.error(e);
     infoToast("删除失败：" + e.message);
@@ -1167,13 +1135,7 @@ async function deleteGuest(id) {
 
 function renderLodgerList() {
   const f = infoGetFilters("lodgers");
-  const lodgers = query(`
-    SELECT l.*, r.name AS room_name, b.bed_number
-    FROM lodgers l
-    LEFT JOIN beds b ON b.id = l.bed_id
-    LEFT JOIN rooms r ON r.id = b.room_id
-    ORDER BY l.check_in_date DESC, l.id DESC
-  `);
+  const lodgers = infoLodgerRowsJoined();
   const filtered = lodgers.filter((l) => {
     if (f.status && l.status !== f.status) return false;
     if (f.source && (l.source || "现场") !== f.source) return false;
@@ -1253,25 +1215,26 @@ function renderLodgerList() {
 }
 
 function openLodgerModal(id) {
-  const l = query("SELECT * FROM lodgers WHERE id = ?", [id])[0];
+  const l = infoFindLodger(id);
   if (!l) return infoToast("挂单记录不存在");
 
-  const rooms = query("SELECT id, name FROM rooms ORDER BY name");
-  const currentRoomId = l.bed_id
-    ? query("SELECT room_id FROM beds WHERE id = ?", [l.bed_id])[0]?.room_id ||
-      ""
-    : "";
+  const rooms = infoLodgerContextRooms()
+    .slice()
+    .sort(function (a, b) {
+      return String(a.name).localeCompare(String(b.name));
+    });
+  const currentBed = l.bed_id
+    ? infoLodgerContextBeds().find(function (b) {
+        return b.id == l.bed_id;
+      })
+    : null;
+  const currentRoomId = currentBed ? currentBed.room_id : "";
 
   const roomOptions = [["", "请选择房间"], ...rooms.map((r) => [r.id, r.name])];
   const sourceOptions = INFO_SOURCE_OPTIONS;
   const statusOptions = INFO_LODGER_STATUS_OPTIONS;
 
-  const beds = currentRoomId
-    ? query(
-        "SELECT id, bed_number, status FROM beds WHERE room_id = ? ORDER BY bed_number",
-        [currentRoomId],
-      )
-    : [];
+  const beds = currentRoomId ? infoBedsForRoom(currentRoomId) : [];
   const bedOptions = [
     ["", "请选择床位"],
     ...beds.map((b) => [b.id, b.bed_number]),
@@ -1307,10 +1270,7 @@ function infoReloadBedOptions(roomSelectId, bedSelectId, selectedBedId) {
     bedSelect.innerHTML = '<option value="">请选择床位</option>';
     return;
   }
-  const beds = query(
-    "SELECT id, bed_number FROM beds WHERE room_id = ? ORDER BY bed_number",
-    [roomId],
-  );
+  const beds = infoBedsForRoom(roomId);
   let html = '<option value="">请选择床位</option>';
   beds.forEach((b) => {
     html += `<option value="${b.id}" ${b.id == selectedBedId ? "selected" : ""}>${infoEscape(b.bed_number)}</option>`;
@@ -1320,7 +1280,7 @@ function infoReloadBedOptions(roomSelectId, bedSelectId, selectedBedId) {
 
 async function submitLodger(id) {
   infoClearErrors("info-lodger-");
-  const l = query("SELECT * FROM lodgers WHERE id = ?", [id])[0];
+  const l = infoFindLodger(id);
   if (!l) return infoToast("挂单记录不存在");
 
   const person = parsePersonNameInput(infoGetValue("info-lodger-name"));
@@ -1375,18 +1335,14 @@ async function submitLodger(id) {
 
   // 床位占用校验：新床位不能被其他在住住客占用
   if (bedId) {
-    const other = query(
-      "SELECT id FROM lodgers WHERE bed_id = ? AND status = '在住' AND id <> ?",
-      [bedId, id],
-    )[0];
+    const other = (infoModuleTables("lodgers").lodgers || []).find(function (row) {
+      return row.bed_id == bedId && row.status === "在住" && row.id != id;
+    });
     if (other) {
       infoShowFieldError("info-lodger-bed", "该床位已被其他在住住客占用");
       return;
     }
-    const bed = query(
-      "SELECT b.*, r.dorm_type FROM beds b JOIN rooms r ON r.id = b.room_id WHERE b.id = ?",
-      [bedId],
-    )[0];
+    const bed = infoBedWithRoom(bedId);
     if (bed && !dormMatchGender(bed.dorm_type, gender)) {
       infoShowFieldError("info-lodger-bed", "该床位所在房间寮类型与性别不符");
       return;
@@ -1396,12 +1352,7 @@ async function submitLodger(id) {
   let actualOut = l.actual_check_out;
   let finalBedId = bedId;
   if (status === "已退" && l.status === "在住") {
-    // 直接改为已退时，若有余额必须走标准退房流程以确保退款记录完整
-    const paid = query(
-      "SELECT COALESCE(SUM(CASE WHEN type IN ('押金','房费') THEN amount ELSE 0 END), 0) as income, COALESCE(SUM(CASE WHEN type = '退款' THEN amount ELSE 0 END), 0) as refund_total FROM payments WHERE lodger_id = ?",
-      [id],
-    )[0];
-    const balance = (paid.income || 0) - (paid.refund_total || 0);
+    const balance = infoLodgerPaymentBalance(id);
     if (balance > 0) {
       infoToast(
         "该挂单尚有余额 " +
@@ -1417,136 +1368,22 @@ async function submitLodger(id) {
   }
 
   try {
-    var writeResult = null;
-    if (useRemoteWriteApi()) {
-      writeResult = await apiAdminRecord("lodger", "update", {
-        lodger_id: id,
-        name: name,
-        gender: gender,
-        phone: contact.phone,
-        id_card: contact.idCard,
-        check_in_date: checkIn,
-        expected_check_out: expectedOut,
-        status: status,
-        source: source,
-        bed_id: finalBedId,
-        notes: notes,
-      });
-    } else {
-      await withTransaction(async () => {
-        run(
-          `UPDATE lodgers SET name=?, dharma_name=?, gender=?, phone=?, id_card=?,
-           check_in_date=?, expected_check_out=?, actual_check_out=?, status=?,
-           source=?, bed_id=?, notes=? WHERE id=?`,
-          [
-            name,
-            person.dharma_name,
-            gender,
-            contact.phone,
-            contact.idCard,
-            checkIn,
-            expectedOut,
-            actualOut,
-            status,
-            source,
-            finalBedId,
-            notes,
-            id,
-          ],
-        );
-
-        // 床位状态同步
-        const oldBedId = l.bed_id;
-        if (oldBedId && oldBedId !== finalBedId) {
-          const stillOccupied =
-            query(
-              "SELECT COUNT(*) as c FROM lodgers WHERE bed_id = ? AND status = '在住' AND id <> ?",
-              [oldBedId, id],
-            )[0]?.c || 0;
-          if (stillOccupied === 0) {
-            run("UPDATE beds SET status='可用' WHERE id=?", [oldBedId]);
-            setHouseStatus(
-              oldBedId,
-              status === "已退" ? "脏房" : "可用",
-              status === "已退" ? "挂单退床" : "挂单换床释放旧床位",
-            );
-          }
-        }
-        if (finalBedId && status === "在住") {
-          run("UPDATE beds SET status='占用' WHERE id=?", [finalBedId]);
-        }
-
-        // 同步用斋记录与住宿日期
-        if (status === "在住") {
-          run(
-            "DELETE FROM meals WHERE lodger_id = ? AND (date < ? OR date > ?)",
-            [id, checkIn, expectedOut],
-          );
-          const defaults = getLodgerMealDefaults(id);
-          await generateMeals(
-            id,
-            checkIn,
-            expectedOut,
-            defaults.breakfast,
-            defaults.lunch,
-            defaults.dinner,
-          );
-        } else {
-          const cutoff = actualOut || checkIn;
-          run("DELETE FROM meals WHERE lodger_id = ? AND date > ?", [
-            id,
-            cutoff,
-          ]);
-        }
-
-        logAudit("更新挂单记录", "lodger", id, { name, bed_id: bedId, status });
-      });
-      await saveDB();
-    }
+    var writeResult = await apiAdminRecord("lodger", "update", {
+      lodger_id: id,
+      name: name,
+      gender: gender,
+      phone: contact.phone,
+      id_card: contact.idCard,
+      check_in_date: checkIn,
+      expected_check_out: expectedOut,
+      status: status,
+      source: source,
+      bed_id: finalBedId,
+      notes: notes,
+    });
     closeModal();
     infoToast("挂单记录已更新");
-    await infoRefreshAfterWrite(writeResult, "lodgers", function () {
-      if (!infoRowExists("lodgers", id)) return;
-      var bedOk = finalBedId == null || infoBedExists(finalBedId);
-      if (bedOk) {
-        run(
-          "UPDATE lodgers SET name=?, dharma_name=?, gender=?, phone=?, id_card=?, check_in_date=?, expected_check_out=?, actual_check_out=?, status=?, source=?, bed_id=?, notes=?, updated_at=datetime('now') WHERE id=?",
-          [
-            name,
-            person.dharma_name,
-            gender,
-            contact.phone,
-            contact.idCard,
-            checkIn,
-            expectedOut,
-            actualOut,
-            status,
-            source,
-            finalBedId,
-            notes,
-            id,
-          ],
-        );
-      } else {
-        run(
-          "UPDATE lodgers SET name=?, dharma_name=?, gender=?, phone=?, id_card=?, check_in_date=?, expected_check_out=?, actual_check_out=?, status=?, source=?, notes=?, updated_at=datetime('now') WHERE id=?",
-          [
-            name,
-            person.dharma_name,
-            gender,
-            contact.phone,
-            contact.idCard,
-            checkIn,
-            expectedOut,
-            actualOut,
-            status,
-            source,
-            notes,
-            id,
-          ],
-        );
-      }
-    });
+    await infoRefreshAfterWrite(writeResult, "lodgers");
   } catch (e) {
     console.error(e);
     infoToast("保存失败：" + e.message);
@@ -1554,41 +1391,14 @@ async function submitLodger(id) {
 }
 
 async function deleteInfoLodger(id) {
-  const l = query("SELECT * FROM lodgers WHERE id = ?", [id])[0];
+  const l = infoFindLodger(id);
   if (!l) return infoToast("挂单记录不存在");
   const info = personDisplayName(l) + (l.phone ? " · " + l.phone : "");
   if (!infoConfirm(`确定删除挂单记录？\n${info}\n删除后不可恢复。`)) return;
   try {
-    var writeResult = null;
-    if (useRemoteWriteApi()) {
-      writeResult = await apiDeleteLodger({ lodger_id: id });
-    } else {
-      await withTransaction(async () => {
-        run("DELETE FROM meals WHERE lodger_id = ?", [id]);
-        run("DELETE FROM payments WHERE lodger_id = ?", [id]);
-        run("DELETE FROM lodgers WHERE id = ?", [id]);
-        if (l.bed_id) {
-          run("UPDATE beds SET status='可用' WHERE id=?", [l.bed_id]);
-          setHouseStatus(l.bed_id, "脏房", "信息管理删除挂单释放床位");
-        }
-        logAudit("删除挂单", "lodger", id, {
-          guest_id: l.guest_id,
-          name: l.name,
-          bed_id: l.bed_id,
-        });
-        logAudit("删除支付记录", "lodger", id, {
-          guest_id: l.guest_id,
-          name: l.name,
-        });
-      });
-      await saveDB();
-    }
+    var writeResult = await apiDeleteLodger({ lodger_id: id });
     infoToast("已删除");
-    await infoRefreshAfterWrite(writeResult, "lodgers", function () {
-      run("DELETE FROM meals WHERE lodger_id = ?", [id]);
-      run("DELETE FROM payments WHERE lodger_id = ?", [id]);
-      run("DELETE FROM lodgers WHERE id = ?", [id]);
-    });
+    await infoRefreshAfterWrite(writeResult, "lodgers");
   } catch (e) {
     console.error(e);
     infoToast("删除失败：" + e.message);

@@ -2,6 +2,7 @@
 
 var BOARD_POLL_INTERVAL_MS = 3000;
 var BOARD_POLL_IDLE_INTERVAL_MS = 20000;
+var _remoteDbSyncQueue = Promise.resolve();
 
 var SYNC_DOMAIN_MODULES = {
   board: "board",
@@ -128,6 +129,15 @@ function setLocalBoardVersion(version) {
   if (typeof lastBoardVersion !== "undefined") {
     lastBoardVersion = version;
   }
+}
+
+/** 串行化本地读模型写入，避免并发灌库互相覆盖 | Serialize local read-model writes */
+function withRemoteDbSync(fn) {
+  var next = _remoteDbSyncQueue.then(function () {
+    return fn();
+  });
+  _remoteDbSyncQueue = next.catch(function () {});
+  return next;
 }
 
 function isBoardViewActive() {
@@ -287,15 +297,20 @@ async function fetchAndApplyModule(moduleKey, options) {
       setLocalBoardVersion(payload.board_version);
     return { module: moduleKey, skipped: true };
   }
-  if (payload && payload.tables) {
-    applyModuleTables(payload.tables, {
-      upsertOnly: !!(options && options.upsertOnly),
-    });
+  if (typeof rcStorePayload === "function") {
+    rcStorePayload(moduleKey, payload);
   }
-  if (payload && payload.board_version != null) {
-    setLocalBoardVersion(payload.board_version);
-  }
-  return { module: moduleKey, skipped: false };
+  return withRemoteDbSync(function () {
+    if (payload && payload.tables) {
+      applyModuleTables(payload.tables, {
+        upsertOnly: !!(options && options.upsertOnly),
+      });
+    }
+    if (payload && payload.board_version != null) {
+      setLocalBoardVersion(payload.board_version);
+    }
+    return { module: moduleKey, skipped: false };
+  });
 }
 
 async function syncRemoteByModules(modules, domains) {
@@ -351,9 +366,11 @@ async function syncRemoteDeltaSince(sinceVersion) {
       await syncRemoteReadModel({ force: true });
       return true;
     }
-    if (typeof applyRemoteDelta === "function") {
-      applyRemoteDelta(delta);
-    }
+    await withRemoteDbSync(function () {
+      if (typeof applyRemoteDelta === "function") {
+        applyRemoteDelta(delta);
+      }
+    });
     notifyViewsForDomains(delta.domains || []);
     return true;
   } catch (e) {
@@ -389,6 +406,25 @@ async function syncAfterRemoteWrite(writeResult, options) {
   if (!remoteReadModelReady || localVersion == null) {
     await syncRemoteReadModel({ force: true });
     notifyViewsForDomains(writeResult && writeResult.changed_domains);
+    return;
+  }
+
+  if (options && options.skipModuleSync) {
+    if (
+      writeVersion != null &&
+      localVersion != null &&
+      writeVersion > localVersion &&
+      remoteReadModelReady
+    ) {
+      try {
+        await syncRemoteDeltaSince(localVersion);
+      } catch (e) {
+        console.warn("write delta sync skipped:", e.message || e);
+      }
+    }
+    if (!options || !options.skipViewRefresh) {
+      refreshViewForScope(getActiveViewId(), options);
+    }
     return;
   }
 
@@ -536,7 +572,7 @@ function onBoardViewVisibilityChange() {
 async function forceFullRemoteSync() {
   if (typeof isRemoteDB !== "function" || !isRemoteDB()) {
     if (typeof showToast === "function")
-      showToast("当前为本地模式，无需云端同步");
+      showToast("当前环境未启用云端读模型");
     return;
   }
   if (!confirm("将重新从云端拉取全部数据，可能需要十几秒。继续？")) return;

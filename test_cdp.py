@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """CDP smoke test: check all views render without console errors."""
-import http.server
-import socketserver
+import json
+import os
 import subprocess
 import sys
 import threading
@@ -20,8 +20,12 @@ def curl_get(url, timeout=5):
     return r.stdout
 
 def start_server():
-    proc = subprocess.Popen(['python3', '-m', 'http.server', str(PORT), '--bind', '127.0.0.1'],
-                            stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    proc = subprocess.Popen(
+        ['python3', 'scripts/dev_server.py'],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        env={**os.environ, 'KETANG_DEV_PORT': str(PORT)},
+    )
     for _ in range(20):
         try:
             curl_get(f"http://127.0.0.1:{PORT}/index.html", timeout=1)

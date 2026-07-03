@@ -418,5 +418,9 @@ async function apiBatchCheckIn(payload) {
 }
 
 function useRemoteWriteApi() {
-  return typeof isRemoteDB === "function" && isRemoteDB();
+  return (
+    typeof isRemoteDB === "function" &&
+    isRemoteDB() &&
+    !(typeof window !== "undefined" && window.KETANG_FORCE_LOCAL_DB === true)
+  );
 }

@@ -13,8 +13,8 @@ applies_to: ["cursor", "github-copilot", "kimi-cli"]
 1. **[AGENTS.md](AGENTS.md)** — 跨工具权威基线（Karpathy 4 rules + 客堂-specific 约束）。
 2. **[copilot-instructions.md](copilot-instructions.md)** — 详细工作流与禁止模式。
 3. **核心文件**：`index.html`（入口壳）+ `styles.css`（样式）+ `js/*.js`（功能模块）。数据逻辑集中在 `js/db.js`。
-4. **数据**：浏览器 IndexedDB 持久化，备份靠导出 `ketang.db`。
-5. **验证**：Chrome Headless + 手动业务路径。
+4. **数据**：权威在 Cloudflare D1；浏览器 sql.js 为读缓存。CI 迁移测试可用 `KETANG_FORCE_LOCAL_DB`。
+5. **验证**：Chrome Headless + 手动业务路径（在线或 dev_server）。
 
 ## 2. 项目结构
 
@@ -26,6 +26,8 @@ applies_to: ["cursor", "github-copilot", "kimi-cli"]
 │   ├── utils.js            # 工具函数
 │   ├── db.js               # SQLite + IndexedDB + schema/migration；HTTPS 时远程 D1
 │   ├── api-client.js       # 云端 /api/v1 业务 API 客户端
+│   ├── read-cache.js       # 读模块 API 缓存 + rcEnsureAppData 灌 sql.js
+│   ├── sync-coordinator.js # 写后同步 / 轮询 / 视图刷新
 │   ├── app.js              # 路由与首页渲染
 │   ├── checkin.js          # 挂单登记
 │   ├── lodger-actions.js   # 续住/换床/编辑/退房/凭证打印
@@ -77,18 +79,19 @@ Verify    Chrome Headless + 手动跑通业务路径
 # 1. 进入项目目录
 cd /Users/junwei/开发/Ketang
 
-# 2. 启动本地服务
-python3 -m http.server 8080
+# 2. 启动本地服务（开发：静态 + API 代理到云端）
+python3 scripts/dev_server.py
 
 # 3. 浏览器访问
 # http://127.0.0.1:8080
 
 # 4. 自动化验证
 python3 test_cdp.py              # HTTP 模式：渲染所有视图并检查 console 错误
-python3 test_cdp_migration.py    # V3 备份迁移至最新结构
+python3 test_cdp_migration.py    # V3 备份迁移至最新结构（KETANG_FORCE_LOCAL_DB）
 python3 test_headless.py         # HTTP 模式 headless 初始化冒烟
+python3 test_info_api_read.py    # 信息管理 API 直读契约
+python3 test_read_cache_wiring.py # read-cache 接线 + 模块读 bootstrap
 python3 test_api_structure.py    # 云端 API 文件结构检查
-python3 test_file_protocol.py    # file:// 模式：验证本地双击打开可正常初始化
 npm run lint:ci                  # 开发期 JS/Functions ESLint 检查；不进入发布产物
 ```
 
@@ -100,7 +103,7 @@ npm run lint:ci                  # 开发期 JS/Functions ESLint 检查；不进
 
 - 不引入会影响发布产物的 npm 运行依赖、Webpack、Vite、React、Vue；允许开发者使用 npm devDependencies 做 lint/test/format/CI。
 - 不上架商店、不使用 Electron / Tauri。
-- 不默认上云。
+- 不默认上云 → **已改为院内部署 Cloudflare（非公有 SaaS），单机便携已停用**。
 - 现在 `index.html` 已拆分，修改前先确认相关函数在 `js/` 的哪个文件里；新增模块同样以普通 `<script src>` 接入。
 
 ---
