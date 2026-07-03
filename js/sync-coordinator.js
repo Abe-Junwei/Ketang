@@ -675,4 +675,24 @@ async function forceFullRemoteSync() {
       renderEventList();
     }
   });
+  registerViewRefresh("domain:reservations", function () {
+    if (
+      document.getElementById("view-stay")?.classList.contains("active") &&
+      typeof _pendingStayMode !== "undefined" &&
+      _pendingStayMode === "reservation" &&
+      typeof renderReservations === "function"
+    ) {
+      renderReservations("全部");
+    }
+  });
+  registerViewRefresh("module:reservations", function () {
+    if (
+      document.getElementById("view-stay")?.classList.contains("active") &&
+      typeof _pendingStayMode !== "undefined" &&
+      _pendingStayMode === "reservation" &&
+      typeof renderReservations === "function"
+    ) {
+      renderReservations("全部");
+    }
+  });
 })();

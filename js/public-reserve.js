@@ -1,9 +1,30 @@
-/* Phase 4 公开预约页 | Public reservation form (no login) */
+/* Phase E 公开预约页 | Public reservation form (no login) */
 
 (function () {
   var form = document.getElementById("reserve-form");
   var resultEl = document.getElementById("reserve-result");
   if (!form) return;
+
+  function showReserveError(msg) {
+    if (!resultEl) {
+      alert(msg);
+      return;
+    }
+    resultEl.hidden = false;
+    resultEl.className = "";
+    resultEl.innerHTML =
+      '<p class="empty-tip" style="color:#c62828;margin-top:1rem">' +
+      (typeof escapeHtml === "function" ? escapeHtml(msg) : msg) +
+      "</p>";
+  }
+
+  function showReserveSuccess() {
+    form.hidden = true;
+    resultEl.hidden = false;
+    resultEl.className = "reserve-success";
+    resultEl.innerHTML =
+      "<p><strong>预约已提交</strong></p><p>客堂知客师将尽快审核，请保持电话畅通。床位需经确认，请勿自行前往入住。</p>";
+  }
 
   form.addEventListener("submit", async function (e) {
     e.preventDefault();
@@ -23,8 +44,17 @@
       .value.trim();
     var notes = document.getElementById("rv-notes").value.trim();
 
+    if (resultEl) {
+      resultEl.hidden = true;
+      resultEl.innerHTML = "";
+    }
+
     if (!name || !gender || !idCard || !checkIn) {
-      alert("请填写必填项：姓名、性别、身份证、预计入住");
+      showReserveError("请填写必填项：姓名、性别、身份证、预计入住");
+      return;
+    }
+    if (checkOut && checkOut < checkIn) {
+      showReserveError("预离日期不能早于入住日期");
       return;
     }
     if (typeof validateGuestContact === "function") {
@@ -35,7 +65,7 @@
         emergencyPhone: emergencyPhone,
       });
       if (!contact.ok) {
-        alert(contact.msg || "请检查联系方式");
+        showReserveError(contact.msg || "请检查联系方式");
         return;
       }
     }
@@ -66,13 +96,9 @@
       if (!res.ok) {
         throw new Error(body.error || "提交失败（" + res.status + "）");
       }
-      form.hidden = true;
-      resultEl.hidden = false;
-      resultEl.className = "reserve-success";
-      resultEl.innerHTML =
-        "<p><strong>预约已提交</strong></p><p>客堂知客师将尽快审核，请保持电话畅通。床位需经确认，请勿自行前往入住。</p>";
+      showReserveSuccess();
     } catch (err) {
-      alert(err.message || "提交失败");
+      showReserveError(err.message || "提交失败");
     } finally {
       btn.disabled = false;
       btn.textContent = "提交预约";

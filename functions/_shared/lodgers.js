@@ -9,6 +9,7 @@ import { assertGuestIdentityFields, normalizePhone } from "./validation.js";
 import { housekeepingRequiresInspect } from "./operational-settings.js";
 import { parseParticipantTagFields } from "./rooming-tags.js";
 import { nowIso } from "./sync-timestamp.js";
+import { notifyPublicReservationSubmitted } from "./public-reservation-notify.js";
 
 const BOARD_SYNC_MODULES = ["board"];
 const BOARD_MEALS_SYNC_MODULES = ["board", "meals"];
@@ -975,7 +976,7 @@ export async function apiPublicReservation(env, body) {
       body.notes || null,
     ],
   );
-  return enrichWriteResponse(
+  const response = enrichWriteResponse(
     env,
     await finishWrite(
       env,
@@ -985,6 +986,20 @@ export async function apiPublicReservation(env, body) {
     ),
     { patchTable: "reservations", rowId: meta.last_row_id },
   );
+  try {
+    await notifyPublicReservationSubmitted(env, {
+      reservation_id: meta.last_row_id,
+      name: person.name,
+      expected_check_in: checkIn,
+      source: body.source || "公开预约",
+    });
+  } catch (error) {
+    console.warn(
+      "public reservation notify hook failed:",
+      error && error.message ? error.message : error,
+    );
+  }
+  return response;
 }
 
 async function findEventByName(env, name) {
