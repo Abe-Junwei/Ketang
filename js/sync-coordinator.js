@@ -313,6 +313,8 @@ async function fetchAndApplyModule(moduleKey, options) {
   options = options || {};
   var skipSql =
     options.skipSqlHydrate ||
+    (typeof shouldSkipSqlDeltaHydrate === "function" &&
+      shouldSkipSqlDeltaHydrate()) ||
     (typeof rcReadReady === "function" && rcReadReady());
   var payload = await apiReadModule(moduleKey, getLocalBoardVersion());
   if (payload && payload.notModified) {
@@ -375,6 +377,7 @@ async function syncRemoteDeltaSince(sinceVersion, options) {
   var since = parseBoardVersion(sinceVersion);
   if (since == null) return false;
   if (!options.quiet) setRemoteSyncStatus("loading");
+  if (typeof ketangPerfMark === "function") ketangPerfMark("delta:start");
   try {
     var delta = await apiSyncDelta(since, since);
     if (delta && delta.not_modified) {
@@ -394,7 +397,9 @@ async function syncRemoteDeltaSince(sinceVersion, options) {
         rcApplyDeltaModules(delta.modules);
       }
     }
-    var skipSql = typeof rcReadReady === "function" && rcReadReady();
+    var skipSql =
+      typeof shouldSkipSqlDeltaHydrate === "function" &&
+      shouldSkipSqlDeltaHydrate();
     if (!skipSql) {
       await withRemoteDbSync(function () {
         if (typeof applyRemoteDelta === "function") {
@@ -414,6 +419,11 @@ async function syncRemoteDeltaSince(sinceVersion, options) {
   } catch (e) {
     setRemoteSyncStatus("error", e.message || "数据同步失败");
     throw e;
+  } finally {
+    if (typeof ketangPerfMark === "function") {
+      ketangPerfMark("delta:end");
+      ketangPerfMeasure("delta", "delta:start", "delta:end");
+    }
   }
 }
 

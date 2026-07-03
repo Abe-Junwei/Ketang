@@ -319,9 +319,23 @@ def main():
         # Permission negative test: default zhike role must not access info/backup
         evaluate(ws, "logout()")
         time.sleep(0.3)
-        login_ok = evaluate(ws, "login('zhike','zhike')").get('value')
-        if not login_ok:
-            print("FAIL: zhike login failed")
+        zhike_login_expr = """
+            (async () => {
+              document.getElementById('login-username').value = 'zhike';
+              document.getElementById('login-password').value = 'zhike';
+              await submitLogin();
+              for (let i = 0; i < 40; i++) {
+                if (typeof isLoggedIn === 'function' && isLoggedIn()) break;
+                await new Promise(r => setTimeout(r, 250));
+              }
+              const u = typeof getCurrentUser === 'function' ? getCurrentUser() : null;
+              return u ? u.role : null;
+            })()
+        """
+        ws.send(json.dumps({'id': 6, 'method': 'Runtime.evaluate', 'params': {'expression': zhike_login_expr, 'awaitPromise': True, 'returnByValue': True}}))
+        zhike_role = recv_by_id(ws, 6, 90).get('result', {}).get('result', {}).get('value')
+        if zhike_role != 'zhike':
+            print("FAIL: zhike login failed, role=", zhike_role)
             sys.exit(1)
         evaluate(ws, "hideLoginOverlay()")
         # Production may grant custom role_permissions; strip admin perms to test the gate.

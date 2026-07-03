@@ -21,7 +21,9 @@ document.addEventListener("DOMContentLoaded", async () => {
       : null;
 
   try {
-    await initSqlite();
+    if (typeof needsLocalSqlEngine === "function" && needsLocalSqlEngine()) {
+      await ensureLocalSqlite();
+    }
     if (typeof initRolePermissionDefaults === "function") {
       await initRolePermissionDefaults();
     }
@@ -76,6 +78,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       if (sidebar) upgradeSelects(sidebar);
     }
     window.ketangReady = true;
+    if (typeof ketangPerfMark === "function") ketangPerfMark("app-ready");
     console.log("客堂管理系统初始化完成");
   } catch (e) {
     console.error("初始化失败 | Init failed:", e);

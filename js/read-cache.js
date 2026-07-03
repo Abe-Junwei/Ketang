@@ -96,6 +96,17 @@ function rcApplyWriteResult(writeResult) {
  */
 function rcRefreshAfterWrite(writeResult, options) {
   options = options || {};
+  if (typeof ketangPerfMark === "function") ketangPerfMark("write-refresh:start");
+  function finishPerf() {
+    if (typeof ketangPerfMark === "function") {
+      ketangPerfMark("write-refresh:end");
+      ketangPerfMeasure(
+        "write-refresh",
+        "write-refresh:start",
+        "write-refresh:end",
+      );
+    }
+  }
   function refreshOnce() {
     if (typeof options.viewRefresh === "function") {
       options.viewRefresh();
@@ -111,13 +122,17 @@ function rcRefreshAfterWrite(writeResult, options) {
     }
   }
   rcApplyWriteResult(writeResult);
-  // 不在乐观 patch 阶段推进本地版本；等待后台 delta/module 对账后再标记已同步。
-  // Do not advance local version during optimistic patch; let delta/module sync settle it.
   if (!options.skipViewRefresh) {
     refreshOnce();
   }
-  if (typeof isRemoteDB !== "function" || !isRemoteDB()) return;
-  if (typeof refreshAfterWrite !== "function") return;
+  if (typeof isRemoteDB !== "function" || !isRemoteDB()) {
+    finishPerf();
+    return;
+  }
+  if (typeof refreshAfterWrite !== "function") {
+    finishPerf();
+    return;
+  }
   var syncTask = refreshAfterWrite(
     writeResult,
     Object.assign(
@@ -136,7 +151,16 @@ function rcRefreshAfterWrite(writeResult, options) {
     syncTask &&
     typeof syncTask.then === "function"
   ) {
-    syncTask.then(refreshOnce).catch(function () {});
+    syncTask
+      .then(function () {
+        refreshOnce();
+        finishPerf();
+      })
+      .catch(function () {
+        finishPerf();
+      });
+  } else {
+    finishPerf();
   }
   return syncTask;
 }
@@ -146,6 +170,8 @@ async function rcFetch(moduleKey, force) {
   if (!moduleKey) return null;
   if (!force && _rcStore[moduleKey]) return _rcStore[moduleKey];
   if (_rcInflight[moduleKey]) return _rcInflight[moduleKey];
+  if (typeof ketangPerfMark === "function")
+    ketangPerfMark("read:" + moduleKey + ":start");
   _rcInflight[moduleKey] = apiReadModule(moduleKey, null)
     .then(function (payload) {
       _rcStore[moduleKey] = payload || {};
@@ -159,6 +185,14 @@ async function rcFetch(moduleKey, force) {
       return payload;
     })
     .finally(function () {
+      if (typeof ketangPerfMark === "function") {
+        ketangPerfMark("read:" + moduleKey + ":end");
+        ketangPerfMeasure(
+          "read:" + moduleKey,
+          "read:" + moduleKey + ":start",
+          "read:" + moduleKey + ":end",
+        );
+      }
       delete _rcInflight[moduleKey];
     });
   return _rcInflight[moduleKey];
@@ -1439,6 +1473,12 @@ async function rcHydrateLegacyQueries(moduleKeys, force) {
   if (!rcUseApiRead()) return;
   await rcFetchMany(moduleKeys, force);
   if (typeof rcReadReady === "function" && rcReadReady()) return;
+  if (
+    typeof shouldSkipSqlDeltaHydrate === "function" &&
+    shouldSkipSqlDeltaHydrate()
+  ) {
+    return;
+  }
   var tables = {};
   (moduleKeys || []).forEach(function (key) {
     var mod = rcTables(key);
@@ -1517,6 +1557,7 @@ async function rcEnsureAppData(force, options) {
     options.hydrateSql ||
     (typeof isLocalForceDb === "function" && isLocalForceDb());
   if (hydrateSql && typeof applyModuleTables === "function") {
+    if (typeof ensureLocalSqlite === "function") await ensureLocalSqlite();
     var allTables = {};
     RC_APP_MODULES.forEach(function (key) {
       var tables = rcTables(key);

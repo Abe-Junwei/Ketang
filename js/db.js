@@ -5,6 +5,9 @@ const KEY = "main";
 const REMOTE_SESSION_KEY = "ketang_remote_session_token";
 const LEGACY_ACCESS_TOKEN_KEY = "ketang_access_token";
 const REFRESH_BLOCK_KEY = "ketang_block_refresh";
+const SQL_JS_URL = "./lib/sql-wasm.js?v=2";
+const SQL_WASM_URL = "./lib/sql-wasm.wasm";
+let _localSqlLoadPromise = null;
 const REMOTE_DB_ENABLED = (() => {
   if (typeof window === "undefined" || !window.location) return false;
   if (window.KETANG_FORCE_LOCAL_DB === true) return false;
@@ -235,9 +238,72 @@ function remoteLogout() {
   /* access/refresh 由服务端 HttpOnly Cookie 管理 | Cookies cleared via apiAuthLogout */
 }
 
+/** 本地/灾备模式才需加载 sql.js | Local-only paths need sql.js */
+function needsLocalSqlEngine() {
+  return typeof isRemoteDB === "function" && !isRemoteDB();
+}
+
+function isLocalSqlEngineLoaded() {
+  return typeof initSqlJs === "function" && !!SQL;
+}
+
+function shouldSkipSqlDeltaHydrate() {
+  if (typeof rcReadReady === "function" && rcReadReady()) return true;
+  return (
+    typeof isRemoteDB === "function" &&
+    isRemoteDB() &&
+    !(typeof window !== "undefined" && window.KETANG_FORCE_LOCAL_DB === true) &&
+    !isLocalSqlEngineLoaded()
+  );
+}
+
+function inferOnlineQueryCaller() {
+  try {
+    var stack = new Error().stack || "";
+    var line = stack.split("\n")[2] || "";
+    var m = line.match(/(?:at\s+\w+\s+\()?([^:)]+:\d+)/);
+    return m ? m[1].replace(/^.*\/js\//, "js/") : "unknown";
+  } catch (e) {
+    return "unknown";
+  }
+}
+
+async function loadSqlJsScript() {
+  if (typeof initSqlJs === "function") return;
+  if (window.__ketangSqlJsLoading) {
+    await window.__ketangSqlJsLoading;
+    return;
+  }
+  window.__ketangSqlJsLoading = new Promise(function (resolve, reject) {
+    var script = document.createElement("script");
+    script.src = SQL_JS_URL;
+    script.onload = function () {
+      resolve();
+    };
+    script.onerror = function () {
+      reject(new Error("无法加载 " + SQL_JS_URL));
+    };
+    document.head.appendChild(script);
+  });
+  await window.__ketangSqlJsLoading;
+}
+
+async function ensureLocalSqlite() {
+  if (SQL) return;
+  if (_localSqlLoadPromise) return _localSqlLoadPromise;
+  _localSqlLoadPromise = (async function () {
+    await loadSqlJsScript();
+    await initSqlite();
+  })();
+  return _localSqlLoadPromise;
+}
+
 async function initSqlite() {
   if (SQL) return;
-  const wasmPath = "./lib/sql-wasm.wasm";
+  if (typeof initSqlJs !== "function") {
+    throw new Error("sql.js 未加载，请先调用 ensureLocalSqlite()");
+  }
+  const wasmPath = SQL_WASM_URL;
   const response = await fetch(wasmPath);
   if (!response.ok) {
     throw new Error(
@@ -508,7 +574,7 @@ function applyRemoteDelta(delta, options) {
       rcApplyDeltaModules(delta.modules);
     }
   }
-  var skipSql = typeof rcReadReady === "function" && rcReadReady();
+  var skipSql = shouldSkipSqlDeltaHydrate();
   if (skipSql) {
     if (
       delta.board_version != null &&
@@ -2516,10 +2582,20 @@ function safeParams(params) {
 }
 
 function query(sql, params) {
-  if (isRemoteDB()) {
-    if (!remoteReadModelReady && !_remoteHydrating) return [];
-    if (!db || typeof db.prepare !== "function") return [];
+  if (
+    typeof isRemoteDB === "function" &&
+    isRemoteDB() &&
+    !(typeof window !== "undefined" && window.KETANG_FORCE_LOCAL_DB === true) &&
+    !_remoteHydrating
+  ) {
+    throw new Error(
+      "在线模式不应调用 query()（caller: " +
+        inferOnlineQueryCaller() +
+        "）。请改用 rc* / read-shim。SQL: " +
+        String(sql).slice(0, 120),
+    );
   }
+  if (!db || typeof db.prepare !== "function") return [];
   const stmt = db.prepare(sql);
   if (params) stmt.bind(safeParams(params));
   const rows = [];
@@ -2634,6 +2710,7 @@ async function importDB(input) {
   const reader = new FileReader();
   reader.onload = async (e) => {
     try {
+      await ensureLocalSqlite();
       const arr = new Uint8Array(e.target.result);
       // 校验 SQLite 文件头
       const header = new TextDecoder().decode(arr.slice(0, 16));

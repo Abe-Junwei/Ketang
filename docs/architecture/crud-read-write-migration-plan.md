@@ -48,7 +48,7 @@ flowchart LR
 | 读路径     | 看板、信息在线主路径、部分营期/预测已有 `rc*`        | 报表、预测、历史、排房、权限仍有在线 `query()` 或 fallback |
 | 排房       | `rooming-read.js` 可读 event detail                  | 写后 invalidate + 强制重拉，patch 粒度不足                 |
 | 同步       | `board_version`、delta、SSE 主体可用                 | 还缺按模块的延迟指标、失败重试可观测性                     |
-| sql.js     | 在线仍加载 `sql-wasm.js`                             | Phase 13 完成前不能移除                                    |
+| sql.js     | 在线不加载 wasm；本地动态加载                         | 极少数本地分支仍保留 `query()` fallback              |
 
 ## 4. 分阶段计划
 
@@ -291,6 +291,9 @@ python3 test_read_cache_wiring.py
 python3 test_view_read_modules.py
 python3 test_rc_parity.py
 python3 test_cdp.py
+python3 test_online_no_sql.py
+python3 test_online_query_guard.py
+python3 test_perf_marks.py
 npm run lint:ci
 ```
 
@@ -317,10 +320,8 @@ npm run lint:ci
 
 ## 9. 当前下一步
 
-建议下一步以 **Phase B 排房 patches** + **Phase C L1 保存中状态** 为主线，同时启动 **Phase D1/D2 reports + forecast parity** 作为第二条并行线。
+**Phase A–G 主体已完成**（2026-07-03）。后续可选：
 
-理由：
-
-- 排房是当前 read/write 混合最重、最容易全量重拉的模块。
-- 保存中状态改动小、用户体感收益高、风险低。
-- reports/forecast 去 `query()` 是去 sql.js 的关键前置，但需要更细的聚合 parity 测试，适合作为第二条并行线。
+1. 生产域跑 `test_prod_latency.py` 对照 `docs/ops/performance-baseline.json` 的 `phase_g_targets_ms`。
+2. 双端同步 / 写后可见 P95 纳入 CI 或 Cron 巡检。
+3. 继续清 Phase D 非热路径 `query()` 尾巴（本地 fallback 保留）。

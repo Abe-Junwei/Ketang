@@ -6,7 +6,7 @@
 
 - 前端仍由 Cloudflare Pages 托管 `index.html`、`styles.css`、`js/`。
 - HTTPS 线上访问会自动进入远程数据库模式。
-- **读**：登录后 `GET /api/v1/read/:module` 按模块拉取 → `read-cache.js` 单一内存缓存（`_rcStore`）；当前在线热路径仍有 `query()` 兼容调用，入口也仍加载 `sql-wasm.js`，因此 sql.js 仍是过渡查询引擎，不再视为默认已移除。
+- **读**：登录后 `GET /api/v1/read/:module` 按模块拉取 → `read-cache.js` 单一内存缓存（`_rcStore`）；在线主路径走 `rc*` / `read-shim`，**不再加载** `sql-wasm.js` / `sql-wasm.wasm`。
 - **写后刷新**（对齐 ERPNext / Directus）：写 API 返回 `patches`（完整行）+ `deletions`（墓碑）+ `board_version`；全站统一 `rcRefreshAfterWrite()`：即时 patch `_rcStore`、刷新当前视图、后台 defer 对账（自己的写默认 skip delta）。
 - **多端同步**：其他终端靠 `board_version` + `/api/v1/sync/delta` / SSE 拉变更；SSE 当前是服务端 1.5s 检测 `board_version` 后转推，轮询仍是可靠兜底。
 - **公开预约**：`reserve.html` → `POST /api/public/reservations`（无需登录）。
@@ -115,15 +115,17 @@ bash scripts/run_p1_checklist.sh https://wulingkt.net <Pages预览域名>
 
 最终多人/并发验收清单见 [docs/final-acceptance-checklist.md](final-acceptance-checklist.md)。
 
-### 在线 sql.js 边界（当前过渡态）
+### 在线 sql.js 边界（Phase F 已完成）
 
-当前线上主数据源已经是 D1 + `_rcStore`，但还没有完全去掉 sql.js：
+线上主数据源是 D1 + `_rcStore`，在线模式**不加载** sql.js：
 
-- [index.html](../index.html) 仍无条件加载 `./lib/sql-wasm.js`。
-- `js/db.js::initSqlite()` 仍会在首次 `query()` / `run()` 需要时 fetch `sql-wasm.wasm`。
-- `reports.js`、`forecast.js`、`events.js`、`rooming-*` 等在线路径仍有 `query()` 调用。
+- [index.html](../index.html) 不再静态引用 `./lib/sql-wasm.js`；本地/灾备通过 `ensureLocalSqlite()` 动态加载。
+- 在线误调 `query()` 会抛出带 caller 提示的错误，便于清尾巴。
+- `?force_local_db=1` 或纯本地 IndexedDB 模式仍会加载 wasm，供 migration / 灾备恢复。
 
-后续去 sql.js 工作按 [docs/roadmap.md](roadmap.md) Phase 13 执行：先清理 reports/forecast 在线 `query()`，再动态加载 sql.js，最后从发布产物中移除在线不需要的 wasm。
+遗留 `query()` 仅存在于本地分支或 `_remoteHydrating` 过渡路径；新功能须走 `rc*`。
+
+性能埋点见 [docs/ops/performance-baseline.json](ops/performance-baseline.json)（Phase G）。
 
 发布前迁移/恢复校验：
 

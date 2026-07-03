@@ -557,12 +557,19 @@ async function submitLogin() {
     return;
   }
   setLoginPending(true);
+  if (typeof ketangPerfMark === "function") ketangPerfMark("login:start");
   if (errorEl) errorEl.textContent = "正在验证身份，请稍候…";
   try {
     if (await loginByRole(selectedRole, password)) {
       if (errorEl) errorEl.textContent = "正在同步数据，请稍候…";
       document.getElementById("login-password").value = "";
       await renderAll();
+      if (typeof ketangPerfMark === "function") {
+        ketangPerfMark("login:end");
+        ketangPerfMark("login-ready");
+        ketangPerfMeasure("login", "login:start", "login:end");
+        ketangPerfMeasure("login-ready", "login:start", "login-ready");
+      }
       if (errorEl) errorEl.textContent = "";
       hideLoginOverlay();
       if (typeof startBoardPolling === "function") startBoardPolling();
