@@ -203,21 +203,22 @@ const INFO_READ_MODULES = {
   events: "events",
 };
 
-var _infoModuleData = {};
-var _infoModuleInflight = {};
 
 function infoUseApiData() {
   return typeof isRemoteDB === "function" && isRemoteDB();
 }
 
 function infoModuleTables(moduleKey) {
-  return (_infoModuleData[moduleKey] && _infoModuleData[moduleKey].tables) || {};
+  if (typeof rcTables === "function") {
+    return rcTables(moduleKey);
+  }
+  return {};
 }
 
 function infoInvalidateModules(moduleKeys) {
-  (moduleKeys || []).forEach(function (key) {
-    delete _infoModuleData[key];
-  });
+  if (typeof rcInvalidateMany === "function") {
+    rcInvalidateMany(moduleKeys);
+  }
 }
 
 function infoInvalidateForTab(tab) {
@@ -230,24 +231,8 @@ function infoInvalidateForTab(tab) {
 
 async function infoEnsureModuleData(moduleKey, force) {
   if (!infoUseApiData()) return null;
-  if (!force && _infoModuleData[moduleKey]) return _infoModuleData[moduleKey];
-  if (_infoModuleInflight[moduleKey]) return _infoModuleInflight[moduleKey];
-  _infoModuleInflight[moduleKey] = apiReadModule(moduleKey, null)
-    .then(function (payload) {
-      _infoModuleData[moduleKey] = payload || {};
-      if (
-        payload &&
-        payload.board_version != null &&
-        typeof setLocalBoardVersion === "function"
-      ) {
-        setLocalBoardVersion(payload.board_version);
-      }
-      return payload;
-    })
-    .finally(function () {
-      delete _infoModuleInflight[moduleKey];
-    });
-  return _infoModuleInflight[moduleKey];
+  if (typeof rcFetch === "function") return rcFetch(moduleKey, force);
+  return null;
 }
 
 async function infoEnsureTabData(tab, force) {
@@ -492,30 +477,46 @@ var INFO_WRITE_SYNC = {
 
 async function infoRefreshAfterWrite(writeResult, tab, syncOptions) {
   tab = tab || infoCurrentTab;
-  if (typeof touchBoardVersionFromWrite === "function") {
-    touchBoardVersionFromWrite(writeResult);
-  }
-  infoInvalidateForTab(tab);
-  if (typeof rcInvalidateForInfoTab === "function") {
-    rcInvalidateForInfoTab(tab);
+  var useRc =
+    infoUseApiData() &&
+    typeof rcReadReady === "function" &&
+    rcReadReady();
+  if (!useRc) {
+    infoInvalidateForTab(tab);
   }
   if (infoUseApiData()) {
-    try {
-      await infoEnsureTabData(tab, true);
-    } catch (e) {
-      console.warn("info refetch failed:", e.message || e);
-    }
-    var rcMods =
-      typeof rcModulesForInfoTab === "function" ? rcModulesForInfoTab(tab) : [];
-    if (rcMods.length && typeof rcFetchMany === "function") {
+    var prevVersion =
+      typeof getLocalBoardVersion === "function" ? getLocalBoardVersion() : null;
+    var writeVersion =
+      writeResult && writeResult.board_version != null
+        ? writeResult.board_version
+        : null;
+    if (
+      prevVersion != null &&
+      writeVersion != null &&
+      writeVersion > prevVersion &&
+      typeof syncRemoteDeltaSince === "function"
+    ) {
       try {
-        await rcFetchMany(rcMods, true);
-        if (typeof rcHydrateLegacyQueries === "function") {
-          await rcHydrateLegacyQueries(rcMods, true);
-        }
+        await syncRemoteDeltaSince(prevVersion, { quiet: true, skipNotify: true });
       } catch (e) {
-        console.warn("rc refetch failed:", e.message || e);
+        console.warn("info delta sync failed:", e.message || e);
+        infoInvalidateForTab(tab);
+        try {
+          await infoEnsureTabData(tab, true);
+        } catch (e2) {
+          console.warn("info refetch failed:", e2.message || e2);
+        }
       }
+    } else if (!useRc) {
+      try {
+        await infoEnsureTabData(tab, true);
+      } catch (e) {
+        console.warn("info refetch failed:", e.message || e);
+      }
+    }
+    if (typeof touchBoardVersionFromWrite === "function") {
+      touchBoardVersionFromWrite(writeResult);
     }
   }
   renderInfo(tab);

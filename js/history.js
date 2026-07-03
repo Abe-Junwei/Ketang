@@ -66,7 +66,9 @@ function renderHistory() {
     params.push("%" + kw + "%", "%" + kw + "%", "%" + kw + "%");
   }
   sql += " ORDER BY l.check_in_date DESC, l.id DESC";
-  const rows = query(sql, params);
+  const rows = isLocalForceDb()
+    ? query(sql, params)
+    : rcHistorySearch({ start: start, end: end, kw: kw, room: room, role: role });
   rows.forEach((r) => {
     const meal = getMealSummary(r.id);
     const mealLabel = `早${meal.breakfast} 午${meal.lunch} 晚${meal.dinner}`;
@@ -106,14 +108,16 @@ function resetHistoryFilter() {
 }
 
 function exportCSV() {
-  const rows = query(`
+  const rows = isLocalForceDb()
+    ? query(`
     SELECT l.*, r.name as room_name, b.bed_number, e.name as event_name
     FROM lodgers l
     LEFT JOIN beds b ON b.id=l.bed_id
     LEFT JOIN rooms r ON r.id=b.room_id
     LEFT JOIN events e ON e.id=l.event_id
     ORDER BY l.check_in_date DESC, l.id DESC
-  `);
+  `)
+    : rcHistorySearch({});
   const headers = [
     "序号",
     "房间/床位",

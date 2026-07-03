@@ -6,7 +6,8 @@
 
 - 前端仍由 Cloudflare Pages 托管 `index.html`、`styles.css`、`js/`。
 - HTTPS 线上访问会自动进入远程数据库模式。
-- **读**：登录后 `GET /api/v1/read-model` 拉取按角色裁剪的快照，灌入浏览器内存 sql.js 供页面渲染。响应带 `ETag`（board version）；客户端可发 `If-None-Match` 获 `304`，跳过重复灌库。
+- **读**：登录后 `GET /api/v1/read/:module` 按模块拉取 → `read-cache.js` 单一内存缓存（`_rcStore`）；写后优先 `/api/v1/sync/delta` 增量 patch。在线模式**默认不灌 sql.js**（仅 `KETANG_FORCE_LOCAL_DB` 或「强制同步」可选灌库）。
+- **公开预约**：`reserve.html` → `POST /api/public/reservations`（无需登录）。
 - **写**：业务操作走 `/api/v1/*`，由 Worker 写入 D1。
 - **登录/改密/用户列表**：仍走 `POST /api/db` 与 `/api/v1/admin/users`。
 - 本地 `localhost`、`127.0.0.1`、`file://` 仍使用原 IndexedDB/sql.js 模式。
@@ -52,7 +53,7 @@
 - 业务写操作走 `/api/v1/*` 接口（入住/退房/换床/续住/分床/编辑删除挂单/用斋/房务/预约/营期批量操作），D1 `batch()` 保证原子性。
 - `/api/db` 网关：知客师仅允许 `SELECT`/`PRAGMA` 与 `INSERT audit_logs`；管理员可管理用户与房间设置。
 - 管理员可在「系统设置」导出/导入 JSON 备份（含 `users` 表，`/api/v1/admin/data-backup`）。
-- 房态看板在云端模式每 **3** 秒轮询 `board-version` 自动刷新（全视图 + 切回前台时也会检查；后台标签页暂停轮询）。
+- 房态看板在云端模式优先 **SSE**（`/api/v1/stream/board`），失败降级 **8s** 轮询 `board-version`。
 - 登录前不再阻塞远程 `init`；身份下拉在 HTML 中静态列出，页面打开即可选。
 - 已有数据的 D1 库登录走 `ensureDatabaseForAuth` 快速路径，跳过全量 schema 重放。
 - 公开预约：`POST /api/public/reservations`（IP 限流；可用 `KETANG_PUBLIC_RESERVATIONS=false` 关闭）。

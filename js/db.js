@@ -128,9 +128,28 @@ function refreshAfterWrite(writeResult, options) {
   ) {
     return;
   }
+  options = options || {};
+  if (
+    isRemoteDB() &&
+    typeof rcReadReady === "function" &&
+    rcReadReady() &&
+    options.awaitSync !== true
+  ) {
+    options = Object.assign({ quietSync: true }, options);
+  }
   const task = (async function () {
     if (isRemoteDB()) {
       if (options && options.deferSyncRender) {
+        if (!(options && options.skipViewRefresh)) {
+          if (options && options.fullRefresh) {
+            renderAll({ skipSync: true });
+          } else if (typeof refreshViewForScope === "function") {
+            refreshViewForScope(
+              (options && options.scope) || null,
+              options,
+            );
+          }
+        }
         var deferOpts = Object.assign({}, options, { skipViewRefresh: true });
         var bgSync =
           typeof syncAfterRemoteWrite === "function"
@@ -142,7 +161,10 @@ function refreshAfterWrite(writeResult, options) {
               if (options && options.fullRefresh) {
                 return renderAll({ skipSync: true });
               }
-              if (typeof refreshViewForScope === "function") {
+              if (
+                !(options && options.skipViewRefresh) &&
+                typeof refreshViewForScope === "function"
+              ) {
                 refreshViewForScope(
                   (options && options.scope) || null,
                   options,
@@ -472,10 +494,34 @@ function applyModuleTablesInner(tables, options) {
 }
 
 /** 增量同步灌库 | Apply delta sync payload into sql.js */
-function applyRemoteDelta(delta) {
+function applyRemoteDelta(delta, options) {
   if (!delta || typeof delta !== "object") {
     console.warn("applyRemoteDelta: invalid payload", delta);
     return false;
+  }
+  options = options || {};
+  if (
+    !options.skipRcPatch &&
+    typeof rcApplyDeltaPatches === "function"
+  ) {
+    if (delta.patch_mode && delta.patches) {
+      rcApplyDeltaPatches(delta.patches, delta.deletions);
+    } else if (delta.modules && typeof rcApplyDeltaModules === "function") {
+      rcApplyDeltaModules(delta.modules);
+    }
+  }
+  var skipSql = typeof rcReadReady === "function" && rcReadReady();
+  if (skipSql) {
+    if (
+      delta.board_version != null &&
+      typeof lastBoardVersion !== "undefined"
+    ) {
+      lastBoardVersion = delta.board_version;
+    }
+    remoteReadModelReady = true;
+    lastRemoteSyncAt = Date.now();
+    setRemoteSyncStatus("ready");
+    return true;
   }
   ensureRemoteLocalSchema();
   _remoteHydrating = true;
@@ -546,7 +592,10 @@ async function syncRemoteReadModel(options) {
       if (typeof rcEnsureAppData !== "function") {
         throw new Error("read-cache 未加载");
       }
-      await rcEnsureAppData(force);
+      await rcEnsureAppData(force, {
+        hydrateSql:
+          typeof isLocalForceDb === "function" && isLocalForceDb(),
+      });
     } catch (err) {
       setRemoteSyncStatus("error", err.message || "数据同步失败");
       throw err;

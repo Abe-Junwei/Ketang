@@ -23,6 +23,7 @@ copy_tree() {
 }
 
 copy_file index.html index.html
+copy_file reserve.html reserve.html
 copy_file styles.css styles.css
 copy_file _headers _headers
 copy_file _routes.json _routes.json

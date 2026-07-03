@@ -101,10 +101,8 @@ document.addEventListener("click", function (e) {
 });
 
 function openExtendModal(id) {
-  const l = query(
-    "SELECT l.*, r.name as room_name, b.bed_number FROM lodgers l LEFT JOIN beds b ON b.id=l.bed_id LEFT JOIN rooms r ON r.id=b.room_id WHERE l.id=?",
-    [id],
-  )[0];
+  const l = readLodgerEnriched(id);
+  if (!l) return;
   const label = escapeHtml(
     (l.room_name || "-") + (l.bed_number ? " / " + l.bed_number : ""),
   );
@@ -135,7 +133,8 @@ async function submitExtend(id) {
     alert("请选择新的预离日期");
     return;
   }
-  const l = query("SELECT * FROM lodgers WHERE id=?", [id])[0];
+  const l = readLodger(id);
+  if (!l) return;
   if (date < l.check_in_date) {
     alert("预离日期不能早于入住日期");
     return;
@@ -192,10 +191,8 @@ async function submitExtend(id) {
 }
 
 function openChangeBedModal(id) {
-  const l = query(
-    "SELECT l.*, r.name as room_name, b.bed_number, r.dorm_type FROM lodgers l LEFT JOIN beds b ON b.id=l.bed_id LEFT JOIN rooms r ON r.id=b.room_id WHERE l.id=?",
-    [id],
-  )[0];
+  const l = readLodgerEnriched(id);
+  if (!l) return;
   const modal = document.getElementById("modal");
   document.getElementById("modal-title").textContent =
     "换床 - " + escapeHtml(personDisplayName(l));
@@ -264,19 +261,20 @@ async function submitChangeBed(lodgerId, gender) {
     alert("请选择新床位");
     return;
   }
-  const bed = query(
-    `SELECT b.*, r.dorm_type FROM beds b JOIN rooms r ON r.id=b.room_id WHERE b.id=?`,
-    [bedId],
-  )[0];
+  const bed = readBedJoined(bedId);
+  if (!bed) return;
   if (!dormMatchGender(bed.dorm_type, gender)) {
     alert("该床位所在房间寮类型不符");
     return;
   }
-  const occ =
-    query(
-      "SELECT COUNT(*) as c FROM lodgers WHERE bed_id=? AND status='在住'",
-      [bedId],
-    )[0]?.c || 0;
+  var occ = readUseRc()
+    ? rcLodgerOnBed(bedId)
+      ? 1
+      : 0
+    : query(
+        "SELECT COUNT(*) as c FROM lodgers WHERE bed_id=? AND status='在住'",
+        [bedId],
+      )[0]?.c || 0;
   if (occ > 0) {
     alert("该床位已有人");
     return;
@@ -337,14 +335,12 @@ async function submitChangeBed(lodgerId, gender) {
 }
 
 function openEditLodgerModal(id) {
-  const l = query("SELECT * FROM lodgers WHERE id=?", [id])[0];
+  const l = readLodger(id);
+  if (!l) return;
   let emergencyName = "";
   let emergencyPhone = "";
   if (l.guest_id) {
-    const guest = query(
-      "SELECT emergency_contact, emergency_phone FROM guests WHERE id=?",
-      [l.guest_id],
-    )[0];
+    const guest = readGuest(l.guest_id);
     if (guest) {
       emergencyName = guest.emergency_contact || "";
       emergencyPhone = guest.emergency_phone || "";
@@ -444,11 +440,12 @@ async function submitEditLodger(id) {
   }
 
   const gender = document.getElementById("edit-gender").value;
-  const l = query("SELECT bed_id FROM lodgers WHERE id=?", [id])[0];
-  const bed = query(
-    `SELECT b.*, r.dorm_type FROM beds b JOIN rooms r ON r.id=b.room_id WHERE b.id=?`,
-    [l.bed_id],
-  )[0];
+  const l = readLodger(id);
+  if (!l || !l.bed_id) {
+    alert("挂单数据不可用");
+    return;
+  }
+  const bed = readBedJoined(l.bed_id);
   if (!dormMatchGender(bed.dorm_type, gender)) {
     if (
       !confirm(
@@ -585,7 +582,8 @@ async function submitEditLodger(id) {
 }
 
 async function deleteLodger(id) {
-  const l = query("SELECT * FROM lodgers WHERE id=?", [id])[0];
+  const l = readLodger(id);
+  if (!l) return;
   const info = personDisplayName(l) + (l.phone ? " · " + l.phone : "");
   const ok = await showConfirm({
     title: "删除挂单",
@@ -623,18 +621,13 @@ async function deleteLodger(id) {
 }
 
 function openCheckoutModal(id) {
-  const l = query(
-    "SELECT l.*, r.name as room_name, b.bed_number FROM lodgers l LEFT JOIN beds b ON b.id=l.bed_id LEFT JOIN rooms r ON r.id=b.room_id WHERE l.id=?",
-    [id],
-  )[0];
+  const l = readLodgerEnriched(id);
+  if (!l) return;
   const label = escapeHtml(
     (l.room_name || "-") + (l.bed_number ? " / " + l.bed_number : ""),
   );
-  const paid = query(
-    "SELECT COALESCE(SUM(CASE WHEN type IN ('押金','房费') THEN amount ELSE 0 END), 0) as income, COALESCE(SUM(CASE WHEN type = '退款' THEN amount ELSE 0 END), 0) as refund FROM payments WHERE lodger_id = ?",
-    [id],
-  )[0];
-  const balance = (paid.income || 0) - (paid.refund || 0);
+  const paid = readPaymentSummary(id);
+  const balance = paid.balance;
   const modal = document.getElementById("modal");
   document.getElementById("modal-title").textContent =
     "退房 - " + escapeHtml(personDisplayName(l));
@@ -679,18 +672,14 @@ async function submitCheckout(id) {
     alert("退款金额不能为负数");
     return;
   }
-  const paid = query(
-    "SELECT COALESCE(SUM(CASE WHEN type IN ('押金','房费') THEN amount ELSE 0 END), 0) as income, COALESCE(SUM(CASE WHEN type = '退款' THEN amount ELSE 0 END), 0) as refund_total FROM payments WHERE lodger_id = ?",
-    [id],
-  )[0];
-  const balance = (paid.income || 0) - (paid.refund_total || 0);
+  const paid = readPaymentSummary(id);
+  const balance = paid.balance;
   if (refund > balance) {
     alert(`退款金额不能超过余额 ${balance.toFixed(2)}`);
     return;
   }
-  const l = query("SELECT bed_id, guest_id, name FROM lodgers WHERE id=?", [
-    id,
-  ])[0];
+  const l = readLodger(id);
+  if (!l) return;
   const today = new Date().toISOString().slice(0, 10);
   try {
     var writeResult = null;
@@ -747,18 +736,8 @@ async function submitCheckout(id) {
 }
 
 function printVoucher(id) {
-  const l = query(
-    `
-    SELECT l.*, r.name as room_name, b.bed_number,
-      (SELECT COALESCE(SUM(amount), 0) FROM payments WHERE lodger_id = l.id AND type = '押金') as deposit,
-      (SELECT COALESCE(SUM(amount), 0) FROM payments WHERE lodger_id = l.id AND type = '房费') as room_fee
-    FROM lodgers l
-    LEFT JOIN beds b ON b.id = l.bed_id
-    LEFT JOIN rooms r ON r.id = b.room_id
-    WHERE l.id = ?
-  `,
-    [id],
-  )[0];
+  const l = readLodgerForVoucher(id);
+  if (!l) return;
   const modal = document.getElementById("modal");
   document.getElementById("modal-title").textContent =
     "挂单凭证 - " + escapeHtml(personDisplayName(l));

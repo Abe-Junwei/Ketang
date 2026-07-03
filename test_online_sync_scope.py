@@ -24,7 +24,10 @@ def main():
         ("rcEventMembers", "function rcEventMembers" in rc),
         ("eventReadReady", "function eventReadReady" in events),
         ("batch cancel awaits sync", "await refreshTask" in events and "batchCancelEventMembers" in events),
-        ("info rc invalidate", "rcInvalidateForInfoTab" in info),
+        ("info delta sync on write", "syncRemoteDeltaSince" in info and "infoModuleTables" in info),
+        ("delta-first write sync", "syncRemoteDeltaSince(localVersion" in sync),
+        ("parallel module fetch", "Promise.all" in sync and "syncRemoteByModules" in sync),
+        ("skip sql hydrate when rc ready", "skipSqlHydrate" in sync or "rcReadReady()" in sync),
         ("boardReadCacheReady uses rcReadReady", "rcReadReady()" in rc and "function boardReadCacheReady" in rc),
         ("rcFlexEmptyRooms", "function rcFlexEmptyRooms" in rc),
     ]

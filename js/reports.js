@@ -33,7 +33,7 @@ function populateReportEventSelect() {
   const sel = document.getElementById("r-event");
   if (!sel) return;
   var events;
-  if (typeof boardReadCacheReady === "function" && boardReadCacheReady()) {
+  if (!isLocalForceDb()) {
     events = rcEventsForSelect();
   } else {
     events = query(

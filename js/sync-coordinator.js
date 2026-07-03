@@ -314,6 +314,10 @@ function refreshActiveViewsAfterSync() {
 }
 
 async function fetchAndApplyModule(moduleKey, options) {
+  options = options || {};
+  var skipSql =
+    options.skipSqlHydrate ||
+    (typeof rcReadReady === "function" && rcReadReady());
   var payload = await apiReadModule(moduleKey, getLocalBoardVersion());
   if (payload && payload.notModified) {
     if (payload.board_version != null)
@@ -322,6 +326,12 @@ async function fetchAndApplyModule(moduleKey, options) {
   }
   if (typeof rcStorePayload === "function") {
     rcStorePayload(moduleKey, payload);
+  }
+  if (skipSql) {
+    if (payload && payload.board_version != null) {
+      setLocalBoardVersion(payload.board_version);
+    }
+    return { module: moduleKey, skipped: false };
   }
   return withRemoteDbSync(function () {
     if (payload && payload.tables) {
@@ -336,13 +346,16 @@ async function fetchAndApplyModule(moduleKey, options) {
   });
 }
 
-async function syncRemoteByModules(modules, domains) {
+async function syncRemoteByModules(modules, domains, options) {
+  options = options || {};
   if (!modules || !modules.length) return false;
-  setRemoteSyncStatus("loading");
+  if (!options.quiet) setRemoteSyncStatus("loading");
   try {
-    for (var i = 0; i < modules.length; i++) {
-      await fetchAndApplyModule(modules[i]);
-    }
+    await Promise.all(
+      modules.map(function (moduleKey) {
+        return fetchAndApplyModule(moduleKey, options);
+      }),
+    );
     remoteReadModelReady = true;
     lastRemoteSyncAt = Date.now();
     setRemoteSyncStatus("ready");
@@ -355,28 +368,17 @@ async function syncRemoteByModules(modules, domains) {
 }
 
 async function syncRemoteByDomains(domains, options) {
+  options = options || {};
   var modules = domainsToModules(domains, options);
   if (!modules.length) return false;
-  setRemoteSyncStatus("loading");
-  try {
-    for (var i = 0; i < modules.length; i++) {
-      await fetchAndApplyModule(modules[i]);
-    }
-    remoteReadModelReady = true;
-    lastRemoteSyncAt = Date.now();
-    setRemoteSyncStatus("ready");
-    notifyViewsForDomains(domains);
-    return true;
-  } catch (e) {
-    setRemoteSyncStatus("error", e.message || "数据同步失败");
-    throw e;
-  }
+  return syncRemoteByModules(modules, domains, options);
 }
 
-async function syncRemoteDeltaSince(sinceVersion) {
+async function syncRemoteDeltaSince(sinceVersion, options) {
+  options = options || {};
   var since = parseBoardVersion(sinceVersion);
   if (since == null) return false;
-  setRemoteSyncStatus("loading");
+  if (!options.quiet) setRemoteSyncStatus("loading");
   try {
     var delta = await apiSyncDelta(since, since);
     if (delta && delta.not_modified) {
@@ -389,12 +391,29 @@ async function syncRemoteDeltaSince(sinceVersion) {
       await syncRemoteReadModel({ force: true });
       return true;
     }
-    await withRemoteDbSync(function () {
-      if (typeof applyRemoteDelta === "function") {
-        applyRemoteDelta(delta);
+    if (typeof rcApplyDeltaPatches === "function" && delta) {
+      if (delta.patch_mode && delta.patches) {
+        rcApplyDeltaPatches(delta.patches, delta.deletions);
+      } else if (delta.modules) {
+        rcApplyDeltaModules(delta.modules);
       }
-    });
-    notifyViewsForDomains(delta.domains || []);
+    }
+    var skipSql = typeof rcReadReady === "function" && rcReadReady();
+    if (!skipSql) {
+      await withRemoteDbSync(function () {
+        if (typeof applyRemoteDelta === "function") {
+          applyRemoteDelta(delta, { skipRcPatch: true });
+        }
+      });
+    } else if (delta && delta.board_version != null) {
+      setLocalBoardVersion(delta.board_version);
+      remoteReadModelReady = true;
+      lastRemoteSyncAt = Date.now();
+      setRemoteSyncStatus("ready");
+    }
+    if (!options.skipNotify) {
+      notifyViewsForDomains(delta.domains || []);
+    }
     return true;
   } catch (e) {
     setRemoteSyncStatus("error", e.message || "数据同步失败");
@@ -407,14 +426,17 @@ async function syncAfterRemoteWrite(writeResult, options) {
   if (typeof isRemoteDB !== "function" || !isRemoteDB()) return;
   if (typeof isLoggedIn === "function" && !isLoggedIn()) return;
 
+  options = options || {};
   var scopedModules = resolveScopedModuleKeys(
-    Object.assign({ useActiveViewModule: true }, options || {}),
+    Object.assign({ useActiveViewModule: true }, options),
   );
 
   var writeVersion = parseBoardVersion(
     writeResult && writeResult.board_version,
   );
   var localVersion = getLocalBoardVersion();
+  var quiet = options.quietSync !== false;
+  var syncOpts = { quiet: quiet, skipNotify: true, skipSqlHydrate: true };
 
   if (
     writeVersion != null &&
@@ -432,7 +454,7 @@ async function syncAfterRemoteWrite(writeResult, options) {
     return;
   }
 
-  if (options && options.skipModuleSync) {
+  if (options.skipModuleSync) {
     if (
       writeVersion != null &&
       localVersion != null &&
@@ -440,12 +462,12 @@ async function syncAfterRemoteWrite(writeResult, options) {
       remoteReadModelReady
     ) {
       try {
-        await syncRemoteDeltaSince(localVersion);
+        await syncRemoteDeltaSince(localVersion, syncOpts);
       } catch (e) {
         console.warn("write delta sync skipped:", e.message || e);
       }
     }
-    if (!options || !options.skipViewRefresh) {
+    if (!options.skipViewRefresh) {
       refreshViewForScope(getActiveViewId(), options);
     }
     return;
@@ -455,16 +477,35 @@ async function syncAfterRemoteWrite(writeResult, options) {
     writeResult && Array.isArray(writeResult.changed_domains)
       ? writeResult.changed_domains
       : null;
+
+  if (
+    writeVersion != null &&
+    localVersion != null &&
+    writeVersion > localVersion &&
+    remoteReadModelReady
+  ) {
+    try {
+      await syncRemoteDeltaSince(localVersion, syncOpts);
+      notifyViewsForDomains(domains);
+      if (!options.skipViewRefresh) {
+        refreshViewForScope(getActiveViewId(), options);
+      }
+      return;
+    } catch (e) {
+      console.warn("write delta sync failed, fallback modules:", e.message || e);
+    }
+  }
+
   var modules = dedupeReadModules(
     scopedModules.concat(writeResultToModules(writeResult, options)),
   );
 
   if (scopedModules.length) {
     if (!modules.length) modules = scopedModules.slice();
-    if (!options || !options.quietSync) setRemoteSyncStatus("loading");
+    if (!quiet) setRemoteSyncStatus("loading");
     try {
-      await syncRemoteByModules(modules, domains);
-      if (!options || !options.skipViewRefresh) {
+      await syncRemoteByModules(modules, domains, syncOpts);
+      if (!options.skipViewRefresh) {
         refreshViewForScope(getActiveViewId(), options);
       }
     } catch (e) {
@@ -476,7 +517,7 @@ async function syncAfterRemoteWrite(writeResult, options) {
 
   modules = writeResultToModules(writeResult, options);
   if (modules.length) {
-    await syncRemoteByModules(modules, domains);
+    await syncRemoteByModules(modules, domains, syncOpts);
     return;
   }
 
@@ -486,7 +527,7 @@ async function syncAfterRemoteWrite(writeResult, options) {
   }
 
   if (writeVersion != null && writeVersion > localVersion) {
-    await syncRemoteDeltaSince(localVersion);
+    await syncRemoteDeltaSince(localVersion, syncOpts);
     return;
   }
 
@@ -495,7 +536,7 @@ async function syncAfterRemoteWrite(writeResult, options) {
   if (remoteVersion != null && remoteVersion === localVersion) {
     return;
   }
-  await syncRemoteDeltaSince(localVersion);
+  await syncRemoteDeltaSince(localVersion, syncOpts);
 }
 
 /** 轮询/SSE 触发的增量同步 | Background incremental sync */
@@ -601,7 +642,7 @@ async function forceFullRemoteSync() {
   if (!confirm("将重新从云端拉取全部数据，可能需要十几秒。继续？")) return;
   setRemoteSyncStatus("loading");
   try {
-    await syncRemoteReadModel({ force: true });
+    await rcEnsureAppData(true, { hydrateSql: isLocalForceDb() });
     if (typeof renderAll === "function") {
       await renderAll({ skipSync: true });
     }

@@ -25,6 +25,52 @@ function rcStorePayload(moduleKey, payload) {
   if (moduleKey && payload) _rcStore[moduleKey] = payload;
 }
 
+/** 增量 patch 写入 rc 缓存 | Apply delta patches to rc store */
+function rcApplyDeltaPatches(patches, deletions) {
+  if (patches && typeof patches === "object") {
+    Object.keys(patches).forEach(function (table) {
+      var rows = patches[table];
+      if (!Array.isArray(rows)) return;
+      Object.keys(_rcStore).forEach(function (moduleKey) {
+        var mod = _rcStore[moduleKey];
+        if (!mod) return;
+        if (!mod.tables) mod.tables = {};
+        if (!Array.isArray(mod.tables[table])) mod.tables[table] = [];
+        var arr = mod.tables[table];
+        rows.forEach(function (row) {
+          if (!row || row.id == null) return;
+          var idx = arr.findIndex(function (r) {
+            return r.id == row.id;
+          });
+          if (idx >= 0) arr[idx] = row;
+          else arr.push(row);
+        });
+      });
+    });
+  }
+  (deletions || []).forEach(function (item) {
+    if (!item || !item.table_name || item.row_id == null) return;
+    var table = item.table_name;
+    var rowId = item.row_id;
+    Object.keys(_rcStore).forEach(function (moduleKey) {
+      var mod = _rcStore[moduleKey];
+      if (!mod || !mod.tables || !Array.isArray(mod.tables[table])) return;
+      mod.tables[table] = mod.tables[table].filter(function (r) {
+        return r.id != rowId;
+      });
+    });
+  });
+}
+
+/** delta 全模块 payload 写入 rc | Apply delta module payloads to rc store */
+function rcApplyDeltaModules(modules) {
+  if (!modules || typeof modules !== "object") return;
+  Object.keys(modules).forEach(function (moduleKey) {
+    var mod = modules[moduleKey];
+    if (mod) rcStorePayload(moduleKey, mod);
+  });
+}
+
 function rcInvalidateMany(keys) {
   (keys || []).forEach(function (k) {
     rcInvalidate(k);
@@ -56,9 +102,11 @@ async function rcFetch(moduleKey, force) {
 
 async function rcFetchMany(moduleKeys, force) {
   var keys = moduleKeys || [];
-  for (var i = 0; i < keys.length; i++) {
-    await rcFetch(keys[i], force);
-  }
+  await Promise.all(
+    keys.map(function (key) {
+      return rcFetch(key, force);
+    }),
+  );
 }
 
 /** 写后刷新：invalidate + refetch | Post-write module refresh */
@@ -544,6 +592,215 @@ function rcInvalidateForInfoTab(tab) {
   rcInvalidateMany(rcModulesForInfoTab(tab));
 }
 
+function rcGuestById(id) {
+  if (!id) return null;
+  var mods = ["lodgers", "settings_guests", "reservations", "meals"];
+  for (var i = 0; i < mods.length; i++) {
+    var row = rcRows(mods[i], "guests").find(function (g) {
+      return g.id == id;
+    });
+    if (row) return row;
+  }
+  return null;
+}
+
+function rcReservationById(id) {
+  if (!id) return null;
+  return (
+    rcRows("reservations", "reservations").find(function (r) {
+      return r.id == id;
+    }) || null
+  );
+}
+
+function rcBedById(id) {
+  if (!id) return null;
+  var mods = ["board", "settings_beds", "lodgers"];
+  for (var i = 0; i < mods.length; i++) {
+    var row = rcRows(mods[i], "beds").find(function (b) {
+      return b.id == id;
+    });
+    if (row) return row;
+  }
+  return null;
+}
+
+function rcRoomById(id) {
+  if (!id) return null;
+  var mods = ["board", "settings_beds", "settings_rooms", "lodgers"];
+  for (var i = 0; i < mods.length; i++) {
+    var row = rcRows(mods[i], "rooms").find(function (r) {
+      return r.id == id;
+    });
+    if (row) return row;
+  }
+  return null;
+}
+
+function rcBedJoined(bedId) {
+  var bed = rcBedById(bedId);
+  if (!bed) return null;
+  var room = rcRoomById(bed.room_id);
+  return Object.assign({}, bed, {
+    room_name: room ? room.name : null,
+    dorm_type: room ? room.dorm_type : null,
+    location: room ? room.location : null,
+  });
+}
+
+function rcPaymentsForLodger(lodgerId) {
+  return rcRows("lodgers", "payments").filter(function (p) {
+    return p.lodger_id == lodgerId;
+  });
+}
+
+function rcPaidTotalForLodger(lodgerId) {
+  return rcPaymentsForLodger(lodgerId).reduce(function (sum, p) {
+    return sum + (parseFloat(p.amount) || 0);
+  }, 0);
+}
+
+function rcPaymentSummary(lodgerId) {
+  var income = 0;
+  var refund = 0;
+  rcPaymentsForLodger(lodgerId).forEach(function (p) {
+    var amt = parseFloat(p.amount) || 0;
+    if (p.type === "押金" || p.type === "房费") income += amt;
+    if (p.type === "退款") refund += amt;
+  });
+  return {
+    income: income,
+    refund: refund,
+    refund_total: refund,
+    balance: income - refund,
+  };
+}
+
+function rcMealsForLodger(lodgerId) {
+  return rcRows("meals", "meals").filter(function (m) {
+    return m.lodger_id == lodgerId;
+  });
+}
+
+function rcUnassignedLodgers() {
+  return rcAllLodgersMerged()
+    .filter(function (l) {
+      return l.status === "在住" && !l.bed_id;
+    })
+    .map(rcEnrichLodgerRow)
+    .sort(function (a, b) {
+      var da = a.check_in_date || "";
+      var db = b.check_in_date || "";
+      if (da !== db) return db.localeCompare(da);
+      return (b.id || 0) - (a.id || 0);
+    });
+}
+
+function rcUnassignedReservations() {
+  return rcRows("reservations", "reservations")
+    .filter(function (r) {
+      return (
+        (r.status === "预约" || r.status === "已确认") &&
+        !r.bed_id
+      );
+    })
+    .map(rcEnrichReservationRow)
+    .sort(function (a, b) {
+      var da = a.expected_check_in || "";
+      var db = b.expected_check_in || "";
+      if (da !== db) return da.localeCompare(db);
+      return (a.id || 0) - (b.id || 0);
+    });
+}
+
+/** 营期排房详情键 | Event detail cache key in unified rc store */
+function rcEventDetailKey(eventId) {
+  return "event:" + String(eventId);
+}
+
+function rcEventDetailTables(eventId) {
+  var mod = _rcStore[rcEventDetailKey(eventId)];
+  return (mod && mod.tables) || {};
+}
+
+async function rcFetchEventDetail(eventId, force) {
+  if (!rcUseApiRead()) return null;
+  var id = parseInt(eventId, 10);
+  if (!id) return null;
+  var key = rcEventDetailKey(id);
+  if (!force && _rcStore[key]) return _rcStore[key];
+  var inflightKey = "_inflight:" + key;
+  if (_rcInflight[inflightKey]) return _rcInflight[inflightKey];
+  _rcInflight[inflightKey] = apiReadEventDetail(id)
+    .then(function (payload) {
+      rcStorePayload(key, payload || {});
+      return payload;
+    })
+    .finally(function () {
+      delete _rcInflight[inflightKey];
+    });
+  return _rcInflight[inflightKey];
+}
+
+function rcInvalidateEventDetail(eventId) {
+  if (eventId != null) rcInvalidate(rcEventDetailKey(eventId));
+  else {
+    Object.keys(_rcStore).forEach(function (k) {
+      if (k.indexOf("event:") === 0) delete _rcStore[k];
+    });
+  }
+}
+
+function rcHistorySearch(filters) {
+  filters = filters || {};
+  var events = rcEventsById();
+  var rows = rcAllLodgersMerged().map(function (l) {
+    return rcEnrichLodgerRow(l);
+  });
+  if (filters.start) {
+    rows = rows.filter(function (l) {
+      return l.check_in_date && l.check_in_date >= filters.start;
+    });
+  }
+  if (filters.end) {
+    rows = rows.filter(function (l) {
+      return l.check_in_date && l.check_in_date <= filters.end;
+    });
+  }
+  if (filters.room) {
+    var q = filters.room.toLowerCase();
+    rows = rows.filter(function (l) {
+      return (
+        (l.room_name && l.room_name.toLowerCase().indexOf(q) !== -1) ||
+        (l.bed_number && String(l.bed_number).toLowerCase().indexOf(q) !== -1)
+      );
+    });
+  }
+  if (filters.role) {
+    var roleVals = lodgerRoleMatchValues(filters.role);
+    rows = rows.filter(function (l) {
+      return roleVals.indexOf(l.role) !== -1;
+    });
+  }
+  if (filters.kw) {
+    var kw = filters.kw.toLowerCase();
+    rows = rows.filter(function (l) {
+      return (
+        (l.name && l.name.toLowerCase().indexOf(kw) !== -1) ||
+        (l.dharma_name && l.dharma_name.toLowerCase().indexOf(kw) !== -1) ||
+        (l.phone && l.phone.indexOf(filters.kw) !== -1)
+      );
+    });
+  }
+  rows.sort(function (a, b) {
+    var da = a.check_in_date || "";
+    var db = b.check_in_date || "";
+    if (da !== db) return db.localeCompare(da);
+    return (b.id || 0) - (a.id || 0);
+  });
+  return rows;
+}
+
 function rcEventById(id) {
   if (!id) return null;
   return (
@@ -876,10 +1133,11 @@ function rcForecastFlowWeeks(startDate, weeks) {
   };
 }
 
-/** 报表/历史：灌 sql.js 只读缓存（复杂 SQL 过渡） | Hydrate sql.js for legacy query() */
+/** 报表/历史：拉 rc 模块；在线默认不灌 sql.js | Hydrate sql.js only when needed */
 async function rcHydrateLegacyQueries(moduleKeys, force) {
   if (!rcUseApiRead()) return;
   await rcFetchMany(moduleKeys, force);
+  if (typeof rcReadReady === "function" && rcReadReady()) return;
   var tables = {};
   (moduleKeys || []).forEach(function (key) {
     var mod = rcTables(key);
@@ -944,16 +1202,34 @@ var RC_APP_MODULES = [
   "meals",
 ];
 
-/** 登录/全站刷新：拉关键模块 + 灌只读 sql.js 供遗留 query | App bootstrap */
-async function rcEnsureAppData(force) {
+/** 登录/全站刷新：并行拉模块；在线不灌 sql.js | App bootstrap */
+async function rcEnsureAppData(force, options) {
   if (!rcUseApiRead()) return;
+  options = options || {};
   if (force) rcInvalidate();
-  for (var i = 0; i < RC_APP_MODULES.length; i++) {
-    var key = RC_APP_MODULES[i];
-    await rcFetch(key, force);
-    if (typeof applyModuleTables === "function") {
-      applyModuleTables(rcTables(key), { upsertOnly: true });
+  await Promise.all(
+    RC_APP_MODULES.map(function (key) {
+      return rcFetch(key, force);
+    }),
+  );
+  var hydrateSql =
+    options.hydrateSql ||
+    (typeof isLocalForceDb === "function" && isLocalForceDb());
+  if (hydrateSql && typeof applyModuleTables === "function") {
+    var allTables = {};
+    RC_APP_MODULES.forEach(function (key) {
+      var tables = rcTables(key);
+      Object.keys(tables).forEach(function (table) {
+        if (!Array.isArray(tables[table])) return;
+        if (!allTables[table]) allTables[table] = [];
+        allTables[table] = allTables[table].concat(tables[table]);
+      });
+    });
+    if (Object.keys(allTables).length) {
+      applyModuleTables(allTables, { upsertOnly: true });
     }
+  }
+  RC_APP_MODULES.forEach(function (key) {
     var payload = _rcStore[key];
     if (
       payload &&
@@ -962,7 +1238,7 @@ async function rcEnsureAppData(force) {
     ) {
       setLocalBoardVersion(payload.board_version);
     }
-  }
+  });
   if (typeof remoteReadModelReady !== "undefined") {
     remoteReadModelReady = true;
   }

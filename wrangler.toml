@@ -10,6 +10,14 @@ database_id = "818b650f-a6d3-45f8-8934-32857e086771"
 [vars]
 # KETANG_PUBLIC_RESERVATIONS = "true"
 
+# Optional R2 binding for scheduled backups (functions/_scheduled.js):
+# [[r2_buckets]]
+# binding = "KETANG_BACKUP"
+# bucket_name = "ketang-backups"
+
+[triggers]
+crons = ["0 0 * * *", "0 12 * * *"]
+
 # Secrets (set via `wrangler secret put` or Cloudflare dashboard):
 # - KETANG_SESSION_SECRET (required, min 32 chars)
 # - KETANG_BOOTSTRAP_SECRET (optional, protects re-init on non-empty DB)

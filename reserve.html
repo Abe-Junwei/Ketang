@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>客堂预约 · 五台客堂</title>
+    <link rel="stylesheet" href="./styles.css" />
+    <style>
+      .reserve-shell {
+        max-width: 520px;
+        margin: 2rem auto;
+        padding: 1.5rem;
+      }
+      .reserve-shell h1 {
+        font-size: 1.5rem;
+        margin-bottom: 0.5rem;
+      }
+      .reserve-note {
+        color: var(--color-muted, #666);
+        margin-bottom: 1.25rem;
+        line-height: 1.6;
+      }
+      .reserve-success {
+        padding: 1rem;
+        border-radius: 8px;
+        background: color-mix(in srgb, var(--color-success, #2e7d32) 12%, white);
+      }
+    </style>
+  </head>
+  <body>
+    <main class="reserve-shell">
+      <h1>客堂住宿预约</h1>
+      <p class="reserve-note">
+        提交后由客堂知客师审核确认，<strong>不保证床位</strong>。如需变更请电话联系客堂。
+      </p>
+      <form id="reserve-form" class="modal-form">
+        <div class="form-grid">
+          <div class="field">
+            <label>姓名 / 法名 *</label>
+            <input type="text" id="rv-name" required autocomplete="name" />
+          </div>
+          <div class="field">
+            <label>性别 *</label>
+            <select id="rv-gender" required>
+              <option value="">请选择</option>
+              <option value="男">男</option>
+              <option value="女">女</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>身份证号 *</label>
+            <input
+              type="text"
+              id="rv-idcard"
+              required
+              inputmode="numeric"
+              autocomplete="off"
+            />
+          </div>
+          <div class="field">
+            <label>手机号</label>
+            <input type="tel" id="rv-phone" autocomplete="tel" />
+          </div>
+          <div class="field">
+            <label>预计入住 *</label>
+            <input type="date" id="rv-in" required />
+          </div>
+          <div class="field">
+            <label>预计离院</label>
+            <input type="date" id="rv-out" />
+          </div>
+          <div class="field">
+            <label>身份</label>
+            <select id="rv-role">
+              <option value="学员">学员</option>
+              <option value="义工">义工</option>
+              <option value="其他">其他</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>紧急联系人</label>
+            <input type="text" id="rv-emergency-name" />
+          </div>
+          <div class="field">
+            <label>紧急联系电话</label>
+            <input type="tel" id="rv-emergency-phone" />
+          </div>
+        </div>
+        <div class="field">
+          <label>备注</label>
+          <textarea id="rv-notes" rows="3" placeholder="特殊需求、同行人数等"></textarea>
+        </div>
+        <div class="modal-actions">
+          <button type="submit" class="btn btn-primary btn-lg" id="rv-submit">
+            提交预约
+          </button>
+        </div>
+      </form>
+      <div id="reserve-result" hidden></div>
+    </main>
+    <script src="./js/utils.js?v=1"></script>
+    <script src="./js/validation.js?v=1"></script>
+    <script src="./js/public-reserve.js?v=1"></script>
+  </body>
+</html>

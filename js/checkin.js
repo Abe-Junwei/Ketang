@@ -228,10 +228,7 @@ function openNewCheckinForBed(bedId) {
   closeModal();
   showView("checkin");
   renderBedOptions();
-  const bed = query(
-    "SELECT b.*, r.name as room_name FROM beds b JOIN rooms r ON r.id=b.room_id WHERE b.id=?",
-    [bedId],
-  )[0];
+  const bed = readBedJoined(bedId);
   if (bed) {
     document.getElementById("ci-bed").value = bedId;
     updateBedLabel(escapeHtml(bed.room_name + " / " + (bed.bed_number || "")));
@@ -279,29 +276,18 @@ function renderAssignPickSection(title, emptyTip, rowsHtml) {
 }
 
 function openAssignBedModal(bedId) {
-  const bed = query(
-    "SELECT b.*, r.name as room_name, r.dorm_type FROM beds b JOIN rooms r ON r.id=b.room_id WHERE b.id=?",
-    [bedId],
-  )[0];
+  const bed = readBedJoined(bedId);
   if (!bed) return;
   if (!isBedAssignable(bedId)) {
     alert("该床位当前不可分配（可能未清洁或已占用）");
     return;
   }
 
-  const lodgers = query(`
-    SELECT l.* FROM lodgers l
-    WHERE l.status = '在住' AND (l.bed_id IS NULL OR l.bed_id = '')
-    ORDER BY l.check_in_date ASC, l.id ASC
-  `).filter(function (l) {
+  const lodgers = readUnassignedLodgers().filter(function (l) {
     return dormMatchGender(bed.dorm_type, l.gender);
   });
 
-  const reservations = query(`
-    SELECT * FROM reservations
-    WHERE status IN ('预约', '已确认')
-    ORDER BY expected_check_in ASC, id ASC
-  `).filter(function (r) {
+  const reservations = readUnassignedReservations().filter(function (r) {
     return dormMatchGender(bed.dorm_type, r.gender);
   });
 

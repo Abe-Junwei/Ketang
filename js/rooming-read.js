@@ -1,8 +1,5 @@
 /* Phase 9 排房在线读模型 | Rooming read path (event detail + board rc) */
 
-var _roomingEventDetail = {};
-var _roomingEventInflight = {};
-
 function roomingReadReady() {
   return typeof rcReadReady === "function" && rcReadReady();
 }
@@ -12,8 +9,9 @@ function roomingUseLocalRead() {
 }
 
 function rcInvalidateEventRooming(eventId) {
-  if (eventId != null) delete _roomingEventDetail[String(eventId)];
-  else _roomingEventDetail = {};
+  if (typeof rcInvalidateEventDetail === "function") {
+    rcInvalidateEventDetail(eventId);
+  }
 }
 
 /** 拉营期排房读模型 + 关联 board/lodgers | Fetch event rooming read model */
@@ -21,22 +19,9 @@ async function rcEnsureEventRooming(eventId, force) {
   if (!rcUseApiRead()) return null;
   var id = parseInt(eventId, 10);
   if (!id) return null;
-  var key = String(id);
-  if (!force && _roomingEventDetail[key]) return _roomingEventDetail[key];
-  if (_roomingEventInflight[key]) return _roomingEventInflight[key];
-  _roomingEventInflight[key] = (async function () {
-    await rcEnsureBoard(force);
-    await rcFetchMany(["events", "lodgers", "reservations"], force);
-    var payload = await apiReadEventDetail(id);
-    _roomingEventDetail[key] = payload || {};
-    if (typeof applyModuleTables === "function" && payload && payload.tables) {
-      applyModuleTables(payload.tables, { upsertOnly: true });
-    }
-    return payload;
-  })().finally(function () {
-    delete _roomingEventInflight[key];
-  });
-  return _roomingEventInflight[key];
+  await rcEnsureBoard(force);
+  await rcFetchMany(["events", "lodgers", "reservations"], force);
+  return rcFetchEventDetail(id, force);
 }
 
 async function roomingEnsureEvent(eventId, force) {
@@ -45,8 +30,10 @@ async function roomingEnsureEvent(eventId, force) {
 }
 
 function rcRoomingEventTables(eventId) {
-  var p = _roomingEventDetail[String(eventId)];
-  return (p && p.tables) || {};
+  if (typeof rcEventDetailTables === "function") {
+    return rcEventDetailTables(eventId);
+  }
+  return {};
 }
 
 function roomingGetEvent(eventId) {
@@ -60,6 +47,7 @@ function roomingGetEvent(eventId) {
       null
     );
   }
+  if (!roomingUseLocalRead()) return rcEventById(eventId);
   return query("SELECT * FROM events WHERE id = ?", [eventId])[0];
 }
 

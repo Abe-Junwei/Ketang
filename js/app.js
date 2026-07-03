@@ -585,7 +585,7 @@ function renderLodgersPage() {
 }
 
 function getBoardBedStats() {
-  if (typeof boardReadCacheReady === "function" && boardReadCacheReady()) {
+  if (!isLocalForceDb()) {
     return rcGetBoardBedStats();
   }
   var spareSql = spareRoomExcludeClause("r");
@@ -667,7 +667,7 @@ function renderBoardCharts() {
   renderBoardRingChart("board-occ", "chart-board-occ", "board-occ-pct", stats);
 
   var flow;
-  if (typeof boardReadCacheReady === "function" && boardReadCacheReady()) {
+  if (!isLocalForceDb()) {
     flow = rcGetBoardFlowStats(today);
   } else {
     flow = {
@@ -729,7 +729,7 @@ function renderBoardCharts() {
   var femaleBeds;
   var maleOcc;
   var femaleOcc;
-  if (typeof boardReadCacheReady === "function" && boardReadCacheReady()) {
+  if (!isLocalForceDb()) {
     var dorm = rcGetDormBedStats();
     maleBeds = dorm.maleBeds;
     femaleBeds = dorm.femaleBeds;
@@ -938,7 +938,7 @@ function startBoardPolling() {
   if (typeof useRemoteWriteApi !== "function" || !useRemoteWriteApi()) return;
   stopBoardPolling();
   var pollMs =
-    typeof BOARD_POLL_INTERVAL_MS === "number" ? BOARD_POLL_INTERVAL_MS : 3000;
+    typeof BOARD_POLL_INTERVAL_MS === "number" ? BOARD_POLL_INTERVAL_MS : 8000;
   boardPollTimer = setInterval(pollRemoteBoardVersion, pollMs);
   if (!boardPollVisibilityBound) {
     document.addEventListener("visibilitychange", onVisibilityChangeRemoteSync);
@@ -1078,7 +1078,9 @@ function updateLodgersPageMeta() {
   var countEl = document.getElementById("lodgers-page-count");
   if (!countEl) return;
   var total =
-    query("SELECT COUNT(*) as c FROM lodgers WHERE status='在住'")[0]?.c || 0;
+    typeof readActiveLodgerCount === "function"
+      ? readActiveLodgerCount()
+      : query("SELECT COUNT(*) as c FROM lodgers WHERE status='在住'")[0]?.c || 0;
   countEl.textContent = total ? "共 " + total + " 人在住" : "暂无在住挂单";
 }
 
@@ -1247,7 +1249,7 @@ function toggleRoomExpand(roomId, cardEl) {
 function renderRoomDetailPanel(roomId, cardEl) {
   const panel = document.getElementById("room-detail-panel");
   if (!panel) return;
-  var useRc = typeof boardReadCacheReady === "function" && boardReadCacheReady();
+  var useRc = !isLocalForceDb();
   const r = useRc
     ? rcBoardRooms().find(function (room) {
         return room.id == roomId;
@@ -1620,7 +1622,7 @@ function renderOpsNotice() {
   if (!el) return;
   const today = todayStr();
 
-  if (typeof boardReadCacheReady === "function" && boardReadCacheReady()) {
+  if (!isLocalForceDb()) {
     var ops = rcOpsNoticeData(today);
     if (ops.arrivals > 0 || ops.departures > 0) {
       el.innerHTML =
@@ -1668,7 +1670,12 @@ function renderOpsNotice() {
     return;
   }
 
-  // 今日到离预报
+  if (!isLocalForceDb()) {
+    el.textContent = "数据同步中…";
+    return;
+  }
+
+  // 今日到离预报（本地模式）
   const arrivals =
     query(
       `
@@ -1824,7 +1831,7 @@ function renderCheckoutReminders() {
     { key: "overdue", label: "已超期", date: null },
   ];
   groups.forEach(function (g) {
-    if (typeof boardReadCacheReady === "function" && boardReadCacheReady()) {
+    if (!isLocalForceDb()) {
       _reminderData[g.key] = rcCheckoutReminders(g.key, g.date);
       return;
     }
