@@ -1,7 +1,7 @@
 /* 云端同步协调 | Remote sync coordinator (Phase 12.2–12.5) */
 
-var BOARD_POLL_INTERVAL_MS = 3000;
-var BOARD_POLL_IDLE_INTERVAL_MS = 20000;
+var BOARD_POLL_INTERVAL_MS = 1000;
+var BOARD_POLL_IDLE_INTERVAL_MS = 5000;
 var _remoteDbSyncQueue = Promise.resolve();
 
 var SYNC_DOMAIN_MODULES = {
@@ -372,6 +372,10 @@ async function syncRemoteByDomains(domains, options) {
   return syncRemoteByModules(modules, domains, options);
 }
 
+/**
+ * Apply delta since version.
+ * @returns {string[]|null|false} dirty domains; [] = not_modified; null = full refresh; false = skipped
+ */
 async function syncRemoteDeltaSince(sinceVersion, options) {
   options = options || {};
   var since = parseBoardVersion(sinceVersion);
@@ -387,13 +391,13 @@ async function syncRemoteDeltaSince(sinceVersion, options) {
       if (delta.board_version != null)
         setLocalBoardVersion(delta.board_version);
       setRemoteSyncStatus("ready");
-      return true;
+      return [];
     }
     if (delta && delta.full_sync_required) {
       if (typeof ketangPerfInc === "function")
         ketangPerfInc("delta_full_sync_count");
       await syncRemoteReadModel({ force: true });
-      return true;
+      return null;
     }
     if (typeof ketangPerfInc === "function") ketangPerfInc("delta_apply_count");
     if (typeof rcApplyDeltaPatches === "function" && delta) {
@@ -418,10 +422,11 @@ async function syncRemoteDeltaSince(sinceVersion, options) {
       lastRemoteSyncAt = Date.now();
       setRemoteSyncStatus("ready");
     }
+    var domains = delta && delta.domains ? delta.domains : [];
     if (!options.skipNotify) {
-      notifyViewsForDomains(delta.domains || []);
+      notifyViewsForDomains(domains);
     }
-    return true;
+    return domains;
   } catch (e) {
     setRemoteSyncStatus("error", e.message || "数据同步失败");
     throw e;
@@ -431,6 +436,34 @@ async function syncRemoteDeltaSince(sinceVersion, options) {
       ketangPerfMeasure("delta", "delta:start", "delta:end");
     }
   }
+}
+
+/** Active view cares about these sync domains | 当前视图关心的变更域 */
+var VIEW_DOMAIN_INTEREST = {
+  board: ["board", "lodging", "housekeeping", "meals", "reservations"],
+  lodging: ["board", "lodging"],
+  lodgers: ["lodging"],
+  stay: ["board", "lodging", "reservations", "events"],
+  meals: ["meals", "lodging", "board"],
+  housekeeping: ["board", "housekeeping", "lodging"],
+  forecast: ["board", "lodging", "reservations", "events"],
+  reports: ["meals", "lodging", "events"],
+  history: ["events", "meals", "lodging"],
+  rooming: ["events", "lodging", "reservations", "board"],
+  reservations: ["reservations", "events"],
+  info: ["settings", "events", "lodging", "board"],
+};
+
+function activeViewAffectedByDomains(domains) {
+  if (domains == null) return true;
+  if (!domains.length) return false;
+  var view = typeof getActiveViewId === "function" ? getActiveViewId() : null;
+  var interest = VIEW_DOMAIN_INTEREST[view];
+  if (!interest) return true;
+  for (var i = 0; i < domains.length; i++) {
+    if (interest.indexOf(domains[i]) !== -1) return true;
+  }
+  return false;
 }
 
 /** 写操作后按需同步 | Sync after write */
@@ -587,8 +620,12 @@ async function syncRemoteIfStale(options) {
     ketangPerfMark("push:start");
   }
   try {
-    await syncRemoteDeltaSince(localVersion);
-    refreshViewForScope(getActiveViewId());
+    var domains = await syncRemoteDeltaSince(localVersion);
+    if (activeViewAffectedByDomains(domains)) {
+      refreshViewForScope(getActiveViewId());
+    } else if (typeof ketangPerfInc === "function") {
+      ketangPerfInc("delta_skip_view_refresh_count");
+    }
   } finally {
     if (pushSource && typeof ketangPerfMark === "function") {
       ketangPerfMark("push:end");

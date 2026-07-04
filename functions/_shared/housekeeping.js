@@ -77,6 +77,7 @@ export async function apiSetHouseStatus(env, session, body) {
     {
       patchRowIds: { beds: [bedId] },
       extraPatches: hkRows[0] ? { housekeeping: [hkRows[0]] } : {},
+      patchComplete: true,
     },
   );
 }

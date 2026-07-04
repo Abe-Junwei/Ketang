@@ -3,6 +3,8 @@ import {
   finishWrite,
   recordSyncDeletion,
   enrichWriteResponse,
+  fetchLatestHousekeepingPatches,
+  fetchMealDeletionsForLodgers,
 } from "./write-response.js";
 import { parsePersonNameInput, mergePersonNameFields } from "./person.js";
 import { assertGuestIdentityFields, normalizePhone } from "./validation.js";
@@ -33,14 +35,61 @@ function buildPatchRowIds(patch) {
   if (resv.length) rowIds.reservations = resv;
   const guests = uniqIds(patch.guestIds);
   if (guests.length) rowIds.guests = guests;
+  const payments = uniqIds(patch.paymentIds);
+  if (payments.length) rowIds.payments = payments;
   return rowIds;
 }
 
+/**
+ * Attach beds/housekeeping/meals/payments patches and mark patch_complete.
+ * Callers pass bedIds / mealDeletions / includePayments as needed.
+ */
 async function lodgerFinishWrite(env, response, patch) {
+  patch = patch || {};
+  const bedIds = uniqIds(patch.bedIds);
+  const extraPatches = Object.assign({}, patch.extraPatches || {});
+  const deletions = [];
+  if (patch.deletion && patch.deletion.table_name && patch.deletion.row_id != null) {
+    deletions.push(patch.deletion);
+  }
+  if (Array.isArray(patch.deletions)) {
+    patch.deletions.forEach(function (d) {
+      if (d && d.table_name && d.row_id != null) deletions.push(d);
+    });
+  }
+
+  if (bedIds.length && !extraPatches.housekeeping) {
+    extraPatches.housekeeping = await fetchLatestHousekeepingPatches(
+      env,
+      bedIds,
+    );
+  }
+
+  if (patch.lodgerId != null && patch.includeMeals !== false) {
+    if (!extraPatches.meals) {
+      extraPatches.meals = await queryD1(
+        env,
+        "SELECT * FROM meals WHERE lodger_id=? ORDER BY date, id",
+        [patch.lodgerId],
+      );
+    }
+  }
+
+  if (patch.lodgerId != null && patch.includePayments) {
+    if (!extraPatches.payments) {
+      extraPatches.payments = await queryD1(
+        env,
+        "SELECT * FROM payments WHERE lodger_id=? ORDER BY id",
+        [patch.lodgerId],
+      );
+    }
+  }
+
   return enrichWriteResponse(env, response, {
     patchRowIds: buildPatchRowIds(patch),
-    deletion: patch?.deletion,
-    extraPatches: patch?.extraPatches,
+    deletions: deletions.length ? deletions : undefined,
+    extraPatches: extraPatches,
+    patchComplete: patch.complete !== false,
   });
 }
 
@@ -379,6 +428,7 @@ export async function apiCheckIn(env, session, body) {
       bedIds: [bedId],
       guestIds: [guestId],
       reservationIds: body.reservation_id ? [body.reservation_id] : [],
+      includePayments: deposit > 0 || roomFee > 0,
     },
   );
 }
@@ -462,7 +512,12 @@ export async function apiCheckout(env, session, body) {
       ["lodging", "board", "housekeeping"],
       BOARD_SYNC_MODULES,
     ),
-    { lodgerId: id, bedIds: l.bed_id ? [l.bed_id] : [] },
+    {
+      lodgerId: id,
+      bedIds: l.bed_id ? [l.bed_id] : [],
+      includeMeals: false,
+      includePayments: true,
+    },
   );
 }
 
@@ -547,6 +602,7 @@ export async function apiExtendStay(env, session, body) {
   if (!l) throw new Error("挂单不存在或已不在住");
   if (date < l.check_in_date) throw new Error("预离日期不能早于入住日期");
 
+  const mealDeletions = await fetchMealDeletionsForLodgers(env, [id], date);
   await batchD1(env, [
     {
       sql: "UPDATE lodgers SET expected_check_out=? WHERE id=? AND status='在住'",
@@ -592,7 +648,7 @@ export async function apiExtendStay(env, session, body) {
       ["lodging", "board", "housekeeping", "meals"],
       BOARD_MEALS_SYNC_MODULES,
     ),
-    { lodgerId: id },
+    { lodgerId: id, deletions: mealDeletions },
   );
 }
 
@@ -886,6 +942,16 @@ export async function apiDeleteLodger(env, session, body) {
   const rows = await queryD1(env, "SELECT * FROM lodgers WHERE id=?", [id]);
   const l = rows[0];
   if (!l) throw new Error("挂单不存在");
+  const mealRows = await queryD1(
+    env,
+    "SELECT id FROM meals WHERE lodger_id=?",
+    [id],
+  );
+  const paymentRows = await queryD1(
+    env,
+    "SELECT id FROM payments WHERE lodger_id=?",
+    [id],
+  );
   const statements = [
     { sql: "DELETE FROM meals WHERE lodger_id=?", params: [id] },
     { sql: "DELETE FROM payments WHERE lodger_id=?", params: [id] },
@@ -920,6 +986,16 @@ export async function apiDeleteLodger(env, session, body) {
   return lodgerFinishWrite(env, result, {
     deletion: { table_name: "lodgers", row_id: id },
     bedIds: l.bed_id ? [l.bed_id] : [],
+    includeMeals: false,
+    deletions: mealRows
+      .map(function (row) {
+        return { table_name: "meals", row_id: row.id };
+      })
+      .concat(
+        paymentRows.map(function (row) {
+          return { table_name: "payments", row_id: row.id };
+        }),
+      ),
   });
 }
 
@@ -984,7 +1060,7 @@ export async function apiPublicReservation(env, body) {
       ["reservations"],
       ["reservations"],
     ),
-    { patchTable: "reservations", rowId: meta.last_row_id },
+    { patchTable: "reservations", rowId: meta.last_row_id, patchComplete: true },
   );
   try {
     await notifyPublicReservationSubmitted(env, {

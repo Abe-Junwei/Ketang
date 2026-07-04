@@ -68,7 +68,7 @@
   },
   "phase_g_metric_sources": {
     "login_to_ready_p95_ms": "优先 frontend_login_ready_ms / ketang:first-view-ready；否则代理 max(login, read_board)",
-    "write_refresh_p95_ms": "frontend_write_refresh_ms：CDP（--probe-frontend）",
+    "write_refresh_p95_ms": "patch 后即时可见刷新（write-visible-refresh）；不含后台 write-reconcile/delta",
     "delta_sync_p95_ms": "sync_delta_ms 外部 P95；server 见 sync_delta_timing；RUM 见 delta_p95_ms / delta_ms",
     "read_module_p95_ms": "探针 read_lodgers_active_ms 外部 P95；RUM 见会话内 read_module_p95_ms",
     "reports_history_query_p95_ms": "read_events_ms 外部 P95",

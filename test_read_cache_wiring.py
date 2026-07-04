@@ -28,8 +28,13 @@ def main():
         ("lodgers_records not in deferred", "RC_DEFERRED_MODULES" in rc and
          '"lodgers_records"' not in rc.split("RC_DEFERRED_MODULES")[1].split("];")[0]),
         (
-            "write patch does not pre-touch board version",
-            "touchBoardVersionFromWrite(writeResult)" not in rc,
+            "write patch only touches version when patch_complete",
+            "patch_complete === true" in rc
+            and "touchBoardVersionFromWrite(writeResult)" in rc,
+        ),
+        (
+            "write-refresh is visible-only timing",
+            "write-visible-refresh" in rc and "write-reconcile" in rc,
         ),
         (
             "write refresh rerenders after background sync",

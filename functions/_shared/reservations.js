@@ -157,6 +157,7 @@ export async function apiUpsertReservation(env, session, body) {
           reservations: [resvId],
           guests: guestId ? [guestId] : [],
         },
+        patchComplete: true,
       },
     );
   }
@@ -208,6 +209,7 @@ export async function apiUpsertReservation(env, session, body) {
         reservations: [meta.last_row_id],
         guests: guestId ? [guestId] : [],
       },
+      patchComplete: true,
     },
   );
 }
@@ -232,7 +234,7 @@ export async function apiUpdateReservationStatus(env, session, body) {
   return enrichWriteResponse(
     env,
     await finishWrite(env, {}, ["reservations"], ["reservations"]),
-    { patchTable: "reservations", rowId: id },
+    { patchTable: "reservations", rowId: id, patchComplete: true },
   );
 }
 
@@ -338,6 +340,7 @@ export async function apiBatchEventMembers(env, session, body) {
       patchRowIds: patchRowIds,
       deletions: mealDeletions,
       extraPatches: { housekeeping: housekeepingPatches },
+      patchComplete: true,
     },
   );
 }

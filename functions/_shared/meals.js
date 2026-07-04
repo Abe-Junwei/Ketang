@@ -81,6 +81,7 @@ export async function apiSaveMeals(env, session, body) {
       patchTable: "lodgers",
       rowId: lodgerId,
       extraPatches: { meals: mealRows },
+      patchComplete: true,
     },
   );
 }

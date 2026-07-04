@@ -6,6 +6,7 @@ var _ketangPerfCounters = {
   delta_not_modified_count: 0,
   delta_full_sync_count: 0,
   delta_apply_count: 0,
+  delta_skip_view_refresh_count: 0,
   push_count: 0,
   push_sse_count: 0,
   push_poll_count: 0,

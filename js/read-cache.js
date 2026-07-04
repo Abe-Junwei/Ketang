@@ -118,32 +118,45 @@ function rcModuleCached(moduleKey) {
 function rcApplyWriteResult(writeResult) {
   if (!writeResult || typeof rcApplyDeltaPatches !== "function") return;
   rcApplyDeltaPatches(writeResult.patches, writeResult.deletions);
-  // Only advance version when patches/deletions applied; otherwise keep delta reconcile
-  var hasPatch =
-    (writeResult.patches && Object.keys(writeResult.patches).length > 0) ||
-    (writeResult.deletions && writeResult.deletions.length > 0);
-  if (hasPatch && typeof touchBoardVersionFromWrite === "function") {
+  // Only advance local board_version when server asserts full coverage
+  if (
+    writeResult.patch_complete === true &&
+    typeof touchBoardVersionFromWrite === "function"
+  ) {
     touchBoardVersionFromWrite(writeResult);
   }
 }
 
 /**
- * 统一写后刷新：patch rc → 刷新当前视图 → 后台 delta/module 对账 → 再刷新当前视图
- * Unified post-write refresh: patch rc, render, reconcile, then render again.
+ * 统一写后刷新：patch rc → 即时可见刷新 → 后台 delta 对账（指标分离）
+ * Visible refresh is timed separately from background reconcile.
  */
 function rcRefreshAfterWrite(writeResult, options) {
   options = options || {};
   if (typeof ketangPerfMark === "function")
     ketangPerfMark("write-refresh:start");
-  function finishPerf() {
-    if (typeof ketangPerfMark === "function") {
-      ketangPerfMark("write-refresh:end");
-      ketangPerfMeasure(
-        "write-refresh",
-        "write-refresh:start",
-        "write-refresh:end",
-      );
-    }
+  function finishVisiblePerf() {
+    if (typeof ketangPerfMark !== "function") return;
+    ketangPerfMark("write-refresh:end");
+    ketangPerfMeasure(
+      "write-refresh",
+      "write-refresh:start",
+      "write-refresh:end",
+    );
+    ketangPerfMeasure(
+      "write-visible-refresh",
+      "write-refresh:start",
+      "write-refresh:end",
+    );
+  }
+  function finishReconcilePerf() {
+    if (typeof ketangPerfMark !== "function") return;
+    ketangPerfMark("write-reconcile:end");
+    ketangPerfMeasure(
+      "write-reconcile",
+      "write-reconcile:start",
+      "write-reconcile:end",
+    );
   }
   function refreshOnce() {
     if (typeof options.viewRefresh === "function") {
@@ -163,14 +176,15 @@ function rcRefreshAfterWrite(writeResult, options) {
   if (!options.skipViewRefresh) {
     refreshOnce();
   }
+  finishVisiblePerf();
   if (typeof isRemoteDB !== "function" || !isRemoteDB()) {
-    finishPerf();
     return;
   }
   if (typeof refreshAfterWrite !== "function") {
-    finishPerf();
     return;
   }
+  if (typeof ketangPerfMark === "function")
+    ketangPerfMark("write-reconcile:start");
   var syncTask = refreshAfterWrite(
     writeResult,
     Object.assign(
@@ -184,21 +198,17 @@ function rcRefreshAfterWrite(writeResult, options) {
       { skipViewRefresh: true },
     ),
   );
-  if (
-    !options.skipViewRefresh &&
-    syncTask &&
-    typeof syncTask.then === "function"
-  ) {
+  if (syncTask && typeof syncTask.then === "function") {
     syncTask
       .then(function () {
-        refreshOnce();
-        finishPerf();
+        if (!options.skipViewRefresh) refreshOnce();
+        finishReconcilePerf();
       })
       .catch(function () {
-        finishPerf();
+        finishReconcilePerf();
       });
   } else {
-    finishPerf();
+    finishReconcilePerf();
   }
   return syncTask;
 }
@@ -687,11 +697,11 @@ function rcEventsById() {
 
 function rcAllLodgersMerged() {
   var byId = {};
-  /** lodgers_recent 仅 API 按需拉取，不参与合并 | recent module is on-demand only */
   [
     rcBoardLodgers(),
     rcRows("lodgers", "lodgers"),
     rcRows("lodgers_active", "lodgers"),
+    rcRows("lodgers_recent", "lodgers"),
   ].forEach(function (arr) {
     arr.forEach(function (l) {
       byId[l.id] = l;
@@ -1185,8 +1195,24 @@ function rcReportLodgerActive(lodger) {
   return lodger && (lodger.status === "在住" || lodger.status === "已退");
 }
 
+/** 报表支付行（lodgers / lodgers_recent）| Payment rows for reports */
+function rcReportPaymentRows() {
+  var seen = {};
+  var out = [];
+  ["lodgers_recent", "lodgers"].forEach(function (mod) {
+    rcRows(mod, "payments").forEach(function (p) {
+      if (!p) return;
+      var key = p.id != null ? "id:" + p.id : null;
+      if (key && seen[key]) return;
+      if (key) seen[key] = true;
+      out.push(p);
+    });
+  });
+  return out;
+}
+
 function rcReportPaymentsForDate(date) {
-  return rcRows("lodgers", "payments").filter(function (p) {
+  return rcReportPaymentRows().filter(function (p) {
     if (rcReportPaidDate(p) !== date) return false;
     if (p.lodger_id == null || p.lodger_id === "") return true;
     var l = rcLodgerById(p.lodger_id);
@@ -1195,7 +1221,7 @@ function rcReportPaymentsForDate(date) {
 }
 
 function rcReportPaymentsForMonth(monthPrefix) {
-  return rcRows("lodgers", "payments").filter(function (p) {
+  return rcReportPaymentRows().filter(function (p) {
     if (!String(p.paid_at || "").startsWith(monthPrefix)) return false;
     if (p.lodger_id == null || p.lodger_id === "") return true;
     var l = rcLodgerById(p.lodger_id);
@@ -1670,9 +1696,17 @@ var RC_VIEW_MODULES = {
   lodgers: ["lodgers", "board"],
   stay: ["board", "reservations", "events"],
   history: ["events", "meals"],
-  forecast: ["board", "reservations", "lodgers", "events"],
+  /** 预报：在住 + 近半年退房，不拉全量 lodgers | Active + recent, not full history */
+  forecast: [
+    "board",
+    "reservations",
+    "lodgers_active",
+    "lodgers_recent",
+    "events",
+  ],
   housekeeping: ["board"],
-  reports: ["meals", "lodgers", "events"],
+  /** 报表：在住 + 近半年 + 支付，不拉全量 lodgers/guests | Active + recent + payments */
+  reports: ["meals", "lodgers_active", "lodgers_recent", "events"],
   rooming: ["board", "events", "event_rooming", "lodgers_active", "reservations"],
   info_events: ["events", "lodgers_active", "reservations"],
 };

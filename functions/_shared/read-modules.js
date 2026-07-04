@@ -25,7 +25,8 @@ export const READ_MODULE_TABLES = {
   settings_beds: ["rooms", "beds"],
   settings_guests: ["guests"],
   lodgers_active: ["lodgers", "beds"],
-  lodgers_recent: ["lodgers"],
+  /** 近半年非在住 + 支付（报表/预报轻量）| Recent non-active lodgers + payments */
+  lodgers_recent: ["lodgers", "payments"],
   lodgers_lookup: ["lodgers"],
   /** @deprecated 兼容旧探针；等同 lodgers_active */
   lodgers_records: ["lodgers", "beds"],

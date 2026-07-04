@@ -32,7 +32,10 @@ def main():
             "rcRefreshAfterWrite single impl",
             rc.count("function rcRefreshAfterWrite") == 1
             and "rcApplyWriteResult(writeResult)" in rc
+            and "patch_complete === true" in rc
             and "touchBoardVersionFromWrite(writeResult)" in rc
+            and "write-visible-refresh" in rc
+            and "write-reconcile" in rc
             and "var syncTask = refreshAfterWrite" in rc
             and "syncTask" in rc
             and ".then(function ()" in rc

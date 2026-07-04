@@ -23,6 +23,8 @@ const ALLOWED_METRIC_KEYS = new Set([
   "rc_bootstrap_ms",
   "rc_deferred_ms",
   "write_refresh_ms",
+  "write_visible_refresh_ms",
+  "write_reconcile_ms",
   "render_board_ms",
   "render_rooms_ms",
   "render_all_ms",
@@ -36,6 +38,7 @@ const ALLOWED_METRIC_KEYS = new Set([
   "delta_apply_count",
   "delta_not_modified_count",
   "delta_full_sync_count",
+  "delta_skip_view_refresh_count",
   "push_count",
   "push_sse_count",
   "push_poll_count",
@@ -139,6 +142,29 @@ export async function storePerfRumSample(env, request, body, session) {
   return { ok: true };
 }
 
+function percentileSorted(ordered, pct) {
+  if (!ordered.length) return null;
+  if (ordered.length === 1) return ordered[0];
+  const rank = (pct / 100) * (ordered.length - 1);
+  const lower = Math.floor(rank);
+  const upper = Math.min(lower + 1, ordered.length - 1);
+  const weight = rank - lower;
+  return Math.round(ordered[lower] * (1 - weight) + ordered[upper] * weight);
+}
+
+function summarizeValues(values) {
+  if (!values.length) return { n: 0, p50: null, p95: null, max: null };
+  const ordered = values.slice().sort(function (a, b) {
+    return a - b;
+  });
+  return {
+    n: ordered.length,
+    p50: percentileSorted(ordered, 50),
+    p95: percentileSorted(ordered, 95),
+    max: ordered[ordered.length - 1],
+  };
+}
+
 /** 聚合最近样本 | Aggregate recent RUM samples (ops/debug) */
 export async function aggregatePerfRum(env, metricKey, limit) {
   await ensurePerfRumTable(env);
@@ -159,4 +185,62 @@ export async function aggregatePerfRum(env, metricKey, limit) {
     }
   });
   return values;
+}
+
+/**
+ * 按链路汇总最近 RUM（时延 P50/P95 + 计数类指标）
+ * Summarize recent RUM samples by metric key for ops dashboards.
+ */
+export async function aggregatePerfRumSummary(env, limit) {
+  await ensurePerfRumTable(env);
+  const rows = await queryD1(
+    env,
+    `SELECT page, reason, role, metrics_json, recorded_at FROM perf_rum_samples
+     ORDER BY id DESC LIMIT ?`,
+    [Math.min(Math.max(limit || 100, 1), 500)],
+  );
+  const byMetric = {};
+  const byPage = {};
+  rows.forEach(function (row) {
+    let metrics = {};
+    try {
+      metrics = JSON.parse(row.metrics_json || "{}");
+    } catch (e) {
+      return;
+    }
+    const page = row.page || "unknown";
+    if (!byPage[page]) byPage[page] = { samples: 0 };
+    byPage[page].samples++;
+    Object.keys(metrics).forEach(function (key) {
+      const val = metrics[key];
+      if (typeof val !== "number" || !Number.isFinite(val)) return;
+      if (!byMetric[key]) byMetric[key] = [];
+      byMetric[key].push(val);
+      if (!byPage[page][key]) byPage[page][key] = [];
+      byPage[page][key].push(val);
+    });
+  });
+  const metrics = {};
+  Object.keys(byMetric)
+    .sort()
+    .forEach(function (key) {
+      metrics[key] = summarizeValues(byMetric[key]);
+    });
+  const pages = {};
+  Object.keys(byPage)
+    .sort()
+    .forEach(function (page) {
+      const entry = { samples: byPage[page].samples };
+      Object.keys(byPage[page]).forEach(function (key) {
+        if (key === "samples") return;
+        entry[key] = summarizeValues(byPage[page][key]);
+      });
+      pages[page] = entry;
+    });
+  return {
+    sample_limit: Math.min(Math.max(limit || 100, 1), 500),
+    sample_count: rows.length,
+    metrics: metrics,
+    by_page: pages,
+  };
 }

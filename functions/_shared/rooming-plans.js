@@ -415,6 +415,7 @@ export async function generateRoomingPlanAssignments(env, session, eventId) {
     {
       deletions: roomingAssignmentDeletions(oldAssignments),
       extraPatches: await roomingWritePatches(env, eventId),
+      patchComplete: true,
     },
   );
 }
@@ -500,6 +501,7 @@ export async function saveRoomingPlan(env, session, body) {
     { ...bundle, ...writeMeta },
     {
       extraPatches: await roomingWritePatches(env, plan.event_id),
+      patchComplete: true,
     },
   );
 }
@@ -646,6 +648,7 @@ export async function handleRoomingPlanAction(env, session, body) {
       { ...bundle, ...writeMeta },
       {
         extraPatches: await roomingWritePatches(env, eventId),
+        patchComplete: true,
       },
     );
   }

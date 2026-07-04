@@ -55,7 +55,45 @@ def main() -> None:
         ("housekeeping patch helper", "fetchLatestHousekeepingPatches" in write_resp),
         ("meal deletion helper", "fetchMealDeletionsForLodgers" in write_resp),
         ("sync meta schema cached", "_syncMetaReady" in sync_meta),
-        ("rcApplyWriteResult touches version", "touchBoardVersionFromWrite" in rc),
+        (
+            "rcApplyWriteResult requires patch_complete",
+            "patch_complete === true" in rc
+            and "touchBoardVersionFromWrite" in rc,
+        ),
+        ("enrichWriteResponse patchComplete", "patchComplete" in write_resp),
+        (
+            "settings room patch_complete",
+            'patchComplete: true' in read("functions/_shared/admin-records.js"),
+        ),
+        (
+            "housekeeping patch_complete",
+            "patchComplete: true" in read("functions/_shared/housekeeping.js"),
+        ),
+        (
+            "meals patch_complete",
+            "patchComplete: true" in read("functions/_shared/meals.js"),
+        ),
+        (
+            "reservations patch_complete",
+            "patchComplete: true" in read("functions/_shared/reservations.js"),
+        ),
+        (
+            "lodger finish attaches housekeeping",
+            "fetchLatestHousekeepingPatches" in read("functions/_shared/lodgers.js"),
+        ),
+        (
+            "lodger finish patch_complete default",
+            "patchComplete: patch.complete !== false"
+            in read("functions/_shared/lodgers.js"),
+        ),
+        (
+            "rooming plans patch_complete",
+            "patchComplete: true" in read("functions/_shared/rooming-plans.js"),
+        ),
+        (
+            "rooming publish patch_complete",
+            "patchComplete: true" in read("functions/_shared/rooming-publish.js"),
+        ),
         ("rc housekeeping match bed_id", 'table === "housekeeping"' in rc),
         ("rc drop inactive from board", 'moduleKey === "lodgers_active"' in rc),
         (

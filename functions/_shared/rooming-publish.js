@@ -206,6 +206,7 @@ export async function publishRoomingPlan(env, session, eventId) {
     {
       deletions: roomingQueueDeletions(oldQueue),
       extraPatches: await roomingPublishPatches(env, eventId),
+      patchComplete: true,
     },
   );
 }
@@ -300,6 +301,7 @@ export async function republishRoomingPlan(env, session, eventId, body) {
     {
       deletions: roomingQueueDeletions(pendingQueue),
       extraPatches: await roomingPublishPatches(env, eventId),
+      patchComplete: true,
     },
   );
 }
@@ -345,6 +347,7 @@ export async function updateRoomingQueueItem(env, session, body) {
     { ...updatedRow, ...writeMeta },
     {
       extraPatches: extraPatches,
+      patchComplete: true,
     },
   );
 }
@@ -536,7 +539,10 @@ export async function logRoomingAdjustment(env, session, body) {
   return enrichWriteResponse(
     env,
     await finishWrite(env, {}, ["events"], ["events", "event_rooming"]),
-    { extraPatches: await roomingAdjustmentPatches(env, meta.last_row_id) },
+    {
+      extraPatches: await roomingAdjustmentPatches(env, meta.last_row_id),
+      patchComplete: true,
+    },
   );
 }
 

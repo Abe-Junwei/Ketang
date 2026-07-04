@@ -177,6 +177,8 @@ export async function enrichWriteResponse(env, response, options) {
     });
   }
   if (Object.keys(patches).length) out.patches = patches;
+  // Explicit only: incomplete patches must not skip client delta reconcile
+  if (options.patchComplete === true) out.patch_complete = true;
   return out;
 }
 

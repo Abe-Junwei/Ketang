@@ -117,7 +117,7 @@ async function upsertRoom(env, session, body) {
     return enrichWriteResponse(
       env,
       await finishWrite(env, { room_id: id }, ["settings"], ["settings_rooms"]),
-      { patchTable: "rooms", rowId: id },
+      { patchTable: "rooms", rowId: id, patchComplete: true },
     );
   }
 
@@ -154,7 +154,7 @@ async function upsertRoom(env, session, body) {
       ["settings"],
       ["settings_rooms"],
     ),
-    { patchTable: "rooms", rowId: meta.last_row_id },
+    { patchTable: "rooms", rowId: meta.last_row_id, patchComplete: true },
   );
 }
 
@@ -189,7 +189,10 @@ async function deleteRoom(env, session, body) {
       { table_name: "rooms", row_id: id },
       ["settings_rooms"],
     ),
-    { deletion: { table_name: "rooms", row_id: id } },
+    {
+      deletion: { table_name: "rooms", row_id: id },
+      patchComplete: true,
+    },
   );
 }
 
@@ -270,7 +273,7 @@ async function upsertBed(env, session, body) {
     return enrichWriteResponse(
       env,
       await finishWrite(env, { bed_id: id }, ["settings"], ["settings_beds"]),
-      { patchTable: "beds", rowId: id },
+      { patchTable: "beds", rowId: id, patchComplete: true },
     );
   }
 
@@ -308,7 +311,7 @@ async function upsertBed(env, session, body) {
       ["settings"],
       ["settings_beds"],
     ),
-    { patchTable: "beds", rowId: meta.last_row_id },
+    { patchTable: "beds", rowId: meta.last_row_id, patchComplete: true },
   );
 }
 
@@ -439,7 +442,7 @@ async function upsertGuest(env, session, body) {
         ["settings"],
         ["settings_guests"],
       ),
-      { patchTable: "guests", rowId: id },
+      { patchTable: "guests", rowId: id, patchComplete: true },
     );
   }
 
@@ -476,7 +479,7 @@ async function upsertGuest(env, session, body) {
       ["settings"],
       ["settings_guests"],
     ),
-    { patchTable: "guests", rowId: meta.last_row_id },
+    { patchTable: "guests", rowId: meta.last_row_id, patchComplete: true },
   );
 }
 
@@ -512,7 +515,10 @@ async function deleteGuest(env, session, body) {
       { table_name: "guests", row_id: id },
       ["settings_guests"],
     ),
-    { deletion: { table_name: "guests", row_id: id } },
+    {
+      deletion: { table_name: "guests", row_id: id },
+      patchComplete: true,
+    },
   );
 }
 
@@ -663,8 +669,9 @@ async function upsertEvent(env, session, body) {
             patchRowIds: patchRowIds,
             deletions: mealDeletions,
             extraPatches: { housekeeping: housekeepingPatches },
+            patchComplete: true,
           }
-        : { patchTable: "events", rowId: id },
+        : { patchTable: "events", rowId: id, patchComplete: true },
     );
   }
 
@@ -702,7 +709,7 @@ async function upsertEvent(env, session, body) {
       null,
       ["events"],
     ),
-    { patchTable: "events", rowId: meta.last_row_id },
+    { patchTable: "events", rowId: meta.last_row_id, patchComplete: true },
   );
 }
 
@@ -740,7 +747,10 @@ async function deleteEvent(env, session, body) {
       { table_name: "events", row_id: id },
       ["events"],
     ),
-    { deletion: { table_name: "events", row_id: id } },
+    {
+      deletion: { table_name: "events", row_id: id },
+      patchComplete: true,
+    },
   );
 }
 

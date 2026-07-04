@@ -83,6 +83,7 @@ export async function saveOperationalSettings(env, session, body) {
     ),
     {
       extraPatches: { app_meta: [metaRow] },
+      patchComplete: true,
     },
   );
 }

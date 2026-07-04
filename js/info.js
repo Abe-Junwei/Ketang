@@ -573,7 +573,11 @@ function infoRefreshAfterWrite(writeResult, tab, syncOptions) {
     return;
   }
   infoApplyWritePatches(writeResult, syncOptions);
-  if (typeof touchBoardVersionFromWrite === "function") {
+  if (
+    writeResult &&
+    writeResult.patch_complete === true &&
+    typeof touchBoardVersionFromWrite === "function"
+  ) {
     touchBoardVersionFromWrite(writeResult);
   }
   renderInfo(tab);

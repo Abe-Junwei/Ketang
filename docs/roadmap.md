@@ -772,9 +772,14 @@ bash scripts/run_p1_checklist.sh https://wulingkt.net https://<pages-preview>.ke
 
 #### 19.7.1 现状核查结论
 
-- SSE 路由已存在：`GET /api/v1/stream/board` 每 1.5s 查询 `app_meta.board_version`，版本变化时推送 `data: {"version": N}`，15s 发送 ping。
+- SSE 路由已存在：`GET /api/v1/stream/board` 每 **500ms** 查询 `app_meta.board_version`，版本变化时推送 `data: {"version": N}`，15s 发送 ping。
 - 客户端 SSE 已存在：`startBoardStream()` 使用 `EventSource`，收到版本后触发 `syncRemoteIfStale()`；但 SSE 只在 board 视图激活时维持，切出 board 或 hidden 时会关闭。
-- 轮询仍是可靠兜底：active 视图 3s、idle 20s 轮询 `/api/v1/board-version`，hidden 跳过。
+- 轮询仍是可靠兜底：active 视图 **1s**、idle **5s** 轮询 `/api/v1/board-version`，hidden 跳过。
+- 写后版本策略：仅当响应 `patch_complete === true` 时推进本地 `board_version` 并跳过 delta；默认应用 patch 后仍后台对账。`write-refresh` 只计即时可见刷新，`write-reconcile` 计后台对账。
+- 预报/报表读模块：`lodgers_active` + `lodgers_recent`（含 payments），不再拉全量 `lodgers`。
+- delta 后仅当脏域与当前视图相关时 `refreshViewForScope`；无关刷新计入 `delta_skip_view_refresh_count`。
+- 已审计写路径（settings、营期、预约、用斋、房务、批量成员、**入住/退房/换床/续住/分床/编辑/删除挂单**）经 `lodgerFinishWrite` 补齐 housekeeping/meals/payments 后返回 `patch_complete: true`。
+- 管理员 `GET /api/v1/metrics/perf?limit=100` 可查看最近 RUM 按指标 / 按 page 的 P50/P95。
 - WebSocket 未实现：仓库当前没有 WebSocket/DO 广播。
 - `index.html` 不再静态加载 `./lib/sql-wasm.js`；`db.js` 仅在本地/灾备路径动态加载 sql.js，在线误调 `query()` 会抛出带 caller 的错误。
 - `reports.js`、`forecast.js`、`history.js`、`events.js`、`rooming-*`、`auth.js` 在线热路径已由 `test_online_query_boundaries.py` 守卫；本地/灾备分支继续保留 `query()`。

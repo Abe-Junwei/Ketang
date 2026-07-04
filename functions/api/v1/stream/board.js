@@ -49,7 +49,7 @@ export async function onRequestGet({ request, env }) {
       }
 
       tick();
-      poll = globalThis.setInterval(tick, 1500);
+      poll = globalThis.setInterval(tick, 500);
       heartbeat = globalThis.setInterval(function () {
         if (closed) return;
         controller.enqueue(encoder.encode(": ping\n\n"));

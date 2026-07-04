@@ -38,6 +38,17 @@ def main():
             "lodgers_active" in rc.split("info_events:")[1].split("]")[0],
         ),
         (
+            "forecast light lodgers",
+            "lodgers_active" in rc.split("forecast:")[1].split("reports:")[0]
+            and "lodgers_recent" in rc.split("forecast:")[1].split("reports:")[0]
+            and '"lodgers"' not in rc.split("forecast:")[1].split("reports:")[0].replace("lodgers_active", "").replace("lodgers_recent", ""),
+        ),
+        (
+            "reports light lodgers",
+            "lodgers_active" in rc.split("reports:")[1].split("]")[0]
+            and "lodgers_recent" in rc.split("reports:")[1].split("]")[0],
+        ),
+        (
             "event_rooming module",
             "event_rooming:" in read("functions/_shared/read-modules.js")
             or 'event_rooming: [' in read("functions/_shared/read-modules.js"),
@@ -46,7 +57,11 @@ def main():
             "events module slim",
             'events: ["events"]' in read("functions/_shared/read-modules.js"),
         ),
-        ("rcApplyWriteResult touches version", "touchBoardVersionFromWrite" in rc),
+        (
+            "rcApplyWriteResult requires patch_complete",
+            "patch_complete === true" in rc
+            and "touchBoardVersionFromWrite" in rc,
+        ),
         ("rcEventRoomingRows", "function rcEventRoomingRows" in rc),
         ("meals rc read", "rcReadReady" in read("js/meals.js")),
         ("forecast rc today", "rcForecastTodayData" in read("js/forecast.js")),
