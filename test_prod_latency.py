@@ -909,12 +909,12 @@ def main() -> int:
 
     def login_fetch():
         status, body, ms, hdrs, meta = request_json(
-            f"{base}/api/db{timing_q}",
+            f"{base}/api/v1/auth/login{timing_q}",
             method="POST",
-            body={"action": "login_role", "role": args.role, "password": args.password},
+            body={"role": args.role, "password": args.password},
         )
         if status != 200 or not body.get("user"):
-            raise RuntimeError(f"login_role status={status} body={body}")
+            raise RuntimeError(f"auth/login status={status} body={body}")
         timing = extract_timing(body, hdrs, status)
         run = run_external_ms(ms, timing, meta)
         if timing:

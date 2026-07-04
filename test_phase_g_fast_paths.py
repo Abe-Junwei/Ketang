@@ -78,8 +78,13 @@ def main() -> int:
     records = read("functions/api/v1/admin/records.js")
     if "createRequestTimer" not in records or 'stage("init_ms"' not in records:
         failed.append("admin/records must time init_ms/auth_ms/biz_ms")
-    if 'stage("biz_ms"' not in records or 'stage("auth_ms"' not in records:
-        failed.append("admin/records missing auth_ms or biz_ms stages")
+    for key in ("handler_ms", "write_tail_ms", "patch_ms"):
+        if f'timer.mark("{key}"' not in records:
+            failed.append(f"admin/records missing {key} timing")
+    if '"biz_ms"' not in records or "timer.mark(" not in records:
+        failed.append("admin/records missing biz_ms aggregate timing")
+    if 'stage("auth_ms"' not in records:
+        failed.append("admin/records missing auth_ms stage")
 
     failed += assert_304_before_init("read-model", fn_body(read_model, "onRequestGet") or read_model)
     failed += assert_304_before_init("sync/delta", fn_body(sync_delta, "onRequestGet") or sync_delta)
@@ -90,12 +95,9 @@ def main() -> int:
     elif "ensureDatabaseForAuth" in mod_body:
         failed.append("read/[module] must not call ensureDatabaseForAuth on hot path")
 
-    login_block = re.search(
-        r'if \(payload\.action === "login_role"\) \{([\s\S]*?)\n    \}',
-        read("functions/api/db.js"),
-    )
-    if login_block and "PRAGMA table_info" in login_block.group(1):
-        failed.append("login_role must not inline PRAGMA table_info loops")
+    db_api = read("functions/api/db.js")
+    if "410" not in db_api or "login_role" not in db_api:
+        failed.append("api/db must retire login/login_role with 410")
 
     if failed:
         print("FAIL phase G fast paths:", ", ".join(failed))

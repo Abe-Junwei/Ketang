@@ -1,7 +1,7 @@
 ---
 title: 迁移与请求生命周期专项
 status: active
-updated: 2026-07-04
+updated: 2026-07-05
 ---
 
 # 迁移与请求生命周期
@@ -17,18 +17,18 @@ updated: 2026-07-04
 3. fallback / repair 与业务请求显式隔离。
 4. 写尾（version / sync log / patch）可观测、可合并。
 
-## 当前状态（2026-07-04，已落地）
+## 当前状态（2026-07-05，已落地）
 
 | 项 | 状态 |
 |---|---|
-| Phase 0 观测 | `admin/records` 分段 `init_ms` / `auth_ms` / `biz_ms`；`test_admin_write_latency.py` |
+| Phase 0 观测 | `admin/records` 分段 `init_ms` / `auth_ms` / `handler_ms` / `write_tail_ms` / `patch_ms` / `biz_ms`；`test_admin_write_latency.py` + `test_admin_write_timing_stages.py` |
 | Phase B ready | `app_meta.schema_ready_version` 单次查询；未盖章时一次性列校验后盖章 |
 | Phase D light | ready 后仅内存标记，零 DDL / 零 version 探测 |
 | Phase A 入口 | 统一 `ensureDatabaseReady`；业务 `allowMigrationFallback: false` |
 | Phase C 热路径 | PRAGMA/ALTER 仅 `runMigrationsOrRepair`；`test_migration_hot_path.py` 守门 |
 | Phase E 写尾 | 写 + bump + sync log + version 读同一 D1 batch；`patchRow` 免回读 |
 | Phase F 运维 | `POST /api/v1/admin/migrate`（admin）；备份/定时任务仍允许 migration fallback |
-| Phase G 守门 | `test_migration_hot_path.py` + `test_phase_g_fast_paths.py` |
+| Phase G 守门 | `test_migration_hot_path.py` + `test_phase_g_fast_paths.py` + `test_admin_write_timing_stages.py` |
 
 生产探针（`58840c8` 后）：warm `init_ms` p50=0；create `biz_ms` p50≈**400ms**（server total ≈600–900ms）；外部 create p50≈3.0s（探针机到边缘的网络往返约占 2s，服务端已 &lt;1s）。
 
@@ -64,7 +64,19 @@ API 请求 → ensureDatabaseReady（isolate cache / 单次 ready 查询）
 python3 test_admin_write_latency.py --base https://wulingkt.net --resource event --samples 2
 ```
 
-输出字段：`login_ms`、`create_*_ms`、`init_ms`、`auth_ms`、`biz_ms`、`delete_*_ms`。
+输出字段：`login_ms`、`create_*_ms`、`init_ms`、`auth_ms`、`handler_ms`、`write_tail_ms`、`patch_ms`、`biz_ms`、`delete_*_ms`。
+
+`biz_ms` = `handler_ms` + `write_tail_ms` + `patch_ms`（业务校验/SQL 组装、D1 写尾 batch、patch 回读 enrich）。
+
+## 剩余收尾（2026-07-05）
+
+| 项 | 状态 |
+|---|---|
+| Phase 0 细拆 | ✅ `handler_ms` / `write_tail_ms` / `patch_ms` 已接入 `admin/records` |
+| Legacy `/api/db` 登录 | ✅ `login` / `login_role` 返回 410，客户端走 `/api/v1/auth/login` |
+| CI 结构守门 | ✅ `test_admin_write_timing_stages.py` |
+| 线上 p95 硬门槛 | 部分：`test_admin_write_latency.py` 对 warm 探针 WARN；尚未纳入 CI 必过项 |
+| 复杂写路径减 patch 回读 | 进行中：lodger/rooming 仍有 SELECT enrich |
 
 过渡目标：cold create &lt; 5s，warm create &lt; 3s。  
 最终目标：cold `init_ms` &lt; 300ms，warm create &lt; 2s。

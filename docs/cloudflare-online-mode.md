@@ -11,7 +11,7 @@
 - **多端同步**：其他终端靠 `board_version` + `/api/v1/sync/delta` / SSE 拉变更；SSE 当前是服务端 1.5s 检测 `board_version` 后转推，轮询仍是可靠兜底。
 - **公开预约**：`reserve.html` → `POST /api/public/reservations`（无需登录）。
 - **写**：业务操作走 `/api/v1/*`，由 Worker 写入 D1。
-- **登录/用户列表**：`POST /api/v1/auth/login`（角色/账号）、`POST /api/db`（遗留 username 登录）；用户管理走 `/api/v1/admin/users`。
+- **登录/用户列表**：`POST /api/v1/auth/login`（角色/账号）；用户管理走 `/api/v1/admin/users`。
 - **改密/审计**：`POST /api/v1/auth/change-password`；客户端 `logAudit` 走 `POST /api/v1/audit`（不再经 `/api/db` run）。
 - 本地 `localhost`、`127.0.0.1`、`file://` 仍使用原 IndexedDB/sql.js 模式。
 
@@ -54,7 +54,7 @@
 
 - 云端模式支持多人访问同一份 D1 数据。
 - 业务写操作走 `/api/v1/*` 接口（入住/退房/换床/续住/分床/编辑删除挂单/用斋/房务/预约/营期批量操作），D1 `batch()` 保证原子性。
-- `/api/db`：**仅** init、users 列表、login / login_role（遗留 username 登录）；`query` / `run` / `batch_query` / `change_password` 已退役（410），请用 `/api/v1/*`。
+- `/api/db`：**仅** init、users 列表（公开角色名）；`login` / `login_role` / SQL 网关 / `change_password` 已退役（410），请用 `/api/v1/auth/login` 与 `/api/v1/*` 业务 API。
 - 管理员可在「系统设置」导出/导入 JSON 备份（含 `users` 表，`/api/v1/admin/data-backup`）。
 - 房态看板在云端模式优先 **SSE**（`/api/v1/stream/board`），服务端 1.5s 检测版本变化、15s ping；失败或非看板场景降级到 `board-version` 轮询（active 视图 3s、idle 20s、hidden 跳过）。
 - 登录前不再阻塞远程 `init`；身份下拉在 HTML 中静态列出，页面打开即可选。
@@ -68,7 +68,7 @@
 
 | 路径                                  | 说明                                      |
 | ------------------------------------- | ----------------------------------------- |
-| `POST /api/db`                        | init、login / login_role、users 列表（SQL 网关已退役） |
+| `POST /api/db`                        | init、users 列表（login/SQL 网关已退役 410） |
 | `POST /api/v1/auth/login`             | 双 token 登录（推荐）                     |
 | `POST /api/v1/auth/change-password`   | 修改当前用户密码                          |
 | `POST /api/v1/audit`                  | 客户端审计日志                            |

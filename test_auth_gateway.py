@@ -53,22 +53,12 @@ def test_users_action_skips_init():
 
 
 def test_login_action_has_timing():
-    db_api = read('functions/api/db.js')
-    for action in ('login', 'login_role'):
-        login_action = re.search(
-            rf'if \(payload\.action === "{action}"\) \{{([\s\S]*?)\n    \}}',
-            db_api,
-        )
-        if not login_action:
-            print(f'FAIL api/db.js missing {action} action')
-            sys.exit(1)
-        block = login_action.group(1)
-        if 'createRequestTimer' not in block or 'buildLoginSuccess' not in block:
-            print(f'FAIL {action} action must use staged timing and buildLoginSuccess')
-            sys.exit(1)
-
+    login_api = read('functions/api/v1/auth/login.js')
     auth_response = read('functions/_shared/auth-response.js')
     timing_js = read('functions/_shared/timing.js')
+    if 'createRequestTimer' not in login_api or 'buildDualAuthSuccess' not in login_api:
+        print('FAIL v1 auth/login must use staged timing and buildDualAuthSuccess')
+        sys.exit(1)
     if 'finishWithCookies' not in timing_js:
         print('FAIL timing.js missing finishWithCookies for login _timing')
         sys.exit(1)
@@ -369,14 +359,14 @@ def test_user_role_migration_guard():
 def test_role_login_gateway():
     db_api = read('functions/api/db.js')
     auth = read('js/auth.js')
-    if 'payload.action === "login_role"' not in db_api:
-        print('FAIL api/db.js missing login_role action')
+    if '410' not in db_api or 'login_role' not in db_api:
+        print('FAIL api/db.js must retire login/login_role with 410')
+        sys.exit(1)
+    if '/api/v1/auth/login' not in db_api:
+        print('FAIL api/db.js legacy login response must point clients to v1 auth/login')
         sys.exit(1)
     if 'apiAuthLogin' not in auth or 'loginByRole' not in auth:
         print('FAIL auth.js remote loginByRole must call apiAuthLogin')
-        sys.exit(1)
-    if 'upgradePasswordHashBestEffort' not in db_api:
-        print('FAIL api/db.js login must not fail when legacy hash upgrade fails')
         sys.exit(1)
     if 'requireSession(request, env, bindQuery)' in db_api:
         print('FAIL api/db.js passes bindQuery factory instead of bound query function')
@@ -551,27 +541,20 @@ def test_batch_check_in_api():
 
 
 def test_login_uses_lightweight_auth_init():
-    db_api = read('functions/api/db.js')
+    auth_login = read('functions/_shared/auth-login.js')
     d1 = read('functions/_shared/d1.js')
+    db_api = read('functions/api/db.js')
     if 'ensureDatabaseForAuth' not in d1:
         print('FAIL d1.js missing ensureDatabaseForAuth helper')
         sys.exit(1)
     if 'probeProductionDatabaseReady' not in d1 or 'authEnsureReady' not in d1:
         print('FAIL d1.js must cache auth ensure with schema_version probe')
         sys.exit(1)
-    login_role = re.search(
-        r'if \(payload\.action === "login_role"\) \{([\s\S]*?)\n    \}',
-        db_api,
-    )
-    if not login_role or 'ensureDatabaseForAuth' not in login_role.group(1):
-        print('FAIL login_role must use ensureDatabaseForAuth instead of full init')
+    if 'ensureDatabaseForAuth' not in auth_login:
+        print('FAIL auth-login.js must use ensureDatabaseForAuth instead of full init')
         sys.exit(1)
-    login = re.search(
-        r'if \(payload\.action === "login"\) \{([\s\S]*?)\n    \}',
-        db_api,
-    )
-    if not login or 'ensureDatabaseForAuth' not in login.group(1):
-        print('FAIL login must use ensureDatabaseForAuth instead of full init')
+    if '410' not in db_api or 'login_role' not in db_api:
+        print('FAIL api/db.js must retire legacy login with 410')
         sys.exit(1)
 
 

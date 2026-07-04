@@ -31,6 +31,10 @@ def main():
         failed.append("api-client must call /api/v1/auth/change-password")
     if "remoteBatchQuery" in api:
         failed.append("remoteBatchQuery should be removed")
+    if 'payload.action === "login"' in db_api and "410" not in db_api:
+        failed.append("db.js must retire legacy login with 410")
+    if 'payload.action === "login_role"' in db_api and "410" not in db_api:
+        failed.append("db.js must retire legacy login_role with 410")
     if failed:
         print("FAIL sql gateway retirement:")
         for item in failed:

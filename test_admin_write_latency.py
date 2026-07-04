@@ -117,10 +117,9 @@ def main() -> int:
     st, body, login_ms, login_timing, _ = request_json(
         opener,
         base,
-        "/api/db?timing=1",
+        "/api/v1/auth/login?timing=1",
         method="POST",
         body={
-            "action": "login_role",
             "role": args.role,
             "password": args.password,
         },
@@ -133,6 +132,9 @@ def main() -> int:
     create_totals = []
     create_inits = []
     create_auths = []
+    create_handlers = []
+    create_write_tails = []
+    create_patches = []
     create_bizs = []
     delete_totals = []
 
@@ -153,11 +155,16 @@ def main() -> int:
         timing = timing or body.get("_timing") or {}
         create_inits.append(timing.get("init_ms"))
         create_auths.append(timing.get("auth_ms"))
+        create_handlers.append(timing.get("handler_ms"))
+        create_write_tails.append(timing.get("write_tail_ms"))
+        create_patches.append(timing.get("patch_ms"))
         create_bizs.append(timing.get("biz_ms"))
         label = "cold" if i == 0 else f"warm{i}"
         print(
             f"create_{label}_ms={ms} init_ms={timing.get('init_ms')} "
-            f"auth_ms={timing.get('auth_ms')} biz_ms={timing.get('biz_ms')} "
+            f"auth_ms={timing.get('auth_ms')} handler_ms={timing.get('handler_ms')} "
+            f"write_tail_ms={timing.get('write_tail_ms')} patch_ms={timing.get('patch_ms')} "
+            f"biz_ms={timing.get('biz_ms')} "
             f"patch_complete={body.get('patch_complete')} "
             f"server_timing={server_timing}"
         )
@@ -187,8 +194,18 @@ def main() -> int:
     print("summary_create_total", summarize(create_totals))
     print("summary_create_init", summarize(clean(create_inits)))
     print("summary_create_auth", summarize(clean(create_auths)))
+    print("summary_create_handler", summarize(clean(create_handlers)))
+    print("summary_create_write_tail", summarize(clean(create_write_tails)))
+    print("summary_create_patch", summarize(clean(create_patches)))
     print("summary_create_biz", summarize(clean(create_bizs)))
     print("summary_delete_total", summarize(delete_totals))
+
+    warm_inits = clean(create_inits[1:])
+    warm_bizs = clean(create_bizs[1:])
+    if warm_inits and max(warm_inits) > 50:
+        print(f"WARN warm init_ms max={max(warm_inits)} exceeds 50ms target")
+    if warm_bizs and max(warm_bizs) > 3000:
+        print(f"WARN warm biz_ms max={max(warm_bizs)} exceeds 3000ms target")
     print("PASS: admin write latency probe")
     return 0
 

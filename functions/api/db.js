@@ -4,27 +4,15 @@ import {
   clientIp,
   checkMemoryRateLimit,
 } from "../_shared/http.js";
-import {
-  verifyPassword,
-  requireSession,
-  checkLoginRateLimit,
-  recordLoginFailure,
-  clearLoginFailures,
-  upgradePasswordHashIfLegacy,
-} from "../_shared/auth.js";
+import { requireSession } from "../_shared/auth.js";
 import {
   queryD1,
-  runD1,
   initRemoteDatabase,
-  ensureDatabaseForAuth,
   isDatabaseEmpty,
   safeErrorMessage,
 } from "../_shared/d1.js";
-import { createRequestTimer } from "../_shared/timing.js";
-import { buildDualAuthSuccess } from "../_shared/auth-response.js";
 
 const bindQuery = (env) => (sql, params) => queryD1(env, sql, params);
-const bindRun = (env) => (sql, params) => runD1(env, sql, params);
 const PUBLIC_LOGIN_ROLES = [
   ["admin", "管理员"],
   ["zhike", "知客师"],
@@ -33,70 +21,9 @@ const PUBLIC_LOGIN_ROLES = [
   ["viewer", "只读"],
 ];
 
-function sessionUserPayload(user) {
-  return {
-    id: user.id,
-    username: user.username,
-    display_name: user.display_name,
-    role: user.role,
-    is_advanced: !!user.is_advanced,
-    auth_version: user.auth_version || 1,
-  };
-}
-
-async function upgradePasswordHashBestEffort(
-  userId,
-  password,
-  storedHash,
-  env,
-) {
-  try {
-    return await upgradePasswordHashIfLegacy(
-      userId,
-      password,
-      storedHash,
-      bindRun(env),
-    );
-  } catch (error) {
-    console.warn("password hash upgrade skipped:", error);
-    return storedHash;
-  }
-}
-
-async function buildLoginSuccess(env, request, freshUser, timer) {
-  const meta = {
-    ip: clientIp(request),
-    userAgent: request.headers.get("user-agent") || "",
-  };
-  return buildDualAuthSuccess(env, request, freshUser, meta, null, timer);
-}
-
-async function authenticateUsername(env, ip, username, password) {
-  await checkLoginRateLimit(env, ip, bindQuery(env), bindRun(env));
-  const rows = await queryD1(
-    env,
-    "SELECT * FROM users WHERE username = ? AND (is_active IS NULL OR is_active = 1) LIMIT 1",
-    [username],
-  );
-  const user = rows[0];
-  if (!user || !(await verifyPassword(password || "", user.password))) {
-    await recordLoginFailure(env, ip, bindQuery(env), bindRun(env));
-    return null;
-  }
-  await upgradePasswordHashBestEffort(
-    user.id,
-    password || "",
-    user.password,
-    env,
-  );
-  await clearLoginFailures(env, ip, bindRun(env));
-  const freshRows = await queryD1(
-    env,
-    "SELECT * FROM users WHERE id = ? LIMIT 1",
-    [user.id],
-  );
-  return freshRows[0] || user;
-}
+const LEGACY_LOGIN_RETIRED = {
+  error: "请改用 POST /api/v1/auth/login（/api/db 登录已退役）",
+};
 
 export async function onRequestPost({ request, env }) {
   if (!env.KETANG_DB) return json({ error: "缺少 D1 绑定 KETANG_DB" }, 500);
@@ -132,69 +59,11 @@ export async function onRequestPost({ request, env }) {
       return json({ rows });
     }
 
-    if (payload.action === "login_role") {
-      const timer = createRequestTimer();
-      await timer.stage("init_ms", () => ensureDatabaseForAuth(env));
-      await timer.stage("rate_limit_ms", () =>
-        checkLoginRateLimit(env, ip, bindQuery(env), bindRun(env)),
-      );
-      const role = String(payload.role || "");
-      if (!PUBLIC_LOGIN_ROLES.some(([value]) => value === role)) {
-        await recordLoginFailure(env, ip, bindQuery(env), bindRun(env));
-        return timer.finish({ error: "身份或密码错误" }, request, 401);
-      }
-      const rows = await timer.stage("d1_query_ms", () =>
-        queryD1(
-          env,
-          "SELECT * FROM users WHERE role = ? AND (is_active IS NULL OR is_active = 1) ORDER BY CASE WHEN username = ? THEN 0 ELSE 1 END, username",
-          [role, role],
-        ),
-      );
-      let matchedUser = null;
-      let passwordMs = 0;
-      for (const user of rows) {
-        const verifyStart = Date.now();
-        const ok = await verifyPassword(payload.password || "", user.password);
-        passwordMs += Date.now() - verifyStart;
-        if (ok) {
-          matchedUser = user;
-          break;
-        }
-      }
-      timer.mark("password_ms", passwordMs);
-      if (!matchedUser) {
-        await recordLoginFailure(env, ip, bindQuery(env), bindRun(env));
-        return timer.finish({ error: "身份或密码错误" }, request, 401);
-      }
-      await upgradePasswordHashBestEffort(
-        matchedUser.id,
-        payload.password || "",
-        matchedUser.password,
-        env,
-      );
-      await clearLoginFailures(env, ip, bindRun(env));
-      const freshRows = await queryD1(
-        env,
-        "SELECT * FROM users WHERE id = ? LIMIT 1",
-        [matchedUser.id],
-      );
-      const freshUser = freshRows[0] || matchedUser;
-      return buildLoginSuccess(env, request, freshUser, timer);
+    if (payload.action === "login_role" || payload.action === "login") {
+      return json(LEGACY_LOGIN_RETIRED, 410);
     }
 
-    if (payload.action === "login") {
-      const timer = createRequestTimer();
-      await timer.stage("init_ms", () => ensureDatabaseForAuth(env));
-      const freshUser = await timer.stage("login_ms", () =>
-        authenticateUsername(env, ip, payload.username, payload.password),
-      );
-      if (!freshUser) {
-        return timer.finish({ error: "账号或密码错误" }, request, 401);
-      }
-      return buildLoginSuccess(env, request, freshUser, timer);
-    }
-
-    const session = await requireSession(request, env, bindQuery(env));
+    await requireSession(request, env, bindQuery(env));
 
     if (payload.action === "change_password") {
       return json(
