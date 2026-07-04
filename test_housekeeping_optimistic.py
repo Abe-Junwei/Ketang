@@ -18,7 +18,10 @@ def main():
         ("bed pending survives render", "HOUSEKEEPING_PENDING_BEDS" in hk and "disabled>保存中" in hk),
         ("optimistic helper", "function applyHousekeepingOptimistic" in hk),
         ("optimistic marker", "_optimistic: true" in hk),
-        ("latest status ignores optimistic", "!h._optimistic" in rc),
+        (
+            "latest status ignores optimistic",
+            "h._optimistic" in rc and "hkByBedId[h.bed_id]" in rc,
+        ),
         ("optimistic patches rc", "rcApplyDeltaPatches" in hk and "housekeeping" in hk),
         ("renders immediately", "renderHousekeeping();" in hk),
         ("success removes optimistic row", "rollbackHousekeepingOptimistic(optimistic)" in hk),
