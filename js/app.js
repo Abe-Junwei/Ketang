@@ -1785,11 +1785,6 @@ function renderOpsNotice() {
     return;
   }
 
-  if (!isLocalForceDb()) {
-    el.textContent = "数据同步中…";
-    return;
-  }
-
   // 今日到离预报（本地模式）
   const arrivals =
     query(

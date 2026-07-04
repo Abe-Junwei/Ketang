@@ -13,7 +13,7 @@ def main():
     backend = read("functions/_shared/meals.js")
     contract = read("test_online_write_response_contract.py")
     checks = [
-        ("modal grid uses rc meals", "function mealRowsForLodgerRender" in meals and "rcMealsForLodger(lodgerId)" in meals),
+        ("modal grid uses rc meals", "function mealRowsForLodgerRender" in meals and "readMealsForLodger(lodgerId)" in meals),
         ("builds days once", "function buildMealDaysFromModal" in meals),
         ("optimistic helper", "function applyMealsOptimistic" in meals),
         ("rollback helper", "function rollbackMealsOptimistic" in meals),
