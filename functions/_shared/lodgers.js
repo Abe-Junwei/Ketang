@@ -69,9 +69,7 @@ function buildCheckInPatchRows(finalLodgerId, opts) {
 
 function buildCheckoutPatchRows(l, today) {
   const patchRows = {
-    lodgers: [
-      { ...l, status: "已退", actual_check_out: today, bed_id: null },
-    ],
+    lodgers: [{ ...l, status: "已退", actual_check_out: today, bed_id: null }],
   };
   const bedPatch = bedStatusPatch(l.bed_id, "可用");
   if (bedPatch) patchRows.beds = [bedPatch];
@@ -93,7 +91,14 @@ function buildExtendStayPatchRows(l, date) {
   return { lodgers: [{ ...l, expected_check_out: date }] };
 }
 
-function buildEditLodgerPatchRows(l, person, identity, checkIn, checkOut, body) {
+function buildEditLodgerPatchRows(
+  l,
+  person,
+  identity,
+  checkIn,
+  checkOut,
+  body,
+) {
   const tags = parseParticipantTagFields(body);
   const patchRows = {
     lodgers: [
@@ -145,7 +150,11 @@ async function lodgerFinishWrite(env, response, patch) {
   const bedIds = uniqIds(patch.bedIds);
   const extraPatches = Object.assign({}, patch.extraPatches || {});
   const deletions = [];
-  if (patch.deletion && patch.deletion.table_name && patch.deletion.row_id != null) {
+  if (
+    patch.deletion &&
+    patch.deletion.table_name &&
+    patch.deletion.row_id != null
+  ) {
     deletions.push(patch.deletion);
   }
   if (Array.isArray(patch.deletions)) {
@@ -825,7 +834,11 @@ export async function apiExtendStay(env, session, body) {
       ["lodging", "board", "housekeeping", "meals"],
       BOARD_MEALS_SYNC_MODULES,
     ),
-    { lodgerId: id, deletions: mealDeletions, patchRows: buildExtendStayPatchRows(l, date) },
+    {
+      lodgerId: id,
+      deletions: mealDeletions,
+      patchRows: buildExtendStayPatchRows(l, date),
+    },
   );
 }
 
@@ -1296,7 +1309,8 @@ export async function apiPublicReservation(env, body) {
     room_preference: body.room_preference || null,
     source: body.source || "线上预约",
     status: "预约",
-    meal_breakfast: body.meal_breakfast != null ? (body.meal_breakfast ? 1 : 0) : 1,
+    meal_breakfast:
+      body.meal_breakfast != null ? (body.meal_breakfast ? 1 : 0) : 1,
     meal_lunch: body.meal_lunch != null ? (body.meal_lunch ? 1 : 0) : 1,
     meal_dinner: body.meal_dinner != null ? (body.meal_dinner ? 1 : 0) : 1,
     notes: body.notes || null,

@@ -26,7 +26,10 @@ async function forecastLoadTab(tab) {
     if (typeof rcEnsureViewModules === "function") {
       await rcEnsureViewModules("forecast", false);
     }
-    if (tab === "today" && typeof rcEnsureLodgersForReportRange === "function") {
+    if (
+      tab === "today" &&
+      typeof rcEnsureLodgersForReportRange === "function"
+    ) {
       var dateEl = document.getElementById("fc-today-date");
       if (dateEl && dateEl.value) {
         await rcEnsureLodgersForReportRange(dateEl.value);

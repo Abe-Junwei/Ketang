@@ -124,7 +124,11 @@ async function validateProductionSchemaColumns(env) {
   );
   await queryD1(env, "SELECT updated_at FROM rooming_plans LIMIT 0", []);
   await queryD1(env, "SELECT updated_at FROM rooming_assignments LIMIT 0", []);
-  await queryD1(env, "SELECT updated_at FROM rooming_checkin_queue LIMIT 0", []);
+  await queryD1(
+    env,
+    "SELECT updated_at FROM rooming_checkin_queue LIMIT 0",
+    [],
+  );
   await queryD1(env, "SELECT updated_at FROM rooming_adjustments LIMIT 0", []);
   await queryD1(env, "SELECT id FROM refresh_sessions LIMIT 0", []);
   await queryD1(env, "SELECT version FROM sync_version_log LIMIT 0", []);

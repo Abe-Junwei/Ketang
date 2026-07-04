@@ -41,14 +41,14 @@ flowchart LR
 
 ## 3. 当前差距
 
-| 区域       | 当前状态                                                           | 差距                                                        |
-| ---------- | ------------------------------------------------------------------ | ----------------------------------------------------------- |
-| 核心写 API | 核心业务、排房、运营设置已接 `finishWrite` / `enrichWriteResponse` | 公开预约与生产域契约仍需持续巡检                            |
-| 乐观 UI    | 信息管理、高频写按钮、部分小范围操作已有保存中/乐观反馈            | 入住/退房/换床仍保持低风险 L1，不做完整乐观                 |
-| 读路径     | D1–D7 在线热路径已迁到 `rc*` / read API，并有边界守卫              | 非热路径本地 fallback 仍保留；继续做语义 parity 抽样        |
-| 排房       | 读走 event detail / `rooming-read.js`，写返回行级 patches          | 冲突检查仍为服务端计算 action，后续可独立改成 read endpoint |
+| 区域       | 当前状态                                                           | 差距                                                                        |
+| ---------- | ------------------------------------------------------------------ | --------------------------------------------------------------------------- |
+| 核心写 API | 核心业务、排房、运营设置已接 `finishWrite` / `enrichWriteResponse` | 公开预约与生产域契约仍需持续巡检                                            |
+| 乐观 UI    | 信息管理、高频写按钮、部分小范围操作已有保存中/乐观反馈            | 入住/退房/换床仍保持低风险 L1，不做完整乐观                                 |
+| 读路径     | D1–D7 在线热路径已迁到 `rc*` / read API，并有边界守卫              | 非热路径本地 fallback 仍保留；继续做语义 parity 抽样                        |
+| 排房       | 读走 event detail / `rooming-read.js`，写返回行级 patches          | 冲突检查仍为服务端计算 action，后续可独立改成 read endpoint                 |
 | 同步       | `board_version`、delta、SSE、写后 patch 主体可用                   | 推送延迟 / delta 次数 / read P95 已入 RUM 与 baseline；失败重试可观测性仍弱 |
-| sql.js     | 在线不加载 wasm；本地/灾备动态加载                                 | 本地 migration / 灾备恢复仍需保留并定期验证                 |
+| sql.js     | 在线不加载 wasm；本地/灾备动态加载                                 | 本地 migration / 灾备恢复仍需保留并定期验证                                 |
 
 ## 4. 分阶段计划
 
@@ -153,15 +153,15 @@ npm run lint:ci
 
 批次：
 
-| 批次 | 范围          | 改法                                                           | 验收                           |
-| ---- | ------------- | -------------------------------------------------------------- | ------------------------------ |
-| D1   | `reports.js`  | 增加 reports read API 或基于 `_rcStore` 聚合                   | 在线 reports 无 `query()`      |
-| D2   | `forecast.js` | 使用 `rcForecastTodayData`、`rcForecastFlowWeeks` 补齐所有分支 | 在线 forecast 无 `query()`     |
-| D3   | `history.js`  | `rcFetchHistoryRows` / `rcHistorySearch` 补支付/CSV 数据       | 在线 history 无 `query()`      |
-| D4   | `events.js`   | 成员、排房建议、选择器全部走 `rcEvent*` / detail API           | 在线 events 无非本地 `query()` |
-| D5   | `rooming-*`   | 所有排房读从 `rooming-read.js` + event detail tables 获取      | 在线 rooming 无 `query()`      |
-| D6   | `auth.js`     | 用户/权限管理走 admin read API，不读本地 users                 | 在线 auth 无 users `query()`   |
-| D7   | `guests.js`、`checkin.js`（CSV 批量入住） | 查找走 `rcFindGuest*`；写路径 `guestUseLocalDb()`；在线 CSV 走 `apiBatchCheckIn` | 已完成，在线无裸 `query()`  |
+| 批次 | 范围                                      | 改法                                                                             | 验收                           |
+| ---- | ----------------------------------------- | -------------------------------------------------------------------------------- | ------------------------------ |
+| D1   | `reports.js`                              | 增加 reports read API 或基于 `_rcStore` 聚合                                     | 在线 reports 无 `query()`      |
+| D2   | `forecast.js`                             | 使用 `rcForecastTodayData`、`rcForecastFlowWeeks` 补齐所有分支                   | 在线 forecast 无 `query()`     |
+| D3   | `history.js`                              | `rcFetchHistoryRows` / `rcHistorySearch` 补支付/CSV 数据                         | 在线 history 无 `query()`      |
+| D4   | `events.js`                               | 成员、排房建议、选择器全部走 `rcEvent*` / detail API                             | 在线 events 无非本地 `query()` |
+| D5   | `rooming-*`                               | 所有排房读从 `rooming-read.js` + event detail tables 获取                        | 在线 rooming 无 `query()`      |
+| D6   | `auth.js`                                 | 用户/权限管理走 admin read API，不读本地 users                                   | 在线 auth 无 users `query()`   |
+| D7   | `guests.js`、`checkin.js`（CSV 批量入住） | 查找走 `rcFindGuest*`；写路径 `guestUseLocalDb()`；在线 CSV 走 `apiBatchCheckIn` | 已完成，在线无裸 `query()`     |
 
 技术要求：
 

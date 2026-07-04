@@ -5,11 +5,7 @@
   "probe_gzip": true,
   "results": {
     "index_ttfb_ms": {
-      "samples": [
-        1968,
-        2670,
-        3052
-      ],
+      "samples": [1968, 2670, 3052],
       "p50_ms": 2670,
       "p75_ms": 2861,
       "p95_ms": 3014,
@@ -21,11 +17,7 @@
       "cf_colo": "BUF"
     },
     "login_role_ms": {
-      "samples": [
-        4130,
-        4249,
-        4709
-      ],
+      "samples": [4130, 4249, 4709],
       "p50_ms": 4249,
       "p75_ms": 4479,
       "p95_ms": 4663,
@@ -59,11 +51,7 @@
       "total_ms": 2778
     },
     "session_ms": {
-      "samples": [
-        1712,
-        1464,
-        1924
-      ],
+      "samples": [1712, 1464, 1924],
       "p50_ms": 1712,
       "p75_ms": 1818,
       "p95_ms": 1903,
@@ -76,11 +64,7 @@
     },
     "session_timing": null,
     "read_model_ms": {
-      "samples": [
-        3218,
-        5149,
-        2584
-      ],
+      "samples": [3218, 5149, 2584],
       "p50_ms": 3218,
       "p75_ms": 4184,
       "p95_ms": 4956,
@@ -108,11 +92,7 @@
       "total_ms": 1407
     },
     "read_model_304_ms": {
-      "samples": [
-        1809,
-        1722,
-        2114
-      ],
+      "samples": [1809, 1722, 2114],
       "p50_ms": 1809,
       "p75_ms": 1962,
       "p95_ms": 2084,
@@ -136,11 +116,7 @@
       "total_ms": 309
     },
     "board_version_ms": {
-      "samples": [
-        1582,
-        1493,
-        2351
-      ],
+      "samples": [1582, 1493, 2351],
       "p50_ms": 1582,
       "p75_ms": 1966,
       "p95_ms": 2274,
@@ -152,11 +128,7 @@
       "cf_colo": "ORD"
     },
     "read_lodgers_active_ms": {
-      "samples": [
-        2439,
-        1922,
-        2243
-      ],
+      "samples": [2439, 1922, 2243],
       "p50_ms": 2243,
       "p75_ms": 2341,
       "p95_ms": 2419,
@@ -182,11 +154,7 @@
       "total_ms": 790
     },
     "read_lodgers_lookup_ms": {
-      "samples": [
-        2272,
-        1676,
-        1798
-      ],
+      "samples": [2272, 1676, 1798],
       "p50_ms": 1798,
       "p75_ms": 2035,
       "p95_ms": 2225,
@@ -212,11 +180,7 @@
       "total_ms": 988
     },
     "read_board_ms": {
-      "samples": [
-        3062,
-        1992,
-        2465
-      ],
+      "samples": [3062, 1992, 2465],
       "p50_ms": 2465,
       "p75_ms": 2764,
       "p95_ms": 3002,
@@ -242,11 +206,7 @@
       "total_ms": 797
     },
     "read_events_ms": {
-      "samples": [
-        1897,
-        1796,
-        2030
-      ],
+      "samples": [1897, 1796, 2030],
       "p50_ms": 1897,
       "p75_ms": 1964,
       "p95_ms": 2017,
@@ -272,11 +232,7 @@
       "total_ms": 769
     },
     "sync_delta_ms": {
-      "samples": [
-        2145,
-        3029,
-        2128
-      ],
+      "samples": [2145, 3029, 2128],
       "p50_ms": 2145,
       "p75_ms": 2587,
       "p95_ms": 2941,
@@ -304,35 +260,27 @@
       "total_ms": 766
     },
     "frontend_login_ready_ms": {
-      "samples": [
-        20382
-      ],
+      "samples": [20382],
       "p50_ms": 20382,
       "p95_ms": 20382,
       "max_ms": 20382,
       "source": "cdp_ketang:first-view-ready"
     },
     "frontend_write_refresh_ms": {
-      "samples": [
-        133
-      ],
+      "samples": [133],
       "p50_ms": 133,
       "p95_ms": 133,
       "max_ms": 133,
       "source": "cdp_rcRefreshAfterWrite"
     },
     "frontend_read_board_ms": {
-      "samples": [
-        9805
-      ],
+      "samples": [9805],
       "p50_ms": 9805,
       "p95_ms": 9805,
       "max_ms": 9805,
       "source": "cdp_ketang:read:board"
     },
-    "read_module_marks": [
-      "ketang:read:board"
-    ],
+    "read_module_marks": ["ketang:read:board"],
     "frontend_base": "https://wulingkt.net"
   }
 }

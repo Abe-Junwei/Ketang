@@ -38,7 +38,10 @@ export async function onRequestGet({ request, env, params }) {
       );
       const version = await getBoardVersion(env);
       return timer.finish(
-        Object.assign({ module: "event_conflicts", board_version: version }, payload),
+        Object.assign(
+          { module: "event_conflicts", board_version: version },
+          payload,
+        ),
         request,
       );
     }

@@ -39,7 +39,9 @@ export function recordPerfObservation(env, request, observation, waitUntil) {
         ? Math.round(observation.network_gap_ms)
         : null,
     bytes:
-      typeof observation.bytes === "number" ? Math.round(observation.bytes) : null,
+      typeof observation.bytes === "number"
+        ? Math.round(observation.bytes)
+        : null,
     cf_colo: request.cf?.colo || null,
     cf_ray: request.headers.get("cf-ray") || null,
     request_id: observation.request_id || null,

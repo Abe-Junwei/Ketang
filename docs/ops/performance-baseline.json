@@ -32,9 +32,7 @@
     "extra_module_fetch_after_write_max": 1,
     "d1_error_rate_max_pct": 0.1
   },
-  "rum_only_phase_g_keys": [
-    "push_latency_p95_ms"
-  ],
+  "rum_only_phase_g_keys": ["push_latency_p95_ms"],
   "sync_observability": {
     "push_latency_ms": "SSE/poll 检测到 board_version 变化 → delta 应用 + 视图刷新完成",
     "delta_count": "会话内 /api/v1/sync/delta 调用次数（含 not_modified / full_sync / apply）",
@@ -69,9 +67,7 @@
       "read_lodgers_lookup_ms",
       "sync_delta_ms"
     ],
-    "info": [
-      "outlier_retry_recovered"
-    ]
+    "info": ["outlier_retry_recovered"]
   },
   "phase_g_metric_sources": {
     "login_to_ready_p95_ms": "优先 frontend_login_ready_ms / ketang:first-view-ready；否则代理 max(login, read_board)",

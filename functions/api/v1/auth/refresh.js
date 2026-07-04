@@ -37,7 +37,9 @@ export async function onRequestPost({ request, env, waitUntil }) {
   } catch (e) {
     reqBody = null;
   }
-  const bootstrapBoard = wantsBootstrapBoardFlag(reqBody && reqBody.bootstrap_board);
+  const bootstrapBoard = wantsBootstrapBoardFlag(
+    reqBody && reqBody.bootstrap_board,
+  );
   try {
     const rotated = await timer.stage("refresh_ms", () =>
       consumeRefreshToken(env, rawToken, meta),

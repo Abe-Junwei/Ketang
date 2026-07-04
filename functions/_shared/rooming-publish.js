@@ -4,7 +4,11 @@ import {
   finishWrite,
   fetchLatestHousekeepingPatches,
 } from "./write-response.js";
-import { apiAssignBed, apiAssignReservationToBed, buildLodgerAssignPatches } from "./lodgers.js";
+import {
+  apiAssignBed,
+  apiAssignReservationToBed,
+  buildLodgerAssignPatches,
+} from "./lodgers.js";
 import { requirePermission } from "./permissions.js";
 import { checkRoomingPlanConflicts } from "./rooming-plans.js";
 
@@ -411,7 +415,9 @@ async function buildRoomingQueueAssignPatches(env, item, bedId) {
       ])
     )[0];
     const bed = bedId
-      ? (await queryD1(env, "SELECT * FROM beds WHERE id=? LIMIT 1", [bedId]))[0]
+      ? (
+          await queryD1(env, "SELECT * FROM beds WHERE id=? LIMIT 1", [bedId])
+        )[0]
       : null;
     return buildLodgerAssignPatches(l, bed);
   }

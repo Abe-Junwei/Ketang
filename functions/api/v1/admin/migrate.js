@@ -51,10 +51,6 @@ export async function onRequestPost({ request, env }) {
       : /管理员/.test(error.message)
         ? 403
         : 400;
-    return timer.finish(
-      { error: safeErrorMessage(error) },
-      request,
-      status,
-    );
+    return timer.finish({ error: safeErrorMessage(error) }, request, status);
   }
 }

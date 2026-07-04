@@ -537,10 +537,7 @@ async function deleteBed(env, session, body) {
     );
   }
   const extraPatches = {
-    rooming_assignments: await rowsByIds(
-      "rooming_assignments",
-      assignmentIds,
-    ),
+    rooming_assignments: await rowsByIds("rooming_assignments", assignmentIds),
     rooming_checkin_queue: await rowsByIds("rooming_checkin_queue", queueIds),
     rooming_adjustments: await rowsByIds("rooming_adjustments", adjustmentIds),
   };
@@ -628,7 +625,15 @@ async function upsertGuest(env, session, body) {
     );
     return recordEnrichWrite(env, writeMeta, {
       patchTable: "guests",
-      patchRow: buildGuestPatchRow(id, person, body, gender, phone, idCard, now),
+      patchRow: buildGuestPatchRow(
+        id,
+        person,
+        body,
+        gender,
+        phone,
+        idCard,
+        now,
+      ),
       patchComplete: true,
     });
   }
@@ -1196,7 +1201,12 @@ async function updateLodgerRecord(env, session, body) {
   }
   return recordEnrichWrite(
     env,
-    await recordFinishWrite(env, {}, ["lodging"], ["lodgers_active", "lodgers"]),
+    await recordFinishWrite(
+      env,
+      {},
+      ["lodging"],
+      ["lodgers_active", "lodgers"],
+    ),
     enrichOpts,
   );
 }

@@ -195,7 +195,9 @@ async function apiAuthRefreshForRestore(options) {
   const response = await fetch("/api/v1/auth/refresh", {
     method: "POST",
     credentials: "include",
-    headers: bootstrapBoard ? { "Content-Type": "application/json" } : undefined,
+    headers: bootstrapBoard
+      ? { "Content-Type": "application/json" }
+      : undefined,
     body: bootstrapBoard
       ? JSON.stringify({ bootstrap_board: true })
       : undefined,
@@ -406,9 +408,7 @@ async function apiReadHistoryPage(filters) {
     });
   }
   q.set("limit", String(filters.limit || 2000));
-  return apiFetch(
-    "/api/v1/read/lodgers_history_page?" + q.toString(),
-  );
+  return apiFetch("/api/v1/read/lodgers_history_page?" + q.toString());
 }
 
 async function apiReadModule(moduleName, ifNoneMatch) {
@@ -463,9 +463,7 @@ async function apiReadEventDetail(eventId) {
 /** 排房冲突只读（无草稿 assignments 时）| Rooming conflicts read */
 async function apiReadEventConflicts(eventId, planId) {
   var q =
-    "/api/v1/read/event/" +
-    encodeURIComponent(eventId) +
-    "?view=conflicts";
+    "/api/v1/read/event/" + encodeURIComponent(eventId) + "?view=conflicts";
   if (planId) q += "&plan_id=" + encodeURIComponent(planId);
   return apiFetch(q);
 }
@@ -473,9 +471,7 @@ async function apiReadEventConflicts(eventId, planId) {
 /** 排房成员统计只读 | Event members for rooming plan */
 async function apiReadEventMembers(eventId) {
   return apiFetch(
-    "/api/v1/read/event/" +
-      encodeURIComponent(eventId) +
-      "?view=members",
+    "/api/v1/read/event/" + encodeURIComponent(eventId) + "?view=members",
   );
 }
 

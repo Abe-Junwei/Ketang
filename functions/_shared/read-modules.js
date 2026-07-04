@@ -230,16 +230,14 @@ export async function buildLodgersHistoryPage(env, session, query, options) {
   const end = String(query?.end || "").trim();
   const kw = String(query?.kw || "").trim();
   const room = String(query?.room || "").trim();
-  const roles = []
-    .concat(query?.roles || [])
-    .flatMap(function (v) {
-      return String(v || "")
-        .split(",")
-        .map(function (s) {
-          return s.trim();
-        })
-        .filter(Boolean);
-    });
+  const roles = [].concat(query?.roles || []).flatMap(function (v) {
+    return String(v || "")
+      .split(",")
+      .map(function (s) {
+        return s.trim();
+      })
+      .filter(Boolean);
+  });
 
   let sql = `
     SELECT l.*, r.name AS room_name, b.bed_number, e.name AS event_name

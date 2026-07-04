@@ -19,16 +19,16 @@ updated: 2026-07-05
 
 ## 当前状态（2026-07-05，已落地）
 
-| 项 | 状态 |
-|---|---|
-| Phase 0 观测 | `admin/records` 分段 `init_ms` / `auth_ms` / `handler_ms` / `write_tail_ms` / `patch_ms` / `biz_ms`；`test_admin_write_latency.py` + `test_admin_write_timing_stages.py` |
-| Phase B ready | `app_meta.schema_ready_version` 单次查询；未盖章时一次性列校验后盖章 |
-| Phase D light | ready 后仅内存标记，零 DDL / 零 version 探测 |
-| Phase A 入口 | 统一 `ensureDatabaseReady`；业务 `allowMigrationFallback: false` |
-| Phase C 热路径 | PRAGMA/ALTER 仅 `runMigrationsOrRepair`；`test_migration_hot_path.py` 守门 |
-| Phase E 写尾 | 写 + bump + sync log + version 读同一 D1 batch；`patchRow` 免回读 |
-| Phase F 运维 | `POST /api/v1/admin/migrate`（admin）；备份/定时任务仍允许 migration fallback |
-| Phase G 守门 | `test_migration_hot_path.py` + `test_phase_g_fast_paths.py` + `test_admin_write_timing_stages.py` |
+| 项             | 状态                                                                                                                                                                     |
+| -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Phase 0 观测   | `admin/records` 分段 `init_ms` / `auth_ms` / `handler_ms` / `write_tail_ms` / `patch_ms` / `biz_ms`；`test_admin_write_latency.py` + `test_admin_write_timing_stages.py` |
+| Phase B ready  | `app_meta.schema_ready_version` 单次查询；未盖章时一次性列校验后盖章                                                                                                     |
+| Phase D light  | ready 后仅内存标记，零 DDL / 零 version 探测                                                                                                                             |
+| Phase A 入口   | 统一 `ensureDatabaseReady`；业务 `allowMigrationFallback: false`                                                                                                         |
+| Phase C 热路径 | PRAGMA/ALTER 仅 `runMigrationsOrRepair`；`test_migration_hot_path.py` 守门                                                                                               |
+| Phase E 写尾   | 写 + bump + sync log + version 读同一 D1 batch；`patchRow` 免回读                                                                                                        |
+| Phase F 运维   | `POST /api/v1/admin/migrate`（admin）；备份/定时任务仍允许 migration fallback                                                                                            |
+| Phase G 守门   | `test_migration_hot_path.py` + `test_phase_g_fast_paths.py` + `test_admin_write_timing_stages.py`                                                                        |
 
 生产探针（`58840c8` 后）：warm `init_ms` p50=0；create `biz_ms` p50≈**400ms**（server total ≈600–900ms）；外部 create p50≈3.0s（探针机到边缘的网络往返约占 2s，服务端已 &lt;1s）。
 
@@ -48,15 +48,15 @@ API 请求 → ensureDatabaseReady（isolate cache / 单次 ready 查询）
 
 ## 阶段计划
 
-| 顺序 | 阶段 | 内容 | 验收 |
-|---:|---|---|---|
-| 0 | 观测 | records 分段计时；`test_admin_write_latency.py` | 能拆出 init/auth/biz |
-| 1 | ready 标记 | `app_meta.schema_ready_version`，probe 降为 1 次查询 | cold `init_ms` 下降 |
-| 2 | light path 归零 | ready 后内存标记，不再 DDL/version 探测 | warm `init_ms` ~0 |
-| 3 | 迁移外移 | PRAGMA/ALTER 仅 migrations；热路径零 DDL | grep 守门 |
-| 4 | 统一入口 | `ensureDatabaseReady` 替换分叉 init | 入口一致性测试 |
-| 5 | 写尾合并 | version/sync log batch；减少 patch 回读 | warm create &lt; 2s |
-| 6 | 运维与守门 | migrate endpoint/脚本；冷暖探针阈值 | 防回归 |
+| 顺序 | 阶段            | 内容                                                 | 验收                 |
+| ---: | --------------- | ---------------------------------------------------- | -------------------- |
+|    0 | 观测            | records 分段计时；`test_admin_write_latency.py`      | 能拆出 init/auth/biz |
+|    1 | ready 标记      | `app_meta.schema_ready_version`，probe 降为 1 次查询 | cold `init_ms` 下降  |
+|    2 | light path 归零 | ready 后内存标记，不再 DDL/version 探测              | warm `init_ms` ~0    |
+|    3 | 迁移外移        | PRAGMA/ALTER 仅 migrations；热路径零 DDL             | grep 守门            |
+|    4 | 统一入口        | `ensureDatabaseReady` 替换分叉 init                  | 入口一致性测试       |
+|    5 | 写尾合并        | version/sync log batch；减少 patch 回读              | warm create &lt; 2s  |
+|    6 | 运维与守门      | migrate endpoint/脚本；冷暖探针阈值                  | 防回归               |
 
 ## 探针
 
@@ -73,16 +73,16 @@ GitHub Actions：`Admin write latency probe`（`workflow_dispatch`）在发布�
 
 ## 剩余收尾（2026-07-05）
 
-| 项 | 状态 |
-|---|---|
-| Phase 0 细拆 | ✅ `handler_ms` / `write_tail_ms` / `patch_ms` 已接入 `admin/records` |
-| Legacy `/api/db` | ✅ 全路由 410；客户端零引用；init 走 `POST /api/v1/admin/migrate` |
-| Legacy `/api/db` 登录 | ✅ 已合并进全 410 退役 |
-| CI 结构守门 | ✅ `test_admin_write_timing_stages.py` + `test_no_api_db_client.py` |
-| 线上 p95 硬门槛 | 部分：`--enforce-thresholds` + `workflow_dispatch` 探针 |
-| 复杂写路径减 patch 回读 | ✅ 热路径 in-memory patch；`enrichWriteResponse` 已移除 SELECT 回读 |
-| 在线 read-shim | ✅ `readLocalQuery` 保证在线路径永不调用 `query()` |
-| 前端双轨 | 进行中：`!isLocalForceDb()` 在线分支已改为 `useOnlineDataPath()`（14 模块） |
+| 项                      | 状态                                                                        |
+| ----------------------- | --------------------------------------------------------------------------- |
+| Phase 0 细拆            | ✅ `handler_ms` / `write_tail_ms` / `patch_ms` 已接入 `admin/records`       |
+| Legacy `/api/db`        | ✅ 全路由 410；客户端零引用；init 走 `POST /api/v1/admin/migrate`           |
+| Legacy `/api/db` 登录   | ✅ 已合并进全 410 退役                                                      |
+| CI 结构守门             | ✅ `test_admin_write_timing_stages.py` + `test_no_api_db_client.py`         |
+| 线上 p95 硬门槛         | 部分：`--enforce-thresholds` + `workflow_dispatch` 探针                     |
+| 复杂写路径减 patch 回读 | ✅ 热路径 in-memory patch；`enrichWriteResponse` 已移除 SELECT 回读         |
+| 在线 read-shim          | ✅ `readLocalQuery` 保证在线路径永不调用 `query()`                          |
+| 前端双轨                | 进行中：`!isLocalForceDb()` 在线分支已改为 `useOnlineDataPath()`（14 模块） |
 
 过渡目标：cold create &lt; 5s，warm create &lt; 3s。  
 最终目标：cold `init_ms` &lt; 300ms，warm create &lt; 2s。

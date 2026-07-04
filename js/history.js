@@ -23,8 +23,7 @@ async function historyLoadAndRender() {
 async function renderHistory() {
   const tbody = document.getElementById("history-table");
   if (!tbody) return;
-  tbody.innerHTML =
-    '<tr><td colspan="12" class="empty-tip">加载中…</td></tr>';
+  tbody.innerHTML = '<tr><td colspan="12" class="empty-tip">加载中…</td></tr>';
   const start = document.getElementById("h-start").value;
   const end = document.getElementById("h-end").value;
   const kw = document.getElementById("h-keyword").value.trim();

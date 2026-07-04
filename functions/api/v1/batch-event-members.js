@@ -1,6 +1,10 @@
 import { json, readJson, apiErrorStatus } from "../../_shared/http.js";
 import { requireSession } from "../../_shared/auth.js";
-import { ensureBusinessDatabaseReady, queryD1, safeErrorMessage } from "../../_shared/d1.js";
+import {
+  ensureBusinessDatabaseReady,
+  queryD1,
+  safeErrorMessage,
+} from "../../_shared/d1.js";
 import { requirePermission } from "../../_shared/permissions.js";
 import { apiBatchEventMembers } from "../../_shared/reservations.js";
 

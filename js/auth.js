@@ -605,9 +605,11 @@ function setPendingState(options) {
 
 function schedulePostLoginUiMounts() {
   var run = function () {
-    if (typeof mountFormMealNeedPickers === "function") mountFormMealNeedPickers();
+    if (typeof mountFormMealNeedPickers === "function")
+      mountFormMealNeedPickers();
     if (typeof mountLodgerRoleSelects === "function") mountLodgerRoleSelects();
-    if (typeof mountParticipantTagSelects === "function") mountParticipantTagSelects();
+    if (typeof mountParticipantTagSelects === "function")
+      mountParticipantTagSelects();
   };
   if (typeof scheduleIdleTask === "function") scheduleIdleTask(run);
   else run();
@@ -1266,12 +1268,14 @@ function schedulePasswordChangePromptIfNeeded() {
 }
 
 function clearChangePasswordForm() {
-  ["change-password-old", "change-password-new", "change-password-confirm"].forEach(
-    function (id) {
-      const el = document.getElementById(id);
-      if (el) el.value = "";
-    },
-  );
+  [
+    "change-password-old",
+    "change-password-new",
+    "change-password-confirm",
+  ].forEach(function (id) {
+    const el = document.getElementById(id);
+    if (el) el.value = "";
+  });
   const hint = document.getElementById("change-password-form-hint");
   if (hint) hint.textContent = "";
 }
@@ -1305,10 +1309,10 @@ async function changeOwnPassword(oldPassword, newPassword) {
     throw new Error("原密码错误");
   }
   bumpLocalAuthVersion(currentUser.id);
-  run(
-    "UPDATE users SET password = ?, must_change_password = 0 WHERE id = ?",
-    [await hashPasswordAsync(newPassword), currentUser.id],
-  );
+  run("UPDATE users SET password = ?, must_change_password = 0 WHERE id = ?", [
+    await hashPasswordAsync(newPassword),
+    currentUser.id,
+  ]);
   currentUser.must_change_password = 0;
   currentUser.auth_version = (Number(currentUser.auth_version) || 1) + 1;
   localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(currentUser));
@@ -1375,8 +1379,12 @@ function closeChangePasswordModal() {
 async function submitChangePasswordModal(event) {
   event.preventDefault();
   if (!currentUser) return;
-  const oldPassword = document.getElementById("change-password-modal-old").value;
-  const newPassword = document.getElementById("change-password-modal-new").value;
+  const oldPassword = document.getElementById(
+    "change-password-modal-old",
+  ).value;
+  const newPassword = document.getElementById(
+    "change-password-modal-new",
+  ).value;
   const confirmPassword = document.getElementById(
     "change-password-modal-confirm",
   ).value;

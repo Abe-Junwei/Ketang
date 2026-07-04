@@ -1023,8 +1023,7 @@ async function submitMeals(event, lodgerId) {
         defaults.dinner,
       );
     }
-    const l =
-      typeof readLodger === "function" ? readLodger(lodgerId) : null;
+    const l = typeof readLodger === "function" ? readLodger(lodgerId) : null;
     if (!l) {
       alert("找不到该挂单记录");
       return;
@@ -1132,8 +1131,7 @@ function generateMeals(lodgerId, startDate, endDate, breakfast, lunch, dinner) {
 /** 挂单尚无 meals 记录时补生成（如仅登记未分床）| Local-only meal bootstrap */
 async function ensureLodgerMeals(lodgerId, breakfast, lunch, dinner) {
   if (useOnlineDataPath()) return;
-  const l =
-    typeof readLodger === "function" ? readLodger(lodgerId) : null;
+  const l = typeof readLodger === "function" ? readLodger(lodgerId) : null;
   if (!l || l.status !== "在住") return;
   const rows =
     typeof readMealsForLodger === "function"

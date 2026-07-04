@@ -80,7 +80,11 @@ export async function apiSetHouseStatus(env, session, body) {
     [bedId],
   );
   const bedPatch =
-    bed && bedPatchStatus ? { ...bed, status: bedPatchStatus } : bed ? { ...bed } : null;
+    bed && bedPatchStatus
+      ? { ...bed, status: bedPatchStatus }
+      : bed
+        ? { ...bed }
+        : null;
   return enrichWriteResponse(
     env,
     await finishWrite(env, {}, ["board", "housekeeping"], ["board"]),

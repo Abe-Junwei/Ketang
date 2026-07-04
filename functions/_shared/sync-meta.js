@@ -138,11 +138,7 @@ export async function batchLogSyncMeta(env, boardVersion, domains, deletion) {
   );
   if (deletion && deletion.table_name && deletion.row_id) {
     statements.push(
-      syncDeletionStatement(
-        deletion.table_name,
-        deletion.row_id,
-        boardVersion,
-      ),
+      syncDeletionStatement(deletion.table_name, deletion.row_id, boardVersion),
     );
   }
   if (statements.length === 1) {

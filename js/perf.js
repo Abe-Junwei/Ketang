@@ -58,9 +58,7 @@ function ketangPerfMeasure(name, startMark, endMark) {
     var end = "ketang:" + (endMark || name + ":end");
     performance.measure("ketang:" + name, start, end);
     var entries = performance.getEntriesByName("ketang:" + name);
-    var duration = entries.length
-      ? entries[entries.length - 1].duration
-      : null;
+    var duration = entries.length ? entries[entries.length - 1].duration : null;
     if (duration != null) {
       if (name === "delta") ketangPerfRecordSample("delta_ms", duration);
       if (name === "push") ketangPerfRecordSample("push_latency_ms", duration);

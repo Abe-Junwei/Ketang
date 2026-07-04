@@ -93,7 +93,8 @@ document.addEventListener("DOMContentLoaded", async () => {
       if (typeof showLoginOverlay === "function") showLoginOverlay();
       const errorEl = document.getElementById("login-error");
       if (errorEl) {
-        errorEl.textContent = "系统初始化失败：" + (e.message || "请刷新后重试");
+        errorEl.textContent =
+          "系统初始化失败：" + (e.message || "请刷新后重试");
       }
       window.ketangReady = true;
       return;
@@ -617,7 +618,8 @@ function renderBoardDeferredExtras() {
 function renderBoard(options) {
   options = options || {};
   var bootstrapOnly = !!options.bootstrapOnly;
-  if (typeof ketangPerfMark === "function") ketangPerfMark("render-board:start");
+  if (typeof ketangPerfMark === "function")
+    ketangPerfMark("render-board:start");
   renderCheckoutReminders();
   renderOpsNotice();
   checkBackupReminder();
@@ -925,11 +927,16 @@ async function renderAll(options) {
       ketangPerfMeasure("render-all", "render-all:start", "render-all:end");
     }
     scheduleIdleTask(function () {
-      if (typeof ketangPerfMark === "function") ketangPerfMark("render-rooms:start");
+      if (typeof ketangPerfMark === "function")
+        ketangPerfMark("render-rooms:start");
       renderRooms();
       if (typeof ketangPerfMark === "function") {
         ketangPerfMark("render-rooms:end");
-        ketangPerfMeasure("render-rooms", "render-rooms:start", "render-rooms:end");
+        ketangPerfMeasure(
+          "render-rooms",
+          "render-rooms:start",
+          "render-rooms:end",
+        );
       }
       refreshBoardSearch();
       scheduleIdleTask(function () {

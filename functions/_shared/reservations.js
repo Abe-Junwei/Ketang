@@ -325,7 +325,8 @@ export async function apiBatchEventMembers(env, session, body) {
   const reservationIds = [];
   for (const item of items) {
     if (item.kind === "reservation") reservationIds.push(item.id);
-    if (item.kind === "lodger" && action === "cancel") lodgerCancelIds.push(item.id);
+    if (item.kind === "lodger" && action === "cancel")
+      lodgerCancelIds.push(item.id);
   }
   const reservationById = {};
   if (reservationIds.length) {

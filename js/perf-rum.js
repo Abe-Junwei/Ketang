@@ -50,7 +50,8 @@ function perfRumShouldReport() {
 
 function perfRumActivePage() {
   var active = document.querySelector(".sidebar-nav-btn.active");
-  if (active && active.dataset && active.dataset.view) return active.dataset.view;
+  if (active && active.dataset && active.dataset.view)
+    return active.dataset.view;
   return "board";
 }
 
@@ -92,7 +93,8 @@ function perfRumCollectMeasures() {
       "push_sse_count",
       "push_poll_count",
     ].forEach(function (key) {
-      if (counters[key] != null && counters[key] > 0) metrics[key] = counters[key];
+      if (counters[key] != null && counters[key] > 0)
+        metrics[key] = counters[key];
     });
     if (samples.push_latency_p95_ms != null) {
       metrics.push_latency_p95_ms = samples.push_latency_p95_ms;
@@ -152,7 +154,8 @@ function perfRumCollectResources() {
     .map(function (entry) {
       var path = entry.name;
       try {
-        path = new URL(entry.name).pathname + (new URL(entry.name).search || "");
+        path =
+          new URL(entry.name).pathname + (new URL(entry.name).search || "");
       } catch (e) {
         path = String(entry.name).replace(location.origin, "");
       }
@@ -160,7 +163,9 @@ function perfRumCollectResources() {
         name: path.slice(0, 200),
         duration_ms: Math.round(entry.duration || 0),
         transfer_size: entry.transferSize || 0,
-        ttfb_ms: Math.round((entry.responseStart || 0) - (entry.startTime || 0)),
+        ttfb_ms: Math.round(
+          (entry.responseStart || 0) - (entry.startTime || 0),
+        ),
         download_ms: Math.round(
           (entry.responseEnd || 0) - (entry.responseStart || 0),
         ),

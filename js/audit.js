@@ -22,11 +22,14 @@ function logAudit(action, targetType, targetId, detail) {
       isRemoteDB() &&
       typeof apiPostAudit === "function"
     ) {
-      apiPostAudit(action, targetType || null, targetId || null, enriched).catch(
-        function (e) {
-          console.warn("审计日志写入失败：", e);
-        },
-      );
+      apiPostAudit(
+        action,
+        targetType || null,
+        targetId || null,
+        enriched,
+      ).catch(function (e) {
+        console.warn("审计日志写入失败：", e);
+      });
       return true;
     }
     run(sql, params);

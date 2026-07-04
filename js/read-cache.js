@@ -16,6 +16,15 @@ function rcRows(moduleKey, table) {
   return Array.isArray(rows) ? rows : [];
 }
 
+/** 写前补丁占位：乐观更新时 events 等模块可能尚未拉取 | Seed rc table before patch */
+function rcBootstrapPatchTable(moduleKey, table) {
+  if (!moduleKey || !table) return;
+  if (!_rcStore[moduleKey]) _rcStore[moduleKey] = { tables: {} };
+  var mod = _rcStore[moduleKey];
+  if (!mod.tables) mod.tables = {};
+  if (!Array.isArray(mod.tables[table])) mod.tables[table] = [];
+}
+
 function rcInvalidate(moduleKey) {
   if (moduleKey) delete _rcStore[moduleKey];
   else _rcStore = {};
@@ -60,7 +69,8 @@ function rcApplyDeltaPatches(patches, deletions) {
       Object.keys(_rcStore).forEach(function (moduleKey) {
         var mod = _rcStore[moduleKey];
         // Only patch tables the module already carries (no pollution)
-        if (!mod || !mod.tables || !Array.isArray(mod.tables[table])) return;
+        if (!mod || !mod.tables) return;
+        if (!Array.isArray(mod.tables[table])) mod.tables[table] = [];
         var arr = mod.tables[table];
         rows.forEach(function (row) {
           if (!row) return;
@@ -70,11 +80,7 @@ function rcApplyDeltaPatches(patches, deletions) {
             (moduleKey === "board" ||
               moduleKey === "lodgers_active" ||
               moduleKey === "lodgers_records");
-          if (
-            activeOnlyLodgerMod &&
-            row.status &&
-            row.status !== "在住"
-          ) {
+          if (activeOnlyLodgerMod && row.status && row.status !== "在住") {
             mod.tables[table] = arr.filter(function (r) {
               return r.id != row.id;
             });
@@ -340,7 +346,12 @@ async function rcFetchMany(moduleKeys, force) {
 
 /* ── board 模块派生 | Board module derivations ── */
 
-var _rcBoardIndex = { built: false, lodgerByBedId: {}, bedsByRoomId: {}, hkByBedId: {} };
+var _rcBoardIndex = {
+  built: false,
+  lodgerByBedId: {},
+  bedsByRoomId: {},
+  hkByBedId: {},
+};
 
 function rcInvalidateBoardIndexes() {
   _rcBoardIndex.built = false;
@@ -369,10 +380,7 @@ function rcEnsureBoardIndexes() {
   rcBoardHousekeeping().forEach(function (h) {
     if (!h || h._optimistic || h.bed_id == null) return;
     var prev = hkByBedId[h.bed_id];
-    if (
-      !prev ||
-      String(h.changed_at || "") > String(prev.changed_at || "")
-    ) {
+    if (!prev || String(h.changed_at || "") > String(prev.changed_at || "")) {
       hkByBedId[h.bed_id] = h;
     }
   });
@@ -1797,7 +1805,13 @@ var RC_VIEW_MODULES = {
   housekeeping: ["board"],
   /** 报表：在住 + 近半年 + 支付，不拉全量 lodgers/guests | Active + recent + payments */
   reports: ["meals", "lodgers_active", "lodgers_recent", "events"],
-  rooming: ["board", "events", "event_rooming", "lodgers_active", "reservations"],
+  rooming: [
+    "board",
+    "events",
+    "event_rooming",
+    "lodgers_active",
+    "reservations",
+  ],
   info_events: ["events", "lodgers_active", "reservations"],
 };
 
@@ -1845,7 +1859,8 @@ async function rcEnsureAppData(force, options) {
     keys = RC_DEFERRED_MODULES;
     perfLabel = "rc:deferred";
   }
-  if (typeof ketangPerfMark === "function") ketangPerfMark(perfLabel + ":start");
+  if (typeof ketangPerfMark === "function")
+    ketangPerfMark(perfLabel + ":start");
   await Promise.all(
     keys.map(function (key) {
       return rcFetch(key, force);

@@ -232,9 +232,7 @@ function lodgingModuleForView(active) {
     return "board";
   }
   if (active === "info" && typeof infoCurrentTab !== "undefined") {
-    return INFO_TAB_MODULES[infoCurrentTab] === "lodgers"
-      ? "lodgers"
-      : null;
+    return INFO_TAB_MODULES[infoCurrentTab] === "lodgers" ? "lodgers" : null;
   }
   return "lodgers";
 }
@@ -258,7 +256,9 @@ function domainsToModules(domains, options) {
   });
   if (keys.indexOf("board") !== -1) {
     return keys.filter(function (k) {
-      return k !== "lodgers_active" && k !== "lodgers_records" && k !== "lodgers";
+      return (
+        k !== "lodgers_active" && k !== "lodgers_records" && k !== "lodgers"
+      );
     });
   }
   return keys;
@@ -271,7 +271,12 @@ function dedupeReadModules(modules) {
   });
   if (keys.indexOf("board") !== -1) {
     return keys.filter(function (k) {
-      return k !== "lodgers_active" && k !== "lodgers_records" && k !== "lodgers" && k !== "settings";
+      return (
+        k !== "lodgers_active" &&
+        k !== "lodgers_records" &&
+        k !== "lodgers" &&
+        k !== "settings"
+      );
     });
   }
   return keys;

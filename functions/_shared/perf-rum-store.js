@@ -63,7 +63,12 @@ function sanitizeMetrics(raw) {
   Object.keys(raw).forEach(function (key) {
     if (!ALLOWED_METRIC_KEYS.has(key)) return;
     const val = raw[key];
-    if (typeof val === "number" && Number.isFinite(val) && val >= 0 && val <= 600000) {
+    if (
+      typeof val === "number" &&
+      Number.isFinite(val) &&
+      val >= 0 &&
+      val <= 600000
+    ) {
       out[key] = Math.round(val);
     }
   });
@@ -89,9 +94,15 @@ function sanitizeResources(raw) {
       if (!name.startsWith("/api/v1/")) return null;
       return {
         name,
-        duration_ms: Math.min(600000, Math.max(0, Math.round(Number(item.duration_ms) || 0))),
+        duration_ms: Math.min(
+          600000,
+          Math.max(0, Math.round(Number(item.duration_ms) || 0)),
+        ),
         transfer_size: Math.max(0, Math.round(Number(item.transfer_size) || 0)),
-        ttfb_ms: Math.min(600000, Math.max(0, Math.round(Number(item.ttfb_ms) || 0))),
+        ttfb_ms: Math.min(
+          600000,
+          Math.max(0, Math.round(Number(item.ttfb_ms) || 0)),
+        ),
         download_ms: Math.min(
           600000,
           Math.max(0, Math.round(Number(item.download_ms) || 0)),
@@ -114,11 +125,16 @@ export async function storePerfRumSample(env, request, body, session) {
 
   const role =
     session?.role ||
-    (body.role && /^[a-z_]+$/.test(String(body.role)) ? String(body.role) : null);
+    (body.role && /^[a-z_]+$/.test(String(body.role))
+      ? String(body.role)
+      : null);
   const page = String(body.page || "board").slice(0, 40);
-  const appVersion = String(body.appVersion || body.app_version || "unknown").slice(0, 64);
+  const appVersion = String(
+    body.appVersion || body.app_version || "unknown",
+  ).slice(0, 64);
   const reason = String(body.reason || "report").slice(0, 40);
-  const cfColo = request.cf?.colo || request.headers.get("cf-ray")?.split("-").pop() || null;
+  const cfColo =
+    request.cf?.colo || request.headers.get("cf-ray")?.split("-").pop() || null;
 
   await ensurePerfRumTable(env);
   await runD1(
@@ -133,7 +149,9 @@ export async function storePerfRumSample(env, request, body, session) {
       reason,
       cfColo,
       JSON.stringify(metrics),
-      sanitizeNetwork(body.network) ? JSON.stringify(sanitizeNetwork(body.network)) : null,
+      sanitizeNetwork(body.network)
+        ? JSON.stringify(sanitizeNetwork(body.network))
+        : null,
       sanitizeResources(body.resources)
         ? JSON.stringify(sanitizeResources(body.resources))
         : null,

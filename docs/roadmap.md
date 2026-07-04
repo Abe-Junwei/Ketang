@@ -13,22 +13,22 @@
 
 ## 2. 阶段总览
 
-| 阶段     | 名称             | 目标                                     | 依赖          | 状态         |
-| -------- | ---------------- | ---------------------------------------- | ------------- | ------------ |
-| Phase 0  | 冻结在线架构     | 把当前未提交在线增强变成稳定基线         | 已有代码      | 已完成       |
-| Phase 1  | 生产环境配置     | 让正式域名使用 D1 权威数据               | Phase 0       | 已完成       |
-| Phase 2  | 线上多人验收     | 验证多人共享、并发与主流程               | Phase 1       | 清单就绪     |
-| Phase 3  | 账号与安全收口   | 默认密码、权限、审计、入口安全           | Phase 1       | 已完成       |
-| Phase 4  | 公开预约入口     | 外部提交预约，内部审核处理               | Phase 9       | 后置         |
-| Phase 5  | 本地数据迁移     | 旧 `ketang.db` 迁移到 D1                 | Phase 1/3     | 已完成       |
-| Phase 6  | 备份与恢复       | 手动备份可用，后续接 R2 定时备份         | Phase 5       | 基本完成     |
-| Phase 7  | 基础业务补强     | 校验、报表、房务、用斋、打印等打磨       | Phase 2/5     | 部分完成     |
-| Phase 8  | 移动端适配       | 手机浏览器可完成日常核心操作             | Phase 7       | 基本完成     |
-| Phase 9  | 夏季活动排房     | 活动排房计划、预分房、冲突检查           | Phase 5/7/8   | **当前主线** |
-| Phase 10 | AI 辅助排房      | AI 生成可解释建议，人工最终确认          | Phase 9       | 暂缓         |
-| Phase 11 | 运维与发布工程化 | 白名单发布、巡检、日志、E2E、性能预算    | Phase 1/2/3/5 | 基本完成     |
-| Phase 12 | 同步与读模型 v2  | 写契约、模块读、增量 delta、SSE 看板推送 | Phase 9       | 主体完成     |
-| Phase 13 | 在线读路径瘦身 + legacy 债务清理 | 清零在线裸 `query()`、退役 `/api/db`、写路径 in-memory patch、收敛双轨前端 | Phase 12 | **进行中**（P1 尾巴与写路径 patch ✅；legacy A–C ✅ 待提交；D–F 待办） |
+| 阶段     | 名称                             | 目标                                                                       | 依赖          | 状态                                                                   |
+| -------- | -------------------------------- | -------------------------------------------------------------------------- | ------------- | ---------------------------------------------------------------------- |
+| Phase 0  | 冻结在线架构                     | 把当前未提交在线增强变成稳定基线                                           | 已有代码      | 已完成                                                                 |
+| Phase 1  | 生产环境配置                     | 让正式域名使用 D1 权威数据                                                 | Phase 0       | 已完成                                                                 |
+| Phase 2  | 线上多人验收                     | 验证多人共享、并发与主流程                                                 | Phase 1       | 清单就绪                                                               |
+| Phase 3  | 账号与安全收口                   | 默认密码、权限、审计、入口安全                                             | Phase 1       | 已完成                                                                 |
+| Phase 4  | 公开预约入口                     | 外部提交预约，内部审核处理                                                 | Phase 9       | 后置                                                                   |
+| Phase 5  | 本地数据迁移                     | 旧 `ketang.db` 迁移到 D1                                                   | Phase 1/3     | 已完成                                                                 |
+| Phase 6  | 备份与恢复                       | 手动备份可用，后续接 R2 定时备份                                           | Phase 5       | 基本完成                                                               |
+| Phase 7  | 基础业务补强                     | 校验、报表、房务、用斋、打印等打磨                                         | Phase 2/5     | 部分完成                                                               |
+| Phase 8  | 移动端适配                       | 手机浏览器可完成日常核心操作                                               | Phase 7       | 基本完成                                                               |
+| Phase 9  | 夏季活动排房                     | 活动排房计划、预分房、冲突检查                                             | Phase 5/7/8   | **当前主线**                                                           |
+| Phase 10 | AI 辅助排房                      | AI 生成可解释建议，人工最终确认                                            | Phase 9       | 暂缓                                                                   |
+| Phase 11 | 运维与发布工程化                 | 白名单发布、巡检、日志、E2E、性能预算                                      | Phase 1/2/3/5 | 基本完成                                                               |
+| Phase 12 | 同步与读模型 v2                  | 写契约、模块读、增量 delta、SSE 看板推送                                   | Phase 9       | 主体完成                                                               |
+| Phase 13 | 在线读路径瘦身 + legacy 债务清理 | 清零在线裸 `query()`、退役 `/api/db`、写路径 in-memory patch、收敛双轨前端 | Phase 12      | **进行中**（P1 尾巴与写路径 patch ✅；legacy A–C ✅ 待提交；D–F 待办） |
 
 > Phase 12 详见 [sync-read-model-v2.md](architecture/sync-read-model-v2.md)。Phase 13 分两条线：**读路径**（P1 尾巴已清零，在线走 `rc*` + `read-shim`）与 **legacy 债务**（SQL 网关/login 已 410 → 全 `/api/db` 410 → 写 patch 免回读 → 双轨前端收敛 → sql.js 边界）。写路径与迁移生命周期见 [migration-request-lifecycle.md](architecture/migration-request-lifecycle.md)。P4 性能专项（读副本 / SSE / Normalized Store）仍按触发门槛启动，不阻塞 Phase 9。
 
@@ -802,34 +802,34 @@ bash scripts/run_p1_checklist.sh https://wulingkt.net https://<pages-preview>.ke
 
 #### 19.7.3 P1 尾巴清零批次
 
-| 批次 | 范围                                              | 工作                                                        | 完成标准                                        |
-| ---- | ------------------------------------------------- | ----------------------------------------------------------- | ----------------------------------------------- |
-| A    | `reports.js`                                      | 日报/月报/事件报表改为 read API 或 `rc*` 聚合               | ✅ 在线路径不直接裸 `query()`                   |
-| B    | `forecast.js`                                     | 今日房态/预测改为 `rc*` + 内存计算                          | ✅ 预测页不触发 sql.js hydrate                  |
-| C    | `history.js`、`events.js`、`rooming-*`、`auth.js` | 在线读迁 `rc*` / read API；本地 `isLocalForceDb()` 守卫     | ✅ `test_online_query_boundaries.py`            |
-| D    | `index.html`、`db.js`、发布白名单                 | `sql-wasm` 仅本地/灾备动态加载                              | ✅ 在线 bundle 不含 wasm                        |
-| E    | `guests.js`、`checkin.js`（CSV）                  | 在线 `rcFindGuest*`；写路径 `guestUseLocalDb()`             | ✅ 在线 CSV 走 `apiBatchCheckIn`                |
+| 批次 | 范围                                              | 工作                                                    | 完成标准                             |
+| ---- | ------------------------------------------------- | ------------------------------------------------------- | ------------------------------------ |
+| A    | `reports.js`                                      | 日报/月报/事件报表改为 read API 或 `rc*` 聚合           | ✅ 在线路径不直接裸 `query()`        |
+| B    | `forecast.js`                                     | 今日房态/预测改为 `rc*` + 内存计算                      | ✅ 预测页不触发 sql.js hydrate       |
+| C    | `history.js`、`events.js`、`rooming-*`、`auth.js` | 在线读迁 `rc*` / read API；本地 `isLocalForceDb()` 守卫 | ✅ `test_online_query_boundaries.py` |
+| D    | `index.html`、`db.js`、发布白名单                 | `sql-wasm` 仅本地/灾备动态加载                          | ✅ 在线 bundle 不含 wasm             |
+| E    | `guests.js`、`checkin.js`（CSV）                  | 在线 `rcFindGuest*`；写路径 `guestUseLocalDb()`         | ✅ 在线 CSV 走 `apiBatchCheckIn`     |
 
 #### 19.7.4 P4 技术专项触发门槛
 
-| 专项             | 启动门槛                                                  | 优先方案                                                               |
-| ---------------- | --------------------------------------------------------- | ---------------------------------------------------------------------- |
-| D1 只读副本      | 报表/历史查询 P95 > 800ms，或 D1 读配额告警               | `KETANG_DB_READ` 分流 reports/history/backup，主库继续负责看板和 delta |
-| SSE/WebSocket    | 双端写后 B 端 P95 > 2s，或看板用户数导致 SSE/轮询成本过高 | 先 SSE 优化；DO WebSocket 作为 spike 后决策                            |
-| Normalized Store | 多模块同表 patch bug 复现 2 次以上                        | 先补 `changed_modules` / patch 范围，再决定是否引入 `rc-normalized.js` |
+| 专项             | 启动门槛                                                  | 优先方案                                                                  |
+| ---------------- | --------------------------------------------------------- | ------------------------------------------------------------------------- |
+| D1 只读副本      | 报表/历史查询 P95 > 800ms，或 D1 读配额告警               | `KETANG_DB_READ` 分流 reports/history/backup，主库继续负责看板和 delta    |
+| SSE/WebSocket    | 双端写后 B 端 P95 > 2s，或看板用户数导致 SSE/轮询成本过高 | 先 SSE 优化；DO WebSocket 作为 spike 后决策                               |
+| Normalized Store | 多模块同表 patch bug 复现 2 次以上                        | 先补 `changed_modules` / patch 范围，再决定是否引入 `rc-normalized.js`    |
 | 去 sql.js        | §19.8 Phase E 完成；在线 `query()` 仅 local 分支          | 动态加载 sql.js；CI 拆分在线 job 与 `KETANG_FORCE_LOCAL_DB` migration job |
 
 #### 19.7.5 下一步建议（2026-07-05）
 
-| 优先级 | 动作 | 状态 |
-| ------ | ---- | ---- |
-| P0 | 写路径 `patchRows` + admin 分段计时 + 探针 workflow | ✅ `main` |
-| P0 | P1 尾巴 + 在线 query 边界守门 | ✅ |
-| P1 | §19.8 Phase A–C：全 `/api/db` 410、`enrichWriteResponse` 无 SELECT 回读、`readLocalQuery` | ✅ 待提交 |
-| P1 | §19.8 Phase D：剩余 16 模块本地分支收敛 / `useOnlineDataPath` 统一 | 进行中 |
-| P2 | §19.8 Phase F：`--enforce-thresholds` 绑进定期 CI / release 前 manual probe | 部分（workflow_dispatch 已有） |
-| P3 | §19.8 Phase E：sql.js 仅 migration/灾备；`file://` 正式废弃 | 待办 |
-| — | P4 spike（读副本 / SSE） | 待触发 |
+| 优先级 | 动作                                                                                      | 状态                           |
+| ------ | ----------------------------------------------------------------------------------------- | ------------------------------ |
+| P0     | 写路径 `patchRows` + admin 分段计时 + 探针 workflow                                       | ✅ `main`                      |
+| P0     | P1 尾巴 + 在线 query 边界守门                                                             | ✅                             |
+| P1     | §19.8 Phase A–C：全 `/api/db` 410、`enrichWriteResponse` 无 SELECT 回读、`readLocalQuery` | ✅ 待提交                      |
+| P1     | §19.8 Phase D：剩余 16 模块本地分支收敛 / `useOnlineDataPath` 统一                        | 进行中                         |
+| P2     | §19.8 Phase F：`--enforce-thresholds` 绑进定期 CI / release 前 manual probe               | 部分（workflow_dispatch 已有） |
+| P3     | §19.8 Phase E：sql.js 仅 migration/灾备；`file://` 正式废弃                               | 待办                           |
+| —      | P4 spike（读副本 / SSE）                                                                  | 待触发                         |
 
 结论：**P4 不阻塞 Phase 9 排房**。legacy 清理与排房并行；完成 §19.8 后 Phase 13 可标记为「主体完成」，仅 P4 按门槛可选启动。
 
@@ -839,45 +839,45 @@ bash scripts/run_p1_checklist.sh https://wulingkt.net https://<pages-preview>.ke
 
 #### 19.8.1 债务分类
 
-| 类型 | 性质 | 生产风险 | 清理阶段 |
-| ---- | ---- | -------- | -------- |
-| `/api/db` 边界 | API 生命周期债 | 低（客户端已不用） | A |
-| 写 patch SELECT 回读 | 性能债 | 无（已清） | B |
-| 双轨前端 `isLocalForceDb` / `query()` | 过渡兼容债 | 低（在线已 bypass） | C + D |
-| sql.js 运行时 | 架构边界债 | 低 | E |
-| SLO / enforce 探针 | 运维债 | 中（回归难发现） | F |
+| 类型                                  | 性质           | 生产风险            | 清理阶段 |
+| ------------------------------------- | -------------- | ------------------- | -------- |
+| `/api/db` 边界                        | API 生命周期债 | 低（客户端已不用）  | A        |
+| 写 patch SELECT 回读                  | 性能债         | 无（已清）          | B        |
+| 双轨前端 `isLocalForceDb` / `query()` | 过渡兼容债     | 低（在线已 bypass） | C + D    |
+| sql.js 运行时                         | 架构边界债     | 低                  | E        |
+| SLO / enforce 探针                    | 运维债         | 中（回归难发现）    | F        |
 
 #### 19.8.2 分阶段执行与验收
 
-| 阶段 | 内容 | 关键落点 | 验收（CI） | 状态 |
-| ---- | ---- | -------- | ---------- | ---- |
-| **A** | `/api/db` 完全退役 | `functions/api/db.js` 统一 410；删 `remoteDBRequestAsync`；init → `POST /api/v1/admin/migrate` | `test_no_api_db_client.py`、`test_db_sql_gateway_retired.py` | ✅ 待提交 |
-| **B** | 写基础设施收口 | `enrichWriteResponse` 移除 `patchRowIds` / `rowId` SELECT | `test_event_write_path.py`（`write-response` 无 patchRowIds） | ✅ 待提交 |
-| **C** | read-shim 在线隔离 | `readLocalQuery()`；`readUseRc()` 基于 `useOnlineDataPath()` | `test_read_shim_online_guard.py` | ✅ 待提交 |
-| **D** | 双轨语义收紧 | 在线分支统一 `useOnlineDataPath()`；削减 `isLocalForceDb()`（**25 → 16 模块**） | `test_sql_js_debt_inventory.py`、`test_online_query_boundaries.py` | 进行中 |
-| **E** | sql.js 边界 | `file://` 废弃；`db.js` 仅 `KETANG_FORCE_LOCAL_DB` / 灾备；wasm 移出发布白名单 | `test_cdp_migration.py`、migration CI job | 待办 |
-| **F** | SLO 固化 | `probe-admin-write.yml` + `prod-latency.yml`；`--enforce-thresholds` 发布前必跑 | `test_admin_write_timing_stages.py` | 部分 |
+| 阶段  | 内容               | 关键落点                                                                                       | 验收（CI）                                                         | 状态      |
+| ----- | ------------------ | ---------------------------------------------------------------------------------------------- | ------------------------------------------------------------------ | --------- |
+| **A** | `/api/db` 完全退役 | `functions/api/db.js` 统一 410；删 `remoteDBRequestAsync`；init → `POST /api/v1/admin/migrate` | `test_no_api_db_client.py`、`test_db_sql_gateway_retired.py`       | ✅ 待提交 |
+| **B** | 写基础设施收口     | `enrichWriteResponse` 移除 `patchRowIds` / `rowId` SELECT                                      | `test_event_write_path.py`（`write-response` 无 patchRowIds）      | ✅ 待提交 |
+| **C** | read-shim 在线隔离 | `readLocalQuery()`；`readUseRc()` 基于 `useOnlineDataPath()`                                   | `test_read_shim_online_guard.py`                                   | ✅ 待提交 |
+| **D** | 双轨语义收紧       | 在线分支统一 `useOnlineDataPath()`；削减 `isLocalForceDb()`（**25 → 16 模块**）                | `test_sql_js_debt_inventory.py`、`test_online_query_boundaries.py` | 进行中    |
+| **E** | sql.js 边界        | `file://` 废弃；`db.js` 仅 `KETANG_FORCE_LOCAL_DB` / 灾备；wasm 移出发布白名单                 | `test_cdp_migration.py`、migration CI job                          | 待办      |
+| **F** | SLO 固化           | `probe-admin-write.yml` + `prod-latency.yml`；`--enforce-thresholds` 发布前必跑                | `test_admin_write_timing_stages.py`                                | 部分      |
 
 **Phase D 剩余模块**（2026-07-05 inventory，按 `isLocalForceDb()` 次数）：
 
-| 模块 | 次数 | 说明 |
-| ---- | ---- | ---- |
-| `events.js` | 5 | 在线已 `rc*`；本地写/导入分支 |
-| `lodger-actions.js` | 5 | 挂单写路径本地守卫 |
-| `checkin.js` | 3 | CSV / 本地批量入住 |
-| `forecast.js` | 3 | 本地预测 query |
-| `history.js` | 3 | 本地历史 query |
-| `housekeeping.js` | 3 | 本地房务写 |
-| `reservations.js` | 3 | 本地预约写 |
-| `api-client.js` | 2 | `useOnlineDataPath` / `isLocalForceDb` 定义 |
-| `db.js` | 2 | 本地 DB 生命周期 |
-| `meals.js` | 2 | 本地用斋写 |
-| `auth.js` | 1 | 本地登录/导入 |
-| `guests.js` | 1 | 本地 guest 写 |
-| `permissions.js` | 1 | 本地权限加载 |
-| `read-cache.js` | 1 | 本地 seed |
-| `rooming-read.js` | 1 | 本地排房读 |
-| `sync-coordinator.js` | 1 | 本地 sync |
+| 模块                  | 次数 | 说明                                        |
+| --------------------- | ---- | ------------------------------------------- |
+| `events.js`           | 5    | 在线已 `rc*`；本地写/导入分支               |
+| `lodger-actions.js`   | 5    | 挂单写路径本地守卫                          |
+| `checkin.js`          | 3    | CSV / 本地批量入住                          |
+| `forecast.js`         | 3    | 本地预测 query                              |
+| `history.js`          | 3    | 本地历史 query                              |
+| `housekeeping.js`     | 3    | 本地房务写                                  |
+| `reservations.js`     | 3    | 本地预约写                                  |
+| `api-client.js`       | 2    | `useOnlineDataPath` / `isLocalForceDb` 定义 |
+| `db.js`               | 2    | 本地 DB 生命周期                            |
+| `meals.js`            | 2    | 本地用斋写                                  |
+| `auth.js`             | 1    | 本地登录/导入                               |
+| `guests.js`           | 1    | 本地 guest 写                               |
+| `permissions.js`      | 1    | 本地权限加载                                |
+| `read-cache.js`       | 1    | 本地 seed                                   |
+| `rooming-read.js`     | 1    | 本地排房读                                  |
+| `sync-coordinator.js` | 1    | 本地 sync                                   |
 
 **Phase D 波次建议**：
 
@@ -888,16 +888,16 @@ bash scripts/run_p1_checklist.sh https://wulingkt.net https://<pages-preview>.ke
 
 #### 19.8.3 守门测试矩阵（Phase 13 legacy）
 
-| 测试 | 覆盖 |
-| ---- | ---- |
-| `test_no_api_db_client.py` | 客户端零 `/api/db`；`db.js` 全 410；write-response 无 SELECT 回读 |
-| `test_db_sql_gateway_retired.py` | SQL 网关 / login 退役；v1 audit / change-password |
-| `test_sql_js_debt_inventory.py` | `isLocalForceDb()` 上限只减不增；`useOnlineDataPath` 契约 |
-| `test_online_query_boundaries.py` | Phase D 在线路径无裸 `query()` |
-| `test_event_write_path.py` | 热路径 `patchRows`；禁止 `patchRowIds` |
-| `test_admin_write_timing_stages.py` | admin 分段计时；v1 登录探针 |
-| `test_migration_hot_path.py` | 生产热路径零 DDL |
-| `test_headless.py` | 在线壳渲染 |
+| 测试                                | 覆盖                                                              |
+| ----------------------------------- | ----------------------------------------------------------------- |
+| `test_no_api_db_client.py`          | 客户端零 `/api/db`；`db.js` 全 410；write-response 无 SELECT 回读 |
+| `test_db_sql_gateway_retired.py`    | SQL 网关 / login 退役；v1 audit / change-password                 |
+| `test_sql_js_debt_inventory.py`     | `isLocalForceDb()` 上限只减不增；`useOnlineDataPath` 契约         |
+| `test_online_query_boundaries.py`   | Phase D 在线路径无裸 `query()`                                    |
+| `test_event_write_path.py`          | 热路径 `patchRows`；禁止 `patchRowIds`                            |
+| `test_admin_write_timing_stages.py` | admin 分段计时；v1 登录探针                                       |
+| `test_migration_hot_path.py`        | 生产热路径零 DDL                                                  |
+| `test_headless.py`                  | 在线壳渲染                                                        |
 
 #### 19.8.4 明确不做（仍属 P4，非 legacy 清理）
 

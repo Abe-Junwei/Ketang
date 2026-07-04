@@ -404,11 +404,11 @@ export async function generateRoomingPlanAssignments(env, session, eventId) {
   );
   const bundle = await getRoomingPlanBundle(env, eventId);
   const writeMeta = await finishWrite(
-      env,
-      {},
-      ["events"],
-      ["events", "event_rooming"],
-    );
+    env,
+    {},
+    ["events"],
+    ["events", "event_rooming"],
+  );
   return enrichWriteResponse(
     env,
     { ...bundle, ...writeMeta },
@@ -491,11 +491,11 @@ export async function saveRoomingPlan(env, session, body) {
   );
   const bundle = await getRoomingPlanBundle(env, plan.event_id);
   const writeMeta = await finishWrite(
-      env,
-      {},
-      ["events"],
-      ["events", "event_rooming"],
-    );
+    env,
+    {},
+    ["events"],
+    ["events", "event_rooming"],
+  );
   return enrichWriteResponse(
     env,
     { ...bundle, ...writeMeta },

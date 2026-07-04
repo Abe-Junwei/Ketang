@@ -76,6 +76,9 @@ function eventBuildOptimisticRow(eventId, core) {
 /** 立即 patch 营期列表 | Optimistic event list patch */
 function eventApplyOptimistic(optimistic) {
   if (!eventUseApiData() || !optimistic) return;
+  if (typeof rcBootstrapPatchTable === "function") {
+    rcBootstrapPatchTable("events", "events");
+  }
   if (typeof infoApplyOptimistic === "function") {
     infoApplyOptimistic(optimistic, "events");
     return;
@@ -129,6 +132,19 @@ function eventMemberViewRefresh(eventId) {
 
 function eventReadReady() {
   return typeof readUseRc === "function" && readUseRc();
+}
+
+/** 营期列表可渲染：全局 rc 就绪或 events 模块已缓存 | Event list renderable */
+function eventListDataReady() {
+  if (eventReadReady()) return true;
+  if (
+    eventUseApiData() &&
+    typeof rcModuleCached === "function" &&
+    rcModuleCached("events")
+  ) {
+    return true;
+  }
+  return !eventUseApiData();
 }
 
 function eventGetById(id) {
@@ -248,7 +264,7 @@ function renderEventList() {
     typeof hasPermission === "function" && hasPermission("settings.write");
   const canRoomingPlan =
     typeof hasPermission === "function" && hasPermission("settings.read");
-  if (!eventReadReady()) {
+  if (!eventListDataReady()) {
     if (eventUseApiData()) {
       infoPageShell(
         infoToolbarHtml(
@@ -684,7 +700,7 @@ function openEventModal(id) {
     : "新增营期";
   setModalWide(true);
   setModalBody(`
-          <form id="event-form" onsubmit="submitEvent(event)">
+          <form id="event-form" onsubmit="event.preventDefault(); submitEvent(event);">
             <input type="hidden" id="event-id" value="${isEdit ? e.id : ""}">
             <div class="form-grid">
               ${infoField("营期名称 *", `<input type="text" id="event-name" required value="${isEdit ? infoEscape(e.name) : ""}">`, "event-name")}
@@ -755,7 +771,10 @@ async function submitEvent(e) {
   }
 
   const finishPending = beginActionPending(e, "保存中…");
-  if (!finishPending) return;
+  if (!finishPending) {
+    showToast("正在保存，请稍候");
+    return;
+  }
   try {
     var writeResult = null;
     var apiPayload = {
@@ -892,6 +911,21 @@ async function submitEvent(e) {
     if (isLocalForceDb()) {
       await saveDB();
       closeEventModal();
+    }
+    if (
+      eventUseApiData() &&
+      typeof infoRcTabDataReady === "function" &&
+      !infoRcTabDataReady("events") &&
+      typeof rcEnsureViewModules === "function"
+    ) {
+      try {
+        await rcEnsureViewModules("info_events", true);
+      } catch (fetchErr) {
+        console.warn(
+          "event post-write fetch failed:",
+          fetchErr.message || fetchErr,
+        );
+      }
     }
     showToast("营期保存成功");
     eventRefreshAfterWrite(writeResult);

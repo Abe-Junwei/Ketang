@@ -29,7 +29,12 @@ export function dedupeReadModules(modules) {
   });
   if (keys.indexOf("board") !== -1) {
     return keys.filter(function (k) {
-      return k !== "lodgers_active" && k !== "lodgers_records" && k !== "lodgers" && k !== "settings";
+      return (
+        k !== "lodgers_active" &&
+        k !== "lodgers_records" &&
+        k !== "lodgers" &&
+        k !== "settings"
+      );
     });
   }
   return keys;

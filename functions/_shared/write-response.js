@@ -1,8 +1,5 @@
 import { batchD1, queryD1 } from "./d1.js";
-import {
-  recordSyncDeletion,
-  syncMetaStatementsFromMeta,
-} from "./sync-meta.js";
+import { recordSyncDeletion, syncMetaStatementsFromMeta } from "./sync-meta.js";
 import { resolveChangedModules } from "./sync-modules.js";
 
 /** D1 batch 内递增看板版本 | Bump board_version inside atomic batch */
@@ -63,7 +60,12 @@ export function auditLogStatement(
   };
 }
 
-function writeMetaResponse(board_version, data, changedDomains, changedModules) {
+function writeMetaResponse(
+  board_version,
+  data,
+  changedDomains,
+  changedModules,
+) {
   const changed_domains = Array.isArray(changedDomains) ? changedDomains : [];
   return {
     ok: true,
@@ -93,8 +95,7 @@ export async function atomicWriteBatch(
     { sql: BOARD_VERSION_SELECT_SQL, params: [] },
   ]);
   const board_version = boardVersionFromBatchResults(results);
-  const payload =
-    data && typeof data === "object" ? { ...data } : data || {};
+  const payload = data && typeof data === "object" ? { ...data } : data || {};
   if (
     statements.length &&
     isInsertStatement(statements[0]) &&

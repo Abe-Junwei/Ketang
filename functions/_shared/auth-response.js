@@ -45,8 +45,7 @@ export async function buildDualAuthSuccess(
     sub: freshUser.id,
     is_advanced: !!freshUser.is_advanced,
   };
-  const stage = async (name, fn) =>
-    timer ? timer.stage(name, fn) : fn();
+  const stage = async (name, fn) => (timer ? timer.stage(name, fn) : fn());
   const permissions = await stage("permissions_ms", () =>
     getSessionPermissions(env, sessionShape),
   );
