@@ -5966,11 +5966,9 @@ body.auth-login-required {
 }
 
 body.auth-login-required .sidebar,
-body.auth-login-required .app-shell {
-  display: none !important;
-}
-
-body.auth-bootstrapping .login-overlay {
+body.auth-login-required .app-shell,
+html.ketang-auth-pending .sidebar,
+html.ketang-auth-pending .app-shell {
   display: none !important;
 }
 

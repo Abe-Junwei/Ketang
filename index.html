@@ -26,7 +26,17 @@
       href="icons/icon-192.png"
     />
     <link rel="stylesheet" href="fonts/fonts.css?v=1" />
-    <link rel="stylesheet" href="styles.css?v=69" />
+    <link rel="stylesheet" href="styles.css?v=70" />
+    <style>
+      /* Hide app chrome until auth gate resolves | Prevent unauthenticated flash */
+      html.ketang-auth-pending .sidebar,
+      html.ketang-auth-pending .app-shell {
+        display: none !important;
+      }
+    </style>
+    <script>
+      document.documentElement.classList.add("ketang-auth-pending");
+    </script>
     <title>客堂管理系统</title>
   </head>
   <body>
@@ -1895,7 +1905,7 @@
     <script src="./js/rooming-publish.js?v=5"></script>
     <script src="./js/info.js?v=27"></script>
     <script src="./js/permissions.js?v=4"></script>
-    <script src="./js/auth.js?v=33"></script>
+    <script src="./js/auth.js?v=34"></script>
     <script src="./js/icons.js?v=8"></script>
     <script src="./js/picker.js?v=4"></script>
     <script src="./js/mobile-ui.js?v=2"></script>

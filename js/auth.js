@@ -89,6 +89,10 @@ function restoreCachedUserFromStorage(isRemote) {
   }
 }
 
+function clearAuthPendingGate() {
+  document.documentElement.classList.remove("ketang-auth-pending");
+}
+
 function bootAuthUI() {
   const isRemote = typeof isRemoteDB === "function" && isRemoteDB();
   if (isRemote && typeof purgeLegacyClientTokens === "function") {
@@ -104,16 +108,14 @@ function bootAuthUI() {
       showLoginOverlay();
       return;
     }
-    if (currentUser) {
-      updateAuthUI();
-      return;
-    }
+    // Always cover app shell until session is confirmed (no main-page flash).
     showBootstrapping();
     return;
   }
 
   if (currentUser) {
     updateAuthUI();
+    clearAuthPendingGate();
   } else {
     showLoginOverlay();
   }
@@ -164,10 +166,12 @@ function setBootBannerVisible(visible) {
 }
 
 function showBootstrapping() {
-  document.body.classList.remove("auth-login-required", "auth-logged-in");
-  document.body.classList.add("auth-bootstrapping");
+  // Keep login overlay (restore panel) up so shell never flashes before auth.
+  document.body.classList.remove("auth-logged-in");
+  document.body.classList.add("auth-login-required", "auth-bootstrapping");
   const overlay = document.getElementById("login-overlay");
-  if (overlay) overlay.classList.remove("active");
+  if (overlay) overlay.classList.add("active");
+  setLoginOverlayPanel("restore");
   setBootBannerVisible(true);
 }
 
@@ -509,6 +513,7 @@ function showLoginOverlay() {
   setLoginOverlayPanel("form");
   if (overlay) overlay.classList.add("active");
   syncAuthBodyClass();
+  clearAuthPendingGate();
   setLoginPending(false);
   populateLoginUsers();
 }
@@ -520,6 +525,7 @@ function hideLoginOverlay() {
   document.body.classList.remove("auth-login-required");
   hideBootstrapping();
   syncAuthBodyClass();
+  clearAuthPendingGate();
 }
 
 async function populateLoginUsers() {

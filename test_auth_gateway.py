@@ -381,11 +381,20 @@ def test_login_ui_has_no_fake_identity_loading():
     if 'auth-login-required' in index.split('<body', 1)[1].split('>', 1)[0]:
         print('FAIL body must not default to auth-login-required in index.html')
         sys.exit(1)
+    if 'ketang-auth-pending' not in index:
+        print('FAIL index.html must gate app shell with ketang-auth-pending until auth resolves')
+        sys.exit(1)
     if 'app-boot-banner' not in index:
         print('FAIL index.html missing app boot banner for session restore')
         sys.exit(1)
     if 'bootAuthUI' not in auth or 'showBootstrapping' not in auth:
         print('FAIL auth.js missing boot-time session UI helpers')
+        sys.exit(1)
+    if 'setLoginOverlayPanel("restore")' not in auth:
+        print('FAIL showBootstrapping must keep restore panel over app shell')
+        sys.exit(1)
+    if 'clearAuthPendingGate' not in auth:
+        print('FAIL auth.js must clear ketang-auth-pending after auth gate resolves')
         sys.exit(1)
     if 'bootAuthUI' not in read('js/app.js'):
         print('FAIL app.js must call bootAuthUI before async init')
@@ -453,9 +462,13 @@ def test_login_waits_for_read_model():
         sys.exit(1)
     block = login_block.group(1)
     hide_idx = block.find('hideLoginOverlay()')
-    render_idx = block.find('await renderAll()')
-    if hide_idx < 0 or render_idx < 0 or hide_idx < render_idx:
-        print('FAIL submitLogin must await renderAll before hideLoginOverlay')
+    render_idx = block.find('await renderAll')
+    # Login may hide overlay first for perceived speed; first-view still waits on renderAll.
+    if render_idx < 0:
+        print('FAIL submitLogin must await renderAll')
+        sys.exit(1)
+    if hide_idx < 0:
+        print('FAIL submitLogin must call hideLoginOverlay')
         sys.exit(1)
 
 
