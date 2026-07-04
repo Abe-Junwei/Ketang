@@ -68,6 +68,8 @@ def main():
     rooming_conflicts = read("js/rooming-conflicts.js")
     read_modules = read("functions/_shared/read-modules.js")
     auth = read("js/auth.js")
+    guests = read("js/guests.js")
+    checkin = read("js/checkin.js")
     resv = read("js/reservations.js")
     validation = read("js/validation.js")
     mobile_ui = read("js/mobile-ui.js")
@@ -97,7 +99,7 @@ def main():
         ("meals summary rc", "rcMealsForLodger" in meals and "getMealSummary" in meals),
         ("meals lodger enriched", "mealLodgerEnrichedById" in meals),
         ("meals modal rc", "mealLodgerEnrichedById(lodgerId)" in meals),
-        ("history search rc", "rcHistorySearch" in history),
+        ("history search rc", "rcFetchHistoryRows" in history),
         ("history export rc", "rcLodgerPaymentTotals" in history),
         ("history local guard", history.count("isLocalForceDb()") >= 3),
         ("events read ready", "eventReadReady" in events),
@@ -123,6 +125,18 @@ def main():
         (
             "mobile hero flow rc",
             "rcGetBoardFlowStats" in mobile_ui and "isLocalForceDb()" in mobile_ui,
+        ),
+        ("guests phone lookup rc", "rcFindGuestByPhoneOrIdCard" in guests),
+        ("guests name lookup rc", "rcFindGuestByDisplayName" in guests),
+        ("guests local write guard", "guestUseLocalDb" in guests),
+        (
+            "checkin csv online api",
+            "apiBatchCheckIn" in checkin and "importBatchCSV" in checkin,
+        ),
+        (
+            "checkin csv local branch",
+            checkin.count("isLocalForceDb()") >= 3
+            and "findOrCreateGuest" in checkin,
         ),
     ]
 
@@ -243,6 +257,25 @@ def main():
         }[fn]
         body = fn_body(src, fn)
         ok, name = assert_no_unguarded_query(fn, body, allow_local=fn != "lookupAdminUser")
+        if not ok:
+            failed.append(name)
+
+    for fn in [
+        "findGuestByPhoneOrIdCard",
+        "findGuestByDisplayName",
+        "findOrCreateGuest",
+        "incrementGuestVisit",
+    ]:
+        body = fn_body(guests, fn)
+        ok, name = assert_no_unguarded_query(f"guests {fn}", body)
+        if not ok:
+            failed.append(name)
+
+    for fn in ["assignBedFromResv", "submitCheckIn", "importBatchCSV"]:
+        body = fn_body(checkin, fn)
+        if body is None:
+            continue
+        ok, name = assert_no_unguarded_query(f"checkin {fn}", body)
         if not ok:
             failed.append(name)
 

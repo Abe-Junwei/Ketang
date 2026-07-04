@@ -149,7 +149,7 @@ npm run lint:ci
 
 ### Phase D：读路径去在线 `query()`
 
-目标：在线热路径只读 `_rcStore` / read API；sql.js 不再参与在线业务视图。
+目标：在线热路径只读 `_rcStore` / read API；sql.js 不再参与在线业务视图。当前 D1–D6 已完成，D7 `guests.js` / `checkin.js` 在线 CSV 批量入住路径待收尾。
 
 批次：
 
@@ -157,10 +157,11 @@ npm run lint:ci
 | ---- | ------------- | -------------------------------------------------------------- | ------------------------------ |
 | D1   | `reports.js`  | 增加 reports read API 或基于 `_rcStore` 聚合                   | 在线 reports 无 `query()`      |
 | D2   | `forecast.js` | 使用 `rcForecastTodayData`、`rcForecastFlowWeeks` 补齐所有分支 | 在线 forecast 无 `query()`     |
-| D3   | `history.js`  | `rcHistorySearch` 补支付/CSV 数据                              | 在线 history 无 `query()`      |
+| D3   | `history.js`  | `rcFetchHistoryRows` / `rcHistorySearch` 补支付/CSV 数据       | 在线 history 无 `query()`      |
 | D4   | `events.js`   | 成员、排房建议、选择器全部走 `rcEvent*` / detail API           | 在线 events 无非本地 `query()` |
 | D5   | `rooming-*`   | 所有排房读从 `rooming-read.js` + event detail tables 获取      | 在线 rooming 无 `query()`      |
 | D6   | `auth.js`     | 用户/权限管理走 admin read API，不读本地 users                 | 在线 auth 无 users `query()`   |
+| D7   | `guests.js`、`checkin.js`（CSV 批量入住） | `findOrCreateGuest` 在线分支调用 `apiLookupGuest` 或 rc；本地保留 `query()` | 在线 CSV 批量入住无 `query()`  |
 
 技术要求：
 
@@ -206,7 +207,7 @@ npm run lint:ci
 
 前置条件：
 
-- Phase D 在线热路径 `query()` 清零。
+- Phase D 在线热路径 `query()` 清零（含 D7 `guests.js` / `checkin.js` 在线 CSV 路径）。
 - 本地模式、灾备导入、migration 测试边界确认。
 - `test_cdp_migration.py` 与在线 CDP 测试拆分环境变量。
 
