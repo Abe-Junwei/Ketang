@@ -231,10 +231,20 @@ function renderRoomingConflictsPanel(conflictResult) {
 
 async function fetchRoomingConflictReport(eventId, planId, assignments) {
   if (!isLocalForceDb()) {
+    // Draft assignments still need POST body; saved plan uses GET read
+    if (assignments && assignments.length) {
+      return apiRoomingPlanAction("check", {
+        event_id: eventId,
+        plan_id: planId,
+        assignments: assignments,
+      });
+    }
+    if (typeof apiReadEventConflicts === "function") {
+      return apiReadEventConflicts(eventId, planId);
+    }
     return apiRoomingPlanAction("check", {
       event_id: eventId,
       plan_id: planId,
-      assignments: assignments,
     });
   }
   return evaluateLocalRoomingConflicts(eventId, planId, assignments);

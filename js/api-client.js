@@ -438,6 +438,25 @@ async function apiReadEventDetail(eventId) {
   return apiFetch("/api/v1/read/event/" + encodeURIComponent(eventId));
 }
 
+/** 排房冲突只读（无草稿 assignments 时）| Rooming conflicts read */
+async function apiReadEventConflicts(eventId, planId) {
+  var q =
+    "/api/v1/read/event/" +
+    encodeURIComponent(eventId) +
+    "?view=conflicts";
+  if (planId) q += "&plan_id=" + encodeURIComponent(planId);
+  return apiFetch(q);
+}
+
+/** 排房成员统计只读 | Event members for rooming plan */
+async function apiReadEventMembers(eventId) {
+  return apiFetch(
+    "/api/v1/read/event/" +
+      encodeURIComponent(eventId) +
+      "?view=members",
+  );
+}
+
 async function apiBatchCheckIn(payload) {
   return apiFetch("/api/v1/batch-check-in", {
     method: "POST",

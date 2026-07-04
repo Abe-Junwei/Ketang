@@ -19,10 +19,12 @@ function rcRows(moduleKey, table) {
 function rcInvalidate(moduleKey) {
   if (moduleKey) delete _rcStore[moduleKey];
   else _rcStore = {};
+  if (!moduleKey || moduleKey === "board") rcInvalidateBoardIndexes();
 }
 
 function rcStorePayload(moduleKey, payload) {
   if (moduleKey && payload) _rcStore[moduleKey] = payload;
+  if (moduleKey === "board") rcInvalidateBoardIndexes();
 }
 
 /** 增量 patch 写入 rc 缓存 | Apply delta patches to rc store */
@@ -97,6 +99,25 @@ function rcApplyDeltaPatches(patches, deletions) {
       });
     });
   });
+  if (
+    (patches &&
+      (patches.beds ||
+        patches.lodgers ||
+        patches.housekeeping ||
+        patches.rooms)) ||
+    (deletions &&
+      deletions.some(function (d) {
+        return (
+          d &&
+          (d.table_name === "beds" ||
+            d.table_name === "lodgers" ||
+            d.table_name === "housekeeping" ||
+            d.table_name === "rooms")
+        );
+      }))
+  ) {
+    rcInvalidateBoardIndexes();
+  }
 }
 
 /** delta 全模块 payload 写入 rc | Apply delta module payloads to rc store */
@@ -254,6 +275,7 @@ function rcHasSeededBoard() {
 function rcSeedModule(moduleKey, payload) {
   if (!moduleKey) return;
   _rcStore[moduleKey] = payload || {};
+  if (moduleKey === "board") rcInvalidateBoardIndexes();
   if (
     payload &&
     payload.board_version != null &&
@@ -291,6 +313,51 @@ async function rcFetchMany(moduleKeys, force) {
 
 /* ── board 模块派生 | Board module derivations ── */
 
+var _rcBoardIndex = { built: false, lodgerByBedId: {}, bedsByRoomId: {}, hkByBedId: {} };
+
+function rcInvalidateBoardIndexes() {
+  _rcBoardIndex.built = false;
+  _rcBoardIndex.lodgerByBedId = {};
+  _rcBoardIndex.bedsByRoomId = {};
+  _rcBoardIndex.hkByBedId = {};
+}
+
+/** Board hot-path indexes (rebuild lazily after patch/seed) */
+function rcEnsureBoardIndexes() {
+  if (_rcBoardIndex.built) return _rcBoardIndex;
+  var lodgerByBedId = {};
+  var bedsByRoomId = {};
+  var hkByBedId = {};
+  rcBoardLodgers().forEach(function (l) {
+    if (l && l.status === "在住" && l.bed_id != null) {
+      lodgerByBedId[l.bed_id] = l;
+    }
+  });
+  rcBoardBeds().forEach(function (b) {
+    if (!b) return;
+    var key = String(b.room_id);
+    if (!bedsByRoomId[key]) bedsByRoomId[key] = [];
+    bedsByRoomId[key].push(b);
+  });
+  rcBoardHousekeeping().forEach(function (h) {
+    if (!h || h._optimistic || h.bed_id == null) return;
+    var prev = hkByBedId[h.bed_id];
+    if (
+      !prev ||
+      String(h.changed_at || "") > String(prev.changed_at || "")
+    ) {
+      hkByBedId[h.bed_id] = h;
+    }
+  });
+  _rcBoardIndex = {
+    built: true,
+    lodgerByBedId: lodgerByBedId,
+    bedsByRoomId: bedsByRoomId,
+    hkByBedId: hkByBedId,
+  };
+  return _rcBoardIndex;
+}
+
 function rcBoardRooms() {
   return rcRows("board", "rooms")
     .slice()
@@ -316,30 +383,21 @@ function rcBoardHousekeeping() {
 
 function rcLodgerOnBed(bedId) {
   if (!bedId) return null;
-  return (
-    rcBoardLodgers().find(function (l) {
-      return l.bed_id == bedId && l.status === "在住";
-    }) || null
-  );
+  return rcEnsureBoardIndexes().lodgerByBedId[bedId] || null;
 }
 
 function rcLatestHkStatus(bedId) {
   if (!bedId) return "净房";
-  var rows = rcBoardHousekeeping().filter(function (h) {
-    return h.bed_id == bedId && !h._optimistic;
-  });
-  rows.sort(function (a, b) {
-    return String(b.changed_at || "").localeCompare(String(a.changed_at || ""));
-  });
-  return (rows[0] && rows[0].status) || "净房";
+  var h = rcEnsureBoardIndexes().hkByBedId[bedId];
+  return (h && h.status) || "净房";
 }
 
 function rcBedsForRoom(roomId, options) {
   options = options || {};
   var excludeId = parseInt(options.excludeBedId, 10) || -1;
-  return rcBoardBeds()
+  var beds = rcEnsureBoardIndexes().bedsByRoomId[String(roomId)] || [];
+  return beds
     .filter(function (b) {
-      if (String(b.room_id) !== String(roomId)) return false;
       if (b.id == excludeId) return false;
       if (options.skipSpare && b.status === "备用") return false;
       if (options.skipMaint && b.status === "维修") return false;

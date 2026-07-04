@@ -63,6 +63,8 @@ def main():
             and "touchBoardVersionFromWrite" in rc,
         ),
         ("rcEventRoomingRows", "function rcEventRoomingRows" in rc),
+        ("rc board indexes", "function rcEnsureBoardIndexes" in rc),
+        ("rc invalidate board indexes", "function rcInvalidateBoardIndexes" in rc),
         ("meals rc read", "rcReadReady" in read("js/meals.js")),
         ("forecast rc today", "rcForecastTodayData" in read("js/forecast.js")),
         ("forecast rc flow", "rcForecastFlowWeeks" in read("js/forecast.js")),

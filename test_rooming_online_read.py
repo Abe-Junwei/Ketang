@@ -29,6 +29,18 @@ def main():
         ("RC_VIEW_MODULES rooming", "rooming:" in read("js/read-cache.js")),
         ("rooming loads event_rooming", "event_rooming" in rr),
         ("rooming uses lodgers_active", "lodgers_active" in rr),
+        (
+            "event conflicts read api",
+            "apiReadEventConflicts" in api and "view=conflicts" in api,
+        ),
+        (
+            "event members read api",
+            "apiReadEventMembers" in api and "view=members" in api,
+        ),
+        (
+            "conflict report prefers GET",
+            "apiReadEventConflicts" in read("js/rooming-conflicts.js"),
+        ),
     ]
     failed = [name for name, ok in checks if not ok]
     if failed:
