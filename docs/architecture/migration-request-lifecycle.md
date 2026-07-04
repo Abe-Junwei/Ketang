@@ -17,17 +17,20 @@ updated: 2026-07-04
 3. fallback / repair 与业务请求显式隔离。
 4. 写尾（version / sync log / patch）可观测、可合并。
 
-## 当前状态（2026-07-04）
+## 当前状态（2026-07-04，已落地）
 
 | 项 | 状态 |
 |---|---|
-| 最重 PRAGMA 风暴 | 已挡住：ready 成功则跳过 `ensureRoomingSchemaColumnsIfTablesExist` |
-| ready probe | **Phase B**：`app_meta.schema_ready_version` 单次查询；未盖章时一次性列校验后盖章 |
-| light path | **Phase D**：ready 后仅内存标记，零 DDL / 零 version 探测 |
-| API 入口 | **Phase A**：统一 `ensureDatabaseReady`；业务 `allowMigrationFallback: false` |
-| 写尾 | **Phase E**：`batchLogSyncMeta` 合并 version/domain/deletion 日志 |
-| 观测 | `admin/records` 分段 `init_ms` / `auth_ms` / `biz_ms`；`test_admin_write_latency.py` |
-| 显式迁移 | `POST /api/v1/admin/migrate`（admin only） |
+| Phase 0 观测 | `admin/records` 分段 `init_ms` / `auth_ms` / `biz_ms`；`test_admin_write_latency.py` |
+| Phase B ready | `app_meta.schema_ready_version` 单次查询；未盖章时一次性列校验后盖章 |
+| Phase D light | ready 后仅内存标记，零 DDL / 零 version 探测 |
+| Phase A 入口 | 统一 `ensureDatabaseReady`；业务 `allowMigrationFallback: false` |
+| Phase C 热路径 | PRAGMA/ALTER 仅 `runMigrationsOrRepair`；`test_migration_hot_path.py` 守门 |
+| Phase E 写尾 | `batchLogSyncMeta` 合并 version/domain/deletion；patch 回读仍按需 |
+| Phase F 运维 | `POST /api/v1/admin/migrate`（admin）；备份/定时任务仍允许 migration fallback |
+| Phase G 守门 | `test_migration_hot_path.py` + `test_phase_g_fast_paths.py` |
+
+生产探针（`415f159` 后）：warm `init_ms` p50=0；create `biz_ms` p50≈1.1s；外部 create p50≈4.8s（仍受 D1 RTT / 客户端往返影响，未达 warm &lt;2s 最终目标）。
 
 ## 目标架构
 
