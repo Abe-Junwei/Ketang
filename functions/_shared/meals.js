@@ -78,8 +78,13 @@ export async function apiSaveMeals(env, session, body) {
     env,
     await finishWrite(env, {}, ["meals"], ["meals"]),
     {
+      patchRow: {
+        ...l,
+        meal_default_breakfast: defaults.breakfast,
+        meal_default_lunch: defaults.lunch,
+        meal_default_dinner: defaults.dinner,
+      },
       patchTable: "lodgers",
-      rowId: lodgerId,
       extraPatches: { meals: mealRows },
       patchComplete: true,
     },

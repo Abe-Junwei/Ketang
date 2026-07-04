@@ -4,7 +4,7 @@ import {
   finishWrite,
   fetchLatestHousekeepingPatches,
 } from "./write-response.js";
-import { apiAssignBed, apiAssignReservationToBed } from "./lodgers.js";
+import { apiAssignBed, apiAssignReservationToBed, buildLodgerAssignPatches } from "./lodgers.js";
 import { requirePermission } from "./permissions.js";
 import { checkRoomingPlanConflicts } from "./rooming-plans.js";
 
@@ -403,6 +403,49 @@ async function markRoomingQueueDone(env, session, queueId, options) {
   );
 }
 
+async function buildRoomingQueueAssignPatches(env, item, bedId) {
+  if (item.member_kind === "lodger") {
+    const l = (
+      await queryD1(env, "SELECT * FROM lodgers WHERE id=? LIMIT 1", [
+        item.member_ref_id,
+      ])
+    )[0];
+    const bed = bedId
+      ? (await queryD1(env, "SELECT * FROM beds WHERE id=? LIMIT 1", [bedId]))[0]
+      : null;
+    return buildLodgerAssignPatches(l, bed);
+  }
+  const r = (
+    await queryD1(env, "SELECT * FROM reservations WHERE id=? LIMIT 1", [
+      item.member_ref_id,
+    ])
+  )[0];
+  if (!r) return {};
+  const bed = bedId
+    ? (await queryD1(env, "SELECT * FROM beds WHERE id=? LIMIT 1", [bedId]))[0]
+    : null;
+  const lodgerRows = await queryD1(
+    env,
+    "SELECT * FROM lodgers WHERE guest_id=? AND bed_id=? AND status='在住' ORDER BY id DESC LIMIT 1",
+    [r.guest_id, bedId],
+  );
+  const lodger = lodgerRows[0];
+  const guestRow = r.guest_id
+    ? (
+        await queryD1(env, "SELECT * FROM guests WHERE id=? LIMIT 1", [
+          r.guest_id,
+        ])
+      )[0]
+    : null;
+  const patches = {
+    reservations: [{ ...r, status: "已入住" }],
+  };
+  if (lodger) patches.lodgers = [lodger];
+  if (bed) patches.beds = [{ ...bed, status: "占用" }];
+  if (guestRow) patches.guests = [guestRow];
+  return patches;
+}
+
 export async function processRoomingQueueCheckin(env, session, body) {
   await requirePermission(env, session, "lodging.checkin");
   const queueId = requireId(body.queue_id, "待入住条目");
@@ -420,11 +463,12 @@ export async function processRoomingQueueCheckin(env, session, body) {
   let assigned = await roomingQueueAssignAlreadyDoneServer(env, item);
   let assignedLodgerId =
     item.member_kind === "lodger" ? item.member_ref_id : null;
+  let assignPatchRows = {};
   const deferOpts = { deferFinishWrite: true };
   if (!assigned) {
     try {
       if (item.member_kind === "lodger") {
-        await apiAssignBed(
+        const assignResult = await apiAssignBed(
           env,
           session,
           {
@@ -433,6 +477,7 @@ export async function processRoomingQueueCheckin(env, session, body) {
           },
           deferOpts,
         );
+        assignPatchRows = assignResult?.patchRows || {};
       } else {
         const assignResult = await apiAssignReservationToBed(
           env,
@@ -444,11 +489,17 @@ export async function processRoomingQueueCheckin(env, session, body) {
           deferOpts,
         );
         assignedLodgerId = assignResult?.lodger_id || null;
+        assignPatchRows = assignResult?.patchRows || {};
       }
       assigned = true;
     } catch (err) {
       if (await roomingQueueAssignAlreadyDoneServer(env, item)) {
         assigned = true;
+        assignPatchRows = await buildRoomingQueueAssignPatches(
+          env,
+          item,
+          item.suggested_bed_id,
+        );
       } else if (item.member_kind === "lodger") {
         const lodgerRows = await queryD1(
           env,
@@ -460,6 +511,20 @@ export async function processRoomingQueueCheckin(env, session, body) {
         }
       }
       if (!assigned) throw err;
+    }
+  } else {
+    assignPatchRows = await buildRoomingQueueAssignPatches(
+      env,
+      item,
+      item.suggested_bed_id,
+    );
+    if (item.member_kind === "reservation") {
+      const lodgerRows = await queryD1(
+        env,
+        "SELECT id FROM lodgers WHERE guest_id=(SELECT guest_id FROM reservations WHERE id=?) AND bed_id=? AND status='在住' ORDER BY id DESC LIMIT 1",
+        [item.member_ref_id, item.suggested_bed_id],
+      );
+      assignedLodgerId = lodgerRows[0]?.id || assignedLodgerId;
     }
   }
 
@@ -486,17 +551,6 @@ export async function processRoomingQueueCheckin(env, session, body) {
       [assignedLodgerId],
     );
   }
-  let guestIds = [];
-  if (item.member_kind === "reservation") {
-    const resvRows = await queryD1(
-      env,
-      "SELECT guest_id FROM reservations WHERE id=? LIMIT 1",
-      [item.member_ref_id],
-    );
-    if (resvRows[0] && resvRows[0].guest_id) {
-      guestIds = [resvRows[0].guest_id];
-    }
-  }
   return enrichWriteResponse(
     env,
     await finishWrite(
@@ -509,13 +563,7 @@ export async function processRoomingQueueCheckin(env, session, body) {
       changedModules,
     ),
     {
-      patchRowIds: {
-        beds: bedId ? [bedId] : [],
-        lodgers: assignedLodgerId ? [assignedLodgerId] : [],
-        reservations:
-          item.member_kind === "reservation" ? [item.member_ref_id] : [],
-        guests: guestIds,
-      },
+      patchRows: assignPatchRows,
       extraPatches: extraPatches,
       patchComplete: true,
     },

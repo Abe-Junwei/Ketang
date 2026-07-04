@@ -15,6 +15,59 @@ function participantTagValues(body) {
   return [tags.participant_identity, tags.age_group, tags.special_needs];
 }
 
+function buildReservationUpsertPatchRow(row, fields) {
+  return {
+    ...row,
+    guest_id: fields.guestId,
+    event_id: fields.eventId,
+    name: fields.person.name,
+    dharma_name: fields.person.dharma_name,
+    gender: fields.gender,
+    phone: fields.phone,
+    id_card: fields.idCard,
+    role: fields.role,
+    class_name: fields.className,
+    participant_identity: fields.participantIdentity,
+    age_group: fields.ageGroup,
+    special_needs: fields.specialNeeds,
+    expected_check_in: fields.expectedCheckIn,
+    expected_check_out: fields.expectedCheckOut,
+    room_preference: fields.roomPreference,
+    source: fields.source,
+    notes: fields.notes,
+    meal_breakfast: fields.mealBf,
+    meal_lunch: fields.mealLc,
+    meal_dinner: fields.mealDn,
+  };
+}
+
+function buildReservationCreatePatchRow(id, fields) {
+  return {
+    id: id,
+    guest_id: fields.guestId,
+    event_id: fields.eventId,
+    name: fields.person.name,
+    dharma_name: fields.person.dharma_name,
+    gender: fields.gender,
+    phone: fields.phone,
+    id_card: fields.idCard,
+    role: fields.role,
+    class_name: fields.className,
+    participant_identity: fields.participantIdentity,
+    age_group: fields.ageGroup,
+    special_needs: fields.specialNeeds,
+    expected_check_in: fields.expectedCheckIn,
+    expected_check_out: fields.expectedCheckOut,
+    room_preference: fields.roomPreference,
+    source: fields.source,
+    status: "预约",
+    notes: fields.notes,
+    meal_breakfast: fields.mealBf,
+    meal_lunch: fields.mealLc,
+    meal_dinner: fields.mealDn,
+  };
+}
+
 async function findOrCreateGuest(env, displayName, gender, phone, idCard) {
   const person = parsePersonNameInput(displayName);
   if (!person.name) return null;
@@ -95,6 +148,28 @@ export async function apiUpsertReservation(env, session, body) {
   const mealLc = body.meal_lunch ? 1 : 0;
   const mealDn = body.meal_dinner ? 1 : 0;
   const resvId = parseInt(body.reservation_id, 10);
+  const tags = parseParticipantTagFields(body);
+  const patchFields = {
+    guestId,
+    eventId: body.event_id || null,
+    person,
+    gender: body.gender,
+    phone: identity.phone,
+    idCard: identity.idCard,
+    role: body.role || null,
+    className: body.class_name || null,
+    participantIdentity: tags.participant_identity,
+    ageGroup: tags.age_group,
+    specialNeeds: tags.special_needs,
+    expectedCheckIn: body.expected_check_in,
+    expectedCheckOut: checkOut,
+    roomPreference: body.room_preference || null,
+    source: body.source || null,
+    notes: body.notes || null,
+    mealBf,
+    mealLc,
+    mealDn,
+  };
 
   if (resvId) {
     const existing = await queryD1(
@@ -153,10 +228,8 @@ export async function apiUpsertReservation(env, session, body) {
         ["reservations"],
       ),
       {
-        patchRowIds: {
-          reservations: [resvId],
-          guests: guestId ? [guestId] : [],
-        },
+        patchRow: buildReservationUpsertPatchRow(row, patchFields),
+        patchTable: "reservations",
         patchComplete: true,
       },
     );
@@ -205,10 +278,8 @@ export async function apiUpsertReservation(env, session, body) {
       ["reservations"],
     ),
     {
-      patchRowIds: {
-        reservations: [meta.last_row_id],
-        guests: guestId ? [guestId] : [],
-      },
+      patchRow: buildReservationCreatePatchRow(meta.last_row_id, patchFields),
+      patchTable: "reservations",
       patchComplete: true,
     },
   );
@@ -234,7 +305,11 @@ export async function apiUpdateReservationStatus(env, session, body) {
   return enrichWriteResponse(
     env,
     await finishWrite(env, {}, ["reservations"], ["reservations"]),
-    { patchTable: "reservations", rowId: id, patchComplete: true },
+    {
+      patchRow: { ...r, status: status },
+      patchTable: "reservations",
+      patchComplete: true,
+    },
   );
 }
 
@@ -245,29 +320,55 @@ export async function apiBatchEventMembers(env, session, body) {
   const today = new Date().toISOString().slice(0, 10);
   const statements = [];
 
-  const patchRowIds = { reservations: [], beds: [], lodgers: [] };
+  const patchRows = { reservations: [], beds: [], lodgers: [] };
   const lodgerCancelIds = [];
+  const reservationIds = [];
+  for (const item of items) {
+    if (item.kind === "reservation") reservationIds.push(item.id);
+    if (item.kind === "lodger" && action === "cancel") lodgerCancelIds.push(item.id);
+  }
+  const reservationById = {};
+  if (reservationIds.length) {
+    const placeholders = reservationIds
+      .map(function () {
+        return "?";
+      })
+      .join(",");
+    const rows = await queryD1(
+      env,
+      `SELECT * FROM reservations WHERE id IN (${placeholders})`,
+      reservationIds,
+    );
+    rows.forEach(function (row) {
+      reservationById[row.id] = row;
+    });
+  }
   for (const item of items) {
     if (item.kind === "reservation") {
-      patchRowIds.reservations.push(item.id);
-      if (action === "cancel")
+      const row = reservationById[item.id];
+      if (!row) continue;
+      if (action === "cancel") {
+        if (["已取消", "已入住"].includes(row.status)) continue;
+        patchRows.reservations.push({ ...row, status: "已取消" });
         statements.push({
           sql: "UPDATE reservations SET status='已取消' WHERE id=? AND status NOT IN ('已取消','已入住')",
           params: [item.id],
         });
-      if (action === "noshow")
+      }
+      if (action === "noshow") {
+        if (["已入住", "No-show", "已取消"].includes(row.status)) continue;
+        patchRows.reservations.push({ ...row, status: "No-show" });
         statements.push({
           sql: "UPDATE reservations SET status='No-show' WHERE id=? AND status NOT IN ('已入住','No-show','已取消')",
           params: [item.id],
         });
+      }
       continue;
-    }
-    if (item.kind === "lodger" && action === "cancel") {
-      lodgerCancelIds.push(item.id);
     }
   }
   // One query for all bed_ids instead of N | Batch bed lookup
   const bedByLodger = {};
+  const lodgerById = {};
   if (lodgerCancelIds.length) {
     const placeholders = lodgerCancelIds
       .map(function () {
@@ -276,11 +377,12 @@ export async function apiBatchEventMembers(env, session, body) {
       .join(",");
     const rows = await queryD1(
       env,
-      `SELECT id, bed_id FROM lodgers WHERE id IN (${placeholders}) AND status='在住'`,
+      `SELECT * FROM lodgers WHERE id IN (${placeholders}) AND status='在住'`,
       lodgerCancelIds,
     );
     rows.forEach(function (row) {
       bedByLodger[row.id] = row.bed_id;
+      lodgerById[row.id] = row;
     });
   }
   const activeLodgerIds = Object.keys(bedByLodger).map(function (id) {
@@ -292,7 +394,14 @@ export async function apiBatchEventMembers(env, session, body) {
     today,
   );
   activeLodgerIds.forEach(function (lodgerId) {
-    patchRowIds.lodgers.push(lodgerId);
+    const lodger = lodgerById[lodgerId];
+    if (!lodger) return;
+    patchRows.lodgers.push({
+      ...lodger,
+      status: "已取消",
+      bed_id: null,
+      actual_check_out: today,
+    });
     const bedId = bedByLodger[lodgerId];
     statements.push({
       sql: "UPDATE lodgers SET status='已取消', bed_id=NULL, actual_check_out=? WHERE id=? AND status='在住'",
@@ -303,7 +412,7 @@ export async function apiBatchEventMembers(env, session, body) {
       params: [lodgerId, today],
     });
     if (bedId) {
-      patchRowIds.beds.push(bedId);
+      patchRows.beds.push({ id: bedId, status: "可用" });
       statements.push({
         sql: "UPDATE beds SET status='可用' WHERE id=?",
         params: [bedId],
@@ -325,8 +434,11 @@ export async function apiBatchEventMembers(env, session, body) {
     { count: items.length },
     session,
   );
-  const housekeepingPatches = patchRowIds.beds.length
-    ? await fetchLatestHousekeepingPatches(env, patchRowIds.beds)
+  const bedIds = patchRows.beds.map(function (bed) {
+    return bed.id;
+  });
+  const housekeepingPatches = bedIds.length
+    ? await fetchLatestHousekeepingPatches(env, bedIds)
     : [];
   return enrichWriteResponse(
     env,
@@ -337,7 +449,7 @@ export async function apiBatchEventMembers(env, session, body) {
       ["reservations", "board", "lodgers_active", "meals"],
     ),
     {
-      patchRowIds: patchRowIds,
+      patchRows: patchRows,
       deletions: mealDeletions,
       extraPatches: { housekeeping: housekeepingPatches },
       patchComplete: true,

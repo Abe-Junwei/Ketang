@@ -52,7 +52,7 @@ function markHandlerStart() {
 async function recordWriteBatch(env, ...args) {
   flushHandlerMs();
   const t0 = Date.now();
-  const result = await recordWriteBatch(env, ...args);
+  const result = await atomicWriteBatch(env, ...args);
   if (_recordTiming) {
     _recordTiming.write_tail_ms =
       (_recordTiming.write_tail_ms || 0) + (Date.now() - t0);
@@ -64,7 +64,7 @@ async function recordWriteBatch(env, ...args) {
 async function recordFinishWrite(env, ...args) {
   flushHandlerMs();
   const t0 = Date.now();
-  const result = await recordFinishWrite(env, ...args);
+  const result = await finishWrite(env, ...args);
   if (_recordTiming) {
     _recordTiming.write_tail_ms =
       (_recordTiming.write_tail_ms || 0) + (Date.now() - t0);
@@ -150,6 +150,26 @@ function buildGuestPatchRow(guestId, person, body, gender, phone, idCard, now) {
     notes: text(body.notes),
     created_at: now,
     updated_at: now,
+  };
+}
+
+/** In-memory lodger patch after admin update (avoid post-write SELECT) */
+function buildLodgerPatchRow(id, lodger, fields) {
+  return {
+    ...lodger,
+    id,
+    name: fields.name,
+    dharma_name: fields.dharma_name,
+    gender: fields.gender,
+    phone: fields.phone,
+    id_card: fields.id_card,
+    check_in_date: fields.check_in_date,
+    expected_check_out: fields.expected_check_out,
+    actual_check_out: fields.actual_check_out,
+    status: fields.status,
+    source: fields.source,
+    bed_id: fields.bed_id,
+    notes: fields.notes,
   };
 }
 
@@ -777,7 +797,7 @@ async function upsertEvent(env, session, body) {
         ],
       },
     ];
-    const patchRowIds = { beds: [], reservations: [], lodgers: [] };
+    const patchRows = { beds: [], reservations: [], lodgers: [] };
     let mealDeletions = [];
     let housekeepingPatches = [];
     let cancelCascade = false;
@@ -786,12 +806,12 @@ async function upsertEvent(env, session, body) {
       const today = new Date().toISOString().slice(0, 10);
       const lodgers = await queryD1(
         env,
-        "SELECT id, bed_id FROM lodgers WHERE event_id=? AND status='在住'",
+        "SELECT * FROM lodgers WHERE event_id=? AND status='在住'",
         [id],
       );
       const reservations = await queryD1(
         env,
-        "SELECT id FROM reservations WHERE event_id=? AND status IN ('预约','已确认')",
+        "SELECT * FROM reservations WHERE event_id=? AND status IN ('预约','已确认')",
         [id],
       );
       const lodgerIds = lodgers.map(function (l) {
@@ -799,7 +819,12 @@ async function upsertEvent(env, session, body) {
       });
       mealDeletions = await fetchMealDeletionsForLodgers(env, lodgerIds, today);
       lodgers.forEach((lodger) => {
-        patchRowIds.lodgers.push(lodger.id);
+        patchRows.lodgers.push({
+          ...lodger,
+          status: "已取消",
+          bed_id: null,
+          actual_check_out: today,
+        });
         statements.push({
           sql: "UPDATE lodgers SET status='已取消', bed_id=NULL, actual_check_out=? WHERE id=?",
           params: [today, lodger.id],
@@ -809,7 +834,7 @@ async function upsertEvent(env, session, body) {
           params: [lodger.id, today],
         });
         if (lodger.bed_id) {
-          patchRowIds.beds.push(lodger.bed_id);
+          patchRows.beds.push({ id: lodger.bed_id, status: "可用" });
           statements.push({
             sql: "UPDATE beds SET status='可用' WHERE id=?",
             params: [lodger.bed_id],
@@ -826,7 +851,7 @@ async function upsertEvent(env, session, body) {
         }
       });
       reservations.forEach((row) => {
-        patchRowIds.reservations.push(row.id);
+        patchRows.reservations.push({ ...row, status: "已取消" });
       });
       statements.push({
         sql: "UPDATE reservations SET status='已取消' WHERE event_id=? AND status IN ('预约','已确认')",
@@ -850,10 +875,12 @@ async function upsertEvent(env, session, body) {
       null,
       modules,
     );
-    if (cancelCascade && patchRowIds.beds.length) {
+    if (cancelCascade && patchRows.beds.length) {
       housekeepingPatches = await fetchLatestHousekeepingPatches(
         env,
-        patchRowIds.beds,
+        patchRows.beds.map(function (bed) {
+          return bed.id;
+        }),
       );
     }
     return recordEnrichWrite(
@@ -863,7 +890,7 @@ async function upsertEvent(env, session, body) {
         ? {
             patchTable: "events",
             patchRow: buildEventPatchRow(id),
-            patchRowIds: patchRowIds,
+            patchRows: patchRows,
             deletions: mealDeletions,
             extraPatches: { housekeeping: housekeepingPatches },
             patchComplete: true,
@@ -1133,10 +1160,44 @@ async function updateLodgerRecord(env, session, body) {
     { name: person.name, bed_id: finalBedId, status },
     session,
   );
+  const enrichOpts = {
+    patchRow: buildLodgerPatchRow(id, lodger, {
+      name: person.name,
+      dharma_name: person.dharma_name,
+      gender,
+      phone: identity.phone,
+      id_card: identity.idCard,
+      check_in_date: checkIn,
+      expected_check_out: expectedOut,
+      actual_check_out: actualOut,
+      status,
+      source: body.source != null ? text(body.source) : lodger.source,
+      bed_id: finalBedId,
+      notes: body.notes != null ? text(body.notes) : lodger.notes,
+    }),
+    patchTable: "lodgers",
+    patchComplete: true,
+  };
+  const bedIds = [];
+  if (lodger.bed_id && lodger.bed_id !== finalBedId) bedIds.push(lodger.bed_id);
+  if (finalBedId) bedIds.push(finalBedId);
+  if (bedIds.length) {
+    const bedPatches = [];
+    if (lodger.bed_id && lodger.bed_id !== finalBedId) {
+      bedPatches.push({ id: lodger.bed_id, status: "可用" });
+    }
+    if (finalBedId && status === "在住") {
+      bedPatches.push({ id: finalBedId, status: "占用" });
+    }
+    enrichOpts.patchRows = { beds: bedPatches };
+    enrichOpts.extraPatches = {
+      housekeeping: await fetchLatestHousekeepingPatches(env, bedIds),
+    };
+  }
   return recordEnrichWrite(
     env,
     await recordFinishWrite(env, {}, ["lodging"], ["lodgers_active", "lodgers"]),
-    { patchTable: "lodgers", rowId: id },
+    enrichOpts,
   );
 }
 

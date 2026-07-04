@@ -24,19 +24,116 @@ function uniqIds(ids) {
   return out;
 }
 
-function buildPatchRowIds(patch) {
-  patch = patch || {};
-  const rowIds = {};
-  if (patch.lodgerId != null) rowIds.lodgers = [patch.lodgerId];
-  const beds = uniqIds(patch.bedIds);
-  if (beds.length) rowIds.beds = beds;
-  const resv = uniqIds(patch.reservationIds);
-  if (resv.length) rowIds.reservations = resv;
-  const guests = uniqIds(patch.guestIds);
-  if (guests.length) rowIds.guests = guests;
-  const payments = uniqIds(patch.paymentIds);
-  if (payments.length) rowIds.payments = payments;
-  return rowIds;
+function bedStatusPatch(bedId, status) {
+  if (!bedId) return null;
+  return { id: bedId, status: status };
+}
+
+function buildCheckInPatchRows(finalLodgerId, opts) {
+  const tags = parseParticipantTagFields(opts.body || {});
+  const patchRows = {
+    lodgers: [
+      {
+        id: finalLodgerId,
+        guest_id: opts.guestId,
+        event_id: opts.body.event_id || null,
+        name: opts.person.name,
+        dharma_name: opts.person.dharma_name,
+        gender: opts.gender,
+        phone: opts.phone,
+        id_card: opts.idCard,
+        check_in_date: opts.checkIn,
+        expected_check_out: opts.checkOut,
+        bed_id: opts.bedId,
+        role: opts.body.role || null,
+        class_name: opts.body.class_name || null,
+        participant_identity: tags.participant_identity,
+        age_group: tags.age_group,
+        special_needs: tags.special_needs,
+        status: "在住",
+        source: opts.body.source || null,
+        notes: opts.body.notes || null,
+        meal_default_breakfast: opts.mealBf,
+        meal_default_lunch: opts.mealLc,
+        meal_default_dinner: opts.mealDn,
+      },
+    ],
+    beds: [{ ...opts.bed, status: "占用" }],
+  };
+  if (opts.resvRow) {
+    patchRows.reservations = [{ ...opts.resvRow, status: "已入住" }];
+  }
+  if (opts.guestRow) patchRows.guests = [opts.guestRow];
+  return patchRows;
+}
+
+function buildCheckoutPatchRows(l, today) {
+  const patchRows = {
+    lodgers: [
+      { ...l, status: "已退", actual_check_out: today, bed_id: null },
+    ],
+  };
+  const bedPatch = bedStatusPatch(l.bed_id, "可用");
+  if (bedPatch) patchRows.beds = [bedPatch];
+  return patchRows;
+}
+
+function buildChangeBedPatchRows(l, newBedId, newBed) {
+  const beds = [];
+  const oldBed = bedStatusPatch(l.bed_id, "可用");
+  if (oldBed) beds.push(oldBed);
+  if (newBed) beds.push({ ...newBed, status: "占用" });
+  return {
+    lodgers: [{ ...l, bed_id: newBedId }],
+    beds: beds,
+  };
+}
+
+function buildExtendStayPatchRows(l, date) {
+  return { lodgers: [{ ...l, expected_check_out: date }] };
+}
+
+function buildEditLodgerPatchRows(l, person, identity, checkIn, checkOut, body) {
+  const tags = parseParticipantTagFields(body);
+  const patchRows = {
+    lodgers: [
+      {
+        ...l,
+        name: person.name,
+        dharma_name: person.dharma_name,
+        gender: body.gender || null,
+        phone: identity.phone,
+        id_card: identity.idCard,
+        check_in_date: checkIn,
+        expected_check_out: checkOut,
+        role: body.role || null,
+        class_name: body.class_name || null,
+        participant_identity: tags.participant_identity,
+        age_group: tags.age_group,
+        special_needs: tags.special_needs,
+        event_id: body.event_id || null,
+        notes: body.notes || null,
+      },
+    ],
+  };
+  if (l.guest_id) {
+    patchRows.guests = [
+      {
+        id: l.guest_id,
+        name: person.name,
+        dharma_name: person.dharma_name,
+        gender: body.gender || null,
+        phone: identity.phone,
+        id_card: identity.idCard,
+      },
+    ];
+  }
+  return patchRows;
+}
+
+function buildDeleteLodgerBedPatches(bedId) {
+  const bedPatch = bedStatusPatch(bedId, "可用");
+  return bedPatch ? { beds: [bedPatch] } : {};
 }
 
 /**
@@ -85,7 +182,7 @@ async function lodgerFinishWrite(env, response, patch) {
   }
 
   return enrichWriteResponse(env, response, {
-    patchRowIds: buildPatchRowIds(patch),
+    patchRows: patch.patchRows || {},
     deletions: deletions.length ? deletions : undefined,
     extraPatches: extraPatches,
     patchComplete: patch.complete !== false,
@@ -255,6 +352,63 @@ async function assertBedForGender(env, bedId, gender) {
   return bed;
 }
 
+/** In-memory assign-bed patches (lodger + occupied bed) | Avoid enrichWriteResponse SELECT */
+export function buildLodgerAssignPatches(l, bed) {
+  const patches = {};
+  if (l) {
+    patches.lodgers = [{ ...l, bed_id: bed?.id ?? l.bed_id }];
+  }
+  if (bed) {
+    patches.beds = [{ ...bed, status: "占用" }];
+  }
+  return patches;
+}
+
+function buildReservationAssignPatchRows(
+  r,
+  lodgerId,
+  bed,
+  guestId,
+  checkIn,
+  checkOut,
+  mf,
+  guestRow,
+) {
+  const person = mergePersonNameFields(r.name, r.dharma_name);
+  const patches = {
+    lodgers: [
+      {
+        id: lodgerId,
+        guest_id: guestId,
+        event_id: r.event_id || null,
+        name: person.name,
+        dharma_name: person.dharma_name,
+        gender: r.gender || null,
+        phone: r.phone || null,
+        id_card: r.id_card || null,
+        check_in_date: checkIn,
+        expected_check_out: checkOut,
+        bed_id: bed?.id || null,
+        role: r.role || null,
+        class_name: r.class_name || null,
+        participant_identity: r.participant_identity || null,
+        age_group: r.age_group || null,
+        special_needs: r.special_needs || null,
+        status: "在住",
+        source: r.source || "预约分配",
+        notes: r.notes || null,
+        meal_default_breakfast: mf.breakfast ? 1 : 0,
+        meal_default_lunch: mf.lunch ? 1 : 0,
+        meal_default_dinner: mf.dinner ? 1 : 0,
+      },
+    ],
+    reservations: [{ ...r, status: "已入住" }],
+  };
+  if (bed) patches.beds = [{ ...bed, status: "占用" }];
+  if (guestRow) patches.guests = [guestRow];
+  return patches;
+}
+
 async function resolveLodgerId(env, guestId, bedId) {
   const rows = await queryD1(
     env,
@@ -268,7 +422,7 @@ export async function apiCheckIn(env, session, body) {
   const bedId = parseInt(body.bed_id, 10);
   if (!bedId) throw new Error("请选择床位");
   const gender = body.gender || null;
-  await assertBedForGender(env, bedId, gender);
+  const bed = await assertBedForGender(env, bedId, gender);
   if (!(await isBedAssignable(env, bedId)))
     throw new Error("该床位当前不可分配");
 
@@ -300,14 +454,15 @@ export async function apiCheckIn(env, session, body) {
   const payMethod = body.pay_method || null;
   const payRemark = body.pay_remark || null;
 
+  let resvRow = null;
   if (body.reservation_id) {
     const resvRows = await queryD1(
       env,
-      "SELECT status FROM reservations WHERE id = ?",
+      "SELECT * FROM reservations WHERE id = ?",
       [body.reservation_id],
     );
-    const resv = resvRows[0];
-    if (!resv || !["预约", "已确认"].includes(resv.status))
+    resvRow = resvRows[0];
+    if (!resvRow || !["预约", "已确认"].includes(resvRow.status))
       throw new Error("该预约状态已变更，请刷新后重试");
   }
 
@@ -414,6 +569,11 @@ export async function apiCheckIn(env, session, body) {
       { lodger_id: finalLodgerId },
       session,
     );
+  const guestRow = guestId
+    ? (
+        await queryD1(env, "SELECT * FROM guests WHERE id=? LIMIT 1", [guestId])
+      )[0]
+    : null;
   return lodgerFinishWrite(
     env,
     await finishWrite(
@@ -425,9 +585,24 @@ export async function apiCheckIn(env, session, body) {
     {
       lodgerId: finalLodgerId,
       bedIds: [bedId],
-      guestIds: [guestId],
-      reservationIds: body.reservation_id ? [body.reservation_id] : [],
       includePayments: deposit > 0 || roomFee > 0,
+      patchRows: buildCheckInPatchRows(finalLodgerId, {
+        guestId,
+        person,
+        gender,
+        phone,
+        idCard: identity.idCard,
+        checkIn,
+        checkOut,
+        bedId,
+        bed,
+        body,
+        mealBf,
+        mealLc,
+        mealDn,
+        resvRow,
+        guestRow,
+      }),
     },
   );
 }
@@ -516,6 +691,7 @@ export async function apiCheckout(env, session, body) {
       bedIds: l.bed_id ? [l.bed_id] : [],
       includeMeals: false,
       includePayments: true,
+      patchRows: buildCheckoutPatchRows(l, today),
     },
   );
 }
@@ -534,6 +710,7 @@ export async function apiChangeBed(env, session, body) {
   await assertBedForGender(env, bedId, l.gender);
   if (!(await isBedAssignable(env, bedId, lodgerId)))
     throw new Error("该床位当前不可分配");
+  const newBed = await assertBedForGender(env, bedId, l.gender);
 
   const statements = [
     {
@@ -584,6 +761,7 @@ export async function apiChangeBed(env, session, body) {
     {
       lodgerId: lodgerId,
       bedIds: uniqIds([l.bed_id, bedId]),
+      patchRows: buildChangeBedPatchRows(l, bedId, newBed),
     },
   );
 }
@@ -647,7 +825,7 @@ export async function apiExtendStay(env, session, body) {
       ["lodging", "board", "housekeeping", "meals"],
       BOARD_MEALS_SYNC_MODULES,
     ),
-    { lodgerId: id, deletions: mealDeletions },
+    { lodgerId: id, deletions: mealDeletions, patchRows: buildExtendStayPatchRows(l, date) },
   );
 }
 
@@ -661,10 +839,9 @@ export async function apiAssignBed(env, session, body, options) {
   );
   const l = rows[0];
   if (!l) throw new Error("挂单不存在或已不在住");
-  if (l.bed_id) throw new Error("该挂单已有床位");
-  await assertBedForGender(env, bedId, l.gender);
   if (!(await isBedAssignable(env, bedId)))
     throw new Error("该床位当前不可分配");
+  const bed = await assertBedForGender(env, bedId, l.gender);
   await batchD1(env, [
     {
       sql: "UPDATE lodgers SET bed_id=? WHERE id=? AND status='在住'",
@@ -700,7 +877,12 @@ export async function apiAssignBed(env, session, body, options) {
     session,
   );
   if (options && options.deferFinishWrite) {
-    return { ok: true, deferred: true };
+    return {
+      ok: true,
+      deferred: true,
+      lodger_id: lodgerId,
+      patchRows: buildLodgerAssignPatches(l, bed),
+    };
   }
   return lodgerFinishWrite(
     env,
@@ -710,7 +892,11 @@ export async function apiAssignBed(env, session, body, options) {
       ["lodging", "board", "housekeeping", "meals"],
       BOARD_MEALS_SYNC_MODULES,
     ),
-    { lodgerId: lodgerId, bedIds: [bedId] },
+    {
+      lodgerId: lodgerId,
+      bedIds: [bedId],
+      patchRows: buildLodgerAssignPatches(l, bed),
+    },
   );
 }
 
@@ -723,7 +909,7 @@ export async function apiAssignReservationToBed(env, session, body, options) {
   const r = rRows[0];
   if (!r || !["预约", "已确认"].includes(r.status))
     throw new Error("该预约当前不可分配床位");
-  await assertBedForGender(env, bedId, r.gender);
+  const bed = await assertBedForGender(env, bedId, r.gender);
   if (!(await isBedAssignable(env, bedId)))
     throw new Error("该床位当前不可分配");
   const checkIn = r.expected_check_in || new Date().toISOString().slice(0, 10);
@@ -805,8 +991,34 @@ export async function apiAssignReservationToBed(env, session, body, options) {
     session,
   );
   if (options && options.deferFinishWrite) {
-    return { ok: true, deferred: true, lodger_id: lodgerId };
+    const guestRow = guestId
+      ? (
+          await queryD1(env, "SELECT * FROM guests WHERE id=? LIMIT 1", [
+            guestId,
+          ])
+        )[0]
+      : null;
+    return {
+      ok: true,
+      deferred: true,
+      lodger_id: lodgerId,
+      patchRows: buildReservationAssignPatchRows(
+        r,
+        lodgerId,
+        bed,
+        guestId,
+        checkIn,
+        checkOut,
+        mf,
+        guestRow,
+      ),
+    };
   }
+  const guestRow = guestId
+    ? (
+        await queryD1(env, "SELECT * FROM guests WHERE id=? LIMIT 1", [guestId])
+      )[0]
+    : null;
   return lodgerFinishWrite(
     env,
     await finishWrite(
@@ -818,8 +1030,16 @@ export async function apiAssignReservationToBed(env, session, body, options) {
     {
       lodgerId: lodgerId,
       bedIds: [bedId],
-      reservationIds: [resvId],
-      guestIds: guestId ? [guestId] : [],
+      patchRows: buildReservationAssignPatchRows(
+        r,
+        lodgerId,
+        bed,
+        guestId,
+        checkIn,
+        checkOut,
+        mf,
+        guestRow,
+      ),
     },
   );
 }
@@ -932,6 +1152,14 @@ export async function apiEditLodger(env, session, body) {
     {
       lodgerId: id,
       guestIds: l.guest_id ? [l.guest_id] : [],
+      patchRows: buildEditLodgerPatchRows(
+        l,
+        person,
+        identity,
+        checkIn,
+        checkOut,
+        body,
+      ),
     },
   );
 }
@@ -986,6 +1214,7 @@ export async function apiDeleteLodger(env, session, body) {
     deletion: { table_name: "lodgers", row_id: id },
     bedIds: l.bed_id ? [l.bed_id] : [],
     includeMeals: false,
+    patchRows: buildDeleteLodgerBedPatches(l.bed_id),
     deletions: mealRows
       .map(function (row) {
         return { table_name: "meals", row_id: row.id };
@@ -1051,6 +1280,27 @@ export async function apiPublicReservation(env, body) {
       body.notes || null,
     ],
   );
+  const reservationPatch = {
+    id: meta.last_row_id,
+    guest_id: guestId,
+    event_id: body.event_id || null,
+    name: person.name,
+    dharma_name: person.dharma_name,
+    gender: body.gender,
+    phone: identity.phone,
+    id_card: identity.idCard,
+    role: body.role || null,
+    class_name: body.class_name || null,
+    expected_check_in: checkIn,
+    expected_check_out: checkOut,
+    room_preference: body.room_preference || null,
+    source: body.source || "线上预约",
+    status: "预约",
+    meal_breakfast: body.meal_breakfast != null ? (body.meal_breakfast ? 1 : 0) : 1,
+    meal_lunch: body.meal_lunch != null ? (body.meal_lunch ? 1 : 0) : 1,
+    meal_dinner: body.meal_dinner != null ? (body.meal_dinner ? 1 : 0) : 1,
+    notes: body.notes || null,
+  };
   const response = enrichWriteResponse(
     env,
     await finishWrite(
@@ -1059,7 +1309,11 @@ export async function apiPublicReservation(env, body) {
       ["reservations"],
       ["reservations"],
     ),
-    { patchTable: "reservations", rowId: meta.last_row_id, patchComplete: true },
+    {
+      patchRow: reservationPatch,
+      patchTable: "reservations",
+      patchComplete: true,
+    },
   );
   try {
     await notifyPublicReservationSubmitted(env, {
