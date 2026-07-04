@@ -30,7 +30,7 @@ updated: 2026-07-04
 | Phase F 运维 | `POST /api/v1/admin/migrate`（admin）；备份/定时任务仍允许 migration fallback |
 | Phase G 守门 | `test_migration_hot_path.py` + `test_phase_g_fast_paths.py` |
 
-生产探针（`415f159` 后）：warm `init_ms` p50=0；create `biz_ms` p50≈1.1s；外部 create p50≈4.8s（仍受 D1 RTT / 客户端往返影响，未达 warm &lt;2s 最终目标）。
+生产探针（`58840c8` 后）：warm `init_ms` p50=0；create `biz_ms` p50≈**400ms**（server total ≈600–900ms）；外部 create p50≈3.0s（探针机到边缘的网络往返约占 2s，服务端已 &lt;1s）。
 
 ## 目标架构
 
