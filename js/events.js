@@ -57,6 +57,74 @@ function eventRefreshAfterWrite(writeResult, options) {
   );
 }
 
+function eventUseApiData() {
+  return typeof infoUseApiData === "function"
+    ? infoUseApiData()
+    : typeof isRemoteDB === "function" &&
+        isRemoteDB() &&
+        typeof isLocalForceDb === "function" &&
+        !isLocalForceDb();
+}
+
+function eventBuildOptimisticRow(eventId, core) {
+  return Object.assign(
+    {
+      checked_in: 0,
+      reserved: 0,
+      total_lodgers: 0,
+    },
+    core,
+    { id: eventId },
+  );
+}
+
+/** 立即 patch 营期列表 | Optimistic event list patch */
+function eventApplyOptimistic(optimistic) {
+  if (!eventUseApiData() || !optimistic) return;
+  if (typeof infoApplyOptimistic === "function") {
+    infoApplyOptimistic(optimistic, "events");
+    return;
+  }
+  if (typeof rcApplyDeltaPatches !== "function") return;
+  rcApplyDeltaPatches(optimistic.patches || {}, optimistic.deletions || []);
+  if (
+    document.getElementById("view-info")?.classList.contains("active") &&
+    typeof infoCurrentTab !== "undefined" &&
+    infoCurrentTab === "events" &&
+    typeof infoRenderCurrentTabLists === "function"
+  ) {
+    infoRenderCurrentTabLists();
+  } else if (typeof renderEventList === "function") {
+    renderEventList();
+  }
+}
+
+/** 创建成功后移除临时 id | Drop optimistic temp row after create */
+function eventFinalizeWriteResult(writeResult, tempId) {
+  if (!writeResult || tempId == null) return writeResult;
+  var out = Object.assign({}, writeResult);
+  out.deletions = (out.deletions || []).concat([
+    { table_name: "events", row_id: tempId },
+  ]);
+  return out;
+}
+
+/** API 失败后回滚营期列表 | Revert optimistic event list */
+async function eventRevertAfterWriteFailure() {
+  if (typeof infoRevertTab === "function") {
+    await infoRevertTab("events");
+    return;
+  }
+  if (typeof rcEnsureEvents === "function") {
+    try {
+      await rcEnsureEvents(true);
+    } catch (err) {
+      console.warn("event revert fetch failed:", err.message || err);
+    }
+  }
+  if (typeof renderEventList === "function") renderEventList();
+}
+
 function eventMemberViewRefresh(eventId) {
   return function () {
     if (eventId) renderEventMembers(eventId);
@@ -751,6 +819,19 @@ async function submitEvent(e) {
   if (!finishPending) return;
   try {
     var writeResult = null;
+    var apiPayload = {
+      event_id: id,
+      name: name,
+      event_type: eventType,
+      gender_type: genderType,
+      expected_count: expected,
+      start_date: startDate,
+      end_date: endDate,
+      status: status,
+      notes: notes,
+      include_spare_beds: includeSpareBeds,
+      ...rooming,
+    };
     if (isLocalForceDb()) {
       await withTransaction(async () => {
         if (id) {
@@ -832,26 +913,52 @@ async function submitEvent(e) {
         }
       });
     } else {
-      writeResult = await apiAdminRecord("event", id ? "update" : "create", {
-        event_id: id,
-        name: name,
-        event_type: eventType,
-        gender_type: genderType,
-        expected_count: expected,
-        start_date: startDate,
-        end_date: endDate,
-        status: status,
-        notes: notes,
-        include_spare_beds: includeSpareBeds,
-        ...rooming,
-      });
+      var optimisticTempId = null;
+      if (eventUseApiData()) {
+        optimisticTempId = id
+          ? null
+          : typeof infoTempId === "function"
+            ? infoTempId()
+            : -Math.abs(Date.now());
+        eventApplyOptimistic({
+          patches: {
+            events: [
+              eventBuildOptimisticRow(id || optimisticTempId, {
+                name: name,
+                event_type: eventType,
+                gender_type: genderType,
+                expected_count: expected,
+                start_date: startDate,
+                end_date: endDate,
+                status: status,
+                notes: notes,
+                include_spare_beds: includeSpareBeds,
+                ...rooming,
+              }),
+            ],
+          },
+          deletions: [],
+        });
+        closeEventModal();
+      }
+      writeResult = await apiAdminRecord(
+        "event",
+        id ? "update" : "create",
+        apiPayload,
+      );
+      if (optimisticTempId != null) {
+        writeResult = eventFinalizeWriteResult(writeResult, optimisticTempId);
+      }
     }
-    if (isLocalForceDb()) await saveDB();
-    closeEventModal();
+    if (isLocalForceDb()) {
+      await saveDB();
+      closeEventModal();
+    }
     showToast("营期保存成功");
     eventRefreshAfterWrite(writeResult);
   } catch (e) {
     console.error(e);
+    if (eventUseApiData()) await eventRevertAfterWriteFailure();
     alert("保存营期失败：" + e.message);
   } finally {
     finishPending();
@@ -876,12 +983,19 @@ async function deleteEvent(id) {
       });
       await saveDB();
     } else {
+      if (eventUseApiData()) {
+        eventApplyOptimistic({
+          patches: {},
+          deletions: [{ table_name: "events", row_id: id }],
+        });
+      }
       deleteResult = await apiAdminRecord("event", "delete", { event_id: id });
     }
     showToast("营期已删除");
     eventRefreshAfterWrite(deleteResult);
   } catch (e) {
     console.error(e);
+    if (eventUseApiData()) await eventRevertAfterWriteFailure();
     alert("删除营期失败：" + e.message);
   }
 }

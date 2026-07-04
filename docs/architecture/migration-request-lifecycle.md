@@ -32,6 +32,8 @@ updated: 2026-07-04
 
 生产探针（`58840c8` 后）：warm `init_ms` p50=0；create `biz_ms` p50≈**400ms**（server total ≈600–900ms）；外部 create p50≈3.0s（探针机到边缘的网络往返约占 2s，服务端已 &lt;1s）。
 
+客户端（`eventApplyOptimistic`）：在线新增/编辑/删除营期在 API 返回前即关闭弹窗并更新列表；创建时用临时 id，成功后以 `deletions` 替换为服务端真实行。
+
 ## 目标架构
 
 ```text
