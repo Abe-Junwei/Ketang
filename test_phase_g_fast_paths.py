@@ -96,8 +96,8 @@ def main() -> int:
         failed.append("read/[module] must not call ensureDatabaseForAuth on hot path")
 
     db_api = read("functions/api/db.js")
-    if "410" not in db_api or "login_role" not in db_api:
-        failed.append("api/db must retire login/login_role with 410")
+    if "410" not in db_api or "LEGACY_DB_RETIRED" not in db_api:
+        failed.append("api/db must return unified 410 LEGACY_DB_RETIRED")
 
     if failed:
         print("FAIL phase G fast paths:", ", ".join(failed))
