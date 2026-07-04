@@ -1,5 +1,9 @@
 import { batchD1, insertAudit, queryD1, runD1 } from "./d1.js";
-import { enrichWriteResponse, finishWrite } from "./write-response.js";
+import {
+  enrichWriteResponse,
+  finishWrite,
+  fetchLatestHousekeepingPatches,
+} from "./write-response.js";
 import { apiAssignBed, apiAssignReservationToBed } from "./lodgers.js";
 import { requirePermission } from "./permissions.js";
 import { checkRoomingPlanConflicts } from "./rooming-plans.js";
@@ -468,6 +472,31 @@ export async function processRoomingQueueCheckin(env, session, body) {
     item.member_kind === "reservation"
       ? ["events", "event_rooming", "board", "reservations", "meals"]
       : ["events", "event_rooming", "board", "meals"];
+  const bedId = item.suggested_bed_id || null;
+  const extraPatches = await roomingQueuePatches(env, queueId);
+  if (bedId) {
+    extraPatches.housekeeping = await fetchLatestHousekeepingPatches(env, [
+      bedId,
+    ]);
+  }
+  if (assignedLodgerId) {
+    extraPatches.meals = await queryD1(
+      env,
+      "SELECT * FROM meals WHERE lodger_id=? ORDER BY date, id",
+      [assignedLodgerId],
+    );
+  }
+  let guestIds = [];
+  if (item.member_kind === "reservation") {
+    const resvRows = await queryD1(
+      env,
+      "SELECT guest_id FROM reservations WHERE id=? LIMIT 1",
+      [item.member_ref_id],
+    );
+    if (resvRows[0] && resvRows[0].guest_id) {
+      guestIds = [resvRows[0].guest_id];
+    }
+  }
   return enrichWriteResponse(
     env,
     await finishWrite(
@@ -481,12 +510,14 @@ export async function processRoomingQueueCheckin(env, session, body) {
     ),
     {
       patchRowIds: {
-        beds: item.suggested_bed_id ? [item.suggested_bed_id] : [],
+        beds: bedId ? [bedId] : [],
         lodgers: assignedLodgerId ? [assignedLodgerId] : [],
         reservations:
           item.member_kind === "reservation" ? [item.member_ref_id] : [],
+        guests: guestIds,
       },
-      extraPatches: await roomingQueuePatches(env, queueId),
+      extraPatches: extraPatches,
+      patchComplete: true,
     },
   );
 }

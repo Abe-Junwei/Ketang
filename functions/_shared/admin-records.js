@@ -328,44 +328,94 @@ async function deleteBed(env, session, body) {
   if (!bed) throw new Error("床位不存在");
   if ((bed.occupant_count || 0) > 0)
     throw new Error("该床位当前有在住住客，无法删除");
-  return enrichWriteResponse(
-    env,
-    await atomicWriteBatch(
+  const assignmentIds = (
+    await queryD1(env, "SELECT id FROM rooming_assignments WHERE bed_id = ?", [
+      id,
+    ])
+  ).map(function (r) {
+    return r.id;
+  });
+  const queueIds = (
+    await queryD1(
       env,
-      [
-        {
-          sql: "UPDATE rooming_assignments SET bed_id = NULL WHERE bed_id = ?",
-          params: [id],
-        },
-        {
-          sql: "UPDATE rooming_checkin_queue SET suggested_bed_id = NULL WHERE suggested_bed_id = ?",
-          params: [id],
-        },
-        {
-          sql: "UPDATE rooming_adjustments SET from_bed_id = NULL WHERE from_bed_id = ?",
-          params: [id],
-        },
-        {
-          sql: "UPDATE rooming_adjustments SET to_bed_id = NULL WHERE to_bed_id = ?",
-          params: [id],
-        },
-        { sql: "DELETE FROM housekeeping WHERE bed_id = ?", params: [id] },
-        { sql: "DELETE FROM beds WHERE id = ?", params: [id] },
-        auditLogStatement(
-          "删除床位",
-          "bed",
-          id,
-          { room_id: bed.room_id, bed_number: bed.bed_number },
-          session,
-        ),
-      ],
-      {},
-      ["settings"],
-      { table_name: "beds", row_id: id },
-      ["settings_beds"],
-    ),
-    { deletion: { table_name: "beds", row_id: id } },
+      "SELECT id FROM rooming_checkin_queue WHERE suggested_bed_id = ?",
+      [id],
+    )
+  ).map(function (r) {
+    return r.id;
+  });
+  const adjustmentIds = (
+    await queryD1(
+      env,
+      "SELECT id FROM rooming_adjustments WHERE from_bed_id = ? OR to_bed_id = ?",
+      [id, id],
+    )
+  ).map(function (r) {
+    return r.id;
+  });
+  const writeMeta = await atomicWriteBatch(
+    env,
+    [
+      {
+        sql: "UPDATE rooming_assignments SET bed_id = NULL WHERE bed_id = ?",
+        params: [id],
+      },
+      {
+        sql: "UPDATE rooming_checkin_queue SET suggested_bed_id = NULL WHERE suggested_bed_id = ?",
+        params: [id],
+      },
+      {
+        sql: "UPDATE rooming_adjustments SET from_bed_id = NULL WHERE from_bed_id = ?",
+        params: [id],
+      },
+      {
+        sql: "UPDATE rooming_adjustments SET to_bed_id = NULL WHERE to_bed_id = ?",
+        params: [id],
+      },
+      { sql: "DELETE FROM housekeeping WHERE bed_id = ?", params: [id] },
+      { sql: "DELETE FROM beds WHERE id = ?", params: [id] },
+      auditLogStatement(
+        "删除床位",
+        "bed",
+        id,
+        { room_id: bed.room_id, bed_number: bed.bed_number },
+        session,
+      ),
+    ],
+    {},
+    ["settings", "events"],
+    { table_name: "beds", row_id: id },
+    ["settings_beds", "event_rooming", "board"],
   );
+  async function rowsByIds(table, ids) {
+    if (!ids.length) return [];
+    const placeholders = ids
+      .map(function () {
+        return "?";
+      })
+      .join(",");
+    return queryD1(
+      env,
+      `SELECT * FROM ${table} WHERE id IN (${placeholders})`,
+      ids,
+    );
+  }
+  const extraPatches = {
+    rooming_assignments: await rowsByIds(
+      "rooming_assignments",
+      assignmentIds,
+    ),
+    rooming_checkin_queue: await rowsByIds("rooming_checkin_queue", queueIds),
+    rooming_adjustments: await rowsByIds("rooming_adjustments", adjustmentIds),
+  };
+  return enrichWriteResponse(env, writeMeta, {
+    deletions: [
+      { table_name: "beds", row_id: id },
+      { table_name: "housekeeping", bed_id: id },
+    ],
+    extraPatches: extraPatches,
+    patchComplete: true,
+  });
 }
 
 async function upsertGuest(env, session, body) {

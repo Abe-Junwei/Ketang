@@ -778,7 +778,7 @@ bash scripts/run_p1_checklist.sh https://wulingkt.net https://<pages-preview>.ke
 - 写后版本策略：仅当响应 `patch_complete === true` 时推进本地 `board_version` 并跳过 delta；默认应用 patch 后仍后台对账。`write-refresh` 只计即时可见刷新，`write-reconcile` 计后台对账。
 - 预报/报表读模块：`lodgers_active` + `lodgers_recent`（含 payments），不再拉全量 `lodgers`。
 - delta 后仅当脏域与当前视图相关时 `refreshViewForScope`；无关刷新计入 `delta_skip_view_refresh_count`。
-- 已审计写路径（settings、营期、预约、用斋、房务、批量成员、**入住/退房/换床/续住/分床/编辑/删除挂单**）经 `lodgerFinishWrite` 补齐 housekeeping/meals/payments 后返回 `patch_complete: true`。
+- 已审计写路径（settings、营期、预约、用斋、房务、批量成员、挂单热路径、排房方案/发布、**队列办理入住、删除床位**）返回 `patch_complete: true`；housekeeping 墓碑支持按 `bed_id` 清除。
 - 管理员 `GET /api/v1/metrics/perf?limit=100` 可查看最近 RUM 按指标 / 按 page 的 P50/P95。
 - WebSocket 未实现：仓库当前没有 WebSocket/DO 广播。
 - `index.html` 不再静态加载 `./lib/sql-wasm.js`；`db.js` 仅在本地/灾备路径动态加载 sql.js，在线误调 `query()` 会抛出带 caller 的错误。

@@ -94,6 +94,20 @@ def main() -> None:
             "rooming publish patch_complete",
             "patchComplete: true" in read("functions/_shared/rooming-publish.js"),
         ),
+        (
+            "queue checkin patch_complete",
+            "processRoomingQueueCheckin" in read("functions/_shared/rooming-publish.js")
+            and "fetchLatestHousekeepingPatches" in read("functions/_shared/rooming-publish.js"),
+        ),
+        (
+            "delete bed rooming patches",
+            "rooming_assignments" in read("functions/_shared/admin-records.js")
+            and 'table_name: "housekeeping"' in read("functions/_shared/admin-records.js"),
+        ),
+        (
+            "rc housekeeping delete by bed_id",
+            "item.bed_id" in read("js/read-cache.js"),
+        ),
         ("rc housekeeping match bed_id", 'table === "housekeeping"' in rc),
         ("rc drop inactive from board", 'moduleKey === "lodgers_active"' in rc),
         (

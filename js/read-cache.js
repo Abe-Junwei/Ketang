@@ -81,13 +81,18 @@ function rcApplyDeltaPatches(patches, deletions) {
     });
   }
   (deletions || []).forEach(function (item) {
-    if (!item || !item.table_name || item.row_id == null) return;
+    if (!item || !item.table_name) return;
     var table = item.table_name;
     var rowId = item.row_id;
+    var bedId = item.bed_id;
+    if (rowId == null && !(table === "housekeeping" && bedId != null)) return;
     Object.keys(_rcStore).forEach(function (moduleKey) {
       var mod = _rcStore[moduleKey];
       if (!mod || !mod.tables || !Array.isArray(mod.tables[table])) return;
       mod.tables[table] = mod.tables[table].filter(function (r) {
+        if (table === "housekeeping" && bedId != null) {
+          return r.bed_id != bedId;
+        }
         return r.id != rowId;
       });
     });
