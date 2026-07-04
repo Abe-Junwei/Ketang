@@ -48,10 +48,14 @@ def main() -> None:
     if "allowMigrationFallback: false" not in records:
         failed.append("admin/records must disable migration fallback")
 
-    if "batchLogSyncMeta" not in write_resp:
-        failed.append("write-response must batch sync meta logs")
-    if "batchLogSyncMeta" not in sync_meta:
-        failed.append("sync-meta missing batchLogSyncMeta")
+    if "syncMetaStatementsFromMeta" not in write_resp:
+        failed.append("write-response must use syncMetaStatementsFromMeta")
+    if "BOARD_VERSION_SELECT_SQL" not in write_resp:
+        failed.append("write-response must read board_version in write batch")
+    if "syncMetaStatementsFromMeta" not in sync_meta:
+        failed.append("sync-meta missing syncMetaStatementsFromMeta")
+    if "patchRow" not in write_resp:
+        failed.append("enrichWriteResponse must accept in-memory patchRow")
 
     if "allowMigrationFallback: true" not in migrate:
         failed.append("admin/migrate must allow migration fallback")

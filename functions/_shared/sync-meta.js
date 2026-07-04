@@ -70,6 +70,15 @@ export function syncVersionStatement(boardVersion) {
   };
 }
 
+/** Use current app_meta.board_version (same batch as bump) | 与 bump 同批读版本 */
+export function syncVersionStatementFromMeta() {
+  return {
+    sql: `INSERT OR REPLACE INTO sync_version_log (version, bumped_at)
+          VALUES ((SELECT CAST(value AS INTEGER) FROM app_meta WHERE key = 'board_version'), ?)`,
+    params: [nowIso()],
+  };
+}
+
 export function syncDomainStatements(domains, boardVersion) {
   const normalized = normalizeSyncDomains(domains);
   const bumpedAt = nowIso();
@@ -81,11 +90,44 @@ export function syncDomainStatements(domains, boardVersion) {
   });
 }
 
+export function syncDomainStatementsFromMeta(domains) {
+  const normalized = normalizeSyncDomains(domains);
+  const bumpedAt = nowIso();
+  return normalized.map(function (domain) {
+    return {
+      sql: `INSERT INTO sync_domain_log (domain, board_version, bumped_at)
+            VALUES (?, (SELECT CAST(value AS INTEGER) FROM app_meta WHERE key = 'board_version'), ?)`,
+      params: [domain, bumpedAt],
+    };
+  });
+}
+
 export function syncDeletionStatement(tableName, rowId, boardVersion) {
   return {
     sql: "INSERT INTO sync_deletions (table_name, row_id, board_version, deleted_at) VALUES (?, ?, ?, ?)",
     params: [tableName, rowId, boardVersion, nowIso()],
   };
+}
+
+export function syncDeletionStatementFromMeta(tableName, rowId) {
+  return {
+    sql: `INSERT INTO sync_deletions (table_name, row_id, board_version, deleted_at)
+          VALUES (?, ?, (SELECT CAST(value AS INTEGER) FROM app_meta WHERE key = 'board_version'), ?)`,
+    params: [tableName, rowId, nowIso()],
+  };
+}
+
+/** Sync log statements that read board_version from app_meta (post-bump in same batch) */
+export function syncMetaStatementsFromMeta(domains, deletion) {
+  const statements = [syncVersionStatementFromMeta()].concat(
+    syncDomainStatementsFromMeta(domains),
+  );
+  if (deletion && deletion.table_name && deletion.row_id != null) {
+    statements.push(
+      syncDeletionStatementFromMeta(deletion.table_name, deletion.row_id),
+    );
+  }
+  return statements;
 }
 
 /** Batch sync version/domain/deletion logs in one D1 round-trip */

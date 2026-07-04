@@ -607,6 +607,22 @@ async function upsertEvent(env, session, body) {
     throw new Error("离寺日期不能早于报到日期");
   }
 
+  function buildEventPatchRow(eventId) {
+    return {
+      id: eventId,
+      name,
+      event_type: eventType,
+      gender_type: genderType,
+      expected_count: expected,
+      start_date: startDate,
+      end_date: endDate,
+      status,
+      notes: text(body.notes),
+      include_spare_beds: includeSpareBeds,
+      ...rooming,
+    };
+  }
+
   if (id) {
     const old = (
       await queryD1(env, "SELECT status FROM events WHERE id = ? LIMIT 1", [id])
@@ -715,52 +731,56 @@ async function upsertEvent(env, session, body) {
       cancelCascade
         ? {
             patchTable: "events",
-            rowId: id,
+            patchRow: buildEventPatchRow(id),
             patchRowIds: patchRowIds,
             deletions: mealDeletions,
             extraPatches: { housekeeping: housekeepingPatches },
             patchComplete: true,
           }
-        : { patchTable: "events", rowId: id, patchComplete: true },
+        : {
+            patchTable: "events",
+            patchRow: buildEventPatchRow(id),
+            patchComplete: true,
+          },
     );
   }
 
-  const meta = await runD1(
+  // Single D1 batch: INSERT + audit + version bump + sync logs + version read
+  const writeMeta = await atomicWriteBatch(
     env,
-    `INSERT INTO events (name, event_type, gender_type, expected_count, start_date, end_date, status, notes, include_spare_beds, ${EVENT_ROOMING_COLUMN_SQL}) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ${roomingValues.map(() => "?").join(", ")})`,
     [
-      name,
-      eventType,
-      genderType,
-      expected,
-      startDate,
-      endDate,
-      status,
-      text(body.notes),
-      includeSpareBeds,
-      ...roomingValues,
+      {
+        sql: `INSERT INTO events (name, event_type, gender_type, expected_count, start_date, end_date, status, notes, include_spare_beds, ${EVENT_ROOMING_COLUMN_SQL}) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ${roomingValues.map(() => "?").join(", ")})`,
+        params: [
+          name,
+          eventType,
+          genderType,
+          expected,
+          startDate,
+          endDate,
+          status,
+          text(body.notes),
+          includeSpareBeds,
+          ...roomingValues,
+        ],
+      },
+      auditLogStatement("新增营期", "event", null, { name }, session, {
+        useLastInsertRowId: true,
+      }),
     ],
+    {},
+    ["events"],
+    null,
+    ["events"],
   );
-  return enrichWriteResponse(
-    env,
-    await atomicWriteBatch(
-      env,
-      [
-        auditLogStatement(
-          "新增营期",
-          "event",
-          meta.last_row_id,
-          { name },
-          session,
-        ),
-      ],
-      { event_id: meta.last_row_id },
-      ["events"],
-      null,
-      ["events"],
-    ),
-    { patchTable: "events", rowId: meta.last_row_id, patchComplete: true },
-  );
+  const eventId = writeMeta.last_row_id;
+  if (!eventId) throw new Error("新增营期失败");
+  writeMeta.event_id = eventId;
+  return enrichWriteResponse(env, writeMeta, {
+    patchTable: "events",
+    patchRow: buildEventPatchRow(eventId),
+    patchComplete: true,
+  });
 }
 
 async function deleteEvent(env, session, body) {

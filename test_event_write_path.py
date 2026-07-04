@@ -43,6 +43,9 @@ def main() -> None:
     checks = [
         ("upsert uses atomicWriteBatch", "atomicWriteBatch" in upsert),
         ("upsert audit in batch", "auditLogStatement" in upsert),
+        ("create uses last_insert_rowid audit", "useLastInsertRowId" in upsert),
+        ("create uses in-memory patchRow", "patchRow: buildEventPatchRow" in upsert),
+        ("create single-batch insert", "INSERT INTO events" in upsert and "runD1" not in upsert.split("function buildEventPatchRow")[-1]),
         ("upsert cancel lodger patches", "patchRowIds.lodgers" in upsert),
         ("upsert cancel no lodger deletions", "lodgerDeletions" not in upsert),
         ("upsert cancel meal deletions", "fetchMealDeletionsForLodgers" in upsert),

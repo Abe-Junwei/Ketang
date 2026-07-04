@@ -26,7 +26,7 @@ updated: 2026-07-04
 | Phase D light | ready 后仅内存标记，零 DDL / 零 version 探测 |
 | Phase A 入口 | 统一 `ensureDatabaseReady`；业务 `allowMigrationFallback: false` |
 | Phase C 热路径 | PRAGMA/ALTER 仅 `runMigrationsOrRepair`；`test_migration_hot_path.py` 守门 |
-| Phase E 写尾 | `batchLogSyncMeta` 合并 version/domain/deletion；patch 回读仍按需 |
+| Phase E 写尾 | 写 + bump + sync log + version 读同一 D1 batch；`patchRow` 免回读 |
 | Phase F 运维 | `POST /api/v1/admin/migrate`（admin）；备份/定时任务仍允许 migration fallback |
 | Phase G 守门 | `test_migration_hot_path.py` + `test_phase_g_fast_paths.py` |
 
