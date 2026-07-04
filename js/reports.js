@@ -54,10 +54,14 @@ function destroyReportCharts() {
   destroyKetangChartsByPrefix("report-");
 }
 
-async function reportsEnsureData() {
+async function reportsEnsureData(rangeHint) {
   if (typeof rcUseApiRead !== "function" || !rcUseApiRead()) return;
   if (typeof rcEnsureViewModules !== "function") return;
   await rcEnsureViewModules("reports", false);
+  // Older than lodgers_recent window: pull full lodgers module
+  if (rangeHint && typeof rcEnsureLodgersForReportRange === "function") {
+    await rcEnsureLodgersForReportRange(rangeHint);
+  }
 }
 
 async function renderMealReport() {
@@ -261,7 +265,6 @@ function renderPaymentMethodTable(rows) {
 }
 
 async function renderDailyReport() {
-  await reportsEnsureData();
   destroyReportCharts();
   const date = document.getElementById("r-daily-date").value;
   const container = document.getElementById("daily-report-result");
@@ -269,6 +272,7 @@ async function renderDailyReport() {
     container.innerHTML = '<p class="empty-tip">请选择日期</p>';
     return;
   }
+  await reportsEnsureData(date);
 
   var checkins;
   var checkouts;
@@ -481,12 +485,13 @@ function renderReportTable(rows, cols) {
   );
 }
 
-function exportDailyReportCSV() {
+async function exportDailyReportCSV() {
   const date = document.getElementById("r-daily-date").value;
   if (!date) {
     alert("请选择日期");
     return;
   }
+  await reportsEnsureData(date);
   const rows = !isLocalForceDb()
     ? rcDailyReportExportRows(date)
     : query(
@@ -538,7 +543,6 @@ function exportDailyReportCSV() {
 }
 
 async function renderMonthlyReport() {
-  await reportsEnsureData();
   destroyReportCharts();
   const month = document.getElementById("r-month").value;
   const container = document.getElementById("monthly-report-result");
@@ -546,6 +550,7 @@ async function renderMonthlyReport() {
     container.innerHTML = '<p class="empty-tip">请选择月份</p>';
     return;
   }
+  await reportsEnsureData(month);
 
   var checkins;
   var checkouts;
@@ -691,12 +696,13 @@ function renderMonthlyReportCharts(byDay, payMap) {
   }
 }
 
-function exportMonthlyReportCSV() {
+async function exportMonthlyReportCSV() {
   const month = document.getElementById("r-month").value;
   if (!month) {
     alert("请选择月份");
     return;
   }
+  await reportsEnsureData(month);
   const byDay = !isLocalForceDb()
     ? rcMonthlyReportData(month).byDay
     : query(

@@ -782,6 +782,7 @@ bash scripts/run_p1_checklist.sh https://wulingkt.net https://<pages-preview>.ke
 - 管理员 `GET /api/v1/metrics/perf?limit=100` 可查看最近 RUM 按指标 / 按 page 的 P50/P95。
 - board `_rcIndexes`：`lodgerByBedId` / `bedsByRoomId` / `hkByBedId`，patch/seed 后惰性重建。
 - 排房只读：`GET /api/v1/read/event/:id?view=conflicts|members`（草稿 assignments 仍走 POST check）。
+- 报表/预报日期早于 `lodgers_recent`（180 天）时按需拉全量 `lodgers`；`patch_complete` 写后跳过空 reconcile；patch 只写入模块已有表。
 - WebSocket 未实现：仓库当前没有 WebSocket/DO 广播。
 - `index.html` 不再静态加载 `./lib/sql-wasm.js`；`db.js` 仅在本地/灾备路径动态加载 sql.js，在线误调 `query()` 会抛出带 caller 的错误。
 - `reports.js`、`forecast.js`、`history.js`、`events.js`、`rooming-*`、`auth.js` 在线热路径已由 `test_online_query_boundaries.py` 守卫；本地/灾备分支继续保留 `query()`。

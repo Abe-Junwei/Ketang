@@ -49,6 +49,14 @@ def main():
             and "lodgers_recent" in rc.split("reports:")[1].split("]")[0],
         ),
         (
+            "reports ensure range fallback",
+            "rcEnsureLodgersForReportRange" in read("js/reports.js"),
+        ),
+        (
+            "forecast ensure range fallback",
+            "rcEnsureLodgersForReportRange" in read("js/forecast.js"),
+        ),
+        (
             "event_rooming module",
             "event_rooming:" in read("functions/_shared/read-modules.js")
             or 'event_rooming: [' in read("functions/_shared/read-modules.js"),

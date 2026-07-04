@@ -37,6 +37,20 @@ def main():
             "write-visible-refresh" in rc and "write-reconcile" in rc,
         ),
         (
+            "patch_complete skips reconcile",
+            "patch_complete === true" in rc
+            and "write-reconcile:start" in rc,
+        ),
+        (
+            "patch whitelist existing tables only",
+            "!Array.isArray(mod.tables[table])) return" in rc,
+        ),
+        (
+            "report range full lodgers fallback",
+            "function rcEnsureLodgersForReportRange" in rc
+            and "RC_LODGERS_RECENT_DAYS" in rc,
+        ),
+        (
             "write refresh rerenders after background sync",
             "syncTask" in rc and "refreshOnce()" in rc and ".then(function" in rc,
         ),

@@ -26,6 +26,12 @@ async function forecastLoadTab(tab) {
     if (typeof rcEnsureViewModules === "function") {
       await rcEnsureViewModules("forecast", false);
     }
+    if (tab === "today" && typeof rcEnsureLodgersForReportRange === "function") {
+      var dateEl = document.getElementById("fc-today-date");
+      if (dateEl && dateEl.value) {
+        await rcEnsureLodgersForReportRange(dateEl.value);
+      }
+    }
   } catch (e) {
     if (panel) {
       panel.innerHTML =
@@ -72,13 +78,25 @@ function renderForecastTab(tab) {
    每日预报 | Today Forecast
    ============================================================ */
 
-function renderTodayForecast() {
+async function renderTodayForecast() {
   const dateInput = document.getElementById("fc-today-date");
   const date = dateInput ? dateInput.value : todayStr();
   if (!date) return;
 
   const container = document.getElementById("today-forecast-result");
   if (!container) return;
+
+  if (typeof rcEnsureLodgersForReportRange === "function") {
+    try {
+      await rcEnsureLodgersForReportRange(date);
+    } catch (e) {
+      container.innerHTML =
+        '<p class="empty-tip">加载失败：' +
+        escapeHtml(e.message || "未知错误") +
+        "</p>";
+      return;
+    }
+  }
 
   var arrivalsResv;
   var arrivalsLodger;

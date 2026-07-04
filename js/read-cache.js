@@ -27,6 +27,30 @@ function rcStorePayload(moduleKey, payload) {
   if (moduleKey === "board") rcInvalidateBoardIndexes();
 }
 
+/** Align with server LODGERS_RECENT_DAYS | 与服务端近半年窗口一致 */
+var RC_LODGERS_RECENT_DAYS = 180;
+
+/** Date/month older than recent window needs full lodgers module */
+function rcDateBeforeRecentWindow(dateStr) {
+  if (!dateStr || typeof todayStr !== "function") return false;
+  var day = String(dateStr).slice(0, 10);
+  if (day.length < 10) {
+    if (/^\d{4}-\d{2}$/.test(String(dateStr))) day = String(dateStr) + "-01";
+    else return false;
+  }
+  var d = new Date(day + "T12:00:00");
+  var t = new Date(todayStr() + "T12:00:00");
+  if (isNaN(d.getTime()) || isNaN(t.getTime())) return false;
+  return (t - d) / (24 * 3600 * 1000) > RC_LODGERS_RECENT_DAYS;
+}
+
+/** Ensure full lodgers when report/forecast range exceeds recent window */
+async function rcEnsureLodgersForReportRange(dateOrMonth) {
+  if (typeof rcUseApiRead !== "function" || !rcUseApiRead()) return;
+  if (!rcDateBeforeRecentWindow(dateOrMonth)) return;
+  if (typeof rcFetch === "function") await rcFetch("lodgers", false);
+}
+
 /** 增量 patch 写入 rc 缓存 | Apply delta patches to rc store */
 function rcApplyDeltaPatches(patches, deletions) {
   if (patches && typeof patches === "object") {
@@ -35,9 +59,8 @@ function rcApplyDeltaPatches(patches, deletions) {
       if (!Array.isArray(rows)) return;
       Object.keys(_rcStore).forEach(function (moduleKey) {
         var mod = _rcStore[moduleKey];
-        if (!mod) return;
-        if (!mod.tables) mod.tables = {};
-        if (!Array.isArray(mod.tables[table])) mod.tables[table] = [];
+        // Only patch tables the module already carries (no pollution)
+        if (!mod || !mod.tables || !Array.isArray(mod.tables[table])) return;
         var arr = mod.tables[table];
         rows.forEach(function (row) {
           if (!row) return;
@@ -204,6 +227,10 @@ function rcRefreshAfterWrite(writeResult, options) {
   }
   finishVisiblePerf();
   if (typeof isRemoteDB !== "function" || !isRemoteDB()) {
+    return;
+  }
+  // Complete patches: skip empty background reconcile
+  if (writeResult && writeResult.patch_complete === true) {
     return;
   }
   if (typeof refreshAfterWrite !== "function") {
