@@ -47,6 +47,7 @@ def assert_304_before_init(label: str, body: str) -> list[str]:
 
 def main() -> int:
     d1 = read("functions/_shared/d1.js")
+    api_client = read("js/api-client.js")
     read_model = read("functions/api/v1/read-model.js")
     sync_delta = read("functions/api/v1/sync/delta.js")
     read_module = read("functions/api/v1/read/[module].js")
@@ -54,6 +55,16 @@ def main() -> int:
 
     if "probeProductionDatabaseReady" not in d1 or "authEnsureReady" not in d1:
         failed.append("d1.js missing schema_version probe / authEnsureReady cache")
+
+    init_remote = fn_body(d1, "initRemoteDatabase") or ""
+    probe_pos = init_remote.find("probeProductionDatabaseReady")
+    rooming_pos = init_remote.find("ensureRoomingSchemaColumnsIfTablesExist")
+    if probe_pos < 0 or rooming_pos < 0 or rooming_pos < probe_pos:
+        failed.append("initRemoteDatabase must probe production readiness before rooming schema checks")
+    if "SELECT include_spare_beds" not in d1 or "SELECT updated_at FROM rooming_plans" not in d1:
+        failed.append("production readiness probe must validate rooming columns before skipping migrations")
+    if "timeoutMs: options.timeoutMs" not in api_client:
+        failed.append("apiFetch 401 retry must preserve timeoutMs")
 
     failed += assert_304_before_init("read-model", fn_body(read_model, "onRequestGet") or read_model)
     failed += assert_304_before_init("sync/delta", fn_body(sync_delta, "onRequestGet") or sync_delta)

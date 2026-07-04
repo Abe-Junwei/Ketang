@@ -72,7 +72,45 @@ async function probeProductionDatabaseReady(env) {
     const version = parseInt(rows[0]?.v, 10) || 0;
     if (version < AUTH_SCHEMA_READY_VERSION) return false;
     const count = await queryD1(env, "SELECT COUNT(*) AS c FROM rooms", []);
-    return (count[0]?.c || 0) > 0;
+    if ((count[0]?.c || 0) <= 0) return false;
+    await queryD1(
+      env,
+      "SELECT auth_version, must_change_password, is_active, is_advanced, permissions FROM users LIMIT 0",
+      [],
+    );
+    await queryD1(
+      env,
+      "SELECT include_spare_beds, activity_target, arrival_date, departure_date, manager_name, needs_teacher_room, updated_at FROM events LIMIT 0",
+      [],
+    );
+    await queryD1(
+      env,
+      "SELECT room_type, suitable_elder, near_zen_hall, updated_at FROM rooms LIMIT 0",
+      [],
+    );
+    await queryD1(
+      env,
+      "SELECT bed_type, suitable_elder, is_flexible, updated_at FROM beds LIMIT 0",
+      [],
+    );
+    await queryD1(
+      env,
+      "SELECT participant_identity, age_group, special_needs, updated_at FROM lodgers LIMIT 0",
+      [],
+    );
+    await queryD1(
+      env,
+      "SELECT participant_identity, age_group, special_needs, updated_at FROM reservations LIMIT 0",
+      [],
+    );
+    await queryD1(env, "SELECT updated_at FROM rooming_plans LIMIT 0", []);
+    await queryD1(env, "SELECT updated_at FROM rooming_assignments LIMIT 0", []);
+    await queryD1(env, "SELECT updated_at FROM rooming_checkin_queue LIMIT 0", []);
+    await queryD1(env, "SELECT updated_at FROM rooming_adjustments LIMIT 0", []);
+    await queryD1(env, "SELECT id FROM refresh_sessions LIMIT 0", []);
+    await queryD1(env, "SELECT version FROM sync_version_log LIMIT 0", []);
+    await queryD1(env, "SELECT id FROM sync_deletions LIMIT 0", []);
+    return true;
   } catch (e) {
     return false;
   }
@@ -201,10 +239,15 @@ async function ensureDefaultUsers(env) {
 }
 
 export async function initRemoteDatabase(env) {
-  await ensureRoomingSchemaColumnsIfTablesExist(env);
   if (remoteInitReady) return false;
   if (remoteInitPromise) return remoteInitPromise;
-  remoteInitPromise = initRemoteDatabaseOnce(env).finally(() => {
+  remoteInitPromise = (async function () {
+    if (await probeProductionDatabaseReady(env)) {
+      return await ensureDatabaseForAuthLight(env);
+    }
+    await ensureRoomingSchemaColumnsIfTablesExist(env);
+    return await initRemoteDatabaseOnce(env);
+  })().finally(() => {
     remoteInitPromise = null;
   });
   return remoteInitPromise;
@@ -215,7 +258,7 @@ export async function ensureDatabaseForAuth(env) {
   if (authEnsureReady) return false;
 
   if (remoteInitReady || (await probeProductionDatabaseReady(env))) {
-    return ensureDatabaseForAuthLight(env);
+    return await ensureDatabaseForAuthLight(env);
   }
 
   await ensureRoomingSchemaColumnsIfTablesExist(env);
@@ -240,7 +283,7 @@ export async function ensureDatabaseForAuth(env) {
       return false;
     }
   }
-  return initRemoteDatabase(env);
+  return await initRemoteDatabase(env);
 }
 
 async function addRemoteColumnIfMissing(env, table, column, definition) {

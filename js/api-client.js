@@ -58,12 +58,30 @@ async function tryRefreshAccessToken() {
 
 async function apiFetch(path, options) {
   options = options || {};
-  const response = await fetch(path, {
-    method: options.method || "GET",
-    headers: apiAuthHeaders(),
-    credentials: options.credentials || remoteApiCredentials(),
-    body: options.body != null ? JSON.stringify(options.body) : undefined,
-  });
+  const timeoutMs = parseInt(options.timeoutMs, 10) || 0;
+  const controller = timeoutMs > 0 ? new AbortController() : null;
+  const timeoutId = controller
+    ? setTimeout(function () {
+        controller.abort();
+      }, timeoutMs)
+    : null;
+  let response;
+  try {
+    response = await fetch(path, {
+      method: options.method || "GET",
+      headers: apiAuthHeaders(),
+      credentials: options.credentials || remoteApiCredentials(),
+      body: options.body != null ? JSON.stringify(options.body) : undefined,
+      signal: controller ? controller.signal : undefined,
+    });
+  } catch (error) {
+    if (error && error.name === "AbortError") {
+      throw new Error("请求超时，请检查网络后重试");
+    }
+    throw error;
+  } finally {
+    if (timeoutId) clearTimeout(timeoutId);
+  }
   let data = await parseJsonResponse(response);
   if (
     response.status === 401 &&
@@ -80,6 +98,7 @@ async function apiFetch(path, options) {
         credentials: options.credentials,
         preserveSessionOn401: options.preserveSessionOn401,
         skipRefreshRetry: true,
+        timeoutMs: options.timeoutMs,
       });
     }
   }
@@ -404,6 +423,7 @@ async function apiSyncDelta(sinceVersion, ifNoneMatch) {
 async function apiAdminRecord(resource, action, payload) {
   return apiFetch("/api/v1/admin/records", {
     method: "POST",
+    timeoutMs: 25000,
     body: { resource: resource, action: action, ...payload },
   });
 }
