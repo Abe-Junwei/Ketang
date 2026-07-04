@@ -1,7 +1,6 @@
 import { batchD1, insertAudit, queryD1, runD1 } from "./d1.js";
 import {
   finishWrite,
-  recordSyncDeletion,
   enrichWriteResponse,
   fetchLatestHousekeepingPatches,
   fetchMealDeletionsForLodgers,
@@ -981,8 +980,8 @@ export async function apiDeleteLodger(env, session, body) {
     {},
     ["lodging", "board", "meals"],
     BOARD_MEALS_SYNC_MODULES,
+    { table_name: "lodgers", row_id: id },
   );
-  await recordSyncDeletion(env, "lodgers", id, result.board_version);
   return lodgerFinishWrite(env, result, {
     deletion: { table_name: "lodgers", row_id: id },
     bedIds: l.bed_id ? [l.bed_id] : [],

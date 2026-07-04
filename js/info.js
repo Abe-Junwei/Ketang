@@ -583,6 +583,16 @@ function infoRefreshAfterWrite(writeResult, tab, syncOptions) {
   renderInfo(tab);
 }
 
+/** 创建成功后移除临时 id | Drop optimistic temp row after create */
+function infoFinalizeWriteResult(writeResult, tempId, tableName) {
+  if (!writeResult || tempId == null) return writeResult;
+  var out = Object.assign({}, writeResult);
+  out.deletions = (out.deletions || []).concat([
+    { table_name: tableName || "rooms", row_id: tempId },
+  ]);
+  return out;
+}
+
 /** 乐观更新用临时 ID | Temp id for optimistic create rows */
 function infoTempId() {
   return -Math.abs(Date.now() % 2147483647 || 1);
@@ -807,14 +817,16 @@ async function submitRoom(event, id) {
         notes: notes,
         ...roomTags,
       };
+      var roomTempId = null;
       if (infoUseApiData()) {
         closeModal();
+        roomTempId = id ? null : infoTempId();
         infoApplyOptimistic(
           {
             patches: {
               rooms: [
                 Object.assign({}, payload, {
-                  id: id || infoTempId(),
+                  id: id || roomTempId,
                 }),
               ],
             },
@@ -828,6 +840,9 @@ async function submitRoom(event, id) {
         id ? "update" : "create",
         payload,
       );
+      if (roomTempId != null) {
+        writeResult = infoFinalizeWriteResult(writeResult, roomTempId, "rooms");
+      }
       if (!infoUseApiData()) closeModal();
       infoToast(id ? "房间已更新" : "房间已新增");
       infoRefreshAfterWrite(writeResult, "rooms");
@@ -1038,14 +1053,16 @@ async function submitBed(event, id) {
         notes: notes,
         ...bedTags,
       };
+      var bedTempId = null;
       if (infoUseApiData()) {
         closeModal();
+        bedTempId = id ? null : infoTempId();
         infoApplyOptimistic(
           {
             patches: {
               beds: [
                 Object.assign({}, payload, {
-                  id: id || infoTempId(),
+                  id: id || bedTempId,
                 }),
               ],
             },
@@ -1059,6 +1076,9 @@ async function submitBed(event, id) {
         id ? "update" : "create",
         payload,
       );
+      if (bedTempId != null) {
+        writeResult = infoFinalizeWriteResult(writeResult, bedTempId, "beds");
+      }
       if (!infoUseApiData()) closeModal();
       infoToast(id ? "床位已更新" : "床位已新增");
       infoRefreshAfterWrite(writeResult, "beds");
@@ -1271,14 +1291,16 @@ async function submitGuest(event, id) {
         emergency_phone: contact.emergencyPhone,
         notes: notes,
       };
+      var guestTempId = null;
       if (infoUseApiData()) {
         closeModal();
+        guestTempId = id ? null : infoTempId();
         infoApplyOptimistic(
           {
             patches: {
               guests: [
                 Object.assign({}, payload, {
-                  id: id || infoTempId(),
+                  id: id || guestTempId,
                 }),
               ],
             },
@@ -1292,6 +1314,13 @@ async function submitGuest(event, id) {
         id ? "update" : "create",
         payload,
       );
+      if (guestTempId != null) {
+        writeResult = infoFinalizeWriteResult(
+          writeResult,
+          guestTempId,
+          "guests",
+        );
+      }
       if (!infoUseApiData()) closeModal();
       infoToast(id ? "住客档案已更新" : "住客档案已新增");
       infoRefreshAfterWrite(writeResult, "guests");

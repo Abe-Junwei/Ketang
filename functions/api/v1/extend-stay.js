@@ -1,12 +1,13 @@
 import { json, readJson, apiErrorStatus } from "../../_shared/http.js";
 import { requireSession } from "../../_shared/auth.js";
-import { queryD1, safeErrorMessage } from "../../_shared/d1.js";
+import { ensureBusinessDatabaseReady, queryD1, safeErrorMessage } from "../../_shared/d1.js";
 import { requirePermission } from "../../_shared/permissions.js";
 import { apiExtendStay } from "../../_shared/lodgers.js";
 
 export async function onRequestPost({ request, env }) {
   if (!env.KETANG_DB) return json({ error: "缺少 D1 绑定 KETANG_DB" }, 500);
   try {
+    await ensureBusinessDatabaseReady(env);
     const session = await requireSession(request, env, (sql, p) =>
       queryD1(env, sql, p),
     );

@@ -19,10 +19,15 @@ function boardVersionFromBatchResults(results) {
   return parseInt(rows[0]?.value || "0", 10) || 0;
 }
 
-/** First statement last_row_id (INSERT) from D1 batch results */
+function isInsertStatement(statement) {
+  return /^\s*INSERT\b/i.test(String(statement?.sql || ""));
+}
+
+/** First statement last_row_id (INSERT only) from D1 batch results */
 function lastRowIdFromBatchResults(results, index) {
   const item = results && results[index != null ? index : 0];
-  return item?.meta?.last_row_id;
+  const id = item?.meta?.last_row_id;
+  return id != null && id > 0 ? id : null;
 }
 
 /** 构造审计日志 batch 语句 | Audit row for batchD1 */
@@ -88,11 +93,15 @@ export async function atomicWriteBatch(
     { sql: BOARD_VERSION_SELECT_SQL, params: [] },
   ]);
   const board_version = boardVersionFromBatchResults(results);
-  const last_row_id = lastRowIdFromBatchResults(results, 0);
   const payload =
     data && typeof data === "object" ? { ...data } : data || {};
-  if (last_row_id != null && payload.last_row_id == null) {
-    payload.last_row_id = last_row_id;
+  if (
+    statements.length &&
+    isInsertStatement(statements[0]) &&
+    payload.last_row_id == null
+  ) {
+    const last_row_id = lastRowIdFromBatchResults(results, 0);
+    if (last_row_id != null) payload.last_row_id = last_row_id;
   }
   return writeMetaResponse(
     board_version,
@@ -103,10 +112,16 @@ export async function atomicWriteBatch(
 }
 
 /** 写操作标准响应（单 batch：bump + sync + version）| Standard mutating API response */
-export async function finishWrite(env, data, changedDomains, changedModules) {
+export async function finishWrite(
+  env,
+  data,
+  changedDomains,
+  changedModules,
+  deletion,
+) {
   const results = await batchD1(env, [
     { sql: BOARD_VERSION_BUMP_SQL, params: [] },
-    ...syncMetaStatementsFromMeta(changedDomains, null),
+    ...syncMetaStatementsFromMeta(changedDomains, deletion || null),
     { sql: BOARD_VERSION_SELECT_SQL, params: [] },
   ]);
   return writeMetaResponse(

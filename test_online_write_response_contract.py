@@ -226,7 +226,7 @@ def main():
             "functions/_shared/lodgers.js",
             "apiDeleteLodger",
             [
-                ("records tombstone", "recordSyncDeletion"),
+                ("records tombstone in finishWrite", 'table_name: "lodgers", row_id: id'),
                 ("finishes meals", '["lodging", "board", "meals"]'),
                 ("returns deletion", 'table_name: "lodgers"'),
                 ("patches bed", "bedIds"),
@@ -284,7 +284,7 @@ def main():
             "apiBatchEventMembers",
             [
                 ("uses enrichWriteResponse", "enrichWriteResponse"),
-                ("finishes reservations board meals", '["reservations", "board", "meals"]'),
+                ("finishes reservations lodging meals", '["reservations", "lodging", "meals"]'),
                 ("patches member rows", "patchRowIds"),
             ],
         )

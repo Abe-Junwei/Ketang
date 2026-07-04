@@ -59,6 +59,51 @@ function dormMatchesGender(dormType, gender) {
   );
 }
 
+function buildRoomPatchRow(roomId, body, tags) {
+  return {
+    id: roomId,
+    name: text(body.name),
+    location: text(body.location),
+    floor: parseInt(body.floor, 10) || 1,
+    dorm_type: body.dorm_type || "不限",
+    notes: text(body.notes),
+    room_type: tags.room_type,
+    suitable_elder: tags.suitable_elder,
+    suitable_child: tags.suitable_child,
+    near_zen_hall: tags.near_zen_hall,
+    flexible_use: tags.flexible_use,
+  };
+}
+
+function buildBedPatchRow(bedId, roomId, bedNumber, status, body, bedTags) {
+  return {
+    id: bedId,
+    room_id: roomId,
+    bed_number: bedNumber,
+    status: status,
+    notes: text(body.notes),
+    bed_type: bedTags.bed_type,
+    suitable_elder: bedTags.suitable_elder,
+    is_flexible: bedTags.is_flexible,
+  };
+}
+
+function buildGuestPatchRow(guestId, person, body, gender, phone, idCard, now) {
+  return {
+    id: guestId,
+    name: person.name,
+    dharma_name: person.dharma_name,
+    gender: gender,
+    phone: phone,
+    id_card: idCard,
+    emergency_contact: text(body.emergency_contact),
+    emergency_phone: text(body.emergency_phone),
+    notes: text(body.notes),
+    created_at: now,
+    updated_at: now,
+  };
+}
+
 function dateRange(start, end) {
   if (!start || !end) return [];
   const days = [];
@@ -96,66 +141,75 @@ async function upsertRoom(env, session, body) {
     );
     if (!existing[0]) throw new Error("房间不存在");
     const tags = parseRoomTagFields(body);
-    await runD1(
+    const writeMeta = await atomicWriteBatch(
       env,
-      "UPDATE rooms SET name=?, location=?, floor=?, dorm_type=?, notes=?, room_type=?, suitable_elder=?, suitable_child=?, near_zen_hall=?, flexible_use=? WHERE id=?",
       [
-        name,
-        text(body.location),
-        floor,
-        dormType,
-        text(body.notes),
-        tags.room_type,
-        tags.suitable_elder,
-        tags.suitable_child,
-        tags.near_zen_hall,
-        tags.flexible_use,
-        id,
+        {
+          sql: "UPDATE rooms SET name=?, location=?, floor=?, dorm_type=?, notes=?, room_type=?, suitable_elder=?, suitable_child=?, near_zen_hall=?, flexible_use=? WHERE id=?",
+          params: [
+            name,
+            text(body.location),
+            floor,
+            dormType,
+            text(body.notes),
+            tags.room_type,
+            tags.suitable_elder,
+            tags.suitable_child,
+            tags.near_zen_hall,
+            tags.flexible_use,
+            id,
+          ],
+        },
+        auditLogStatement("更新房间", "room", id, { name }, session),
       ],
+      { room_id: id },
+      ["settings"],
+      null,
+      ["settings_rooms"],
     );
-    await insertAudit(env, "更新房间", "room", id, { name }, session);
-    return enrichWriteResponse(
-      env,
-      await finishWrite(env, { room_id: id }, ["settings"], ["settings_rooms"]),
-      { patchTable: "rooms", rowId: id, patchComplete: true },
-    );
+    return enrichWriteResponse(env, writeMeta, {
+      patchTable: "rooms",
+      patchRow: buildRoomPatchRow(id, body, tags),
+      patchComplete: true,
+    });
   }
 
   const tags = parseRoomTagFields(body);
-  const meta = await runD1(
+  const writeMeta = await atomicWriteBatch(
     env,
-    "INSERT INTO rooms (name, location, floor, dorm_type, notes, room_type, suitable_elder, suitable_child, near_zen_hall, flexible_use) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
     [
-      name,
-      text(body.location),
-      floor,
-      dormType,
-      text(body.notes),
-      tags.room_type,
-      tags.suitable_elder,
-      tags.suitable_child,
-      tags.near_zen_hall,
-      tags.flexible_use,
+      {
+        sql: "INSERT INTO rooms (name, location, floor, dorm_type, notes, room_type, suitable_elder, suitable_child, near_zen_hall, flexible_use) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        params: [
+          name,
+          text(body.location),
+          floor,
+          dormType,
+          text(body.notes),
+          tags.room_type,
+          tags.suitable_elder,
+          tags.suitable_child,
+          tags.near_zen_hall,
+          tags.flexible_use,
+        ],
+      },
+      auditLogStatement("新增房间", "room", null, { name }, session, {
+        useLastInsertRowId: true,
+      }),
     ],
+    {},
+    ["settings"],
+    null,
+    ["settings_rooms"],
   );
-  await insertAudit(
-    env,
-    "新增房间",
-    "room",
-    meta.last_row_id,
-    { name },
-    session,
-  );
-  return enrichWriteResponse(
-    env,
-    await finishWrite(
-      env,
-      { room_id: meta.last_row_id },
-      ["settings"],
-      ["settings_rooms"],
-    ),
-    { patchTable: "rooms", rowId: meta.last_row_id, patchComplete: true },
-  );
+  const roomId = writeMeta.last_row_id;
+  if (!roomId) throw new Error("新增房间失败");
+  writeMeta.room_id = roomId;
+  return enrichWriteResponse(env, writeMeta, {
+    patchTable: "rooms",
+    patchRow: buildRoomPatchRow(roomId, body, tags),
+    patchComplete: true,
+  });
 }
 
 async function deleteRoom(env, session, body) {
@@ -261,58 +315,71 @@ async function upsertBed(env, session, body) {
         ],
       });
     }
-    await batchD1(env, statements);
-    await insertAudit(
-      env,
-      "更新床位",
-      "bed",
-      id,
-      { room_id: roomId, bed_number: bedNumber, status },
-      session,
+    statements.push(
+      auditLogStatement(
+        "更新床位",
+        "bed",
+        id,
+        { room_id: roomId, bed_number: bedNumber, status },
+        session,
+      ),
     );
-    return enrichWriteResponse(
+    const writeMeta = await atomicWriteBatch(
       env,
-      await finishWrite(env, { bed_id: id }, ["settings"], ["settings_beds"]),
-      { patchTable: "beds", rowId: id, patchComplete: true },
+      statements,
+      { bed_id: id },
+      ["settings"],
+      null,
+      ["settings_beds"],
     );
+    return enrichWriteResponse(env, writeMeta, {
+      patchTable: "beds",
+      patchRow: buildBedPatchRow(id, roomId, bedNumber, status, body, bedTags),
+      patchComplete: true,
+    });
   }
 
-  const meta = await runD1(
+  const writeMeta = await atomicWriteBatch(
     env,
-    "INSERT INTO beds (room_id, bed_number, status, notes, bed_type, suitable_elder, is_flexible) VALUES (?, ?, ?, ?, ?, ?, ?)",
     [
-      roomId,
-      bedNumber,
-      status,
-      text(body.notes),
-      bedTags.bed_type,
-      bedTags.suitable_elder,
-      bedTags.is_flexible,
+      {
+        sql: "INSERT INTO beds (room_id, bed_number, status, notes, bed_type, suitable_elder, is_flexible) VALUES (?, ?, ?, ?, ?, ?, ?)",
+        params: [
+          roomId,
+          bedNumber,
+          status,
+          text(body.notes),
+          bedTags.bed_type,
+          bedTags.suitable_elder,
+          bedTags.is_flexible,
+        ],
+      },
+      {
+        sql: "INSERT INTO housekeeping (bed_id, status, operator, notes) VALUES (last_insert_rowid(), ?, ?, ?)",
+        params: [status, session.username, "新增床位"],
+      },
+      auditLogStatement(
+        "新增床位",
+        "bed",
+        null,
+        { room_id: roomId, bed_number: bedNumber, status },
+        session,
+        { useLastInsertRowId: true },
+      ),
     ],
+    {},
+    ["settings"],
+    null,
+    ["settings_beds"],
   );
-  await runD1(
-    env,
-    "INSERT INTO housekeeping (bed_id, status, operator, notes) VALUES (?, ?, ?, ?)",
-    [meta.last_row_id, status, session.username, "新增床位"],
-  );
-  await insertAudit(
-    env,
-    "新增床位",
-    "bed",
-    meta.last_row_id,
-    { room_id: roomId, bed_number: bedNumber, status },
-    session,
-  );
-  return enrichWriteResponse(
-    env,
-    await finishWrite(
-      env,
-      { bed_id: meta.last_row_id },
-      ["settings"],
-      ["settings_beds"],
-    ),
-    { patchTable: "beds", rowId: meta.last_row_id, patchComplete: true },
-  );
+  const bedId = writeMeta.last_row_id;
+  if (!bedId) throw new Error("新增床位失败");
+  writeMeta.bed_id = bedId;
+  return enrichWriteResponse(env, writeMeta, {
+    patchTable: "beds",
+    patchRow: buildBedPatchRow(bedId, roomId, bedNumber, status, body, bedTags),
+    patchComplete: true,
+  });
 }
 
 async function deleteBed(env, session, body) {
@@ -455,9 +522,54 @@ async function upsertGuest(env, session, body) {
       [id],
     );
     if (!existing[0]) throw new Error("住客档案不存在");
-    await batchD1(env, [
+    const writeMeta = await atomicWriteBatch(
+      env,
+      [
+        {
+          sql: "UPDATE guests SET name=?, dharma_name=?, gender=?, phone=?, id_card=?, emergency_contact=?, emergency_phone=?, notes=?, updated_at=? WHERE id=?",
+          params: [
+            person.name,
+            person.dharma_name,
+            gender,
+            phone,
+            idCard,
+            text(body.emergency_contact),
+            text(body.emergency_phone),
+            text(body.notes),
+            now,
+            id,
+          ],
+        },
+        {
+          sql: "UPDATE lodgers SET name=?, dharma_name=?, gender=?, phone=?, id_card=? WHERE guest_id=?",
+          params: [person.name, person.dharma_name, gender, phone, idCard, id],
+        },
+        auditLogStatement(
+          "更新住客档案",
+          "guest",
+          id,
+          { name: person.name, phone },
+          session,
+        ),
+      ],
+      { guest_id: id },
+      ["settings"],
+      null,
+      ["settings_guests"],
+    );
+    return enrichWriteResponse(env, writeMeta, {
+      patchTable: "guests",
+      patchRow: buildGuestPatchRow(id, person, body, gender, phone, idCard, now),
+      patchComplete: true,
+    });
+  }
+
+  const writeMeta = await atomicWriteBatch(
+    env,
+    [
       {
-        sql: "UPDATE guests SET name=?, dharma_name=?, gender=?, phone=?, id_card=?, emergency_contact=?, emergency_phone=?, notes=?, updated_at=? WHERE id=?",
+        sql: `INSERT INTO guests (name, dharma_name, gender, phone, id_card, emergency_contact, emergency_phone, notes, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         params: [
           person.name,
           person.dharma_name,
@@ -468,69 +580,39 @@ async function upsertGuest(env, session, body) {
           text(body.emergency_phone),
           text(body.notes),
           now,
-          id,
+          now,
         ],
       },
-      {
-        sql: "UPDATE lodgers SET name=?, dharma_name=?, gender=?, phone=?, id_card=? WHERE guest_id=?",
-        params: [person.name, person.dharma_name, gender, phone, idCard, id],
-      },
-    ]);
-    await insertAudit(
-      env,
-      "更新住客档案",
-      "guest",
-      id,
-      { name: person.name, phone },
-      session,
-    );
-    return enrichWriteResponse(
-      env,
-      await finishWrite(
-        env,
-        { guest_id: id },
-        ["settings"],
-        ["settings_guests"],
+      auditLogStatement(
+        "新增住客档案",
+        "guest",
+        null,
+        { name: person.name, phone },
+        session,
+        { useLastInsertRowId: true },
       ),
-      { patchTable: "guests", rowId: id, patchComplete: true },
-    );
-  }
-
-  const meta = await runD1(
-    env,
-    `INSERT INTO guests (name, dharma_name, gender, phone, id_card, emergency_contact, emergency_phone, notes, created_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    [
-      person.name,
-      person.dharma_name,
+    ],
+    {},
+    ["settings"],
+    null,
+    ["settings_guests"],
+  );
+  const guestId = writeMeta.last_row_id;
+  if (!guestId) throw new Error("新增住客档案失败");
+  writeMeta.guest_id = guestId;
+  return enrichWriteResponse(env, writeMeta, {
+    patchTable: "guests",
+    patchRow: buildGuestPatchRow(
+      guestId,
+      person,
+      body,
       gender,
       phone,
       idCard,
-      text(body.emergency_contact),
-      text(body.emergency_phone),
-      text(body.notes),
       now,
-      now,
-    ],
-  );
-  await insertAudit(
-    env,
-    "新增住客档案",
-    "guest",
-    meta.last_row_id,
-    { name: person.name, phone },
-    session,
-  );
-  return enrichWriteResponse(
-    env,
-    await finishWrite(
-      env,
-      { guest_id: meta.last_row_id },
-      ["settings"],
-      ["settings_guests"],
     ),
-    { patchTable: "guests", rowId: meta.last_row_id, patchComplete: true },
-  );
+    patchComplete: true,
+  });
 }
 
 async function deleteGuest(env, session, body) {

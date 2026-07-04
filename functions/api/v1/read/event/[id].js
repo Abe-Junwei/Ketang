@@ -89,7 +89,7 @@ export async function onRequestGet({ request, env, params }) {
       });
     }
     const payload = await timer.stage("read_module_ms", () =>
-      buildEventDetailModule(env, session, eventId, { skipInit: true }),
+      buildEventDetailModule(env, session, eventId),
     );
     const response = timer.finish(payload, request);
     response.headers.set("ETag", String(payload.board_version));

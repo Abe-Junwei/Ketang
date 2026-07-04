@@ -31,7 +31,7 @@ export async function onRequestPost({ request, env }) {
     if (!body?.resource || !body?.action) {
       return timer.finish({ error: "缺少 resource 或 action" }, request, 400);
     }
-    // biz_ms includes write_tail + patch until Phase E splits them
+    // biz_ms: handleAdminRecord + write tail (single D1 batch) + patch enrich
     const result = await timer.stage("biz_ms", () =>
       handleAdminRecord(env, session, body),
     );

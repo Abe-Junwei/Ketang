@@ -341,6 +341,11 @@ export async function ensureDatabaseForAuth(env) {
   return ensureDatabaseReady(env, { allowMigrationFallback: true });
 }
 
+/** 业务 API ready gate（禁止 migration fallback）| Business API ready gate */
+export async function ensureBusinessDatabaseReady(env) {
+  await ensureDatabaseReady(env, { allowMigrationFallback: false });
+}
+
 async function addRemoteColumnIfMissing(env, table, column, definition) {
   const cols = await queryD1(env, `PRAGMA table_info(${table})`, []);
   if (!cols.length) return;
@@ -595,15 +600,6 @@ export async function isDatabaseEmpty(env) {
   if (!tables.length) return true;
   const count = await queryD1(env, "SELECT COUNT(*) AS c FROM rooms", []);
   return (count[0]?.c || 0) === 0;
-}
-
-export async function bumpBoardVersion(env) {
-  await runD1(
-    env,
-    `INSERT INTO app_meta (key, value) VALUES ('board_version', '1')
-    ON CONFLICT(key) DO UPDATE SET value = CAST(CAST(value AS INTEGER) + 1 AS TEXT)`,
-    [],
-  );
 }
 
 export async function getBoardVersion(env) {
