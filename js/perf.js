@@ -75,7 +75,7 @@ function ketangPerfMeasure(name, startMark, endMark) {
 }
 
 function ketangPerfInc(name, n) {
-  if (!_ketangPerfCounters.hasOwnProperty(name)) return;
+  if (!Object.prototype.hasOwnProperty.call(_ketangPerfCounters, name)) return;
   _ketangPerfCounters[name] += n == null ? 1 : n;
 }
 

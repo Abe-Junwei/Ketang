@@ -55,7 +55,8 @@ export default [
         console: 'readonly',
         crypto: 'readonly',
         Response: 'readonly',
-        TextEncoder: 'readonly'
+        TextEncoder: 'readonly',
+        URL: 'readonly'
       }
     },
     rules: commonRules
