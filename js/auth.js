@@ -9,6 +9,24 @@ const AUTH_STORAGE_KEY = "ketang_current_user";
 let currentUser = null;
 let cachedAdminUsers = [];
 let loginSubmitting = false;
+/** unknown | authenticated | anonymous — remote gate; local uses currentUser */
+let authStatus = "unknown";
+
+function setAuthStatus(status) {
+  authStatus = status || "unknown";
+}
+
+function getAuthStatus() {
+  return authStatus;
+}
+
+function markAuthenticated() {
+  setAuthStatus("authenticated");
+}
+
+function markAnonymous() {
+  setAuthStatus("anonymous");
+}
 
 function applySessionRefresh(result) {
   if (!result) return;
@@ -23,6 +41,7 @@ function applySessionRefresh(result) {
       );
     }
     localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(currentUser));
+    markAuthenticated();
     updateAuthUI();
     applyPermissions();
   }
@@ -114,6 +133,7 @@ function bootAuthUI() {
   }
 
   if (currentUser) {
+    markAuthenticated();
     updateAuthUI();
     clearAuthPendingGate();
   } else {
@@ -136,16 +156,20 @@ function finishLocalAuth() {
     ) {
       currentUser = null;
       localStorage.removeItem(AUTH_STORAGE_KEY);
+      markAnonymous();
     } else if (currentUser.permissions) {
       setSessionPermissions(currentUser.permissions);
+      markAuthenticated();
     } else if (currentUser.role) {
       setSessionPermissions(
         getSessionPermissionsForRole(currentUser.role, currentUser),
       );
+      markAuthenticated();
     }
   } catch (e) {
     currentUser = null;
     localStorage.removeItem(AUTH_STORAGE_KEY);
+    markAnonymous();
   }
   updateAuthUI();
 }
@@ -157,7 +181,7 @@ function initAuth() {
 }
 
 function syncAuthBodyClass() {
-  document.body.classList.toggle("auth-logged-in", !!currentUser);
+  document.body.classList.toggle("auth-logged-in", isLoggedIn());
 }
 
 function setBootBannerVisible(visible) {
@@ -218,10 +242,24 @@ function teardownLoginSelectPicker(sel) {
 function clearAuthSession() {
   closeProfileMenu();
   currentUser = null;
+  markAnonymous();
   localStorage.removeItem(AUTH_STORAGE_KEY);
   if (typeof resetRemoteReadModelState === "function")
     resetRemoteReadModelState();
   syncAuthBodyClass();
+}
+
+/** 网络抖动时沿用本地缓存用户（已确认过的会话）| Degraded authenticated from cache */
+function acceptCachedSessionDegraded(message) {
+  if (!currentUser) return false;
+  markAuthenticated();
+  updateAuthUI();
+  applyPermissions();
+  hideLoginOverlay();
+  if (typeof showToast === "function") {
+    showToast("会话校验暂时失败，已使用本地缓存登录态：" + message);
+  }
+  return true;
 }
 
 function shouldRequestRestoreBootstrapBoard() {
@@ -235,7 +273,7 @@ function applyRestoreBootstrapBoard(data) {
 
 async function restoreRemoteSession() {
   if (typeof isRemoteDB !== "function" || !isRemoteDB()) {
-    return !!currentUser;
+    return !!currentUser && authStatus === "authenticated";
   }
 
   if (
@@ -261,13 +299,7 @@ async function restoreRemoteSession() {
   } catch (e) {
     const msg = String(e.message || "");
     const authExpired = /登录已过期|401|Unauthorized/i.test(msg);
-    if (!authExpired && currentUser) {
-      updateAuthUI();
-      applyPermissions();
-      hideBootstrapping();
-      if (typeof showToast === "function") {
-        showToast("会话校验暂时失败，已使用本地缓存登录态：" + msg);
-      }
+    if (!authExpired && acceptCachedSessionDegraded(msg)) {
       return true;
     }
   }
@@ -289,13 +321,7 @@ async function restoreRemoteSession() {
       showLoginOverlay();
       return false;
     }
-    if (currentUser) {
-      updateAuthUI();
-      applyPermissions();
-      hideBootstrapping();
-      if (typeof showToast === "function") {
-        showToast("会话校验暂时失败，已使用本地缓存登录态：" + msg);
-      }
+    if (acceptCachedSessionDegraded(msg)) {
       return true;
     }
     clearAuthSession();
@@ -309,6 +335,9 @@ function getCurrentUser() {
 }
 
 function isLoggedIn() {
+  if (typeof isRemoteDB === "function" && isRemoteDB()) {
+    return authStatus === "authenticated";
+  }
   return !!currentUser;
 }
 
@@ -364,6 +393,7 @@ async function login(username, password) {
     getSessionPermissionsForRole(currentUser.role, currentUser),
   );
   localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(currentUser));
+  markAuthenticated();
   logAudit("用户登录", "user", user.id, {
     username: user.username,
     role: user.role,
@@ -426,6 +456,7 @@ async function loginByRole(role, password) {
       getSessionPermissionsForRole(currentUser.role, currentUser),
     );
     localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(currentUser));
+    markAuthenticated();
     logAudit("用户登录", "user", user.id, {
       username: user.username,
       role: user.role,
@@ -503,6 +534,7 @@ function showLoginOverlay() {
   if (typeof closeAllSelectPickers === "function") closeAllSelectPickers();
   closeProfileMenu();
   hideBootstrapping();
+  markAnonymous();
   document.body.classList.remove("auth-logged-in", "auth-bootstrapping");
   document.body.classList.add("auth-login-required");
   const overlay = document.getElementById("login-overlay");

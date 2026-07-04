@@ -89,6 +89,17 @@ document.addEventListener("DOMContentLoaded", async () => {
     console.log("客堂管理系统初始化完成");
   } catch (e) {
     console.error("初始化失败 | Init failed:", e);
+    if (typeof isLoggedIn === "function" && !isLoggedIn()) {
+      if (typeof showLoginOverlay === "function") showLoginOverlay();
+      const errorEl = document.getElementById("login-error");
+      if (errorEl) {
+        errorEl.textContent = "系统初始化失败：" + (e.message || "请刷新后重试");
+      }
+      window.ketangReady = true;
+      return;
+    }
+    if (typeof hideLoginOverlay === "function") hideLoginOverlay();
+    if (typeof clearAuthPendingGate === "function") clearAuthPendingGate();
     document
       .querySelectorAll(".sidebar-nav-btn, .sidebar-footer-btn")
       .forEach((b) => {
@@ -119,6 +130,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         </div>
       </div>
     `;
+    window.ketangReady = true;
   }
 });
 

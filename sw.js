@@ -1,5 +1,5 @@
 /* 客堂静态资源 Service Worker | Offline shell cache (no API/data) */
-var CACHE_VERSION = "ketang-shell-v12";
+var CACHE_VERSION = "ketang-shell-v13";
 var PRECACHE = [
   "./",
   "./index.html",

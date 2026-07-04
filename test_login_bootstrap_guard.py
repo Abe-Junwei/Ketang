@@ -56,9 +56,54 @@ def main() -> int:
         print("FAIL seeded mark should not trigger guard:", fails, warns)
         return 1
 
+    restore_ok = {
+        "read_module_marks": [],
+        "restore_probe_ok": True,
+        "restore_logged_in": True,
+        "restore_pending_gate": False,
+        "restore_overlay_active": False,
+        "restore_shell_visible": True,
+        "restore_read_module_marks": [],
+    }
+    fails, warns = check_login_bootstrap_read_guard(restore_ok, baseline)
+    if fails or warns:
+        print("FAIL restore ok should pass:", fails, warns)
+        return 1
+
+    restore_bad = {
+        "read_module_marks": [],
+        "restore_probe_ok": True,
+        "restore_logged_in": True,
+        "restore_pending_gate": False,
+        "restore_overlay_active": False,
+        "restore_shell_visible": True,
+        "restore_read_module_marks": ["ketang:read:board"],
+    }
+    fails, warns = check_login_bootstrap_read_guard(restore_bad, baseline)
+    if not fails:
+        print("FAIL restore read:board should fail guard")
+        return 1
+
+    anon_shell = {
+        "read_module_marks": [],
+        "restore_probe_ok": True,
+        "restore_logged_in": False,
+        "restore_pending_gate": False,
+        "restore_overlay_active": True,
+        "restore_shell_visible": True,
+        "restore_read_module_marks": [],
+    }
+    fails, warns = check_login_bootstrap_read_guard(anon_shell, baseline)
+    if not fails:
+        print("FAIL anonymous shell visible should fail guard")
+        return 1
+
     latency = (ROOT / "test_prod_latency.py").read_text(encoding="utf-8")
     if "check_login_bootstrap_read_guard" not in latency:
         print("FAIL test_prod_latency.py missing check_login_bootstrap_read_guard")
+        return 1
+    if "restore_read_module_marks" not in latency:
+        print("FAIL test_prod_latency.py missing session restore CDP probe")
         return 1
 
     print("PASS: login bootstrap read guard contracts")

@@ -396,6 +396,18 @@ def test_login_ui_has_no_fake_identity_loading():
     if 'clearAuthPendingGate' not in auth:
         print('FAIL auth.js must clear ketang-auth-pending after auth gate resolves')
         sys.exit(1)
+    if 'authStatus' not in auth or 'markAuthenticated' not in auth:
+        print('FAIL auth.js missing explicit authStatus state machine')
+        sys.exit(1)
+    if 'authStatus === "authenticated"' not in auth:
+        print('FAIL isLoggedIn must require authenticated status on remote')
+        sys.exit(1)
+    if 'acceptCachedSessionDegraded' not in auth:
+        print('FAIL auth.js missing degraded cached-session path')
+        sys.exit(1)
+    if 'ketang-shell-v13' not in read('sw.js'):
+        print('FAIL sw.js must bump cache version after auth-gate HTML change')
+        sys.exit(1)
     if 'bootAuthUI' not in read('js/app.js'):
         print('FAIL app.js must call bootAuthUI before async init')
         sys.exit(1)

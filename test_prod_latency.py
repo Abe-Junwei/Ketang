@@ -388,14 +388,42 @@ def check_baseline_graded(results: dict, baseline: dict) -> tuple[list[str], lis
     return fails, warns, infos
 
 
+def _bad_read_module_marks(marks) -> list[str]:
+    bad: list[str] = []
+    if not isinstance(marks, list):
+        return bad
+    for mark in marks:
+        if not isinstance(mark, str):
+            continue
+        if not mark.startswith("ketang:read:"):
+            continue
+        if "seeded" in mark:
+            continue
+        bad.append(mark)
+    return bad
+
+
+def _append_guard_message(
+    fails: list[str],
+    warns: list[str],
+    fail_keys: set[str],
+    warn_keys: set[str],
+    key: str,
+    msg: str,
+) -> None:
+    if key in fail_keys:
+        fails.append(msg)
+    elif key in warn_keys:
+        warns.append(msg)
+    else:
+        fails.append(msg)
+
+
 def check_login_bootstrap_read_guard(
     results: dict, baseline: dict
 ) -> tuple[list[str], list[str]]:
-    """G-6：登录首屏不得再发独立 read module（board 应内嵌于 login）。"""
+    """G-6：登录/恢复首屏不得再发独立 read module；恢复后门闩须收口。"""
     if results.get("frontend_probe_skip"):
-        return [], []
-    marks = results.get("read_module_marks")
-    if marks is None:
         return [], []
 
     levels = baseline.get("probe_check_levels", {})
@@ -404,43 +432,77 @@ def check_login_bootstrap_read_guard(
     fails: list[str] = []
     warns: list[str] = []
 
-    bad_marks: list[str] = []
-    if isinstance(marks, list):
-        for mark in marks:
-            if not isinstance(mark, str):
-                continue
-            if not mark.startswith("ketang:read:"):
-                continue
-            if "seeded" in mark:
-                continue
-            bad_marks.append(mark)
+    marks = results.get("read_module_marks")
+    if marks is not None:
+        bad_marks = _bad_read_module_marks(marks)
+        read_board = results.get("frontend_read_board_ms")
+        has_read_board_measure = (
+            isinstance(read_board, dict) and read_board.get("p95_ms") is not None
+        )
+        if bad_marks or has_read_board_measure:
+            parts: list[str] = []
+            if bad_marks:
+                parts.append(f"read_module_marks={bad_marks}")
+            if has_read_board_measure:
+                parts.append(f"frontend_read_board_ms={read_board.get('p95_ms')}ms")
+            _append_guard_message(
+                fails,
+                warns,
+                fail_keys,
+                warn_keys,
+                "login_bootstrap_extra_read_module",
+                "login_bootstrap_extra_read_module: "
+                + "; ".join(parts)
+                + " (G-6: board embedded in login; expect no separate /read/board after submitLogin)",
+            )
 
-    read_board = results.get("frontend_read_board_ms")
-    has_read_board_measure = (
-        isinstance(read_board, dict) and read_board.get("p95_ms") is not None
-    )
+    restore_marks = results.get("restore_read_module_marks")
+    if restore_marks is not None:
+        bad_restore = _bad_read_module_marks(restore_marks)
+        if bad_restore:
+            _append_guard_message(
+                fails,
+                warns,
+                fail_keys,
+                warn_keys,
+                "login_bootstrap_extra_read_module",
+                "login_bootstrap_extra_read_module: restore_read_module_marks="
+                + str(bad_restore)
+                + " (G-6: board embedded in session restore)",
+            )
 
-    if not bad_marks and not has_read_board_measure:
-        return [], []
+    if results.get("restore_probe_ok"):
+        if results.get("restore_pending_gate"):
+            _append_guard_message(
+                fails,
+                warns,
+                fail_keys,
+                warn_keys,
+                "login_bootstrap_extra_read_module",
+                "restore_auth_gate: ketang-auth-pending still set after ready",
+            )
+        if results.get("restore_logged_in") and results.get("restore_overlay_active"):
+            _append_guard_message(
+                fails,
+                warns,
+                fail_keys,
+                warn_keys,
+                "login_bootstrap_extra_read_module",
+                "restore_auth_gate: login overlay active while authenticated",
+            )
+        if (
+            results.get("restore_logged_in") is False
+            and results.get("restore_shell_visible")
+        ):
+            _append_guard_message(
+                fails,
+                warns,
+                fail_keys,
+                warn_keys,
+                "login_bootstrap_extra_read_module",
+                "restore_auth_gate: app shell visible while anonymous",
+            )
 
-    parts: list[str] = []
-    if bad_marks:
-        parts.append(f"read_module_marks={bad_marks}")
-    if has_read_board_measure:
-        parts.append(f"frontend_read_board_ms={read_board.get('p95_ms')}ms")
-    msg = (
-        "login_bootstrap_extra_read_module: "
-        + "; ".join(parts)
-        + " (G-6: board embedded in login; expect no separate /read/board after submitLogin)"
-    )
-
-    key = "login_bootstrap_extra_read_module"
-    if key in fail_keys:
-        fails.append(msg)
-    elif key in warn_keys:
-        warns.append(msg)
-    else:
-        fails.append(msg)
     return fails, warns
 
 
@@ -584,10 +646,11 @@ def probe_frontend_metrics(frontend_base: str | None, api_base: str) -> dict:
             .get("result", {})
             .get("value", {})
         )
-        ws.close()
         if result.get("error"):
+            ws.close()
             return {"_skip": result["error"], "detail": result, "frontend_base": page_base}
         if not result.get("hasLoginReady"):
+            ws.close()
             return {"_skip": "login_ready_mark_missing", "detail": result, "frontend_base": page_base}
 
         out: dict[str, Any] = {
@@ -634,6 +697,71 @@ def probe_frontend_metrics(frontend_base: str | None, api_base: str) -> dict:
                 "max_ms": ms,
                 "source": "cdp_rcRefreshAfterWrite",
             }
+
+        # Session restore path: reload with cookies, no separate read:board.
+        try:
+            ws.send(json.dumps({"id": 3, "method": "Page.enable"}))
+            recv_by_id(ws, 3, 10)
+        except Exception:
+            pass
+        try:
+            ws.send(
+                json.dumps(
+                    {
+                        "id": 4,
+                        "method": "Page.reload",
+                        "params": {"ignoreCache": True},
+                    }
+                )
+            )
+            recv_by_id(ws, 4, 30)
+        except Exception as exc:
+            out["restore_probe_skip"] = f"reload:{exc}"
+            ws.close()
+            return out
+
+        restore_ready = False
+        for _ in range(init_wait_iters):
+            try:
+                if evaluate(ws, "window.ketangReady").get("value"):
+                    restore_ready = True
+                    break
+            except Exception:
+                pass
+            time.sleep(0.5)
+        if not restore_ready:
+            out["restore_probe_skip"] = "restore_init_timeout"
+            ws.close()
+            return out
+
+        restore = evaluate(
+            ws,
+            """({
+              loggedIn: typeof isLoggedIn === 'function' && isLoggedIn(),
+              authStatus: typeof getAuthStatus === 'function' ? getAuthStatus() : null,
+              pendingGate: document.documentElement.classList.contains('ketang-auth-pending'),
+              overlayActive: !!(document.getElementById('login-overlay')
+                && document.getElementById('login-overlay').classList.contains('active')),
+              shellVisible: (function () {
+                var shell = document.querySelector('.app-shell');
+                if (!shell) return false;
+                return getComputedStyle(shell).display !== 'none';
+              })(),
+              readModuleMarks: [...new Set(
+                performance.getEntriesByType('measure')
+                  .map(e => e.name)
+                  .filter(n => n.startsWith('ketang:read:'))
+              )],
+            })""",
+        ).get("value", {})
+        out["restore_probe_ok"] = True
+        out["restore_logged_in"] = bool(restore.get("loggedIn"))
+        out["restore_auth_status"] = restore.get("authStatus")
+        out["restore_pending_gate"] = bool(restore.get("pendingGate"))
+        out["restore_overlay_active"] = bool(restore.get("overlayActive"))
+        out["restore_shell_visible"] = bool(restore.get("shellVisible"))
+        out["restore_read_module_marks"] = restore.get("readModuleMarks") or []
+        ws.close()
         return out
     finally:
         proc.terminate()
@@ -979,6 +1107,14 @@ def main() -> int:
                 "frontend_read_board_ms",
                 "read_module_marks",
                 "frontend_base",
+                "restore_probe_ok",
+                "restore_probe_skip",
+                "restore_logged_in",
+                "restore_auth_status",
+                "restore_pending_gate",
+                "restore_overlay_active",
+                "restore_shell_visible",
+                "restore_read_module_marks",
             ):
                 if k in frontend:
                     results[k] = frontend[k]
