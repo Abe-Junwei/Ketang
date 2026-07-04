@@ -2047,6 +2047,12 @@ function showConfirm(options) {
 }
 
 function closeModal() {
+  if (
+    typeof isPasswordChangeBlocking === "function" &&
+    isPasswordChangeBlocking()
+  ) {
+    return;
+  }
   if (_confirmResolver) {
     dismissConfirm(false);
     return;

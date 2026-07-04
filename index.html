@@ -308,6 +308,13 @@
         <button
           type="button"
           class="topbar-profile-menu-item"
+          onclick="openChangePasswordModal(false)"
+        >
+          修改密码
+        </button>
+        <button
+          type="button"
+          class="topbar-profile-menu-item"
           onclick="logout()"
         >
           退出登录
@@ -1689,6 +1696,60 @@
                   </li>
                 </ol>
               </div>
+            </section>
+
+            <section class="card page-section" id="account-security-section">
+              <h3 class="page-section-title">账号安全</h3>
+              <p class="field-hint" style="margin-bottom: var(--space-3)">
+                修改当前登录账号密码；保存后其他设备需重新登录。
+              </p>
+              <form
+                id="change-password-form"
+                class="form-grid"
+                onsubmit="submitChangePasswordForm(event)"
+              >
+                <div class="field">
+                  <label for="change-password-old">原密码</label>
+                  <input
+                    type="password"
+                    id="change-password-old"
+                    autocomplete="current-password"
+                    required
+                  />
+                </div>
+                <div class="field">
+                  <label for="change-password-new">新密码</label>
+                  <input
+                    type="password"
+                    id="change-password-new"
+                    autocomplete="new-password"
+                    required
+                  />
+                </div>
+                <div class="field">
+                  <label for="change-password-confirm">确认新密码</label>
+                  <input
+                    type="password"
+                    id="change-password-confirm"
+                    autocomplete="new-password"
+                    required
+                  />
+                </div>
+                <div class="btn-bar">
+                  <button
+                    type="submit"
+                    class="btn btn-primary"
+                    id="change-password-submit-btn"
+                  >
+                    保存新密码
+                  </button>
+                </div>
+                <p
+                  class="field-hint"
+                  id="change-password-form-hint"
+                  aria-live="polite"
+                ></p>
+              </form>
             </section>
 
             <section class="card page-section">

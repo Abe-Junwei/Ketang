@@ -11,6 +11,8 @@ let cachedAdminUsers = [];
 let loginSubmitting = false;
 /** unknown | authenticated | anonymous — remote gate; local uses currentUser */
 let authStatus = "unknown";
+/** 强制改密弹窗打开时不允许关闭 | Block modal dismiss during forced password change */
+let passwordChangeBlocking = false;
 
 function setAuthStatus(status) {
   authStatus = status || "unknown";
@@ -44,6 +46,7 @@ function applySessionRefresh(result) {
     markAuthenticated();
     updateAuthUI();
     applyPermissions();
+    schedulePasswordChangePromptIfNeeded();
   }
 }
 
@@ -353,23 +356,27 @@ async function login(username, password) {
   if (typeof isRemoteDB === "function" && isRemoteDB()) {
     let result;
     try {
-      result = await remoteLoginAsync(username, password);
+      result = await apiAuthLogin({
+        username: username,
+        password: password,
+        bootstrap_board: true,
+      });
     } catch (err) {
       console.warn("云端登录失败 | Remote login failed:", err);
       throw err;
     }
+    if (!result.user) throw new Error("登录成功但未收到用户信息，请刷新后重试");
     applySessionRefresh(result);
+    if (typeof rcApplyLoginBootstrap === "function") {
+      rcApplyLoginBootstrap(result);
+    }
     logAudit("用户登录", "user", result.user.id, {
       username: result.user.username,
       role: result.user.role,
     });
     updateAuthUI();
     applyPermissions();
-    if (typeof mountFormMealNeedPickers === "function")
-      mountFormMealNeedPickers();
-    if (typeof mountLodgerRoleSelects === "function") mountLodgerRoleSelects();
-    if (typeof mountParticipantTagSelects === "function")
-      mountParticipantTagSelects();
+    schedulePostLoginUiMounts();
     return true;
   }
   const user = query(
@@ -388,6 +395,7 @@ async function login(username, password) {
     role: fresh.role,
     is_advanced: fresh.is_advanced ? 1 : 0,
     auth_version: fresh.auth_version || 1,
+    must_change_password: fresh.must_change_password ? 1 : 0,
   };
   setSessionPermissions(
     getSessionPermissionsForRole(currentUser.role, currentUser),
@@ -400,11 +408,8 @@ async function login(username, password) {
   });
   updateAuthUI();
   applyPermissions();
-  if (typeof mountFormMealNeedPickers === "function")
-    mountFormMealNeedPickers();
-  if (typeof mountLodgerRoleSelects === "function") mountLodgerRoleSelects();
-  if (typeof mountParticipantTagSelects === "function")
-    mountParticipantTagSelects();
+  schedulePostLoginUiMounts();
+  schedulePasswordChangePromptIfNeeded();
   return true;
 }
 
@@ -451,6 +456,7 @@ async function loginByRole(role, password) {
       role: fresh.role,
       is_advanced: fresh.is_advanced ? 1 : 0,
       auth_version: fresh.auth_version || 1,
+      must_change_password: fresh.must_change_password ? 1 : 0,
     };
     setSessionPermissions(
       getSessionPermissionsForRole(currentUser.role, currentUser),
@@ -463,11 +469,8 @@ async function loginByRole(role, password) {
     });
     updateAuthUI();
     applyPermissions();
-    if (typeof mountFormMealNeedPickers === "function")
-      mountFormMealNeedPickers();
-    if (typeof mountLodgerRoleSelects === "function") mountLodgerRoleSelects();
-    if (typeof mountParticipantTagSelects === "function")
-      mountParticipantTagSelects();
+    schedulePostLoginUiMounts();
+    schedulePasswordChangePromptIfNeeded();
     return true;
   }
   return false;
@@ -644,6 +647,7 @@ async function submitLogin() {
       if (typeof perfRumOnLoginReady === "function") perfRumOnLoginReady();
       if (errorEl) errorEl.textContent = "";
       if (typeof startBoardPolling === "function") startBoardPolling();
+      schedulePasswordChangePromptIfNeeded();
     } else if (errorEl) {
       errorEl.textContent = "账号或密码错误";
     }
@@ -1238,6 +1242,224 @@ async function resetUserPassword(id) {
   }
   showToast("密码已重置，请告知用户临时密码");
   renderUserList();
+}
+
+function isPasswordChangeBlocking() {
+  return passwordChangeBlocking;
+}
+
+function userMustChangePassword() {
+  return !!(currentUser && currentUser.must_change_password);
+}
+
+function schedulePasswordChangePromptIfNeeded() {
+  if (!userMustChangePassword()) return;
+  if (typeof scheduleIdleTask === "function") {
+    scheduleIdleTask(function () {
+      openChangePasswordModal(true);
+    });
+  } else {
+    setTimeout(function () {
+      openChangePasswordModal(true);
+    }, 0);
+  }
+}
+
+function clearChangePasswordForm() {
+  ["change-password-old", "change-password-new", "change-password-confirm"].forEach(
+    function (id) {
+      const el = document.getElementById(id);
+      if (el) el.value = "";
+    },
+  );
+  const hint = document.getElementById("change-password-form-hint");
+  if (hint) hint.textContent = "";
+}
+
+function finishPasswordChangeSuccess(message) {
+  passwordChangeBlocking = false;
+  if (currentUser) {
+    currentUser.must_change_password = 0;
+    localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(currentUser));
+  }
+  clearChangePasswordForm();
+  closeModal();
+  closeProfileMenu();
+  if (typeof showToast === "function") showToast(message || "密码已更新");
+}
+
+async function changeOwnPassword(oldPassword, newPassword) {
+  validateNewPassword(newPassword, oldPassword);
+  if (!isLocalForceDb()) {
+    const result = await apiChangePassword(oldPassword, newPassword);
+    applySessionRefresh(result);
+    logAudit("修改密码", "user", currentUser.id, {
+      username: currentUser.username,
+    });
+    return result;
+  }
+  const u = query("SELECT * FROM users WHERE id = ? LIMIT 1", [
+    currentUser.id,
+  ])[0];
+  if (!u || !(await verifyPasswordAsync(oldPassword, u.password))) {
+    throw new Error("原密码错误");
+  }
+  bumpLocalAuthVersion(currentUser.id);
+  run(
+    "UPDATE users SET password = ?, must_change_password = 0 WHERE id = ?",
+    [await hashPasswordAsync(newPassword), currentUser.id],
+  );
+  currentUser.must_change_password = 0;
+  currentUser.auth_version = (Number(currentUser.auth_version) || 1) + 1;
+  localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(currentUser));
+  logAudit("修改密码", "user", currentUser.id, {
+    username: currentUser.username,
+  });
+  await saveDB();
+  return { ok: true };
+}
+
+function openChangePasswordModal(forced) {
+  if (!currentUser) return;
+  const modal = document.getElementById("modal");
+  if (forced && modal && modal.classList.contains("active")) return;
+  closeProfileMenu();
+  passwordChangeBlocking = !!forced;
+  document.getElementById("modal-title").textContent = forced
+    ? "请修改密码"
+    : "修改密码";
+  const closeBtn = document.querySelector("#modal .close");
+  if (closeBtn) closeBtn.hidden = !!forced;
+  setModalWide(false);
+  setModalBody(`
+    <form id="change-password-modal-form" class="modal-form" onsubmit="submitChangePasswordModal(event)">
+      ${
+        forced
+          ? '<p class="field-hint">首次登录或管理员要求，请先设置新密码后再继续使用。</p>'
+          : ""
+      }
+      <div class="field">
+        <label for="change-password-modal-old">原密码</label>
+        <input type="password" id="change-password-modal-old" autocomplete="current-password" required>
+      </div>
+      <div class="field">
+        <label for="change-password-modal-new">新密码</label>
+        <input type="password" id="change-password-modal-new" autocomplete="new-password" required>
+      </div>
+      <div class="field">
+        <label for="change-password-modal-confirm">确认新密码</label>
+        <input type="password" id="change-password-modal-confirm" autocomplete="new-password" required>
+      </div>
+      <p class="field-hint" id="change-password-modal-hint" aria-live="polite"></p>
+      <div class="btn-bar">
+        <button type="submit" class="btn btn-primary" id="change-password-modal-submit">保存新密码</button>
+        ${
+          forced
+            ? ""
+            : '<button type="button" class="btn btn-default" onclick="closeChangePasswordModal()">取消</button>'
+        }
+      </div>
+    </form>
+  `);
+  document.getElementById("modal").classList.add("active");
+}
+
+function closeChangePasswordModal() {
+  if (passwordChangeBlocking) return;
+  passwordChangeBlocking = false;
+  const closeBtn = document.querySelector("#modal .close");
+  if (closeBtn) closeBtn.hidden = false;
+  closeModal();
+}
+
+async function submitChangePasswordModal(event) {
+  event.preventDefault();
+  if (!currentUser) return;
+  const oldPassword = document.getElementById("change-password-modal-old").value;
+  const newPassword = document.getElementById("change-password-modal-new").value;
+  const confirmPassword = document.getElementById(
+    "change-password-modal-confirm",
+  ).value;
+  const hint = document.getElementById("change-password-modal-hint");
+  if (newPassword !== confirmPassword) {
+    if (hint) hint.textContent = "两次输入的新密码不一致";
+    return;
+  }
+  setPendingState({
+    inputIds: [
+      "change-password-modal-old",
+      "change-password-modal-new",
+      "change-password-modal-confirm",
+    ],
+    buttonId: "change-password-modal-submit",
+    pending: true,
+    pendingText: "保存中…",
+    idleText: "保存新密码",
+  });
+  if (hint) hint.textContent = "";
+  try {
+    await changeOwnPassword(oldPassword, newPassword);
+    finishPasswordChangeSuccess("密码已更新");
+  } catch (e) {
+    if (hint) hint.textContent = e.message || "修改失败";
+  } finally {
+    setPendingState({
+      inputIds: [
+        "change-password-modal-old",
+        "change-password-modal-new",
+        "change-password-modal-confirm",
+      ],
+      buttonId: "change-password-modal-submit",
+      pending: false,
+      pendingText: "保存中…",
+      idleText: "保存新密码",
+    });
+  }
+}
+
+async function submitChangePasswordForm(event) {
+  event.preventDefault();
+  if (!currentUser) return;
+  const oldPassword = document.getElementById("change-password-old").value;
+  const newPassword = document.getElementById("change-password-new").value;
+  const confirmPassword = document.getElementById(
+    "change-password-confirm",
+  ).value;
+  const hint = document.getElementById("change-password-form-hint");
+  if (newPassword !== confirmPassword) {
+    if (hint) hint.textContent = "两次输入的新密码不一致";
+    return;
+  }
+  setPendingState({
+    inputIds: [
+      "change-password-old",
+      "change-password-new",
+      "change-password-confirm",
+    ],
+    buttonId: "change-password-submit-btn",
+    pending: true,
+    pendingText: "保存中…",
+    idleText: "保存新密码",
+  });
+  if (hint) hint.textContent = "";
+  try {
+    await changeOwnPassword(oldPassword, newPassword);
+    finishPasswordChangeSuccess("密码已更新");
+  } catch (e) {
+    if (hint) hint.textContent = e.message || "修改失败";
+  } finally {
+    setPendingState({
+      inputIds: [
+        "change-password-old",
+        "change-password-new",
+        "change-password-confirm",
+      ],
+      buttonId: "change-password-submit-btn",
+      pending: false,
+      pendingText: "保存中…",
+      idleText: "保存新密码",
+    });
+  }
 }
 
 document.addEventListener("click", function (e) {

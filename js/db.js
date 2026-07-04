@@ -224,16 +224,6 @@ function refreshAfterWrite(writeResult, options) {
   return task;
 }
 
-async function remoteLoginAsync(username, password) {
-  const result = await remoteDBRequestAsync({
-    action: "login",
-    username,
-    password,
-  });
-  if (!result.user) throw new Error("登录成功但未收到用户信息");
-  return result;
-}
-
 function remoteLogout() {
   /* access/refresh 由服务端 HttpOnly Cookie 管理 | Cookies cleared via apiAuthLogout */
 }

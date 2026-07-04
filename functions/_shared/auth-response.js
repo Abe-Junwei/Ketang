@@ -17,6 +17,7 @@ export function sessionUserPayload(user) {
     is_advanced: !!user.is_advanced,
     auth_version:
       user.auth_version != null ? Number(user.auth_version) || 1 : 1,
+    must_change_password: !!user.must_change_password,
   };
 }
 

@@ -205,8 +205,19 @@ def test_users_list_and_is_advanced():
     if 'is_advanced: !!user.is_advanced' not in read('functions/_shared/auth-response.js'):
         print('FAIL auth-response.js must preserve is_advanced in session user payload')
         sys.exit(1)
-    if 'buildDualAuthSuccess(env, request, result.user, meta' not in db_api:
-        print('FAIL db.js change_password must issue dual-token session via buildDualAuthSuccess')
+    if 'must_change_password: !!user.must_change_password' not in read('functions/_shared/auth-response.js'):
+        print('FAIL auth-response.js must expose must_change_password in session user payload')
+        sys.exit(1)
+    if 'buildDualAuthSuccess(env, request, result.user, meta' not in read(
+        'functions/api/v1/auth/change-password.js'
+    ):
+        print('FAIL change-password.js must issue dual-token session via buildDualAuthSuccess')
+        sys.exit(1)
+    if 'apiChangePassword' not in auth or 'changeOwnPassword' not in auth:
+        print('FAIL auth.js must wire self-service password change via apiChangePassword')
+        sys.exit(1)
+    if 'openChangePasswordModal' not in auth or 'submitChangePasswordForm' not in auth:
+        print('FAIL auth.js missing change password UI handlers')
         sys.exit(1)
     if 'is_advanced: fresh.is_advanced ? 1 : 0' not in auth:
         print('FAIL auth.js local login must set currentUser.is_advanced')
@@ -314,8 +325,14 @@ def test_remote_session_persistence():
     if 'localStorage.getItem(REMOTE_SESSION_KEY)' in db:
         print('FAIL db.js must not fall back to legacy localStorage session token')
         sys.exit(1)
-    if 'if (!result.user)' not in db:
-        print('FAIL db.js remoteLoginAsync must require user payload')
+    if 'if (!result.user)' not in auth:
+        print('FAIL auth.js login must require user payload from apiAuthLogin')
+        sys.exit(1)
+    if 'remoteLoginAsync' in auth:
+        print('FAIL auth.js must not call remoteLoginAsync')
+        sys.exit(1)
+    if 'remoteLoginAsync' in db:
+        print('FAIL db.js must not define remoteLoginAsync')
         sys.exit(1)
 
 
@@ -389,6 +406,9 @@ def test_login_ui_has_no_fake_identity_loading():
         sys.exit(1)
     if 'bootAuthUI' not in auth or 'showBootstrapping' not in auth:
         print('FAIL auth.js missing boot-time session UI helpers')
+        sys.exit(1)
+    if 'change-password-form' not in index or 'openChangePasswordModal(false)' not in index:
+        print('FAIL index.html missing self-service change password UI')
         sys.exit(1)
     if 'setLoginOverlayPanel("restore")' not in auth:
         print('FAIL showBootstrapping must keep restore panel over app shell')
