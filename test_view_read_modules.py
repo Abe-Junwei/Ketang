@@ -73,10 +73,18 @@ def main():
         ("rcEventRoomingRows", "function rcEventRoomingRows" in rc),
         ("rc board indexes", "function rcEnsureBoardIndexes" in rc),
         ("rc invalidate board indexes", "function rcInvalidateBoardIndexes" in rc),
-        ("meals rc read", "rcReadReady" in read("js/meals.js")),
+        (
+            "meals rc read",
+            "readMealsForLodger" in read("js/meals.js")
+            and "function readMealsForLodger" in read("js/read-shim.js"),
+        ),
         ("forecast rc today", "rcForecastTodayData" in read("js/forecast.js")),
         ("forecast rc flow", "rcForecastFlowWeeks" in read("js/forecast.js")),
-        ("events rc list", "rcEventListWithStats" in read("js/events.js")),
+        (
+            "events rc list",
+            "readEventListWithStats" in read("js/events.js")
+            and "rcEventListWithStats" in read("js/read-shim.js"),
+        ),
         ("events rc members", "rcEventMembers" in read("js/events.js")),
         ("info events loader", "info_events" in read("js/info.js")),
         ("rcModulesForInfoTab", "function rcModulesForInfoTab" in rc),

@@ -24,7 +24,10 @@ def main():
         ("read shim", "readUseRc" in shim and "readLodgerEnriched" in shim),
         ("delta rc patch", "rcApplyDeltaPatches" in rc),
         ("force sync rcEnsureAppData", "rcEnsureAppData(true" in sync),
-        ("online board stats rc", "if (!isLocalForceDb())" in app and "rcGetBoardBedStats" in app),
+        (
+            "online board stats rc",
+            "useOnlineDataPath()" in app and "rcGetBoardBedStats" in app,
+        ),
         ("public reserve page", Path("reserve.html").is_file()),
         ("scheduled backup", Path("functions/_scheduled.js").is_file()),
     ]
