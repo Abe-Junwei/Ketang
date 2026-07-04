@@ -35,6 +35,55 @@ const EVENT_STATUSES = new Set([
   "已取消",
 ]);
 
+/** admin/records 子阶段计时 | Sub-stage timing for records handler */
+let _recordTiming = null;
+
+function flushHandlerMs() {
+  if (!_recordTiming || _recordTiming._handlerT0 == null) return;
+  _recordTiming.handler_ms =
+    (_recordTiming.handler_ms || 0) + (Date.now() - _recordTiming._handlerT0);
+  _recordTiming._handlerT0 = null;
+}
+
+function markHandlerStart() {
+  if (_recordTiming) _recordTiming._handlerT0 = Date.now();
+}
+
+async function recordWriteBatch(env, ...args) {
+  flushHandlerMs();
+  const t0 = Date.now();
+  const result = await recordWriteBatch(env, ...args);
+  if (_recordTiming) {
+    _recordTiming.write_tail_ms =
+      (_recordTiming.write_tail_ms || 0) + (Date.now() - t0);
+  }
+  markHandlerStart();
+  return result;
+}
+
+async function recordFinishWrite(env, ...args) {
+  flushHandlerMs();
+  const t0 = Date.now();
+  const result = await recordFinishWrite(env, ...args);
+  if (_recordTiming) {
+    _recordTiming.write_tail_ms =
+      (_recordTiming.write_tail_ms || 0) + (Date.now() - t0);
+  }
+  markHandlerStart();
+  return result;
+}
+
+async function recordEnrichWrite(env, writeMeta, options) {
+  flushHandlerMs();
+  const t0 = Date.now();
+  const result = await enrichWriteResponse(env, writeMeta, options);
+  if (_recordTiming) {
+    _recordTiming.patch_ms = (_recordTiming.patch_ms || 0) + (Date.now() - t0);
+  }
+  markHandlerStart();
+  return result;
+}
+
 function text(value) {
   const v = String(value || "").trim();
   return v || null;
@@ -141,7 +190,7 @@ async function upsertRoom(env, session, body) {
     );
     if (!existing[0]) throw new Error("房间不存在");
     const tags = parseRoomTagFields(body);
-    const writeMeta = await atomicWriteBatch(
+    const writeMeta = await recordWriteBatch(
       env,
       [
         {
@@ -167,7 +216,7 @@ async function upsertRoom(env, session, body) {
       null,
       ["settings_rooms"],
     );
-    return enrichWriteResponse(env, writeMeta, {
+    return recordEnrichWrite(env, writeMeta, {
       patchTable: "rooms",
       patchRow: buildRoomPatchRow(id, body, tags),
       patchComplete: true,
@@ -175,7 +224,7 @@ async function upsertRoom(env, session, body) {
   }
 
   const tags = parseRoomTagFields(body);
-  const writeMeta = await atomicWriteBatch(
+  const writeMeta = await recordWriteBatch(
     env,
     [
       {
@@ -205,7 +254,7 @@ async function upsertRoom(env, session, body) {
   const roomId = writeMeta.last_row_id;
   if (!roomId) throw new Error("新增房间失败");
   writeMeta.room_id = roomId;
-  return enrichWriteResponse(env, writeMeta, {
+  return recordEnrichWrite(env, writeMeta, {
     patchTable: "rooms",
     patchRow: buildRoomPatchRow(roomId, body, tags),
     patchComplete: true,
@@ -230,9 +279,9 @@ async function deleteRoom(env, session, body) {
     throw new Error(
       `该房间下还有 ${beds[0].c} 张床位，请先删除床位后再删除房间`,
     );
-  return enrichWriteResponse(
+  return recordEnrichWrite(
     env,
-    await atomicWriteBatch(
+    await recordWriteBatch(
       env,
       [
         { sql: "DELETE FROM rooms WHERE id = ?", params: [id] },
@@ -324,7 +373,7 @@ async function upsertBed(env, session, body) {
         session,
       ),
     );
-    const writeMeta = await atomicWriteBatch(
+    const writeMeta = await recordWriteBatch(
       env,
       statements,
       { bed_id: id },
@@ -332,14 +381,14 @@ async function upsertBed(env, session, body) {
       null,
       ["settings_beds"],
     );
-    return enrichWriteResponse(env, writeMeta, {
+    return recordEnrichWrite(env, writeMeta, {
       patchTable: "beds",
       patchRow: buildBedPatchRow(id, roomId, bedNumber, status, body, bedTags),
       patchComplete: true,
     });
   }
 
-  const writeMeta = await atomicWriteBatch(
+  const writeMeta = await recordWriteBatch(
     env,
     [
       {
@@ -375,7 +424,7 @@ async function upsertBed(env, session, body) {
   const bedId = writeMeta.last_row_id;
   if (!bedId) throw new Error("新增床位失败");
   writeMeta.bed_id = bedId;
-  return enrichWriteResponse(env, writeMeta, {
+  return recordEnrichWrite(env, writeMeta, {
     patchTable: "beds",
     patchRow: buildBedPatchRow(bedId, roomId, bedNumber, status, body, bedTags),
     patchComplete: true,
@@ -420,7 +469,7 @@ async function deleteBed(env, session, body) {
   ).map(function (r) {
     return r.id;
   });
-  const writeMeta = await atomicWriteBatch(
+  const writeMeta = await recordWriteBatch(
     env,
     [
       {
@@ -475,7 +524,7 @@ async function deleteBed(env, session, body) {
     rooming_checkin_queue: await rowsByIds("rooming_checkin_queue", queueIds),
     rooming_adjustments: await rowsByIds("rooming_adjustments", adjustmentIds),
   };
-  return enrichWriteResponse(env, writeMeta, {
+  return recordEnrichWrite(env, writeMeta, {
     deletions: [
       { table_name: "beds", row_id: id },
       { table_name: "housekeeping", bed_id: id },
@@ -522,7 +571,7 @@ async function upsertGuest(env, session, body) {
       [id],
     );
     if (!existing[0]) throw new Error("住客档案不存在");
-    const writeMeta = await atomicWriteBatch(
+    const writeMeta = await recordWriteBatch(
       env,
       [
         {
@@ -557,14 +606,14 @@ async function upsertGuest(env, session, body) {
       null,
       ["settings_guests"],
     );
-    return enrichWriteResponse(env, writeMeta, {
+    return recordEnrichWrite(env, writeMeta, {
       patchTable: "guests",
       patchRow: buildGuestPatchRow(id, person, body, gender, phone, idCard, now),
       patchComplete: true,
     });
   }
 
-  const writeMeta = await atomicWriteBatch(
+  const writeMeta = await recordWriteBatch(
     env,
     [
       {
@@ -600,7 +649,7 @@ async function upsertGuest(env, session, body) {
   const guestId = writeMeta.last_row_id;
   if (!guestId) throw new Error("新增住客档案失败");
   writeMeta.guest_id = guestId;
-  return enrichWriteResponse(env, writeMeta, {
+  return recordEnrichWrite(env, writeMeta, {
     patchTable: "guests",
     patchRow: buildGuestPatchRow(
       guestId,
@@ -628,9 +677,9 @@ async function deleteGuest(env, session, body) {
   );
   if ((refs[0]?.c || 0) > 0)
     throw new Error(`该档案已被 ${refs[0].c} 条挂单记录引用，无法删除`);
-  return enrichWriteResponse(
+  return recordEnrichWrite(
     env,
-    await atomicWriteBatch(
+    await recordWriteBatch(
       env,
       [
         { sql: "DELETE FROM guests WHERE id = ?", params: [id] },
@@ -793,7 +842,7 @@ async function upsertEvent(env, session, body) {
     const modules = cancelCascade
       ? ["events", "board", "lodgers_active", "reservations", "meals"]
       : ["events"];
-    const writeMeta = await atomicWriteBatch(
+    const writeMeta = await recordWriteBatch(
       env,
       statements,
       { event_id: id },
@@ -807,7 +856,7 @@ async function upsertEvent(env, session, body) {
         patchRowIds.beds,
       );
     }
-    return enrichWriteResponse(
+    return recordEnrichWrite(
       env,
       writeMeta,
       cancelCascade
@@ -828,7 +877,7 @@ async function upsertEvent(env, session, body) {
   }
 
   // Single D1 batch: INSERT + audit + version bump + sync logs + version read
-  const writeMeta = await atomicWriteBatch(
+  const writeMeta = await recordWriteBatch(
     env,
     [
       {
@@ -858,7 +907,7 @@ async function upsertEvent(env, session, body) {
   const eventId = writeMeta.last_row_id;
   if (!eventId) throw new Error("新增营期失败");
   writeMeta.event_id = eventId;
-  return enrichWriteResponse(env, writeMeta, {
+  return recordEnrichWrite(env, writeMeta, {
     patchTable: "events",
     patchRow: buildEventPatchRow(eventId),
     patchComplete: true,
@@ -880,9 +929,9 @@ async function deleteEvent(env, session, body) {
     throw new Error(
       `该营期下还有 ${refs[0].c} 条记录，无法删除。请先取消或转移这些记录。`,
     );
-  return enrichWriteResponse(
+  return recordEnrichWrite(
     env,
-    await atomicWriteBatch(
+    await recordWriteBatch(
       env,
       [
         { sql: "DELETE FROM events WHERE id = ?", params: [id] },
@@ -1084,34 +1133,41 @@ async function updateLodgerRecord(env, session, body) {
     { name: person.name, bed_id: finalBedId, status },
     session,
   );
-  return enrichWriteResponse(
+  return recordEnrichWrite(
     env,
-    await finishWrite(env, {}, ["lodging"], ["lodgers_active", "lodgers"]),
+    await recordFinishWrite(env, {}, ["lodging"], ["lodgers_active", "lodgers"]),
     { patchTable: "lodgers", rowId: id },
   );
 }
 
-export async function handleAdminRecord(env, session, body) {
-  await requirePermission(env, session, "settings.write");
-  const resource = body.resource;
-  const action = body.action;
-  if (resource === "room" && (action === "create" || action === "update"))
-    return upsertRoom(env, session, body);
-  if (resource === "room" && action === "delete")
-    return deleteRoom(env, session, body);
-  if (resource === "bed" && (action === "create" || action === "update"))
-    return upsertBed(env, session, body);
-  if (resource === "bed" && action === "delete")
-    return deleteBed(env, session, body);
-  if (resource === "guest" && (action === "create" || action === "update"))
-    return upsertGuest(env, session, body);
-  if (resource === "guest" && action === "delete")
-    return deleteGuest(env, session, body);
-  if (resource === "event" && (action === "create" || action === "update"))
-    return upsertEvent(env, session, body);
-  if (resource === "event" && action === "delete")
-    return deleteEvent(env, session, body);
-  if (resource === "lodger" && action === "update")
-    return updateLodgerRecord(env, session, body);
-  throw new Error("未知管理操作");
+export async function handleAdminRecord(env, session, body, timing) {
+  _recordTiming = timing || null;
+  markHandlerStart();
+  try {
+    await requirePermission(env, session, "settings.write");
+    const resource = body.resource;
+    const action = body.action;
+    if (resource === "room" && (action === "create" || action === "update"))
+      return upsertRoom(env, session, body);
+    if (resource === "room" && action === "delete")
+      return deleteRoom(env, session, body);
+    if (resource === "bed" && (action === "create" || action === "update"))
+      return upsertBed(env, session, body);
+    if (resource === "bed" && action === "delete")
+      return deleteBed(env, session, body);
+    if (resource === "guest" && (action === "create" || action === "update"))
+      return upsertGuest(env, session, body);
+    if (resource === "guest" && action === "delete")
+      return deleteGuest(env, session, body);
+    if (resource === "event" && (action === "create" || action === "update"))
+      return upsertEvent(env, session, body);
+    if (resource === "event" && action === "delete")
+      return deleteEvent(env, session, body);
+    if (resource === "lodger" && action === "update")
+      return updateLodgerRecord(env, session, body);
+    throw new Error("未知管理操作");
+  } finally {
+    flushHandlerMs();
+    _recordTiming = null;
+  }
 }

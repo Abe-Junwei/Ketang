@@ -31,9 +31,16 @@ export async function onRequestPost({ request, env }) {
     if (!body?.resource || !body?.action) {
       return timer.finish({ error: "缺少 resource 或 action" }, request, 400);
     }
-    // biz_ms: handleAdminRecord + write tail (single D1 batch) + patch enrich
-    const result = await timer.stage("biz_ms", () =>
-      handleAdminRecord(env, session, body),
+    const subtiming = {};
+    const result = await handleAdminRecord(env, session, body, subtiming);
+    timer.mark("handler_ms", subtiming.handler_ms || 0);
+    timer.mark("write_tail_ms", subtiming.write_tail_ms || 0);
+    timer.mark("patch_ms", subtiming.patch_ms || 0);
+    timer.mark(
+      "biz_ms",
+      (subtiming.handler_ms || 0) +
+        (subtiming.write_tail_ms || 0) +
+        (subtiming.patch_ms || 0),
     );
     return timer.finish(result, request);
   } catch (error) {

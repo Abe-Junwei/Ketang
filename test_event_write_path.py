@@ -41,7 +41,7 @@ def main() -> None:
 
     write_resp = read("functions/_shared/write-response.js")
     checks = [
-        ("upsert uses atomicWriteBatch", "atomicWriteBatch" in upsert),
+        ("upsert uses atomicWriteBatch", "recordWriteBatch" in upsert or "atomicWriteBatch" in upsert),
         ("upsert audit in batch", "auditLogStatement" in upsert),
         ("create uses last_insert_rowid audit", "useLastInsertRowId" in upsert),
         ("create uses in-memory patchRow", "patchRow: buildEventPatchRow" in upsert),
