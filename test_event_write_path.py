@@ -50,13 +50,13 @@ def main() -> None:
         ("room create single batch", "useLastInsertRowId" in admin and "buildRoomPatchRow" in admin),
         ("bed create housekeeping batch", "last_insert_rowid()" in admin),
         ("guest patchRow helper", "buildGuestPatchRow" in admin),
-        ("upsert cancel lodger patches", "patchRowIds.lodgers" in upsert),
+        ("upsert cancel lodger patches", "patchRows.lodgers" in upsert),
         ("upsert cancel no lodger deletions", "lodgerDeletions" not in upsert),
         ("upsert cancel meal deletions", "fetchMealDeletionsForLodgers" in upsert),
         ("upsert cancel housekeeping patches", "fetchLatestHousekeepingPatches" in upsert),
-        ("upsert cancel reservation patches", "patchRowIds.reservations" in upsert),
+        ("upsert cancel reservation patches", "patchRows.reservations" in upsert),
         ("batch members single IN query", "id IN (" in batch),
-        ("batch members lodger patches", "patchRowIds.lodgers" in batch),
+        ("batch members lodger patches", "patchRows.lodgers" in batch),
         ("batch members meal deletions", "fetchMealDeletionsForLodgers" in batch),
         ("batch members housekeeping", "fetchLatestHousekeepingPatches" in batch),
         ("housekeeping patch helper", "fetchLatestHousekeepingPatches" in write_resp),
@@ -89,6 +89,22 @@ def main() -> None:
             "fetchLatestHousekeepingPatches" in read("functions/_shared/lodgers.js"),
         ),
         (
+            "lodger finish in-memory patches",
+            "patchRows: patch.patchRows" in read("functions/_shared/lodgers.js"),
+        ),
+        (
+            "lodger finish no patchRowIds",
+            "patchRowIds" not in read("functions/_shared/lodgers.js"),
+        ),
+        (
+            "reservations no patchRowIds",
+            "patchRowIds" not in read("functions/_shared/reservations.js"),
+        ),
+        (
+            "admin records no patchRowIds",
+            "patchRowIds" not in read("functions/_shared/admin-records.js"),
+        ),
+        (
             "lodger finish patch_complete default",
             "patchComplete: patch.complete !== false"
             in read("functions/_shared/lodgers.js"),
@@ -102,9 +118,32 @@ def main() -> None:
             "patchComplete: true" in read("functions/_shared/rooming-publish.js"),
         ),
         (
+            "queue checkin in-memory patches",
+            "patchRows: assignPatchRows" in read("functions/_shared/rooming-publish.js")
+            and "buildLodgerAssignPatches" in read("functions/_shared/rooming-publish.js"),
+        ),
+        (
             "queue checkin patch_complete",
             "processRoomingQueueCheckin" in read("functions/_shared/rooming-publish.js")
             and "fetchLatestHousekeepingPatches" in read("functions/_shared/rooming-publish.js"),
+        ),
+        (
+            "reservation status patchRow",
+            "patchRow: { ...r, status: status }" in read("functions/_shared/reservations.js"),
+        ),
+        (
+            "housekeeping bed patchRow",
+            "patchRow: bedPatch" in read("functions/_shared/housekeeping.js"),
+        ),
+        (
+            "lodger admin update patchRow",
+            "buildLodgerPatchRow" in admin
+            and "patchRow: buildLodgerPatchRow" in admin,
+        ),
+        (
+            "meals lodger patchRow",
+            "patchRow:" in read("functions/_shared/meals.js")
+            and "rowId: lodgerId" not in read("functions/_shared/meals.js"),
         ),
         (
             "delete bed rooming patches",

@@ -149,7 +149,7 @@ def main():
             [
                 ("uses lodgerFinishWrite", "lodgerFinishWrite"),
                 ("finishes lodging/board/meals", '["lodging", "board", "meals"]'),
-                ("patches lodger", "lodgerId"),
+                ("patches lodger", "patchRows"),
             ],
         )
     )
@@ -160,7 +160,7 @@ def main():
             [
                 ("uses lodgerFinishWrite", "lodgerFinishWrite"),
                 ("finishes lodging/board", '["lodging", "board", "housekeeping"]'),
-                ("patches bed", "bedIds"),
+                ("patches bed", "patchRows"),
             ],
         )
     )
@@ -171,7 +171,7 @@ def main():
             [
                 ("uses lodgerFinishWrite", "lodgerFinishWrite"),
                 ("finishes lodging/board", '["lodging", "board", "housekeeping"]'),
-                ("patches old/new beds", "bedIds"),
+                ("patches old/new beds", "patchRows"),
             ],
         )
     )
@@ -182,7 +182,7 @@ def main():
             [
                 ("uses lodgerFinishWrite", "lodgerFinishWrite"),
                 ("finishes lodging/board/meals", '["lodging", "board", "housekeeping", "meals"]'),
-                ("patches lodger", "lodgerId"),
+                ("patches lodger", "patchRows"),
             ],
         )
     )
@@ -194,7 +194,7 @@ def main():
                 ("uses lodgerFinishWrite", "lodgerFinishWrite"),
                 ("supports deferred finish", "deferFinishWrite"),
                 ("finishes meals when not deferred", '["lodging", "board", "housekeeping", "meals"]'),
-                ("patches bed", "bedIds"),
+                ("patches bed", "buildLodgerAssignPatches"),
             ],
         )
     )
@@ -206,7 +206,7 @@ def main():
                 ("uses lodgerFinishWrite", "lodgerFinishWrite"),
                 ("supports deferred finish", "deferFinishWrite"),
                 ("finishes meals when not deferred", '["lodging", "board", "meals"]'),
-                ("patches reservation", "reservationIds"),
+                ("patches reservation", "buildReservationAssignPatchRows"),
             ],
         )
     )
@@ -217,7 +217,7 @@ def main():
             [
                 ("uses lodgerFinishWrite", "lodgerFinishWrite"),
                 ("finishes lodging/board/meals", '["lodging", "board", "housekeeping", "meals"]'),
-                ("patches guest", "guestIds"),
+                ("patches guest", "buildEditLodgerPatchRows"),
             ],
         )
     )
@@ -263,7 +263,7 @@ def main():
             [
                 ("uses enrichWriteResponse", "enrichWriteResponse"),
                 ("finishes reservations", '["reservations"]'),
-                ("patches reservation", "patchRowIds"),
+                ("patches reservation", "patchRow:"),
             ],
         )
     )
@@ -285,7 +285,7 @@ def main():
             [
                 ("uses enrichWriteResponse", "enrichWriteResponse"),
                 ("finishes reservations lodging meals", '["reservations", "lodging", "meals"]'),
-                ("patches member rows", "patchRowIds"),
+                ("patches member rows", "patchRows"),
             ],
         )
     )

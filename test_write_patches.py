@@ -26,7 +26,7 @@ def main():
         ("info no loading on filter", "infoRenderCurrentTabLists()" in info),
         ("info server patches", "infoApplyWritePatches" in info),
         ("lodgers enrich", "lodgerFinishWrite" in read("functions/_shared/lodgers.js")),
-        ("reservations batch patches", "patchRowIds" in read("functions/_shared/reservations.js")),
+        ("reservations batch patches", "patchRows" in read("functions/_shared/reservations.js")),
         ("rcRefreshAfterWrite", "function rcRefreshAfterWrite" in rc),
         (
             "rcRefreshAfterWrite single impl",

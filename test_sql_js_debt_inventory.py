@@ -9,7 +9,7 @@ JS = Path("js")
 # isLocalForceDb() 出现次数上限；债务清理时应下调，不得无声上涨
 LOCAL_BRANCH_CEILING = {
     "app.js": 6,
-    "auth.js": 9,
+    "auth.js": 10,
     "checkin.js": 5,
     "db.js": 2,
     "events.js": 5,

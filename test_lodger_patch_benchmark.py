@@ -189,9 +189,9 @@ def production_delta_benchmark() -> bool:
     body: dict = {}
     for attempt in range(3):
         status, body, _, _ = request_json(
-            f"{base}/api/db",
+            f"{base}/api/v1/auth/login",
             method="POST",
-            body={"action": "login_role", "role": "admin", "password": password},
+            body={"username": "admin", "password": password},
             timeout=90,
         )
         if status == 200 and body.get("user"):

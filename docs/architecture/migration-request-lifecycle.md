@@ -62,7 +62,10 @@ API 请求 → ensureDatabaseReady（isolate cache / 单次 ready 查询）
 
 ```bash
 python3 test_admin_write_latency.py --base https://wulingkt.net --resource event --samples 2
+python3 test_admin_write_latency.py --base https://wulingkt.net --resource event --samples 2 --enforce-thresholds
 ```
+
+GitHub Actions：`Admin write latency probe`（`workflow_dispatch`）在发布前手动跑 enforce 探针。
 
 输出字段：`login_ms`、`create_*_ms`、`init_ms`、`auth_ms`、`handler_ms`、`write_tail_ms`、`patch_ms`、`biz_ms`、`delete_*_ms`。
 
@@ -75,8 +78,8 @@ python3 test_admin_write_latency.py --base https://wulingkt.net --resource event
 | Phase 0 细拆 | ✅ `handler_ms` / `write_tail_ms` / `patch_ms` 已接入 `admin/records` |
 | Legacy `/api/db` 登录 | ✅ `login` / `login_role` 返回 410，客户端走 `/api/v1/auth/login` |
 | CI 结构守门 | ✅ `test_admin_write_timing_stages.py` |
-| 线上 p95 硬门槛 | 部分：`test_admin_write_latency.py` 对 warm 探针 WARN；尚未纳入 CI 必过项 |
-| 复杂写路径减 patch 回读 | 进行中：lodger/rooming 仍有 SELECT enrich |
+| 线上 p95 硬门槛 | 部分：`test_admin_write_latency.py --enforce-thresholds` + `workflow_dispatch` 探针；默认 CI 仅结构守门 |
+| 复杂写路径减 patch 回读 | ✅ 热路径已统一 in-memory `patchRow` / `patchRows`；`enrichWriteResponse` 仍保留 `patchRowIds` 兜底供遗留调用 |
 
 过渡目标：cold create &lt; 5s，warm create &lt; 3s。  
 最终目标：cold `init_ms` &lt; 300ms，warm create &lt; 2s。
