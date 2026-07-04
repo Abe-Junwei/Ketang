@@ -66,6 +66,12 @@ def main() -> int:
     if "timeoutMs: options.timeoutMs" not in api_client:
         failed.append("apiFetch 401 retry must preserve timeoutMs")
 
+    records = read("functions/api/v1/admin/records.js")
+    if "createRequestTimer" not in records or 'stage("init_ms"' not in records:
+        failed.append("admin/records must time init_ms/auth_ms/biz_ms")
+    if 'stage("biz_ms"' not in records or 'stage("auth_ms"' not in records:
+        failed.append("admin/records missing auth_ms or biz_ms stages")
+
     failed += assert_304_before_init("read-model", fn_body(read_model, "onRequestGet") or read_model)
     failed += assert_304_before_init("sync/delta", fn_body(sync_delta, "onRequestGet") or sync_delta)
 
