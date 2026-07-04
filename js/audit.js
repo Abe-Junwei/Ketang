@@ -20,9 +20,9 @@ function logAudit(action, targetType, targetId, detail) {
     if (
       typeof isRemoteDB === "function" &&
       isRemoteDB() &&
-      typeof remoteDBRequestAsync === "function"
+      typeof apiPostAudit === "function"
     ) {
-      remoteDBRequestAsync({ action: "run", sql: sql, params: params }).catch(
+      apiPostAudit(action, targetType || null, targetId || null, enriched).catch(
         function (e) {
           console.warn("审计日志写入失败：", e);
         },

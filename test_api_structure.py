@@ -61,6 +61,8 @@ REQUIRED = [
     'functions/api/v1/auth/login.js',
     'functions/api/v1/auth/refresh.js',
     'functions/api/v1/auth/logout.js',
+    'functions/api/v1/auth/change-password.js',
+    'functions/api/v1/audit.js',
     'functions/api/v1/admin/users.js',
     'functions/api/v1/admin/role-permissions.js',
     'functions/api/v1/admin/operational-settings.js',

@@ -18,10 +18,8 @@ import {
   initRemoteDatabase,
   ensureDatabaseForAuth,
   isDatabaseEmpty,
-  assertAllowedSql,
   safeErrorMessage,
 } from "../_shared/d1.js";
-import { changeUserPassword } from "../_shared/users.js";
 import { createRequestTimer } from "../_shared/timing.js";
 import { buildDualAuthSuccess } from "../_shared/auth-response.js";
 
@@ -199,61 +197,22 @@ export async function onRequestPost({ request, env }) {
     const session = await requireSession(request, env, bindQuery(env));
 
     if (payload.action === "change_password") {
-      const result = await changeUserPassword(
-        env,
-        session.sub || session.id,
-        payload.old_password,
-        payload.new_password,
+      return json(
+        {
+          error:
+            "请改用 POST /api/v1/auth/change-password（/api/db SQL 网关已退役）",
+        },
+        410,
       );
-      const meta = {
-        ip: clientIp(request),
-        userAgent: request.headers.get("user-agent") || "",
-      };
-      return await buildDualAuthSuccess(env, request, result.user, meta, {
-        ok: true,
-      });
     }
 
-    if (payload.action === "batch_query") {
-      const queries = Array.isArray(payload.queries)
-        ? payload.queries.slice(0, 20)
-        : [];
-      if (!queries.length) return json({ error: "queries 不能为空" }, 400);
-      const results = [];
-      for (const item of queries) {
-        const sql = assertAllowedSql("batch_query", item.sql, session);
-        results.push(await queryD1(env, sql, item.params || []));
-      }
-      return json({ results });
-    }
-
-    if (payload.action === "query") {
-      const sql = assertAllowedSql("query", payload.sql, session);
-      const rows = await queryD1(env, sql, payload.params || []);
-      return json({ rows });
-    }
-
-    if (payload.action === "run") {
-      const sql = assertAllowedSql("run", payload.sql, session);
-      const meta = await runD1(env, sql, payload.params || []);
-      return json({ meta });
-    }
-
-    if (payload.action === "exec") {
-      const sql = assertAllowedSql("exec", payload.sql, session);
-      const rows = await queryD1(env, sql, payload.params || []);
-      const columns = rows[0] ? Object.keys(rows[0]) : [];
-      return json({
-        result: [
-          {
-            columns,
-            values: rows.map((row) => columns.map((column) => row[column])),
-          },
-        ],
-      });
-    }
-
-    return json({ error: "未知操作" }, 400);
+    return json(
+      {
+        error:
+          "SQL 网关 query/run/batch_query 已退役，请使用 /api/v1/* 业务 API",
+      },
+      410,
+    );
   } catch (error) {
     console.error("Ketang API error:", error);
     const status = /登录已过期|原密码错误/.test(error.message)

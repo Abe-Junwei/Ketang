@@ -150,16 +150,30 @@ async function apiReadModel(ifNoneMatch) {
   return data;
 }
 
+async function apiPostAudit(action, targetType, targetId, detail) {
+  return apiFetch("/api/v1/audit", {
+    method: "POST",
+    body: {
+      action: action,
+      target_type: targetType,
+      target_id: targetId,
+      detail: detail,
+    },
+  });
+}
+
 async function remoteDBRequestAsync(payload) {
   return apiFetch("/api/db", { method: "POST", body: payload });
 }
 
-async function remoteBatchQuery(queries) {
-  const result = await remoteDBRequestAsync({
-    action: "batch_query",
-    queries: queries,
+async function apiChangePassword(oldPassword, newPassword) {
+  return apiFetch("/api/v1/auth/change-password", {
+    method: "POST",
+    body: {
+      old_password: oldPassword,
+      new_password: newPassword,
+    },
   });
-  return result.results || [];
 }
 
 async function apiAuthLogin(body) {
@@ -428,14 +442,6 @@ async function apiAdminRecord(resource, action, payload) {
   });
 }
 
-async function apiChangePassword(oldPassword, newPassword) {
-  return remoteDBRequestAsync({
-    action: "change_password",
-    old_password: oldPassword,
-    new_password: newPassword,
-  });
-}
-
 async function apiExportJsonBackup() {
   return apiFetch("/api/v1/admin/data-backup");
 }
@@ -488,6 +494,11 @@ function isLocalForceDb() {
   return typeof window !== "undefined" && window.KETANG_FORCE_LOCAL_DB === true;
 }
 
-function useRemoteWriteApi() {
+/** 在线 D1 + rc* 主路径（非 ?force_local_db=1 调试）| Online data path */
+function useOnlineDataPath() {
   return typeof isRemoteDB === "function" && isRemoteDB() && !isLocalForceDb();
+}
+
+function useRemoteWriteApi() {
+  return useOnlineDataPath();
 }
