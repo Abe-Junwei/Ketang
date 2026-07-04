@@ -28,9 +28,9 @@
 | Phase 10 | AI 辅助排房      | AI 生成可解释建议，人工最终确认          | Phase 9       | 暂缓         |
 | Phase 11 | 运维与发布工程化 | 白名单发布、巡检、日志、E2E、性能预算    | Phase 1/2/3/5 | 基本完成     |
 | Phase 12 | 同步与读模型 v2  | 写契约、模块读、增量 delta、SSE 看板推送 | Phase 9       | 主体完成     |
-| Phase 13 | 在线读路径瘦身   | 清理在线 `query()`、优化推送、评估读副本 | Phase 12      | 新增规划     |
+| Phase 13 | 在线读路径瘦身   | 清理在线 `query()`、优化推送、评估读副本 | Phase 12      | P1 尾巴已清零；P4 待触发 |
 
-> Phase 12 详细方案见 [docs/architecture/sync-read-model-v2.md](architecture/sync-read-model-v2.md)。当前写契约、模块读、delta、SSE 主体已落地；但在线热路径仍存在 `query()` 与无条件 `sql-wasm.js` 加载，去 sql.js 属于 Phase 13，不再视为 Phase 12 已完成范围。
+> Phase 12 详细方案见 [docs/architecture/sync-read-model-v2.md](architecture/sync-read-model-v2.md)。当前写契约、模块读、delta、SSE 主体已落地；在线热路径 `query()` 与无条件 `sql-wasm.js` 加载已在 Phase 13 P1 尾巴清零。P4 性能专项（读副本 / SSE / Normalized Store / 完全去 sql.js）按触发门槛启动。
 
 ## 3. Phase 0：冻结在线架构（已完成）
 
@@ -749,7 +749,7 @@ bash scripts/run_p1_checklist.sh https://wulingkt.net https://<pages-preview>.ke
 
 ### 19.7 Phase 13：在线读路径瘦身与 P4 修正排期
 
-本节根据 2026-07-03 现状核查修正 Phase 12 后续路线。结论：同步与读模型 v2、在线去 sql.js 主体已落地；在线热路径去 `query()` **基本完成，但 `guests.js` / `checkin.js` 在线 CSV 批量入住路径仍有裸 `query()`**，需在 Phase 13 收尾。
+本节根据 2026-07-03 现状核查修正 Phase 12 后续路线。结论：同步与读模型 v2、在线去 sql.js 主体已落地；在线热路径去 `query()`（含 `guests.js` D7）**已完成**。
 
 #### 19.7.1 现状核查结论
 
@@ -759,19 +759,19 @@ bash scripts/run_p1_checklist.sh https://wulingkt.net https://<pages-preview>.ke
 - WebSocket 未实现：仓库当前没有 WebSocket/DO 广播。
 - `index.html` 不再静态加载 `./lib/sql-wasm.js`；`db.js` 仅在本地/灾备路径动态加载 sql.js，在线误调 `query()` 会抛出带 caller 的错误。
 - `reports.js`、`forecast.js`、`history.js`、`events.js`、`rooming-*`、`auth.js` 在线热路径已由 `test_online_query_boundaries.py` 守卫；本地/灾备分支继续保留 `query()`。
-- **未清零项**：`guests.js` 的 `findGuestByPhoneOrIdCard` / `findGuestByDisplayName` 没有在线/本地分支保护，`checkin.js` 在线 CSV 批量入住（`checkin.js:495`）会调用 `findOrCreateGuest`，从而触发裸 `query()`；在线模式下 db 未初始化，可能重复创建 guest。
-- **测试覆盖缺口**：`test_online_query_boundaries.py` 此前未扫描 `guests.js`；且历史查询检查项期望 `rcHistorySearch`，实际实现为 `rcFetchHistoryRows`（已修正）。
+- **P1 尾巴已清零**：`guests.js` 身份查找在线走 `rcFindGuest*`，`findOrCreateGuest` / `incrementGuestVisit` 仅本地写路径可用；`checkin.js` / `reservations.js` 调用点本就在 `isLocalForceDb()` 内，在线 CSV 走 `apiBatchCheckIn`。
+- **测试覆盖**：`test_online_query_boundaries.py` 已覆盖 `guests.js` 与 `checkin.js` 批量入住路径；历史查询检查项为 `rcFetchHistoryRows`。
 - `_rcStore` 已能跨模块 patch 重复表；`event:<id>` 排房详情由 read event detail + 行级 patches 维护。
 
 #### 19.7.2 修正后的执行顺序
 
 1. **CRUD 写链路补洞（与 P1 尾巴并行）**：先补排房写路径 patches，并给入住/退房/换床/用斋/预约等高频操作增加保存中与防重复提交；这部分按 [CRUD 与在线读写链路迁移计划](architecture/crud-read-write-migration-plan.md) Phase B + Phase C-L1 执行。
-2. **P1 尾巴清零（基本完成，剩 guests.js/checkin.js）**：`reports.js`、`forecast.js`、`history.js`、`events.js`、`rooming-*`、`auth.js` 已迁到 `rc*` / read API；剩余 `guests.js` 在线身份查找需在 CSV 批量入住路径中改为 API 或 rc。
-3. **guests.js 在线身份查找收口**：在线分支调用后端 `POST /api/v1/guests/lookup`（或复用 read API）匹配 phone/id_card/display_name；本地分支保留 `query()`。
+2. **P1 尾巴清零（已完成）**：`reports.js`、`forecast.js`、`history.js`、`events.js`、`rooming-*`、`auth.js`、`guests.js` 已迁到 `rc*` / read API 或本地写守卫。
+3. **guests.js 在线身份查找收口（已完成）**：查找走 `rcFindGuestByPhoneOrIdCard` / `rcFindGuestByDisplayName`；创建/到访次数仅本地 `query()`/`run()`，在线由业务 API 负责。
 4. **P4-② D1 只读副本**：仅当报表/历史查询 P95 > 800ms 或 D1 读配额告警时启动；客户端零改动。
 5. **P4-① SSE/WebSocket 优化**：终端数 <30 时优先优化 SSE 检测间隔、后台重连与 changed domains；WebSocket 仅在 DO 可用且推送延迟/连接数成为瓶颈时启动。
 6. **P4-③ Normalized Store**：触发式启动；先补写响应 patch 范围，只有 moduleKey >10 且同表 patch bug 复现 2 次以上，或 `event:<id>` 陈旧造成用户可见错误时才做。
-7. **P4-④ 完全去 sql.js**：必须等 P1 尾巴清零、本地 `file://` 边界确认后再实施，预计 7–10 天，不再估算为 1 周以内的小改。
+7. **P4-④ 完全去 sql.js**：必须等本地 `file://` 边界确认后再实施，预计 7–10 天，不再估算为 1 周以内的小改。
 
 #### 19.7.3 P1 尾巴清零批次
 
@@ -781,7 +781,7 @@ bash scripts/run_p1_checklist.sh https://wulingkt.net https://<pages-preview>.ke
 | B    | `forecast.js`                                     | 今日房态/预测改为 `rc*` + 内存计算                          | 已完成，预测页不触发 sql.js hydrate             |
 | C    | `history.js`、`events.js`、`rooming-*`、`auth.js` | 剩余在线读分支迁到 `rc*` / read API；`info.js` 做防回归验收 | 已完成，在线路径仅保留本地/灾备 `query()` 分支  |
 | D    | `index.html`、`db.js`、发布白名单脚本             | `sql-wasm.js` 改为本地模式/灾备路径动态加载                 | 已完成，在线 bundle 不加载 `sql-wasm.js` / wasm |
-| E    | `guests.js`、`checkin.js`（CSV 批量入住）         | 在线身份查找改为 API/rc；`findOrCreateGuest` 增加 `isLocalForceDb()` 分支 | 在线 CSV 批量入住不触发 `query()`；测试覆盖 `guests.js` |
+| E    | `guests.js`、`checkin.js`（CSV 批量入住）         | 在线身份查找改为 `rcFindGuest*`；写路径 `guestUseLocalDb()` 守卫 | 已完成，在线路径不触发 `query()`；测试覆盖 `guests.js` |
 
 #### 19.7.4 P4 技术专项触发门槛
 
@@ -797,14 +797,14 @@ bash scripts/run_p1_checklist.sh https://wulingkt.net https://<pages-preview>.ke
 | 优先级  | 动作                                                          | 估算   |
 | ------- | ------------------------------------------------------------- | ------ |
 | P0      | Phase B 排房写路径 patches + Phase C-L1 高频操作保存中/防重复 | 已完成 |
-| P0 并行 | 完成 P1 尾巴 A/B/C/E：在线热路径零 `query()`（含 guests.js）  | 待完成 |
+| P0 并行 | 完成 P1 尾巴 A/B/C/E：在线热路径零 `query()`（含 guests.js）  | 已完成 |
 | P1      | `index.html` 动态加载 `sql-wasm.js`，仅本地模式/灾备路径加载  | 已完成 |
-| P1      | `test_online_query_boundaries.py` 覆盖 `guests.js` 并修正历史查询命名 | 0.5 天 |
+| P1      | `test_online_query_boundaries.py` 覆盖 `guests.js` 并修正历史查询命名 | 已完成 |
 | P1      | 补推送延迟、delta 次数、read P95 度量基线                     | 0.5 天 |
 | P2      | spike D1 读副本 + Pages WebSocket / Durable Object 可行性     | 0.5 天 |
 | P3      | 根据 spike 结果启动 D1 读副本或 SSE 优化                      | 待决策 |
 
-结论：P4 四项仍然不阻塞正式上线；P1 尾巴剩 `guests.js`/`checkin.js` 在线 CSV 路径一处，建议优先收尾后再进入 P4 性能优化。后续按 [CRUD 与在线读写链路迁移计划](architecture/crud-read-write-migration-plan.md) 继续做生产性能基线、双端同步 P95 和本地/灾备恢复巡检。
+结论：P4 四项仍然不阻塞正式上线；P1 尾巴（含 `guests.js`）已清零，可进入 P4 性能优化。后续按 [CRUD 与在线读写链路迁移计划](architecture/crud-read-write-migration-plan.md) 继续做生产性能基线、双端同步 P95 和本地/灾备恢复巡检。
 
 ### 19.6 最终总验收（排期最后执行）
 

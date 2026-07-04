@@ -750,6 +750,54 @@ function rcGuestById(id) {
   return null;
 }
 
+/** 跨模块 guests 去重列表 | Deduped guest rows from read modules */
+function rcAllGuests() {
+  var seen = {};
+  var out = [];
+  var mods = ["settings_guests", "lodgers", "reservations", "meals"];
+  for (var i = 0; i < mods.length; i++) {
+    var rows = rcRows(mods[i], "guests");
+    for (var j = 0; j < rows.length; j++) {
+      var g = rows[j];
+      if (!g || g.id == null || seen[g.id]) continue;
+      seen[g.id] = true;
+      out.push(g);
+    }
+  }
+  return out;
+}
+
+function rcFindGuestByPhoneOrIdCard(phone, idCard) {
+  if (!phone && !idCard) return null;
+  var guests = rcAllGuests();
+  for (var i = 0; i < guests.length; i++) {
+    var g = guests[i];
+    if (phone && g.phone === phone) return g;
+    if (idCard && g.id_card === idCard) return g;
+  }
+  return null;
+}
+
+function rcFindGuestByDisplayName(displayName) {
+  if (!displayName) return null;
+  var guests = rcAllGuests();
+  for (var i = 0; i < guests.length; i++) {
+    var g = guests[i];
+    if (g.name === displayName || g.dharma_name === displayName) return g;
+    var combined = String(g.name || "").trim();
+    var dharma = String(g.dharma_name || "").trim();
+    if (dharma) combined = (combined + " " + dharma).trim();
+    if (combined === displayName) return g;
+    if (
+      typeof personDisplayName === "function" &&
+      personDisplayName(g) === displayName
+    ) {
+      return g;
+    }
+  }
+  return null;
+}
+
 function rcReservationById(id) {
   if (!id) return null;
   return (

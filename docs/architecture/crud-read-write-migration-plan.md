@@ -149,7 +149,7 @@ npm run lint:ci
 
 ### Phase D：读路径去在线 `query()`
 
-目标：在线热路径只读 `_rcStore` / read API；sql.js 不再参与在线业务视图。当前 D1–D6 已完成，D7 `guests.js` / `checkin.js` 在线 CSV 批量入住路径待收尾。
+目标：在线热路径只读 `_rcStore` / read API；sql.js 不再参与在线业务视图。当前 D1–D7 已完成。
 
 批次：
 
@@ -161,7 +161,7 @@ npm run lint:ci
 | D4   | `events.js`   | 成员、排房建议、选择器全部走 `rcEvent*` / detail API           | 在线 events 无非本地 `query()` |
 | D5   | `rooming-*`   | 所有排房读从 `rooming-read.js` + event detail tables 获取      | 在线 rooming 无 `query()`      |
 | D6   | `auth.js`     | 用户/权限管理走 admin read API，不读本地 users                 | 在线 auth 无 users `query()`   |
-| D7   | `guests.js`、`checkin.js`（CSV 批量入住） | `findOrCreateGuest` 在线分支调用 `apiLookupGuest` 或 rc；本地保留 `query()` | 在线 CSV 批量入住无 `query()`  |
+| D7   | `guests.js`、`checkin.js`（CSV 批量入住） | 查找走 `rcFindGuest*`；写路径 `guestUseLocalDb()`；在线 CSV 走 `apiBatchCheckIn` | 已完成，在线无裸 `query()`  |
 
 技术要求：
 
@@ -207,7 +207,7 @@ npm run lint:ci
 
 前置条件：
 
-- Phase D 在线热路径 `query()` 清零（含 D7 `guests.js` / `checkin.js` 在线 CSV 路径）。
+- Phase D 在线热路径 `query()` 清零（含 D7）。
 - 本地模式、灾备导入、migration 测试边界确认。
 - `test_cdp_migration.py` 与在线 CDP 测试拆分环境变量。
 

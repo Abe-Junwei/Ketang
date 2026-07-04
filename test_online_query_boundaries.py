@@ -30,7 +30,7 @@ def fn_body(src, fn_name):
 def assert_no_unguarded_query(label, body, allow_local=True):
     if not body or "query(" not in body:
         return True, None
-    if "isLocalForceDb()" in body:
+    if "isLocalForceDb()" in body or "guestUseLocalDb()" in body:
         return True, None
     if "readLodger(" in body or "readUseRc()" in body or "readGuest(" in body:
         return True, None
@@ -271,10 +271,13 @@ def main():
         if not ok:
             failed.append(name)
 
-    for fn in ["assignBedFromResv", "submitCheckIn", "importBatchCSV"]:
+    for fn in [
+        "assignReservationToBed",
+        "assignExistingLodgerToBed",
+        "importBatchCSV",
+        "findAssignableBed",
+    ]:
         body = fn_body(checkin, fn)
-        if body is None:
-            continue
         ok, name = assert_no_unguarded_query(f"checkin {fn}", body)
         if not ok:
             failed.append(name)

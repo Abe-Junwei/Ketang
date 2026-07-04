@@ -944,6 +944,8 @@ function parseCSV(text) {
 }
 
 function findAssignableBed(gender, roomPreference) {
+  // Local CSV import only; online batch uses apiBatchCheckIn
+  if (typeof isLocalForceDb === "function" && !isLocalForceDb()) return null;
   // 优先按房间偏好匹配
   if (roomPreference) {
     const exact = query(
