@@ -32,14 +32,11 @@ copy_file sw.js sw.js
 copy_tree icons icons
 copy_file role-permissions.defaults.json role-permissions.defaults.json
 copy_tree js js
-copy_tree lib lib
 copy_tree fonts fonts
 copy_tree resources resources
 copy_tree functions functions
 
-if [[ -f "$ROOT/lib/sql-wasm.wasm" ]]; then
-  copy_file lib/sql-wasm.wasm lib/sql-wasm.wasm
-fi
+# 在线发布包不携带 sql-wasm（仅本地迁移 CI / ?force_local_db=1 开发路径需要 lib/）
 
 python3 "$ROOT/scripts/verify_release_dir.py" "$OUT"
 echo "OK release build ready: $OUT"

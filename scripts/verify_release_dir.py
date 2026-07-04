@@ -42,7 +42,6 @@ REQUIRED_PATHS = (
     "js/db.js",
     "js/app.js",
     "js/api-client.js",
-    "lib/sql-wasm.js",
     "functions/_middleware.js",
     "functions/api/db.js",
     "functions/api/v1/read-model.js",
