@@ -39,16 +39,14 @@ def test_session_skips_full_init():
 
 
 def test_users_action_skips_init():
+    """Role names are static in index.html; /api/db users is retired."""
+    index_html = read('index.html')
     db_api = read('functions/api/db.js')
-    users_action = re.search(r'if \(payload\.action === "users"\) \{([\s\S]*?)\n    \}', db_api)
-    if not users_action:
-        print('FAIL api/db.js missing users action')
+    if 'LEGACY_DB_RETIRED' not in db_api or '410' not in db_api:
+        print('FAIL api/db.js must return unified 410 LEGACY_DB_RETIRED')
         sys.exit(1)
-    if 'initRemoteDatabase' in users_action.group(1):
-        print('FAIL users action must not call initRemoteDatabase')
-        sys.exit(1)
-    if 'checkMemoryRateLimit' not in users_action.group(1):
-        print('FAIL users action must use in-memory rate limit')
+    if 'value="admin"' not in index_html or 'value="zhike"' not in index_html:
+        print('FAIL login select must include static role options in HTML')
         sys.exit(1)
 
 
@@ -359,8 +357,8 @@ def test_user_role_migration_guard():
 def test_role_login_gateway():
     db_api = read('functions/api/db.js')
     auth = read('js/auth.js')
-    if '410' not in db_api or 'login_role' not in db_api:
-        print('FAIL api/db.js must retire login/login_role with 410')
+    if '410' not in db_api or 'LEGACY_DB_RETIRED' not in db_api:
+        print('FAIL api/db.js must return unified 410 LEGACY_DB_RETIRED')
         sys.exit(1)
     if '/api/v1/auth/login' not in db_api:
         print('FAIL api/db.js legacy login response must point clients to v1 auth/login')
@@ -437,13 +435,10 @@ def test_remote_init_cached_for_auth_latency():
 
 
 def test_anonymous_users_action_does_not_enumerate_accounts():
+    """Legacy /api/db users retired; no anonymous account enumeration endpoint."""
     db_api = read('functions/api/db.js')
-    users_action = re.search(r'if \(payload\.action === "users"\) \{([\s\S]*?)\n    \}', db_api)
-    if not users_action:
-        print('FAIL api/db.js missing users action')
-        sys.exit(1)
-    if 'FROM users' in users_action.group(1):
-        print('FAIL anonymous users action still queries real user accounts')
+    if 'FROM users' in db_api:
+        print('FAIL api/db.js must not query users table')
         sys.exit(1)
 
 
@@ -553,8 +548,8 @@ def test_login_uses_lightweight_auth_init():
     if 'ensureDatabaseForAuth' not in auth_login:
         print('FAIL auth-login.js must use ensureDatabaseForAuth instead of full init')
         sys.exit(1)
-    if '410' not in db_api or 'login_role' not in db_api:
-        print('FAIL api/db.js must retire legacy login with 410')
+    if '410' not in db_api or 'LEGACY_DB_RETIRED' not in db_api:
+        print('FAIL api/db.js must return unified 410 LEGACY_DB_RETIRED')
         sys.exit(1)
 
 

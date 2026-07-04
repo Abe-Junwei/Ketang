@@ -57,7 +57,7 @@ function handleApiUnauthorized() {
 }
 
 function useRemoteAdminUsers() {
-  return !isLocalForceDb();
+  return useOnlineDataPath();
 }
 
 async function ensureAdminUsersCache() {
@@ -717,7 +717,7 @@ function permissionCodeLabel(code) {
 
 async function loadRolePermissionsConfig() {
   await initRolePermissionDefaults();
-  if (!isLocalForceDb()) {
+  if (useOnlineDataPath()) {
     return apiAdminGetRolePermissions();
   }
   return getRolePermissionsConfigLocal();
@@ -825,7 +825,7 @@ async function saveRolePermissionsConfig() {
   if (!requireAdmin()) return;
   try {
     const sanitized = sanitizeRolePermissionPayload(rolePermissionsDraft);
-    if (!isLocalForceDb()) {
+    if (useOnlineDataPath()) {
       await apiAdminSaveRolePermissions(sanitized);
     } else {
       saveLocalRolePermissions(sanitized);
@@ -886,7 +886,7 @@ function renderUserList() {
     container.innerHTML = '<p class="empty-tip">需要管理员权限。</p>';
     return;
   }
-  if (!isLocalForceDb()) {
+  if (useOnlineDataPath()) {
     apiAdminListUsers()
       .then(function (data) {
         paintUserList(container, data.users || []);
@@ -1060,7 +1060,7 @@ async function submitUser(e) {
   }
 
   try {
-    if (!isLocalForceDb()) {
+    if (useOnlineDataPath()) {
       if (id) {
         const result = await apiAdminUpdateUser({
           user_id: parseInt(id, 10),
@@ -1163,7 +1163,7 @@ async function deleteUser(id) {
   }
   if (!confirm(`确定停用用户「${u.username}」吗？`)) return;
   try {
-    if (!isLocalForceDb()) {
+    if (useOnlineDataPath()) {
       await apiAdminDeactivateUser(id);
     } else {
       run(
@@ -1185,7 +1185,7 @@ async function reactivateUser(id) {
   if (!requireAdmin()) return;
   if (!confirm("确定重新启用该用户吗？")) return;
   try {
-    if (!isLocalForceDb()) {
+    if (useOnlineDataPath()) {
       await apiAdminReactivateUser(id);
     } else {
       const u = query("SELECT username FROM users WHERE id = ?", [id])[0];
@@ -1223,7 +1223,7 @@ async function resetUserPassword(id) {
   }
   if (!confirm(`确定重置「${username}」的密码吗？其他设备会话将失效。`)) return;
   try {
-    if (!isLocalForceDb()) {
+    if (useOnlineDataPath()) {
       await apiAdminResetUserPassword(id, temp);
     } else {
       const u = query("SELECT * FROM users WHERE id = ?", [id])[0];
@@ -1290,7 +1290,7 @@ function finishPasswordChangeSuccess(message) {
 
 async function changeOwnPassword(oldPassword, newPassword) {
   validateNewPassword(newPassword, oldPassword);
-  if (!isLocalForceDb()) {
+  if (useOnlineDataPath()) {
     const result = await apiChangePassword(oldPassword, newPassword);
     applySessionRefresh(result);
     logAudit("修改密码", "user", currentUser.id, {

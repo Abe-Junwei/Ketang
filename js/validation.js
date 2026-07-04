@@ -257,7 +257,7 @@ function checkDuplicate(phone, idCard, excludeId) {
     });
     return rows.length > 0 ? rows[0] : null;
   }
-  if (!isLocalForceDb()) return null;
+  if (useOnlineDataPath()) return null;
   let sql = "SELECT * FROM lodgers WHERE status='在住' AND (";
   const params = [];
   const conds = [];

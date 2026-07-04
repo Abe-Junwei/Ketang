@@ -28,9 +28,9 @@
 | Phase 10 | AI 辅助排房      | AI 生成可解释建议，人工最终确认          | Phase 9       | 暂缓         |
 | Phase 11 | 运维与发布工程化 | 白名单发布、巡检、日志、E2E、性能预算    | Phase 1/2/3/5 | 基本完成     |
 | Phase 12 | 同步与读模型 v2  | 写契约、模块读、增量 delta、SSE 看板推送 | Phase 9       | 主体完成     |
-| Phase 13 | 在线读路径瘦身   | 清理在线 `query()`、优化推送、评估读副本 | Phase 12      | P1 尾巴已清零；P4 待触发 |
+| Phase 13 | 在线读路径瘦身 + legacy 债务清理 | 清零在线裸 `query()`、退役 `/api/db`、写路径 in-memory patch、收敛双轨前端 | Phase 12 | **进行中**（P1 尾巴与写路径 patch ✅；legacy A–C ✅ 待提交；D–F 待办） |
 
-> Phase 12 详细方案见 [docs/architecture/sync-read-model-v2.md](architecture/sync-read-model-v2.md)。当前写契约、模块读、delta、SSE 主体已落地；在线热路径 `query()` 与无条件 `sql-wasm.js` 加载已在 Phase 13 P1 尾巴清零。P4 性能专项（读副本 / SSE / Normalized Store / 完全去 sql.js）按触发门槛启动。
+> Phase 12 详见 [sync-read-model-v2.md](architecture/sync-read-model-v2.md)。Phase 13 分两条线：**读路径**（P1 尾巴已清零，在线走 `rc*` + `read-shim`）与 **legacy 债务**（SQL 网关/login 已 410 → 全 `/api/db` 410 → 写 patch 免回读 → 双轨前端收敛 → sql.js 边界）。写路径与迁移生命周期见 [migration-request-lifecycle.md](architecture/migration-request-lifecycle.md)。P4 性能专项（读副本 / SSE / Normalized Store）仍按触发门槛启动，不阻塞 Phase 9。
 
 ## 3. Phase 0：冻结在线架构（已完成）
 
@@ -39,10 +39,10 @@
 当前状态：
 
 - 关键写操作已从前端拼 SQL 收敛到后端业务 API（入住/退房/换床/续住/用斋/房务/预约/房间/床位/住客/营期/用户等）。
-- `functions/_shared/d1.js` 已禁止 admin 通过 `/api/db` 直接写业务表。
+- `POST /api/db` SQL 网关与登录已退役；业务写与审计/改密均走 `/api/v1/*`（2026-07 起逐步全路由 410，见 §19.8）。
 - 密码安全已升级：PBKDF2 哈希、legacy sha256 兼容自动升级、`auth_version` 会话失效、强制改密。
 - 角色模型已扩展：`admin/zhike/kitchen/housekeeping/viewer`，并增加 `is_advanced` 与 `permissions` 字段。
-- 本地与远程 migration 已同步到 V15。
+- 本地与远程 migration 链已同步至 **schema v20**（`schema_version` 逐步升级；`importDB()` 与正常启动共用同一套迁移链）。
 - README 与使用说明已刷新为在线多人系统定位。
 - 已引入 npm devDependencies（ESLint + Prettier）用于开发与 CI，不影响发布产物。
 
@@ -481,16 +481,17 @@ Phase 3C（管理员可视化分配）：
 
 ## 14. 当前最推荐的执行顺序
 
-> **排期调整（2026-07-02）**：最终总验收放到最后；先 Phase 9 夏季排房，后 Phase 4 公开预约。
+> **排期调整（2026-07-05）**：Phase 9 夏季排房仍为业务主线；**Phase 13 legacy 债务清理**与 Phase 9 并行（不挡排房功能开发）。最终总验收仍放在 Phase 4 之后。
 
 1. ~~Phase 1 收尾~~、~~Phase 5 迁移~~、~~Phase 6 手动备份/恢复演练~~：**P0 已验收通过**（2026-07-02，D1 为正式权威源）。
 2. ~~P1-2 权限可视化~~、~~P1-3 巡检与性能基线~~、~~P2-1 业务规则~~、~~P2-2 / Phase 8 移动端~~：**已基本完成**。
 3. **当前主线：Phase 9 夏季活动排房**（9.1 → 9.5 分小版本推进，见 §12）。
-4. **其后：Phase 4 公开预约**（`reserve.wulingkt.net`、Turnstile、企业微信通知；依赖 Phase 9 核心流程稳定）。
-5. **最后：最终总验收**（含原 P1-1 多人协同、并发占床、权限矩阵、备份恢复、发布安全、性能基线；见 [final-acceptance-checklist.md](final-acceptance-checklist.md)）。
-6. Phase 10 AI 辅助排房继续暂缓。
+4. **并行：Phase 13 legacy 债务清理**（§19.8）：写路径 `patchRows` ✅ → `/api/db` 全 410 ✅（待提交）→ 双轨前端收敛（16 模块仍留本地分支）→ sql.js 仅 CI migration/灾备 → 探针 enforce 常态化。
+5. **其后：Phase 4 公开预约**（`reserve.wulingkt.net`、Turnstile、企业微信通知；依赖 Phase 9 核心流程稳定）。
+6. **最后：最终总验收**（含原 P1-1 多人协同、并发占床、权限矩阵、备份恢复、发布安全、性能基线；见 [final-acceptance-checklist.md](final-acceptance-checklist.md)）。
+7. Phase 10 AI 辅助排房继续暂缓；Phase 13 **P4 性能专项**（读副本/SSE/Normalized Store）按 §19.7.4 触发门槛决策，不前置。
 
-当前排期原则：夏季大型活动排房优先落地；公开预约与对外入口在排房能力就绪后再开；**总验收作为上线前最后一关**，不在开发中途反复打断。
+当前排期原则：夏季大型活动排房优先落地；legacy 清理与排房开发并行、以守门测试防回归；公开预约与对外入口在排房能力就绪后再开；**总验收作为上线前最后一关**。
 
 ## 15. 需要澄清或拍板的决策点
 
@@ -639,7 +640,7 @@ Phase 3C（管理员可视化分配）：
 
 ## 19. 2026-07-02 代码现状复盘与重新排期
 
-本节以当前 `main` 分支代码为准，重新校准路线图。最近代码已经完成若干原路线图中的“待执行”内容，因此后续排期应从验收和运维闭环开始，而不是继续按旧阶段顺序线性推进。
+本节以当前 `main` 分支代码为准，重新校准路线图。**最后全面更新：2026-07-05**（含 Phase 13 legacy 债务清理进展，见 §19.8）。
 
 ### 19.1 已落地或基本落地
 
@@ -653,6 +654,9 @@ Phase 3C（管理员可视化分配）：
 - 弹窗布局已统一：营期/用户/排房建议复用 `#modal` + `modal-backdrop`，修复 `modal-overlay` 未定义导致的布局错误（`2569dad`）。
 - **P0 运维脚本已落地**（`708da8e`）：`verify_migration_json.py`、`compare_backup_json.py`、`build_pages_release.sh`、`verify_release_dir.py`、`post_deploy_check.py`、`run_p0_checklist.sh`；白名单发布默认输出 `.release/`（78 文件）；已用白名单目录部署 Pages。
 - **P0 正式验收已通过**（2026-07-02）：线上 JSON 导入、数量核对、基线导出与恢复演练完成；D1 现为正式权威数据源（房间 64 / 床位 522 / 在住 311）。
+- **Phase 13 写路径 patch（2026-07-05，`main`）**：热路径 `lodgers` / `reservations` / `admin-records` / `meals` / `housekeeping` / `rooming-publish` 统一 in-memory `patchRow` / `patchRows`；`enrichWriteResponse` 业务侧零 `patchRowIds`；`admin/records` 分段 `handler_ms` / `write_tail_ms` / `patch_ms`；探针 workflow + `scripts/admin_write_thresholds.py`。
+- **Phase 13 sql.js 兼容债第一批（2026-07，`main`）**：`/api/db` login/SQL 网关 410；v1 用户名登录 + 自助改密；发布产物移除 `sql-wasm`；CI 守门 `test_sql_js_debt_inventory.py` / `test_db_sql_gateway_retired.py` / `test_read_shim_online_guard.py`。
+- **Phase 13 legacy 债务 A–C（2026-07-05，工作区待提交）**：`functions/api/db.js` 全路由 410 `LEGACY_DB_RETIRED`；客户端删除 `remoteDBRequestAsync`；`enrichWriteResponse` 移除 `patchRowIds` / `rowId` SELECT 回读；`read-shim.js` 引入 `readLocalQuery()`，在线零 fall through 到 `query()`；14 个模块在线分支改为 `useOnlineDataPath()`；守门 `test_no_api_db_client.py` 入 CI。
 
 ### 19.2 P0 验收记录（已完成）
 
@@ -761,55 +765,50 @@ bash scripts/run_p1_checklist.sh https://wulingkt.net https://<pages-preview>.ke
 
 - **当前执行：Phase 9 夏季活动排房**（活动标签 → 容量预测 → 预分房草稿 → 冲突检查 → 发布交接）。
 - **Phase 12 同步与读模型 v2**（主体已完成）：12.1 写契约与热修复 → 12.2 视图注册 → 12.3 模块读 API → 12.4 增量同步 → 12.5 看板 SSE。详见 [architecture/sync-read-model-v2.md](architecture/sync-read-model-v2.md)。
-- **Phase 13 在线读路径瘦身**：D1–D6 在线热路径与在线去 sql.js 主体已完成；后续重点转为语义 parity、生产性能基线、D1 读副本/SSE 优化触发评估。完整 CRUD / 读写链路迁移蓝图见 [architecture/crud-read-write-migration-plan.md](architecture/crud-read-write-migration-plan.md)。
+- **Phase 13 在线读路径瘦身**：P1 尾巴（reports/forecast/history/events/rooming/guests 在线 `rc*`）✅；legacy 债务清理 A–C ✅（工作区待提交，见 §19.8）；P4 读副本/SSE 按触发门槛。
 - **Phase 4 公开预约**：P1 尾巴已清零，具备开放技术条件；业务上确认后即可接入 `reserve.wulingkt.net` + Turnstile + 企业微信通知。
 - **最终总验收**：Phase 4 收尾后、正式对外大规模使用前一次性执行（见 §19.6）。
 - AI 辅助排房：等规则引擎、脱敏策略和活动排房数据稳定后再评估。
 
 ### 19.7 Phase 13：在线读路径瘦身与 P4 修正排期
 
-本节根据 2026-07-03 现状核查修正 Phase 12 后续路线。结论：同步与读模型 v2、在线去 sql.js 主体已落地；在线热路径去 `query()`（含 `guests.js` D7）**已完成**。
+本节根据 **2026-07-05** 代码核查更新。结论：同步与读模型 v2、P1 读尾巴、写路径 in-memory patch 均已落地；**legacy API 与双轨前端**进入 §19.8 专项清理。
 
-#### 19.7.1 现状核查结论
+#### 19.7.1 现状核查结论（2026-07-05）
 
-- SSE 路由已存在：`GET /api/v1/stream/board` 每 **500ms** 查询 `app_meta.board_version`，版本变化时推送 `data: {"version": N}`，15s 发送 ping。
-- 客户端 SSE 已存在：`startBoardStream()` 使用 `EventSource`，收到版本后触发 `syncRemoteIfStale()`；但 SSE 只在 board 视图激活时维持，切出 board 或 hidden 时会关闭。
-- 轮询仍是可靠兜底：active 视图 **1s**、idle **5s** 轮询 `/api/v1/board-version`，hidden 跳过。
-- 写后版本策略：仅当响应 `patch_complete === true` 时推进本地 `board_version` 并跳过 delta；默认应用 patch 后仍后台对账。`write-refresh` 只计即时可见刷新，`write-reconcile` 计后台对账。
-- 预报/报表读模块：`lodgers_active` + `lodgers_recent`（含 payments），不再拉全量 `lodgers`。
-- delta 后仅当脏域与当前视图相关时 `refreshViewForScope`；无关刷新计入 `delta_skip_view_refresh_count`。
-- 已审计写路径（settings、营期、预约、用斋、房务、批量成员、挂单热路径、排房方案/发布、**队列办理入住、删除床位**）返回 `patch_complete: true`；housekeeping 墓碑支持按 `bed_id` 清除。
-- 管理员 `GET /api/v1/metrics/perf?limit=100` 可查看最近 RUM 按指标 / 按 page 的 P50/P95。
-- board `_rcIndexes`：`lodgerByBedId` / `bedsByRoomId` / `hkByBedId`，patch/seed 后惰性重建。
-- 排房只读：`GET /api/v1/read/event/:id?view=conflicts|members`（草稿 assignments 仍走 POST check）。
-- 报表/预报日期早于 `lodgers_recent`（180 天）时按需拉全量 `lodgers`；`patch_complete` 写后跳过空 reconcile；patch 只写入模块已有表。
-- **迁移与请求生命周期专项（已落地）**：见 [architecture/migration-request-lifecycle.md](architecture/migration-request-lifecycle.md)。`ensureDatabaseReady` + `schema_ready_version`；业务请求禁止 migration fallback；`POST /api/v1/admin/migrate`；写尾单 batch（bump+sync+version）+ 内存 `patchRow`；守门 `test_migration_hot_path.py`。
-- WebSocket 未实现：仓库当前没有 WebSocket/DO 广播。
-- `index.html` 不再静态加载 `./lib/sql-wasm.js`；`db.js` 仅在本地/灾备路径动态加载 sql.js，在线误调 `query()` 会抛出带 caller 的错误。
-- `reports.js`、`forecast.js`、`history.js`、`events.js`、`rooming-*`、`auth.js` 在线热路径已由 `test_online_query_boundaries.py` 守卫；本地/灾备分支继续保留 `query()`。
-- **P1 尾巴已清零**：`guests.js` 身份查找在线走 `rcFindGuest*`，`findOrCreateGuest` / `incrementGuestVisit` 仅本地写路径可用；`checkin.js` / `reservations.js` 调用点本就在 `isLocalForceDb()` 内，在线 CSV 走 `apiBatchCheckIn`。
-- **测试覆盖**：`test_online_query_boundaries.py` 已覆盖 `guests.js` 与 `checkin.js` 批量入住路径；历史查询检查项为 `rcFetchHistoryRows`。
-- `_rcStore` 已能跨模块 patch 重复表；`event:<id>` 排房详情由 read event detail + 行级 patches 维护。
+- **SSE / 轮询**：`GET /api/v1/stream/board` 每 **500ms** 检测 `board_version`，15s ping；客户端 `startBoardStream()` + 轮询兜底（active 1s / idle 5s）；board 视图外或 hidden 时关闭 SSE。
+- **写后策略**：仅 `patch_complete === true` 时推进本地 `board_version` 并跳过 delta；`write-refresh` / `write-reconcile` 分计。
+- **读模块**：`lodgers_active` + `lodgers_recent`（180 天窗口）；报表超窗按需拉全量 `lodgers`。
+- **写路径 patch（`main`）**：lodger 热路径、预约 upsert/batch、营期取消级联、admin 挂单/房务/用斋、排房 queue check-in 等均 `patchRow` / `patchRows`；`test_event_write_path.py` 禁止热路径与 `write-response.js` 使用 `patchRowIds`。
+- **迁移生命周期（`main`）**：见 [migration-request-lifecycle.md](architecture/migration-request-lifecycle.md) — `ensureDatabaseReady`、`schema_ready_version`、`POST /api/v1/admin/migrate`、写尾单 batch、`test_migration_hot_path.py`。
+- **在线 boot**：`index.html` 不加载 `sql-wasm`；在线误调 `query()` 抛错；`test_online_no_sql.py` + `test_online_query_boundaries.py` 守门。
+- **read-shim**：在线走 `rc*`；`readOnlineCachePending()` 返回空值；**`readLocalQuery()`** 保证在线永不 fall through 到 `query()`（§19.8 Phase C，工作区待提交）。
+- **双轨前端**：`useOnlineDataPath()` = `isRemoteDB() && !KETANG_FORCE_LOCAL_DB`；14 个模块在线分支已从 `!isLocalForceDb()` 改为 `useOnlineDataPath()`；**仍含 `isLocalForceDb()` 的模块 16 个**（inventory 见 `test_sql_js_debt_inventory.py`）。
+- **`/api/db`**：`main` 上 login/SQL 网关已 410；**全路由 410 + 客户端零引用**（§19.8 Phase A，工作区待提交）。
+- **`enrichWriteResponse`**：业务热路径 in-memory patch；**`patchRowIds` / `rowId` SELECT 回读已移除**（§19.8 Phase B，工作区待提交）。
+- **度量**：`GET /api/v1/metrics/perf?limit=100`；admin 写分段 `handler_ms` / `write_tail_ms` / `patch_ms`；`.github/workflows/probe-admin-write.yml` + `scripts/admin_write_thresholds.py`。
+- **P1 尾巴**：在线热路径零裸 `query()`；`guests.js` 查找走 `rcFindGuest*`；在线 CSV 走 `apiBatchCheckIn`。
+- **WebSocket / D1 读副本**：未实现；按 §19.7.4 触发门槛决策。
 
 #### 19.7.2 修正后的执行顺序
 
-1. **CRUD 写链路补洞（与 P1 尾巴并行）**：先补排房写路径 patches，并给入住/退房/换床/用斋/预约等高频操作增加保存中与防重复提交；这部分按 [CRUD 与在线读写链路迁移计划](architecture/crud-read-write-migration-plan.md) Phase B + Phase C-L1 执行。
-2. **P1 尾巴清零（已完成）**：`reports.js`、`forecast.js`、`history.js`、`events.js`、`rooming-*`、`auth.js`、`guests.js` 已迁到 `rc*` / read API 或本地写守卫。
-3. **guests.js 在线身份查找收口（已完成）**：查找走 `rcFindGuestByPhoneOrIdCard` / `rcFindGuestByDisplayName`；创建/到访次数仅本地 `query()`/`run()`，在线由业务 API 负责。
-4. **P4-② D1 只读副本**：仅当报表/历史查询 P95 > 800ms 或 D1 读配额告警时启动；客户端零改动。
-5. **P4-① SSE/WebSocket 优化**：终端数 <30 时优先优化 SSE 检测间隔、后台重连与 changed domains；WebSocket 仅在 DO 可用且推送延迟/连接数成为瓶颈时启动。
-6. **P4-③ Normalized Store**：触发式启动；先补写响应 patch 范围，只有 moduleKey >10 且同表 patch bug 复现 2 次以上，或 `event:<id>` 陈旧造成用户可见错误时才做。
-7. **P4-④ 完全去 sql.js**：必须等本地 `file://` 边界确认后再实施，预计 7–10 天，不再估算为 1 周以内的小改。
+1. ~~CRUD 写链路 patch + 高频操作 pending~~：**已完成**（含排房 queue check-in、`patch_complete` 全覆盖）。
+2. ~~P1 尾巴 A–E（在线读零裸 `query()`）~~：**已完成**。
+3. **§19.8 legacy 债务清理 A–C**：**已完成（工作区待提交）**；D–F 按 §19.8.2 推进。
+4. **P4-② D1 只读副本**：报表/历史 P95 > 800ms 或 D1 读配额告警时启动。
+5. **P4-① SSE 优化**：终端 <30 时优先调间隔/重连；WebSocket 仅 spike 后决策。
+6. **P4-③ Normalized Store**：多模块 patch bug 复现 ≥2 次再评估。
+7. **P4-④ 完全去 sql.js**：§19.8 Phase E；`KETANG_FORCE_LOCAL_DB` + CI migration job 为唯一运行时消费者。
 
 #### 19.7.3 P1 尾巴清零批次
 
 | 批次 | 范围                                              | 工作                                                        | 完成标准                                        |
 | ---- | ------------------------------------------------- | ----------------------------------------------------------- | ----------------------------------------------- |
-| A    | `reports.js`                                      | 日报/月报/事件报表改为 read API 或 `rc*` 聚合               | 已完成，在线路径不直接调用 `query()`            |
-| B    | `forecast.js`                                     | 今日房态/预测改为 `rc*` + 内存计算                          | 已完成，预测页不触发 sql.js hydrate             |
-| C    | `history.js`、`events.js`、`rooming-*`、`auth.js` | 剩余在线读分支迁到 `rc*` / read API；`info.js` 做防回归验收 | 已完成，在线路径仅保留本地/灾备 `query()` 分支  |
-| D    | `index.html`、`db.js`、发布白名单脚本             | `sql-wasm.js` 改为本地模式/灾备路径动态加载                 | 已完成，在线 bundle 不加载 `sql-wasm.js` / wasm |
-| E    | `guests.js`、`checkin.js`（CSV 批量入住）         | 在线身份查找改为 `rcFindGuest*`；写路径 `guestUseLocalDb()` 守卫 | 已完成，在线路径不触发 `query()`；测试覆盖 `guests.js` |
+| A    | `reports.js`                                      | 日报/月报/事件报表改为 read API 或 `rc*` 聚合               | ✅ 在线路径不直接裸 `query()`                   |
+| B    | `forecast.js`                                     | 今日房态/预测改为 `rc*` + 内存计算                          | ✅ 预测页不触发 sql.js hydrate                  |
+| C    | `history.js`、`events.js`、`rooming-*`、`auth.js` | 在线读迁 `rc*` / read API；本地 `isLocalForceDb()` 守卫     | ✅ `test_online_query_boundaries.py`            |
+| D    | `index.html`、`db.js`、发布白名单                 | `sql-wasm` 仅本地/灾备动态加载                              | ✅ 在线 bundle 不含 wasm                        |
+| E    | `guests.js`、`checkin.js`（CSV）                  | 在线 `rcFindGuest*`；写路径 `guestUseLocalDb()`             | ✅ 在线 CSV 走 `apiBatchCheckIn`                |
 
 #### 19.7.4 P4 技术专项触发门槛
 
@@ -818,22 +817,100 @@ bash scripts/run_p1_checklist.sh https://wulingkt.net https://<pages-preview>.ke
 | D1 只读副本      | 报表/历史查询 P95 > 800ms，或 D1 读配额告警               | `KETANG_DB_READ` 分流 reports/history/backup，主库继续负责看板和 delta |
 | SSE/WebSocket    | 双端写后 B 端 P95 > 2s，或看板用户数导致 SSE/轮询成本过高 | 先 SSE 优化；DO WebSocket 作为 spike 后决策                            |
 | Normalized Store | 多模块同表 patch bug 复现 2 次以上                        | 先补 `changed_modules` / patch 范围，再决定是否引入 `rc-normalized.js` |
-| 去 sql.js        | 在线 `query()` 清零且本地模式边界确认                     | 动态加载 sql.js；CI 拆分在线 mock 与本地 migration job                 |
+| 去 sql.js        | §19.8 Phase E 完成；在线 `query()` 仅 local 分支          | 动态加载 sql.js；CI 拆分在线 job 与 `KETANG_FORCE_LOCAL_DB` migration job |
 
-#### 19.7.5 下一步建议
+#### 19.7.5 下一步建议（2026-07-05）
 
-| 优先级  | 动作                                                          | 估算   |
-| ------- | ------------------------------------------------------------- | ------ |
-| P0      | Phase B 排房写路径 patches + Phase C-L1 高频操作保存中/防重复 | 已完成 |
-| P0 并行 | 完成 P1 尾巴 A/B/C/E：在线热路径零 `query()`（含 guests.js）  | 已完成 |
-| P1      | `index.html` 动态加载 `sql-wasm.js`，仅本地模式/灾备路径加载  | 已完成 |
-| P1      | `test_online_query_boundaries.py` 覆盖 `guests.js` 并修正历史查询命名 | 已完成 |
-| P1      | 补推送延迟、delta 次数、read P95 度量基线                     | 已完成 |
-| P1      | 营期链路瘦身（events/event_rooming、写 batch、跳过多余 delta） | 已完成 |
-| P2      | spike D1 读副本 + Pages WebSocket / Durable Object 可行性     | 0.5 天 |
-| P3      | 根据 spike 结果启动 D1 读副本或 SSE 优化                      | 待决策 |
+| 优先级 | 动作 | 状态 |
+| ------ | ---- | ---- |
+| P0 | 写路径 `patchRows` + admin 分段计时 + 探针 workflow | ✅ `main` |
+| P0 | P1 尾巴 + 在线 query 边界守门 | ✅ |
+| P1 | §19.8 Phase A–C：全 `/api/db` 410、`enrichWriteResponse` 无 SELECT 回读、`readLocalQuery` | ✅ 待提交 |
+| P1 | §19.8 Phase D：剩余 16 模块本地分支收敛 / `useOnlineDataPath` 统一 | 进行中 |
+| P2 | §19.8 Phase F：`--enforce-thresholds` 绑进定期 CI / release 前 manual probe | 部分（workflow_dispatch 已有） |
+| P3 | §19.8 Phase E：sql.js 仅 migration/灾备；`file://` 正式废弃 | 待办 |
+| — | P4 spike（读副本 / SSE） | 待触发 |
 
-结论：P4 四项仍然不阻塞正式上线；P1 尾巴（含 `guests.js`）已清零，可进入 P4 性能优化。后续按 [CRUD 与在线读写链路迁移计划](architecture/crud-read-write-migration-plan.md) 继续做生产性能基线、双端同步 P95 和本地/灾备恢复巡检。
+结论：**P4 不阻塞 Phase 9 排房**。legacy 清理与排房并行；完成 §19.8 后 Phase 13 可标记为「主体完成」，仅 P4 按门槛可选启动。
+
+### 19.8 Phase 13 续：legacy 债务清理方案（2026-07-05）
+
+目标态：**生产只走 D1 + `/api/v1/*` + `rc*` 读缓存**；`POST /api/db` 与 sql.js 运行时依赖清零；双轨前端仅保留 CI migration / 灾备恢复路径。
+
+#### 19.8.1 债务分类
+
+| 类型 | 性质 | 生产风险 | 清理阶段 |
+| ---- | ---- | -------- | -------- |
+| `/api/db` 边界 | API 生命周期债 | 低（客户端已不用） | A |
+| 写 patch SELECT 回读 | 性能债 | 无（已清） | B |
+| 双轨前端 `isLocalForceDb` / `query()` | 过渡兼容债 | 低（在线已 bypass） | C + D |
+| sql.js 运行时 | 架构边界债 | 低 | E |
+| SLO / enforce 探针 | 运维债 | 中（回归难发现） | F |
+
+#### 19.8.2 分阶段执行与验收
+
+| 阶段 | 内容 | 关键落点 | 验收（CI） | 状态 |
+| ---- | ---- | -------- | ---------- | ---- |
+| **A** | `/api/db` 完全退役 | `functions/api/db.js` 统一 410；删 `remoteDBRequestAsync`；init → `POST /api/v1/admin/migrate` | `test_no_api_db_client.py`、`test_db_sql_gateway_retired.py` | ✅ 待提交 |
+| **B** | 写基础设施收口 | `enrichWriteResponse` 移除 `patchRowIds` / `rowId` SELECT | `test_event_write_path.py`（`write-response` 无 patchRowIds） | ✅ 待提交 |
+| **C** | read-shim 在线隔离 | `readLocalQuery()`；`readUseRc()` 基于 `useOnlineDataPath()` | `test_read_shim_online_guard.py` | ✅ 待提交 |
+| **D** | 双轨语义收紧 | 在线分支统一 `useOnlineDataPath()`；削减 `isLocalForceDb()`（**25 → 16 模块**） | `test_sql_js_debt_inventory.py`、`test_online_query_boundaries.py` | 进行中 |
+| **E** | sql.js 边界 | `file://` 废弃；`db.js` 仅 `KETANG_FORCE_LOCAL_DB` / 灾备；wasm 移出发布白名单 | `test_cdp_migration.py`、migration CI job | 待办 |
+| **F** | SLO 固化 | `probe-admin-write.yml` + `prod-latency.yml`；`--enforce-thresholds` 发布前必跑 | `test_admin_write_timing_stages.py` | 部分 |
+
+**Phase D 剩余模块**（2026-07-05 inventory，按 `isLocalForceDb()` 次数）：
+
+| 模块 | 次数 | 说明 |
+| ---- | ---- | ---- |
+| `events.js` | 5 | 在线已 `rc*`；本地写/导入分支 |
+| `lodger-actions.js` | 5 | 挂单写路径本地守卫 |
+| `checkin.js` | 3 | CSV / 本地批量入住 |
+| `forecast.js` | 3 | 本地预测 query |
+| `history.js` | 3 | 本地历史 query |
+| `housekeeping.js` | 3 | 本地房务写 |
+| `reservations.js` | 3 | 本地预约写 |
+| `api-client.js` | 2 | `useOnlineDataPath` / `isLocalForceDb` 定义 |
+| `db.js` | 2 | 本地 DB 生命周期 |
+| `meals.js` | 2 | 本地用斋写 |
+| `auth.js` | 1 | 本地登录/导入 |
+| `guests.js` | 1 | 本地 guest 写 |
+| `permissions.js` | 1 | 本地权限加载 |
+| `read-cache.js` | 1 | 本地 seed |
+| `rooming-read.js` | 1 | 本地排房读 |
+| `sync-coordinator.js` | 1 | 本地 sync |
+
+**Phase D 波次建议**：
+
+1. 叶模块（guests、permissions、rooming-read、sync-coordinator）— 仅守卫本地写。
+2. 业务热路径（checkin、lodger-actions、meals、housekeeping、reservations）。
+3. 重 query 模块（events、history、forecast）— 在线已 `rc*`，压缩 local 分支体积。
+4. 核心（auth、db.js、api-client 定义处）— 用户管理与本地 DB 生命周期最后收。
+
+#### 19.8.3 守门测试矩阵（Phase 13 legacy）
+
+| 测试 | 覆盖 |
+| ---- | ---- |
+| `test_no_api_db_client.py` | 客户端零 `/api/db`；`db.js` 全 410；write-response 无 SELECT 回读 |
+| `test_db_sql_gateway_retired.py` | SQL 网关 / login 退役；v1 audit / change-password |
+| `test_sql_js_debt_inventory.py` | `isLocalForceDb()` 上限只减不增；`useOnlineDataPath` 契约 |
+| `test_online_query_boundaries.py` | Phase D 在线路径无裸 `query()` |
+| `test_event_write_path.py` | 热路径 `patchRows`；禁止 `patchRowIds` |
+| `test_admin_write_timing_stages.py` | admin 分段计时；v1 登录探针 |
+| `test_migration_hot_path.py` | 生产热路径零 DDL |
+| `test_headless.py` | 在线壳渲染 |
+
+#### 19.8.4 明确不做（仍属 P4，非 legacy 清理）
+
+- D1 只读副本、DO WebSocket、Normalized Store：见 §19.7.4，**不纳入 §19.8 必做项**。
+- 全寺 ERP / 外部 SaaS / Electron 打包：见 §18。
+
+#### 19.8.5 完成定义（Phase 13 legacy Done）
+
+1. 客户端与 `functions` 热路径零 `/api/db`、零 `patchRowIds`。
+2. 在线 `read-shim` 零 `query()`；`test_online_query_boundaries` 全绿。
+3. `isLocalForceDb()` 模块数 **≤ 12**（仅 db-local + migration 必需路径；当前 16）。
+4. 发布产物无 `sql-wasm`；在线 boot 不加载 sql.js。
+5. 文档同步：`migration-request-lifecycle.md`、`cloudflare-online-mode.md`、本路线图 §19.7–19.8。
 
 ### 19.6 最终总验收（排期最后执行）
 

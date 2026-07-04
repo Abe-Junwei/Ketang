@@ -76,10 +76,13 @@ GitHub Actions：`Admin write latency probe`（`workflow_dispatch`）在发布�
 | 项 | 状态 |
 |---|---|
 | Phase 0 细拆 | ✅ `handler_ms` / `write_tail_ms` / `patch_ms` 已接入 `admin/records` |
-| Legacy `/api/db` 登录 | ✅ `login` / `login_role` 返回 410，客户端走 `/api/v1/auth/login` |
-| CI 结构守门 | ✅ `test_admin_write_timing_stages.py` |
-| 线上 p95 硬门槛 | 部分：`test_admin_write_latency.py --enforce-thresholds` + `workflow_dispatch` 探针；默认 CI 仅结构守门 |
-| 复杂写路径减 patch 回读 | ✅ 热路径已统一 in-memory `patchRow` / `patchRows`；`enrichWriteResponse` 仍保留 `patchRowIds` 兜底供遗留调用 |
+| Legacy `/api/db` | ✅ 全路由 410；客户端零引用；init 走 `POST /api/v1/admin/migrate` |
+| Legacy `/api/db` 登录 | ✅ 已合并进全 410 退役 |
+| CI 结构守门 | ✅ `test_admin_write_timing_stages.py` + `test_no_api_db_client.py` |
+| 线上 p95 硬门槛 | 部分：`--enforce-thresholds` + `workflow_dispatch` 探针 |
+| 复杂写路径减 patch 回读 | ✅ 热路径 in-memory patch；`enrichWriteResponse` 已移除 SELECT 回读 |
+| 在线 read-shim | ✅ `readLocalQuery` 保证在线路径永不调用 `query()` |
+| 前端双轨 | 进行中：`!isLocalForceDb()` 在线分支已改为 `useOnlineDataPath()`（14 模块） |
 
 过渡目标：cold create &lt; 5s，warm create &lt; 3s。  
 最终目标：cold `init_ms` &lt; 300ms，warm create &lt; 2s。

@@ -442,7 +442,7 @@ function renderRoomingDraftTable(event, assignments, canEdit) {
 }
 
 async function fetchRoomingPlanBundle(eventId) {
-  if (!isLocalForceDb()) {
+  if (useOnlineDataPath()) {
     await roomingEnsureEvent(eventId, false);
     var plan = roomingGetPlan(eventId);
     return {
@@ -454,7 +454,7 @@ async function fetchRoomingPlanBundle(eventId) {
 }
 
 async function generateRoomingPlanDraft(eventId) {
-  if (!isLocalForceDb()) {
+  if (useOnlineDataPath()) {
     var genResult = await apiRoomingPlanAction("generate", {
       event_id: eventId,
     });
@@ -483,7 +483,7 @@ async function saveRoomingPlanDraft(eventId, plan, assignments, managerAck) {
       };
     }),
   };
-  if (!isLocalForceDb()) {
+  if (useOnlineDataPath()) {
     var saveResult = await apiRoomingPlanAction("save", payload);
     await roomingRefreshAfterWrite(eventId, saveResult);
     return saveResult;
@@ -570,7 +570,7 @@ async function renderRoomingPlan(eventId, options) {
     typeof hasPermission === "function" && hasPermission("settings.write");
   var bundle = await fetchRoomingPlanBundle(eventId);
   if (!bundle.plan && canEdit) {
-    if (!isLocalForceDb()) {
+    if (useOnlineDataPath()) {
       var ensureResult = await apiRoomingPlanAction("ensure", {
         event_id: eventId,
       });

@@ -39,8 +39,8 @@ def main() -> int:
         failed.append("test_admin_write_latency must login via /api/v1/auth/login")
     if 'action": "login_role"' in probe:
         failed.append("test_admin_write_latency must not use /api/db login_role")
-    if "410" not in db_api or "login_role" not in db_api:
-        failed.append("db.js must retire login/login_role with 410")
+    if "410" not in db_api or "LEGACY_DB_RETIRED" not in db_api:
+        failed.append("db.js must return unified 410 LEGACY_DB_RETIRED")
     if "authenticateByRole" not in login_v1 or "authenticateByUsername" not in login_v1:
         failed.append("v1 auth/login must use auth-login helpers")
 

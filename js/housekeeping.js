@@ -324,7 +324,7 @@ function renderOperationalSettingsPanel() {
 }
 
 function loadOperationalSettings() {
-  if (!isLocalForceDb()) {
+  if (useOnlineDataPath()) {
     return apiAdminGetOperationalSettings();
   }
   return Promise.resolve({

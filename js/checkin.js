@@ -945,7 +945,7 @@ function parseCSV(text) {
 
 function findAssignableBed(gender, roomPreference) {
   // Local CSV import only; online batch uses apiBatchCheckIn
-  if (typeof isLocalForceDb === "function" && !isLocalForceDb()) return null;
+  if (typeof isLocalForceDb === "function" && useOnlineDataPath()) return null;
   // 优先按房间偏好匹配
   if (roomPreference) {
     const exact = query(
@@ -1012,7 +1012,7 @@ async function importBatchCSV(input) {
       const lunch = batchMeal.lunch;
       const dinner = batchMeal.dinner;
 
-      if (!isLocalForceDb()) {
+      if (useOnlineDataPath()) {
         resultDiv.innerHTML = "<p>正在导入云端...</p>";
         const result = await apiBatchCheckIn({
           rows: rows,

@@ -35,6 +35,12 @@ def main():
         failed.append("db.js must retire legacy login with 410")
     if 'payload.action === "login_role"' in db_api and "410" not in db_api:
         failed.append("db.js must retire legacy login_role with 410")
+    if 'payload.action === "init"' in db_api:
+        failed.append("db.js must not handle init (use /api/v1/admin/migrate)")
+    if 'payload.action === "users"' in db_api:
+        failed.append("db.js must not handle users (static HTML roles)")
+    if "LEGACY_DB_RETIRED" not in db_api:
+        failed.append("db.js must use unified LEGACY_DB_RETIRED 410 response")
     if failed:
         print("FAIL sql gateway retirement:")
         for item in failed:

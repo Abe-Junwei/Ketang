@@ -2,8 +2,8 @@
 
 function readUseRc() {
   return (
-    typeof isLocalForceDb === "function" &&
-    !isLocalForceDb() &&
+    typeof useOnlineDataPath === "function" &&
+    useOnlineDataPath() &&
     typeof rcReadReady === "function" &&
     rcReadReady()
   );
@@ -18,95 +18,125 @@ function readOnlineCachePending() {
   );
 }
 
+/** 本地/灾备专用 query；在线路径永不调用 sql.js | Local-only query fallback */
+function readLocalQuery(defaultValue, fn) {
+  if (typeof useOnlineDataPath === "function" && useOnlineDataPath()) {
+    return defaultValue;
+  }
+  return fn();
+}
+
 function readLodger(id) {
   if (readUseRc()) return rcLodgerById(id);
   if (readOnlineCachePending()) return null;
+  return readLocalQuery(null, function () {
   return query("SELECT * FROM lodgers WHERE id=?", [id])[0] || null;
+  });
 }
 
 function readLodgerEnriched(id) {
   if (readUseRc()) return rcEnrichLodgerRow(rcLodgerById(id));
   if (readOnlineCachePending()) return null;
-  return (
-    query(
-      "SELECT l.*, e.name as event_name, r.name as room_name, b.bed_number, r.location, r.dorm_type FROM lodgers l LEFT JOIN events e ON e.id=l.event_id LEFT JOIN beds b ON b.id=l.bed_id LEFT JOIN rooms r ON r.id=b.room_id WHERE l.id=?",
-      [id],
-    )[0] || null
-  );
+  return readLocalQuery(null, function () {
+    return (
+      query(
+        "SELECT l.*, e.name as event_name, r.name as room_name, b.bed_number, r.location, r.dorm_type FROM lodgers l LEFT JOIN events e ON e.id=l.event_id LEFT JOIN beds b ON b.id=l.bed_id LEFT JOIN rooms r ON r.id=b.room_id WHERE l.id=?",
+        [id],
+      )[0] || null
+    );
+  });
 }
 
 function readGuest(id) {
   if (readUseRc()) return rcGuestById(id);
   if (readOnlineCachePending()) return null;
+  return readLocalQuery(null, function () {
   return query("SELECT * FROM guests WHERE id=?", [id])[0] || null;
+  });
 }
 
 function readBedJoined(bedId) {
   if (readUseRc()) return rcBedJoined(bedId);
   if (readOnlineCachePending()) return null;
-  return (
-    query(
-      "SELECT b.*, r.name as room_name, r.dorm_type, r.location FROM beds b JOIN rooms r ON r.id=b.room_id WHERE b.id=?",
-      [bedId],
-    )[0] || null
-  );
+  return readLocalQuery(null, function () {
+    return (
+      query(
+        "SELECT b.*, r.name as room_name, r.dorm_type, r.location FROM beds b JOIN rooms r ON r.id=b.room_id WHERE b.id=?",
+        [bedId],
+      )[0] || null
+    );
+  });
 }
 
 function readReservation(id) {
   if (readUseRc()) return rcReservationById(id);
   if (readOnlineCachePending()) return null;
+  return readLocalQuery(null, function () {
   return query("SELECT * FROM reservations WHERE id=?", [id])[0] || null;
+  });
 }
 
 function readPaymentsForLodger(lodgerId) {
   if (readUseRc()) return rcPaymentsForLodger(lodgerId);
   if (readOnlineCachePending()) return [];
+  return readLocalQuery([], function () {
   return query("SELECT * FROM payments WHERE lodger_id=?", [lodgerId]);
+  });
 }
 
 function readMealsForLodger(lodgerId) {
   if (readUseRc()) return rcMealsForLodger(lodgerId);
   if (readOnlineCachePending()) return [];
+  return readLocalQuery([], function () {
   return query("SELECT * FROM meals WHERE lodger_id=?", [lodgerId]);
+  });
 }
 
 function readPaidTotal(lodgerId) {
   if (readUseRc()) return rcPaidTotalForLodger(lodgerId);
   if (readOnlineCachePending()) return 0;
-  return (
-    query(
-      "SELECT COALESCE(SUM(amount),0) as total FROM payments WHERE lodger_id=?",
-      [lodgerId],
-    )[0]?.total || 0
-  );
+  return readLocalQuery(0, function () {
+    return (
+      query(
+        "SELECT COALESCE(SUM(amount),0) as total FROM payments WHERE lodger_id=?",
+        [lodgerId],
+      )[0]?.total || 0
+    );
+  });
 }
 
 function readUnassignedLodgers() {
   if (readUseRc()) return rcUnassignedLodgers();
   if (readOnlineCachePending()) return [];
+  return readLocalQuery([], function () {
   return query(`
     SELECT l.*, e.name as event_name FROM lodgers l
     LEFT JOIN events e ON e.id=l.event_id
     WHERE l.status='在住' AND (l.bed_id IS NULL OR l.bed_id=0)
     ORDER BY l.check_in_date DESC, l.id DESC
   `);
+  });
 }
 
 function readUnassignedReservations() {
   if (readUseRc()) return rcUnassignedReservations();
   if (readOnlineCachePending()) return [];
+  return readLocalQuery([], function () {
   return query(`
     SELECT r.*, e.name as event_name FROM reservations r
     LEFT JOIN events e ON e.id=r.event_id
     WHERE r.status IN ('预约','已确认') AND (r.bed_id IS NULL OR r.bed_id=0)
     ORDER BY r.expected_check_in ASC, r.id ASC
   `);
+  });
 }
 
 function readRoomById(roomId) {
   if (readUseRc()) return rcRoomById(roomId);
   if (readOnlineCachePending()) return null;
+  return readLocalQuery(null, function () {
   return query("SELECT * FROM rooms WHERE id=?", [roomId])[0] || null;
+  });
 }
 
 function readActiveLodgerCount() {
@@ -116,9 +146,11 @@ function readActiveLodgerCount() {
     }).length;
   }
   if (readOnlineCachePending()) return 0;
-  return (
-    query("SELECT COUNT(*) as c FROM lodgers WHERE status='在住'")[0]?.c || 0
-  );
+  return readLocalQuery(0, function () {
+    return (
+      query("SELECT COUNT(*) as c FROM lodgers WHERE status='在住'")[0]?.c || 0
+    );
+  });
 }
 
 function readPaymentSummary(lodgerId) {
@@ -126,17 +158,22 @@ function readPaymentSummary(lodgerId) {
   if (readOnlineCachePending()) {
     return { income: 0, refund: 0, refund_total: 0, balance: 0 };
   }
-  var row =
-    query(
-      "SELECT COALESCE(SUM(CASE WHEN type IN ('押金','房费') THEN amount ELSE 0 END), 0) as income, COALESCE(SUM(CASE WHEN type = '退款' THEN amount ELSE 0 END), 0) as refund FROM payments WHERE lodger_id = ?",
-      [lodgerId],
-    )[0] || {};
-  return {
-    income: row.income || 0,
-    refund: row.refund || 0,
-    refund_total: row.refund || 0,
-    balance: (row.income || 0) - (row.refund || 0),
-  };
+  return readLocalQuery(
+    { income: 0, refund: 0, refund_total: 0, balance: 0 },
+    function () {
+      var row =
+        query(
+          "SELECT COALESCE(SUM(CASE WHEN type IN ('押金','房费') THEN amount ELSE 0 END), 0) as income, COALESCE(SUM(CASE WHEN type = '退款' THEN amount ELSE 0 END), 0) as refund FROM payments WHERE lodger_id = ?",
+          [lodgerId],
+        )[0] || {};
+      return {
+        income: row.income || 0,
+        refund: row.refund || 0,
+        refund_total: row.refund || 0,
+        balance: (row.income || 0) - (row.refund || 0),
+      };
+    },
+  );
 }
 
 function readLodgerForVoucher(id) {
@@ -153,12 +190,14 @@ function readLodgerForVoucher(id) {
     return Object.assign({}, l, { deposit: deposit, room_fee: roomFee });
   }
   if (readOnlineCachePending()) return null;
-  return (
-    query(
-      "SELECT l.*, r.name as room_name, b.bed_number, (SELECT COALESCE(SUM(amount), 0) FROM payments WHERE lodger_id = l.id AND type = '押金') as deposit, (SELECT COALESCE(SUM(amount), 0) FROM payments WHERE lodger_id = l.id AND type = '房费') as room_fee FROM lodgers l LEFT JOIN beds b ON b.id = l.bed_id LEFT JOIN rooms r ON r.id = b.room_id WHERE l.id = ?",
-      [id],
-    )[0] || null
-  );
+  return readLocalQuery(null, function () {
+    return (
+      query(
+        "SELECT l.*, r.name as room_name, b.bed_number, (SELECT COALESCE(SUM(amount), 0) FROM payments WHERE lodger_id = l.id AND type = '押金') as deposit, (SELECT COALESCE(SUM(amount), 0) FROM payments WHERE lodger_id = l.id AND type = '房费') as room_fee FROM lodgers l LEFT JOIN beds b ON b.id = l.bed_id LEFT JOIN rooms r ON r.id = b.room_id WHERE l.id = ?",
+        [id],
+      )[0] || null
+    );
+  });
 }
 
 /** 用斋：在寺挂单（入住日 ≤ date）| In-house lodgers up to date */
@@ -169,10 +208,12 @@ function readLodgersInHouseUpToDate(date) {
     });
   }
   if (readOnlineCachePending()) return [];
+  return readLocalQuery([], function () {
   return query(
     "SELECT * FROM lodgers WHERE status = '在住' AND check_in_date <= ? ORDER BY role, name",
     [date],
   );
+  });
 }
 
 /** 用斋：当日预计到达预约 | Reservations checking in on date */
@@ -186,10 +227,12 @@ function readReservationsCheckInOn(date) {
     });
   }
   if (readOnlineCachePending()) return [];
+  return readLocalQuery([], function () {
   return query(
     "SELECT * FROM reservations WHERE expected_check_in = ? AND status IN ('预约', '已确认') ORDER BY role, name",
     [date],
   );
+  });
 }
 
 /** 用斋：在寺挂单含房间信息 | In-house lodgers with room join */
@@ -211,10 +254,12 @@ function readLodgersInHouseUpToDateEnriched(date) {
       });
   }
   if (readOnlineCachePending()) return [];
+  return readLocalQuery([], function () {
   return query(
     "SELECT l.*, r.name as room_name, r.id as room_id FROM lodgers l LEFT JOIN beds b ON b.id = l.bed_id LEFT JOIN rooms r ON r.id = b.room_id WHERE l.status = '在住' AND l.check_in_date <= ?",
     [date],
   );
+  });
 }
 
 function readMealFlagsRow(lodgerId, date) {
@@ -227,12 +272,14 @@ function readMealFlagsRow(lodgerId, date) {
       : null;
   }
   if (readOnlineCachePending()) return null;
-  return (
-    query(
-      "SELECT breakfast, lunch, dinner FROM meals WHERE lodger_id=? AND date=?",
-      [lodgerId, date],
-    )[0] || null
-  );
+  return readLocalQuery(null, function () {
+    return (
+      query(
+        "SELECT breakfast, lunch, dinner FROM meals WHERE lodger_id=? AND date=?",
+        [lodgerId, date],
+      )[0] || null
+    );
+  });
 }
 
 function readFirstMealDefaultsRow(lodgerId) {
@@ -245,12 +292,14 @@ function readFirstMealDefaultsRow(lodgerId) {
     return rows[0];
   }
   if (readOnlineCachePending()) return null;
-  return (
-    query(
-      "SELECT breakfast, lunch, dinner FROM meals WHERE lodger_id=? ORDER BY date LIMIT 1",
-      [lodgerId],
-    )[0] || null
-  );
+  return readLocalQuery(null, function () {
+    return (
+      query(
+        "SELECT breakfast, lunch, dinner FROM meals WHERE lodger_id=? ORDER BY date LIMIT 1",
+        [lodgerId],
+      )[0] || null
+    );
+  });
 }
 
 function readEventById(id) {
@@ -258,7 +307,9 @@ function readEventById(id) {
     return rcEventById(id);
   }
   if (readOnlineCachePending()) return null;
+  return readLocalQuery(null, function () {
   return query("SELECT * FROM events WHERE id = ?", [id])[0] || null;
+  });
 }
 
 function readEventListWithStats() {
@@ -266,6 +317,7 @@ function readEventListWithStats() {
     return rcEventListWithStats();
   }
   if (readOnlineCachePending()) return [];
+  return readLocalQuery([], function () {
   return query(`
     SELECT e.*,
       (SELECT COUNT(*) FROM lodgers l WHERE l.event_id = e.id AND l.status = '在住') as checked_in,
@@ -274,6 +326,7 @@ function readEventListWithStats() {
     FROM events e
     ORDER BY e.start_date DESC, e.id DESC
   `);
+  });
 }
 
 function readEventMemberLodgers(eventId) {
@@ -289,10 +342,12 @@ function readEventMemberLodgers(eventId) {
       });
   }
   if (readOnlineCachePending()) return [];
+  return readLocalQuery([], function () {
   return query(
     "SELECT l.id, l.name, l.dharma_name, l.gender, l.check_in_date, l.expected_check_out, l.role, l.class_name, l.participant_identity, l.age_group, l.status, r.name as room_name, b.bed_number, 'lodger' as kind FROM lodgers l LEFT JOIN beds b ON b.id = l.bed_id LEFT JOIN rooms r ON r.id = b.room_id WHERE l.event_id = ? AND l.status = '在住' ORDER BY l.status, l.name",
     [eventId],
   );
+  });
 }
 
 function readEventMemberReservations(eventId) {
@@ -309,10 +364,12 @@ function readEventMemberReservations(eventId) {
       });
   }
   if (readOnlineCachePending()) return [];
+  return readLocalQuery([], function () {
   return query(
     "SELECT r.id, r.name, r.dharma_name, r.gender, r.expected_check_in, r.expected_check_out, r.role, r.class_name, r.participant_identity, r.age_group, r.status, r.room_preference, 'reservation' as kind FROM reservations r WHERE r.event_id = ? AND r.status IN ('预约', '已确认') ORDER BY r.expected_check_in, r.name",
     [eventId],
   );
+  });
 }
 
 function readEventMemberReservationsForExport(eventId) {
@@ -326,10 +383,12 @@ function readEventMemberReservationsForExport(eventId) {
       });
   }
   if (readOnlineCachePending()) return [];
+  return readLocalQuery([], function () {
   return query(
     "SELECT r.name, r.dharma_name, r.gender, r.phone, r.expected_check_in, r.expected_check_out, r.role, r.class_name, r.participant_identity, r.age_group, r.special_needs, r.status, '' as room_name, '' as bed_number, 'reservation' as kind FROM reservations r WHERE r.event_id = ? ORDER BY r.status, r.name",
     [eventId],
   );
+  });
 }
 
 function readEventMemberGenders(eventId) {
@@ -346,10 +405,12 @@ function readEventMemberGenders(eventId) {
     return members;
   }
   if (readOnlineCachePending()) return [];
+  return readLocalQuery([], function () {
   return query(
     "SELECT gender FROM lodgers WHERE event_id = ? AND status = '在住' UNION ALL SELECT gender FROM reservations WHERE event_id = ? AND status IN ('预约', '已确认')",
     [eventId, eventId],
   );
+  });
 }
 
 function readEventRelatedCount(eventId) {
@@ -363,13 +424,15 @@ function readEventRelatedCount(eventId) {
     return lodgers + resvs;
   }
   if (readOnlineCachePending()) return 0;
-  return (
-    (query("SELECT COUNT(*) as c FROM lodgers WHERE event_id = ?", [eventId])[0]
-      ?.c || 0) +
-    (query("SELECT COUNT(*) as c FROM reservations WHERE event_id = ?", [
-      eventId,
-    ])[0]?.c || 0)
-  );
+  return readLocalQuery(0, function () {
+    return (
+      (query("SELECT COUNT(*) as c FROM lodgers WHERE event_id = ?", [eventId])[0]
+        ?.c || 0) +
+      (query("SELECT COUNT(*) as c FROM reservations WHERE event_id = ?", [
+        eventId,
+      ])[0]?.c || 0)
+    );
+  });
 }
 
 function readEventByName(name) {
@@ -384,12 +447,14 @@ function readEventByName(name) {
     return rows.length ? rows[0] : null;
   }
   if (readOnlineCachePending()) return null;
-  var rows = query("SELECT * FROM events WHERE name = ? LIMIT 1", [name]);
-  if (rows.length) return rows[0];
-  return (
-    query("SELECT * FROM events WHERE name LIKE ? LIMIT 1", ["%" + name + "%"])[0] ||
-    null
-  );
+  return readLocalQuery(null, function () {
+    var rows = query("SELECT * FROM events WHERE name = ? LIMIT 1", [name]);
+    if (rows.length) return rows[0];
+    return (
+      query("SELECT * FROM events WHERE name LIKE ? LIMIT 1", ["%" + name + "%"])[0] ||
+      null
+    );
+  });
 }
 
 function readFindEventByName(name) {
@@ -405,9 +470,11 @@ function readEventsForSelect() {
     return rcEventsForSelect();
   }
   if (readOnlineCachePending()) return [];
+  return readLocalQuery([], function () {
   return query(
     "SELECT id, name, event_type, status FROM events WHERE status != '已取消' ORDER BY start_date DESC, id DESC",
   );
+  });
 }
 
 function readAvailRoomsGroupedForEvent(evt) {
@@ -424,11 +491,13 @@ function readAvailRoomsGroupedForEvent(evt) {
   const hkStatuses = requireInspect ? "('可用')" : "('净房','可用')";
   const includeSpare = !!evt.include_spare_beds;
   const spareSql = spareRoomExcludeClause("r", includeSpare);
-  return query(
-    "SELECT r.id, r.name, r.location, r.dorm_type, COUNT(b.id) as avail_beds FROM rooms r JOIN beds b ON b.room_id = r.id LEFT JOIN lodgers l ON l.bed_id = b.id AND l.status='在住' WHERE b.status != '维修' AND b.status != '备用' AND l.id IS NULL AND " +
-      spareSql +
-      " AND COALESCE((SELECT status FROM housekeeping WHERE bed_id = b.id ORDER BY changed_at DESC LIMIT 1), '净房') IN " +
-      hkStatuses +
-      " GROUP BY r.id HAVING avail_beds > 0 ORDER BY CASE r.dorm_type WHEN '男寮' THEN 1 WHEN '女寮' THEN 2 ELSE 3 END, r.location, r.name",
-  );
+  return readLocalQuery([], function () {
+    return query(
+      "SELECT r.id, r.name, r.location, r.dorm_type, COUNT(b.id) as avail_beds FROM rooms r JOIN beds b ON b.room_id = r.id LEFT JOIN lodgers l ON l.bed_id = b.id AND l.status='在住' WHERE b.status != '维修' AND b.status != '备用' AND l.id IS NULL AND " +
+        spareSql +
+        " AND COALESCE((SELECT status FROM housekeeping WHERE bed_id = b.id ORDER BY changed_at DESC LIMIT 1), '净房') IN " +
+        hkStatuses +
+        " GROUP BY r.id HAVING avail_beds > 0 ORDER BY CASE r.dorm_type WHEN '男寮' THEN 1 WHEN '女寮' THEN 2 ELSE 3 END, r.location, r.name",
+    );
+  });
 }

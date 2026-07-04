@@ -293,7 +293,7 @@ function getLodgerMealDefaults(lodgerOrId) {
 }
 
 function setLodgerMealDefaults(lodgerId, breakfast, lunch, dinner) {
-  if (!isLocalForceDb()) return;
+  if (useOnlineDataPath()) return;
   run(
     "UPDATE lodgers SET meal_default_breakfast=?, meal_default_lunch=?, meal_default_dinner=? WHERE id=?",
     [breakfast ? 1 : 0, lunch ? 1 : 0, dinner ? 1 : 0, lodgerId],
@@ -1087,7 +1087,7 @@ async function submitMeals(event, lodgerId) {
 }
 
 function generateMeals(lodgerId, startDate, endDate, breakfast, lunch, dinner) {
-  if (!isLocalForceDb()) return;
+  if (useOnlineDataPath()) return;
   if (!startDate) return;
   const start = new Date(startDate + "T12:00:00");
   if (isNaN(start.getTime())) {
@@ -1131,7 +1131,7 @@ function generateMeals(lodgerId, startDate, endDate, breakfast, lunch, dinner) {
 
 /** 挂单尚无 meals 记录时补生成（如仅登记未分床）| Local-only meal bootstrap */
 async function ensureLodgerMeals(lodgerId, breakfast, lunch, dinner) {
-  if (!isLocalForceDb()) return;
+  if (useOnlineDataPath()) return;
   const l =
     typeof readLodger === "function" ? readLodger(lodgerId) : null;
   if (!l || l.status !== "在住") return;

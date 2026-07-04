@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""在线主路径不得裸 query()：Phase D 模块须走 rc* 或 isLocalForceDb 分支。"""
+"""在线主路径不得裸 query()：Phase D 模块须走 rc* 或 useOnlineDataPath 分支。"""
 import re
 import sys
 
@@ -30,7 +30,11 @@ def fn_body(src, fn_name):
 def assert_no_unguarded_query(label, body, allow_local=True):
     if not body or "query(" not in body:
         return True, None
-    if "isLocalForceDb()" in body or "guestUseLocalDb()" in body:
+    if (
+        "isLocalForceDb()" in body
+        or "useOnlineDataPath()" in body
+        or "guestUseLocalDb()" in body
+    ):
         return True, None
     if "readLodger(" in body or "readUseRc()" in body or "readGuest(" in body:
         return True, None
@@ -80,7 +84,7 @@ def main():
         ("reports event rc", "rcEventReportMembers" in reports),
         ("reports export daily rc", "rcDailyReportExportRows" in reports),
         ("reports event select rc", "rcEventsForSelect" in reports),
-        ("reports guarded render", reports.count("!isLocalForceDb()") >= 5),
+        ("reports guarded render", reports.count("useOnlineDataPath()") >= 5),
         ("forecast today rc", "rcForecastTodayData" in forecast),
         ("forecast flow rc", "rcForecastFlowWeeks" in forecast),
         ("forecast export rc", "rcForecastTodayData(date)" in forecast),
@@ -125,7 +129,7 @@ def main():
         ("validation duplicate rc", "readUseRc()" in validation and "checkDuplicate" in validation),
         (
             "mobile hero flow rc",
-            "rcGetBoardFlowStats" in mobile_ui and "isLocalForceDb()" in mobile_ui,
+            "rcGetBoardFlowStats" in mobile_ui and "useOnlineDataPath()" in mobile_ui,
         ),
         ("guests phone lookup rc", "rcFindGuestByPhoneOrIdCard" in guests),
         ("guests name lookup rc", "rcFindGuestByDisplayName" in guests),

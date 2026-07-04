@@ -105,6 +105,14 @@ def main() -> None:
             "patchRowIds" not in read("functions/_shared/admin-records.js"),
         ),
         (
+            "write-response no patchRowIds",
+            "patchRowIds" not in read("functions/_shared/write-response.js"),
+        ),
+        (
+            "write-response no rowId fallback",
+            "options.rowId" not in read("functions/_shared/write-response.js"),
+        ),
+        (
             "lodger finish patch_complete default",
             "patchComplete: patch.complete !== false"
             in read("functions/_shared/lodgers.js"),

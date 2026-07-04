@@ -303,7 +303,7 @@ function renderReservations(filterStatus) {
 
 function reservationRowsForRender(filterStatus) {
   if (
-    !isLocalForceDb() &&
+    useOnlineDataPath() &&
     typeof rcReadReady === "function" &&
     rcReadReady() &&
     typeof rcRows === "function"
@@ -334,7 +334,7 @@ function reservationRowsForRender(filterStatus) {
 
 function reservationForStatus(id) {
   if (
-    !isLocalForceDb() &&
+    useOnlineDataPath() &&
     typeof rcReservationById === "function" &&
     typeof rcReadReady === "function" &&
     rcReadReady()
@@ -347,7 +347,7 @@ function reservationForStatus(id) {
 function guestEmergencyFields(guestId) {
   if (!guestId) return null;
   if (
-    !isLocalForceDb() &&
+    useOnlineDataPath() &&
     typeof rcGuestById === "function" &&
     typeof rcReadReady === "function" &&
     rcReadReady()

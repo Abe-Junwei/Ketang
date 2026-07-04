@@ -162,10 +162,6 @@ async function apiPostAudit(action, targetType, targetId, detail) {
   });
 }
 
-async function remoteDBRequestAsync(payload) {
-  return apiFetch("/api/db", { method: "POST", body: payload });
-}
-
 async function apiChangePassword(oldPassword, newPassword) {
   return apiFetch("/api/v1/auth/change-password", {
     method: "POST",

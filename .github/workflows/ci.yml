@@ -109,6 +109,7 @@ jobs:
           python test_sql_js_debt_inventory.py
           python test_info_api_read.py
           python test_db_sql_gateway_retired.py
+          python test_no_api_db_client.py
           python test_read_shim_online_guard.py
           python test_admin_write_timing_stages.py
 

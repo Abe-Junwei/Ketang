@@ -48,7 +48,7 @@ async function logRoomingAdjustment(payload) {
     reason: payload.reason || "",
     operator: payload.operator || roomingAdjustmentOperator(),
   };
-  if (!isLocalForceDb()) {
+  if (useOnlineDataPath()) {
     var writeResult = await apiRoomingPlanAction("log_adjustment", body);
     await roomingRefreshAfterWrite(eventId, writeResult);
     return;
@@ -123,7 +123,7 @@ function roomingRetrospectiveSummary(queue, adjustments) {
 }
 
 async function fetchRoomingRetrospective(eventId) {
-  if (!isLocalForceDb()) {
+  if (useOnlineDataPath()) {
     await roomingEnsureEvent(eventId, false);
     var remoteEvent = roomingGetEvent(eventId);
     if (!remoteEvent) throw new Error("营期不存在");

@@ -143,7 +143,7 @@ async function republishLocalRoomingPlan(eventId) {
 }
 
 async function fetchRoomingQueueBundle(eventId) {
-  if (!isLocalForceDb()) {
+  if (useOnlineDataPath()) {
     await roomingEnsureEvent(eventId, false);
     return {
       plan: roomingGetPlan(eventId) || null,
@@ -166,7 +166,7 @@ async function findRoomingQueueItem(queueId, eventId) {
 }
 
 async function markRoomingQueueItemStatus(queueId, status, eventId) {
-  if (!isLocalForceDb()) {
+  if (useOnlineDataPath()) {
     var writeResult = await apiRoomingPlanAction("update_queue", {
       queue_id: queueId,
       queue_status: status,
@@ -344,7 +344,7 @@ async function handlePublishRoomingPlan(source, eventId) {
       return;
     }
     try {
-      if (!isLocalForceDb()) {
+      if (useOnlineDataPath()) {
         var publishResult = await apiRoomingPlanAction("publish", {
           event_id: eventId,
         });
@@ -377,7 +377,7 @@ async function handleRepublishRoomingPlan(source, eventId) {
       return;
     }
     try {
-      if (!isLocalForceDb()) {
+      if (useOnlineDataPath()) {
         var republishResult = await apiRoomingPlanAction("republish", {
           event_id: eventId,
           confirm_republish: true,
@@ -429,7 +429,7 @@ async function handleRoomingQueueCheckin(source, queueId, eventId) {
       return;
     }
     try {
-      if (!isLocalForceDb()) {
+      if (useOnlineDataPath()) {
         var queueResult = await apiRoomingPlanAction("process_queue", {
           event_id: eventId,
           queue_id: queueId,

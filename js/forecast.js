@@ -335,7 +335,7 @@ function exportTodayForecastCSV() {
   var arrivalsResv;
   var arrivalsLodger;
   var departures;
-  if (!isLocalForceDb()) {
+  if (useOnlineDataPath()) {
     var fd = rcForecastTodayData(date);
     arrivalsResv = fd.arrivalsResv;
     arrivalsLodger = fd.arrivalsLodger;
@@ -672,7 +672,7 @@ function renderFlowForecast() {
 
   // 营期入住率
   html += `<h3 class="section-title">营期入住率</h3>`;
-  const events = !isLocalForceDb()
+  const events = useOnlineDataPath()
     ? rcEventListWithStats().filter(function (e) {
         return e.status !== "已取消";
       })

@@ -16,7 +16,7 @@ function renderMobileBoardHero() {
   var stats = getBoardBedStats();
   var today = todayStr();
   var flow;
-  if (!isLocalForceDb() && typeof rcGetBoardFlowStats === "function") {
+  if (useOnlineDataPath() && typeof rcGetBoardFlowStats === "function") {
     flow = rcGetBoardFlowStats(today);
   } else {
     flow = {

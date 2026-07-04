@@ -9,22 +9,22 @@ JS = Path("js")
 # isLocalForceDb() 出现次数上限；债务清理时应下调，不得无声上涨
 LOCAL_BRANCH_CEILING = {
     "app.js": 6,
-    "auth.js": 10,
-    "checkin.js": 5,
+    "auth.js": 1,
+    "checkin.js": 3,
     "db.js": 2,
     "events.js": 5,
-    "forecast.js": 5,
+    "forecast.js": 3,
     "guests.js": 1,
     "history.js": 3,
-    "housekeeping.js": 4,
+    "housekeeping.js": 3,
     "lodger-actions.js": 5,
-    "meals.js": 5,
+    "meals.js": 2,
     "mobile-ui.js": 1,
     "permissions.js": 1,
     "read-cache.js": 1,
-    "read-shim.js": 1,
+    "read-shim.js": 0,
     "reports.js": 7,
-    "reservations.js": 6,
+    "reservations.js": 3,
     "rooming-adjustments.js": 2,
     "rooming-conflicts.js": 1,
     "rooming-plans.js": 4,
@@ -90,10 +90,13 @@ def check_read_shim_online_guard():
 
 def check_render_ops_notice():
     body = fn_body(read("js/app.js"), "renderOpsNotice") or ""
-    if body.count("if (!isLocalForceDb())") != 1:
+    online_branch = body.count("if (!isLocalForceDb())") + body.count(
+        "if (useOnlineDataPath())"
+    )
+    if online_branch != 1:
         return [
             "renderOpsNotice should have exactly one online branch "
-            f"(found {body.count('if (!isLocalForceDb())')})"
+            f"(found {online_branch})"
         ]
     return []
 

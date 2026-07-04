@@ -184,58 +184,6 @@ export async function enrichWriteResponse(env, response, options) {
       mergePatchRows(patches, table, options.extraPatches[table]);
     });
   }
-  const tables = options.patchTables?.length
-    ? options.patchTables
-    : options.patchTable
-      ? [options.patchTable]
-      : [];
-  const rowIds = options.rowIds || {};
-  const defaultRowId = options.rowId;
-  for (const table of tables) {
-    if (!WRITE_PATCH_TABLE_RE.test(table)) continue;
-    if (patches[table] && patches[table].length) continue;
-    const rowId = rowIds[table] ?? defaultRowId;
-    if (rowId == null) continue;
-    const rows = await queryD1(
-      env,
-      `SELECT * FROM ${table} WHERE id = ? LIMIT 1`,
-      [rowId],
-    );
-    if (rows[0]) patches[table] = [rows[0]];
-  }
-  if (options.patchRowIds && typeof options.patchRowIds === "object") {
-    for (const table of Object.keys(options.patchRowIds)) {
-      if (!WRITE_PATCH_TABLE_RE.test(table)) continue;
-      const ids = [
-        ...new Set(
-          (options.patchRowIds[table] || []).filter(function (id) {
-            return id != null && id !== "";
-          }),
-        ),
-      ];
-      if (!ids.length) continue;
-      const have = new Set(
-        (patches[table] || []).map(function (r) {
-          return r.id;
-        }),
-      );
-      const missing = ids.filter(function (id) {
-        return !have.has(id);
-      });
-      if (!missing.length) continue;
-      const placeholders = missing
-        .map(function () {
-          return "?";
-        })
-        .join(",");
-      const rows = await queryD1(
-        env,
-        `SELECT * FROM ${table} WHERE id IN (${placeholders})`,
-        missing,
-      );
-      mergePatchRows(patches, table, rows);
-    }
-  }
   if (Object.keys(patches).length) out.patches = patches;
   // Explicit only: incomplete patches must not skip client delta reconcile
   if (options.patchComplete === true) out.patch_complete = true;

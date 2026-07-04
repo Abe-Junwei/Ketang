@@ -12,7 +12,8 @@ def main():
     src = read("js/read-shim.js")
     checks = [
         ("readOnlineCachePending helper", "function readOnlineCachePending" in src),
-        ("uses useOnlineDataPath", "useOnlineDataPath()" in src),
+        ("readLocalQuery helper", "function readLocalQuery" in src),
+        ("readUseRc online gate", "useOnlineDataPath()" in src.split("function readUseRc")[1].split("function readOnlineCachePending")[0]),
         ("lodger pending null", "readOnlineCachePending()) return null" in src),
         ("meals pending empty", "readOnlineCachePending()) return []" in src),
         (

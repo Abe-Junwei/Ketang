@@ -35,7 +35,7 @@ function populateReportEventSelect() {
   const sel = document.getElementById("r-event");
   if (!sel) return;
   var events;
-  if (!isLocalForceDb()) {
+  if (useOnlineDataPath()) {
     events = rcEventsForSelect();
   } else {
     events = query(
@@ -282,7 +282,7 @@ async function renderDailyReport() {
   var payMethods;
   var checkinList;
   var checkoutList;
-  if (!isLocalForceDb()) {
+  if (useOnlineDataPath()) {
     var daily = rcDailyReportData(date);
     checkins = daily.checkins;
     checkouts = daily.checkouts;
@@ -492,7 +492,7 @@ async function exportDailyReportCSV() {
     return;
   }
   await reportsEnsureData(date);
-  const rows = !isLocalForceDb()
+  const rows = useOnlineDataPath()
     ? rcDailyReportExportRows(date)
     : query(
         `
@@ -557,7 +557,7 @@ async function renderMonthlyReport() {
   var payMap = {};
   var payMethods;
   var byDay;
-  if (!isLocalForceDb()) {
+  if (useOnlineDataPath()) {
     var monthly = rcMonthlyReportData(month);
     checkins = monthly.checkins;
     checkouts = monthly.checkouts;
@@ -703,7 +703,7 @@ async function exportMonthlyReportCSV() {
     return;
   }
   await reportsEnsureData(month);
-  const byDay = !isLocalForceDb()
+  const byDay = useOnlineDataPath()
     ? rcMonthlyReportData(month).byDay
     : query(
         `
@@ -735,7 +735,7 @@ async function renderEventReport() {
   const container = document.getElementById("event-report-result");
   if (!container) return;
 
-  const members = !isLocalForceDb()
+  const members = useOnlineDataPath()
     ? rcEventReportMembers(eventId || null)
     : (function () {
         let sql = `
@@ -910,7 +910,7 @@ function renderEventReportCharts(groupNames, groups) {
 function exportEventReportCSV() {
   const eventId = document.getElementById("r-event").value;
 
-  const members = !isLocalForceDb()
+  const members = useOnlineDataPath()
     ? rcEventReportMembers(eventId || null)
     : (function () {
         let sql = `

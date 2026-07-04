@@ -54,7 +54,7 @@
 
 - 云端模式支持多人访问同一份 D1 数据。
 - 业务写操作走 `/api/v1/*` 接口（入住/退房/换床/续住/分床/编辑删除挂单/用斋/房务/预约/营期批量操作），D1 `batch()` 保证原子性。
-- `/api/db`：**仅** init、users 列表（公开角色名）；`login` / `login_role` / SQL 网关 / `change_password` 已退役（410），请用 `/api/v1/auth/login` 与 `/api/v1/*` 业务 API。
+- `/api/db`：**已完全退役（410）**。登录 `POST /api/v1/auth/login`；DB 初始化 `POST /api/v1/admin/migrate`（需 bootstrap secret）；角色名下拉见登录页静态 HTML。
 - 管理员可在「系统设置」导出/导入 JSON 备份（含 `users` 表，`/api/v1/admin/data-backup`）。
 - 房态看板在云端模式优先 **SSE**（`/api/v1/stream/board`），服务端 1.5s 检测版本变化、15s ping；失败或非看板场景降级到 `board-version` 轮询（active 视图 3s、idle 20s、hidden 跳过）。
 - 登录前不再阻塞远程 `init`；身份下拉在 HTML 中静态列出，页面打开即可选。
@@ -68,7 +68,7 @@
 
 | 路径                                  | 说明                                      |
 | ------------------------------------- | ----------------------------------------- |
-| `POST /api/db`                        | init、users 列表（login/SQL 网关已退役 410） |
+| `POST /api/db`                        | 已退役（410）；请用 `/api/v1/*` |
 | `POST /api/v1/auth/login`             | 双 token 登录（推荐）                     |
 | `POST /api/v1/auth/change-password`   | 修改当前用户密码                          |
 | `POST /api/v1/audit`                  | 客户端审计日志                            |
