@@ -783,7 +783,7 @@ bash scripts/run_p1_checklist.sh https://wulingkt.net https://<pages-preview>.ke
 - board `_rcIndexes`：`lodgerByBedId` / `bedsByRoomId` / `hkByBedId`，patch/seed 后惰性重建。
 - 排房只读：`GET /api/v1/read/event/:id?view=conflicts|members`（草稿 assignments 仍走 POST check）。
 - 报表/预报日期早于 `lodgers_recent`（180 天）时按需拉全量 `lodgers`；`patch_complete` 写后跳过空 reconcile；patch 只写入模块已有表。
-- **迁移与请求生命周期专项**：见 [architecture/migration-request-lifecycle.md](architecture/migration-request-lifecycle.md)。Phase 0：`admin/records` 分段 `init_ms`/`auth_ms`/`biz_ms`；探针 `test_admin_write_latency.py`。
+- **迁移与请求生命周期专项（已落地）**：见 [architecture/migration-request-lifecycle.md](architecture/migration-request-lifecycle.md)。`ensureDatabaseReady` + `schema_ready_version`；业务请求禁止 migration fallback；`POST /api/v1/admin/migrate`；写尾 `batchLogSyncMeta`；守门 `test_migration_hot_path.py`。
 - WebSocket 未实现：仓库当前没有 WebSocket/DO 广播。
 - `index.html` 不再静态加载 `./lib/sql-wasm.js`；`db.js` 仅在本地/灾备路径动态加载 sql.js，在线误调 `query()` 会抛出带 caller 的错误。
 - `reports.js`、`forecast.js`、`history.js`、`events.js`、`rooming-*`、`auth.js` 在线热路径已由 `test_online_query_boundaries.py` 守卫；本地/灾备分支继续保留 `query()`。
