@@ -9,10 +9,29 @@ def read(path):
         return f.read()
 
 
+def fn_body(src, fn_name):
+    m = re.search(rf"function {re.escape(fn_name)}\([^)]*\)\s*\{{", src)
+    if not m:
+        return None
+    depth = 0
+    i = m.end() - 1
+    while i < len(src):
+        if src[i] == "{":
+            depth += 1
+        elif src[i] == "}":
+            depth -= 1
+            if depth == 0:
+                return src[m.start() : i + 1]
+        i += 1
+    return None
+
+
 def main():
     src = read("js/info.js")
+    info_body = fn_body(src, "infoUseApiData") or ""
     checks = [
         ("infoUseApiData", "function infoUseApiData" in src),
+        ("info online path", "useOnlineDataPath()" in info_body),
         ("infoEnsureModuleData", "async function infoEnsureModuleData" in src),
         ("rcFetch usage", "rcFetch(moduleKey" in src),
         ("no useRemoteWriteApi", "useRemoteWriteApi" not in src),

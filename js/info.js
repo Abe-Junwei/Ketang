@@ -238,7 +238,7 @@ const INFO_READ_MODULES = {
 };
 
 function infoUseApiData() {
-  return typeof isRemoteDB === "function" && isRemoteDB();
+  return typeof useOnlineDataPath === "function" && useOnlineDataPath();
 }
 
 function infoModuleTables(moduleKey) {
