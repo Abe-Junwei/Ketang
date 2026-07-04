@@ -1,0 +1,41 @@
+name: Admin write latency probe
+
+on:
+  workflow_dispatch:
+    inputs:
+      base:
+        description: "Production or staging base URL"
+        required: true
+        default: "https://wulingkt.net"
+      resource:
+        description: "admin/records resource to create"
+        required: true
+        default: "event"
+      samples:
+        description: "Warm create samples after first cold create"
+        required: true
+        default: "2"
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Structural timing contract
+        run: python3 test_admin_write_timing_stages.py
+
+      - name: Enforced warm-path probe
+        run: |
+          python3 test_admin_write_latency.py \
+            --base "${{ inputs.base }}" \
+            --resource "${{ inputs.resource }}" \
+            --samples "${{ inputs.samples }}" \
+            --enforce-thresholds

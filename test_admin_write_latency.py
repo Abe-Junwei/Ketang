@@ -14,6 +14,7 @@ import sys
 import time
 import urllib.error
 import urllib.request
+from pathlib import Path
 
 
 def request_json(opener, base, path, method="GET", body=None, timeout=60):
@@ -105,6 +106,11 @@ def main() -> int:
     parser.add_argument("--samples", type=int, default=2)
     parser.add_argument("--role", default="admin")
     parser.add_argument("--password", default="admin")
+    parser.add_argument(
+        "--enforce-thresholds",
+        action="store_true",
+        help="Fail when warm server timing exceeds admin_write_warm_ms targets",
+    )
     args = parser.parse_args()
     base = args.base.rstrip("/")
     jar = http.cookiejar.CookieJar()
@@ -191,6 +197,9 @@ def main() -> int:
     def clean(vals):
         return [v for v in vals if isinstance(v, (int, float))]
 
+    sys.path.insert(0, str(Path(__file__).resolve().parent / "scripts"))
+    from admin_write_thresholds import check_warm_thresholds  # noqa: E402
+
     print("summary_create_total", summarize(create_totals))
     print("summary_create_init", summarize(clean(create_inits)))
     print("summary_create_auth", summarize(clean(create_auths)))
@@ -200,12 +209,17 @@ def main() -> int:
     print("summary_create_biz", summarize(clean(create_bizs)))
     print("summary_delete_total", summarize(delete_totals))
 
-    warm_inits = clean(create_inits[1:])
-    warm_bizs = clean(create_bizs[1:])
-    if warm_inits and max(warm_inits) > 50:
-        print(f"WARN warm init_ms max={max(warm_inits)} exceeds 50ms target")
-    if warm_bizs and max(warm_bizs) > 3000:
-        print(f"WARN warm biz_ms max={max(warm_bizs)} exceeds 3000ms target")
+    threshold_failures = check_warm_thresholds(
+        clean(create_inits),
+        clean(create_bizs),
+        clean(create_write_tails),
+        clean(create_patches),
+    )
+    for msg in threshold_failures:
+        prefix = "FAIL" if args.enforce_thresholds else "WARN"
+        print(f"{prefix}: {msg}")
+    if args.enforce_thresholds and threshold_failures:
+        return 1
     print("PASS: admin write latency probe")
     return 0
 
