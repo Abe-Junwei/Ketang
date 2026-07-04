@@ -52,6 +52,11 @@ export { nowIso, normalizeSyncTimestamp };
 
 let _syncMetaReady = false;
 
+/** Mark sync meta tables ready in this isolate (no DDL) */
+export function markSyncMetaReady() {
+  _syncMetaReady = true;
+}
+
 export async function ensureSyncMetaSchema(env) {
   if (_syncMetaReady) return;
   await runD1(env, SYNC_SCHEMA_SQL, []);

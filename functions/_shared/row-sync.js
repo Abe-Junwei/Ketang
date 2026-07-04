@@ -126,20 +126,32 @@ async function runMigrationStatements(env, statements) {
   }
 }
 
+let _rowSyncReady = false;
+
+/** Mark row-sync schema ready in this isolate (no D1) */
+export function markRowSyncReady() {
+  _rowSyncReady = true;
+}
+
 export async function ensureRowSyncSchema(env) {
+  if (_rowSyncReady) return false;
   const ver = await queryD1(
     env,
     "SELECT MIN(version) AS v FROM schema_version",
     [],
   );
   const current = ver[0]?.v || 0;
-  if (current >= 22) return false;
+  if (current >= 22) {
+    _rowSyncReady = true;
+    return false;
+  }
   const cols = await queryD1(env, "PRAGMA table_info(lodgers)", []);
   if (!cols.length) return false;
   if (current < 21) {
     await runMigrationStatements(env, rowSyncMigrationStatements());
   }
   await runMigrationStatements(env, rowSyncV22MigrationStatements());
+  _rowSyncReady = true;
   return true;
 }
 

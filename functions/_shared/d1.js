@@ -5,8 +5,8 @@ import {
   DEFAULT_USER_INSERTS,
 } from "./schema.js";
 import { ensureRefreshSessionsTable } from "./refresh-sessions.js";
-import { ensureSyncMetaSchema } from "./sync-meta.js";
-import { ensureRowSyncSchema } from "./row-sync.js";
+import { ensureSyncMetaSchema, markSyncMetaReady } from "./sync-meta.js";
+import { ensureRowSyncSchema, markRowSyncReady } from "./row-sync.js";
 
 export const normalizeParams = (params) =>
   Array.isArray(params)
@@ -60,67 +60,104 @@ let remoteInitReady = false;
 /** 本 isolate 已跑过轻量 auth ensure | Per-isolate auth ensure cache */
 let authEnsureReady = false;
 const AUTH_SCHEMA_READY_VERSION = 22;
+const SCHEMA_READY_KEY = "schema_ready_version";
 
-/** 生产库已初始化：用 schema_version + rooms 哨兵，避免冷 Worker 逐列 PRAGMA | Production DB ready probe */
+/** Memory-only ready flags for this isolate | 本 isolate 内存就绪标记 */
+function markSchemaReadyInMemory() {
+  remoteInitReady = true;
+  authEnsureReady = true;
+  markSyncMetaReady();
+  markRowSyncReady();
+}
+
+async function stampSchemaReadyVersion(env) {
+  await runD1(
+    env,
+    "INSERT OR REPLACE INTO app_meta (key, value) VALUES (?, ?)",
+    [SCHEMA_READY_KEY, String(AUTH_SCHEMA_READY_VERSION)],
+  );
+}
+
+/**
+ * One-time column/table validation (bootstrap only).
+ * After success we stamp schema_ready_version so cold isolates use O(1) gate.
+ */
+async function validateProductionSchemaColumns(env) {
+  const rows = await queryD1(
+    env,
+    "SELECT MIN(version) AS v FROM schema_version",
+    [],
+  );
+  const version = parseInt(rows[0]?.v, 10) || 0;
+  if (version < AUTH_SCHEMA_READY_VERSION) return false;
+  const count = await queryD1(env, "SELECT COUNT(*) AS c FROM rooms", []);
+  if ((count[0]?.c || 0) <= 0) return false;
+  await queryD1(
+    env,
+    "SELECT auth_version, must_change_password, is_active, is_advanced, permissions FROM users LIMIT 0",
+    [],
+  );
+  await queryD1(
+    env,
+    "SELECT include_spare_beds, activity_target, arrival_date, departure_date, manager_name, needs_teacher_room, updated_at FROM events LIMIT 0",
+    [],
+  );
+  await queryD1(
+    env,
+    "SELECT room_type, suitable_elder, near_zen_hall, updated_at FROM rooms LIMIT 0",
+    [],
+  );
+  await queryD1(
+    env,
+    "SELECT bed_type, suitable_elder, is_flexible, updated_at FROM beds LIMIT 0",
+    [],
+  );
+  await queryD1(
+    env,
+    "SELECT participant_identity, age_group, special_needs, updated_at FROM lodgers LIMIT 0",
+    [],
+  );
+  await queryD1(
+    env,
+    "SELECT participant_identity, age_group, special_needs, updated_at FROM reservations LIMIT 0",
+    [],
+  );
+  await queryD1(env, "SELECT updated_at FROM rooming_plans LIMIT 0", []);
+  await queryD1(env, "SELECT updated_at FROM rooming_assignments LIMIT 0", []);
+  await queryD1(env, "SELECT updated_at FROM rooming_checkin_queue LIMIT 0", []);
+  await queryD1(env, "SELECT updated_at FROM rooming_adjustments LIMIT 0", []);
+  await queryD1(env, "SELECT id FROM refresh_sessions LIMIT 0", []);
+  await queryD1(env, "SELECT version FROM sync_version_log LIMIT 0", []);
+  await queryD1(env, "SELECT id FROM sync_deletions LIMIT 0", []);
+  return true;
+}
+
+/**
+ * Production ready gate: O(1) app_meta read when stamped;
+ * otherwise one-time column validation then stamp.
+ */
 async function probeProductionDatabaseReady(env) {
   try {
-    const rows = await queryD1(
+    const readyRows = await queryD1(
       env,
-      "SELECT MIN(version) AS v FROM schema_version",
-      [],
+      "SELECT value FROM app_meta WHERE key = ? LIMIT 1",
+      [SCHEMA_READY_KEY],
     );
-    const version = parseInt(rows[0]?.v, 10) || 0;
-    if (version < AUTH_SCHEMA_READY_VERSION) return false;
-    const count = await queryD1(env, "SELECT COUNT(*) AS c FROM rooms", []);
-    if ((count[0]?.c || 0) <= 0) return false;
-    await queryD1(
-      env,
-      "SELECT auth_version, must_change_password, is_active, is_advanced, permissions FROM users LIMIT 0",
-      [],
-    );
-    await queryD1(
-      env,
-      "SELECT include_spare_beds, activity_target, arrival_date, departure_date, manager_name, needs_teacher_room, updated_at FROM events LIMIT 0",
-      [],
-    );
-    await queryD1(
-      env,
-      "SELECT room_type, suitable_elder, near_zen_hall, updated_at FROM rooms LIMIT 0",
-      [],
-    );
-    await queryD1(
-      env,
-      "SELECT bed_type, suitable_elder, is_flexible, updated_at FROM beds LIMIT 0",
-      [],
-    );
-    await queryD1(
-      env,
-      "SELECT participant_identity, age_group, special_needs, updated_at FROM lodgers LIMIT 0",
-      [],
-    );
-    await queryD1(
-      env,
-      "SELECT participant_identity, age_group, special_needs, updated_at FROM reservations LIMIT 0",
-      [],
-    );
-    await queryD1(env, "SELECT updated_at FROM rooming_plans LIMIT 0", []);
-    await queryD1(env, "SELECT updated_at FROM rooming_assignments LIMIT 0", []);
-    await queryD1(env, "SELECT updated_at FROM rooming_checkin_queue LIMIT 0", []);
-    await queryD1(env, "SELECT updated_at FROM rooming_adjustments LIMIT 0", []);
-    await queryD1(env, "SELECT id FROM refresh_sessions LIMIT 0", []);
-    await queryD1(env, "SELECT version FROM sync_version_log LIMIT 0", []);
-    await queryD1(env, "SELECT id FROM sync_deletions LIMIT 0", []);
+    const readyVer = parseInt(readyRows[0]?.value || "0", 10) || 0;
+    if (readyVer >= AUTH_SCHEMA_READY_VERSION) return true;
+
+    const ok = await validateProductionSchemaColumns(env);
+    if (!ok) return false;
+    await stampSchemaReadyVersion(env);
     return true;
   } catch (e) {
     return false;
   }
 }
 
+/** Ready path: memory flags only, no DDL | 就绪路径仅内存标记 */
 async function ensureDatabaseForAuthLight(env) {
-  await ensureSyncMetaSchema(env);
-  await ensureRowSyncSchema(env);
-  remoteInitReady = true;
-  authEnsureReady = true;
+  markSchemaReadyInMemory();
   return false;
 }
 
@@ -277,9 +314,10 @@ export async function ensureDatabaseForAuth(env) {
       await ensureUserRoleColumns(env);
       await ensureRefreshSessionsTable(env);
       await ensureEventColumns(env);
+      await ensureSyncMetaSchema(env);
       await ensureRowSyncSchema(env);
-      remoteInitReady = true;
-      authEnsureReady = true;
+      await stampSchemaReadyVersion(env);
+      markSchemaReadyInMemory();
       return false;
     }
   }
@@ -482,9 +520,10 @@ async function initRemoteDatabaseOnce(env) {
       await ensureUserRoleColumns(env);
       await ensureRefreshSessionsTable(env);
       await ensureEventColumns(env);
+      await ensureSyncMetaSchema(env);
       await ensureRowSyncSchema(env);
-      remoteInitReady = true;
-      authEnsureReady = true;
+      await stampSchemaReadyVersion(env);
+      markSchemaReadyInMemory();
       return false;
     }
   }
@@ -503,12 +542,13 @@ async function initRemoteDatabaseOnce(env) {
   await ensureUserRoleColumns(env);
   await ensureRefreshSessionsTable(env);
   await ensureEventColumns(env);
+  await ensureSyncMetaSchema(env);
   await ensureRowSyncSchema(env);
   await ensureDefaultUsers(env);
   const count = await queryD1(env, "SELECT COUNT(*) AS c FROM rooms", []);
   if ((count[0]?.c || 0) > 0) {
-    remoteInitReady = true;
-    authEnsureReady = true;
+    await stampSchemaReadyVersion(env);
+    markSchemaReadyInMemory();
     return false;
   }
   for (const item of SEED_ROOMS) await runD1(env, item.sql, item.params);
@@ -524,8 +564,8 @@ async function initRemoteDatabaseOnce(env) {
       [bed.id, bed.status === "维修" ? "维修" : "净房", "云端初始化"],
     );
   }
-  remoteInitReady = true;
-  authEnsureReady = true;
+  await stampSchemaReadyVersion(env);
+  markSchemaReadyInMemory();
   return true;
 }
 

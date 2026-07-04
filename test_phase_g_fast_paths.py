@@ -61,8 +61,15 @@ def main() -> int:
     rooming_pos = init_remote.find("ensureRoomingSchemaColumnsIfTablesExist")
     if probe_pos < 0 or rooming_pos < 0 or rooming_pos < probe_pos:
         failed.append("initRemoteDatabase must probe production readiness before rooming schema checks")
+    if "schema_ready_version" not in d1:
+        failed.append("must use app_meta schema_ready_version ready gate")
     if "SELECT include_spare_beds" not in d1 or "SELECT updated_at FROM rooming_plans" not in d1:
-        failed.append("production readiness probe must validate rooming columns before skipping migrations")
+        failed.append("bootstrap validation must still check rooming columns before stamping ready")
+    light = fn_body(d1, "ensureDatabaseForAuthLight") or ""
+    if "ensureSyncMetaSchema" in light or "ensureRowSyncSchema" in light:
+        failed.append("light path must not run schema ensures when ready")
+    if "markSchemaReadyInMemory" not in light and "markSyncMetaReady" not in d1:
+        failed.append("light path must mark isolate ready flags in memory")
     if "timeoutMs: options.timeoutMs" not in api_client:
         failed.append("apiFetch 401 retry must preserve timeoutMs")
 
