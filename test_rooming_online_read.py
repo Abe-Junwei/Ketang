@@ -27,6 +27,8 @@ def main():
         ("capacity rc", "roomingReadReady" in read("js/rooming-capacity.js")),
         ("events suggestion rc", "roomingAvailRoomsGrouped" in read("js/events.js")),
         ("RC_VIEW_MODULES rooming", "rooming:" in read("js/read-cache.js")),
+        ("rooming loads event_rooming", "event_rooming" in rr),
+        ("rooming uses lodgers_active", "lodgers_active" in rr),
     ]
     failed = [name for name, ok in checks if not ok]
     if failed:

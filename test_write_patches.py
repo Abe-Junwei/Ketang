@@ -32,7 +32,7 @@ def main():
             "rcRefreshAfterWrite single impl",
             rc.count("function rcRefreshAfterWrite") == 1
             and "rcApplyWriteResult(writeResult)" in rc
-            and "touchBoardVersionFromWrite(writeResult)" not in rc
+            and "touchBoardVersionFromWrite(writeResult)" in rc
             and "var syncTask = refreshAfterWrite" in rc
             and "syncTask" in rc
             and ".then(function ()" in rc

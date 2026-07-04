@@ -2,7 +2,7 @@
 export const DOMAIN_DEFAULT_MODULES = {
   board: ["board"],
   lodging: ["lodgers_active", "lodgers_lookup"],
-  events: ["events"],
+  events: ["events", "event_rooming"],
   reservations: ["reservations"],
   meals: ["meals"],
   settings: ["settings"],

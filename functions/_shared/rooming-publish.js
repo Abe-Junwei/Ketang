@@ -198,7 +198,7 @@ export async function publishRoomingPlan(env, session, eventId) {
     env,
     {},
     ["events", "lodging"],
-    ["events", "board"],
+    ["events", "event_rooming", "board"],
   );
   return enrichWriteResponse(
     env,
@@ -292,7 +292,7 @@ export async function republishRoomingPlan(env, session, eventId, body) {
     env,
     {},
     ["events", "lodging"],
-    ["events", "board"],
+    ["events", "event_rooming", "board"],
   );
   return enrichWriteResponse(
     env,
@@ -332,7 +332,12 @@ export async function updateRoomingQueueItem(env, session, body) {
     { queue_status: status },
     session,
   );
-  const writeMeta = await finishWrite(env, {}, ["events"], ["events"]);
+  const writeMeta = await finishWrite(
+    env,
+    {},
+    ["events"],
+    ["events", "event_rooming"],
+  );
   const extraPatches = await roomingQueuePatches(env, queueId);
   const updatedRow = extraPatches.rooming_checkin_queue[0] || rows[0];
   return enrichWriteResponse(
@@ -387,7 +392,7 @@ async function markRoomingQueueDone(env, session, queueId, options) {
     env,
     {},
     ["events", "lodging", "board"],
-    ["events", "board"],
+    ["events", "event_rooming", "board"],
   );
 }
 
@@ -458,8 +463,8 @@ export async function processRoomingQueueCheckin(env, session, body) {
       : ["events", "lodging", "board", "meals"];
   const changedModules =
     item.member_kind === "reservation"
-      ? ["events", "board", "reservations", "meals"]
-      : ["events", "board", "meals"];
+      ? ["events", "event_rooming", "board", "reservations", "meals"]
+      : ["events", "event_rooming", "board", "meals"];
   return enrichWriteResponse(
     env,
     await finishWrite(
@@ -530,7 +535,7 @@ export async function logRoomingAdjustment(env, session, body) {
   );
   return enrichWriteResponse(
     env,
-    await finishWrite(env, {}, ["events"], ["events"]),
+    await finishWrite(env, {}, ["events"], ["events", "event_rooming"]),
     { extraPatches: await roomingAdjustmentPatches(env, meta.last_row_id) },
   );
 }

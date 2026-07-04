@@ -9,8 +9,10 @@ const TABLE_NAME_RE = /^[a-z_][a-z0-9_]*$/i;
 export const READ_MODULE_TABLES = {
   board: ["rooms", "beds", "lodgers", "housekeeping", "app_meta"],
   lodgers: ["rooms", "beds", "guests", "lodgers", "payments"],
-  events: [
-    "events",
+  /** 营期主数据（列表/下拉）；排房表见 event_rooming | Events only; rooming in event_rooming */
+  events: ["events"],
+  /** 排房表（预分房页按需）| Rooming tables (rooming views only) */
+  event_rooming: [
     "rooming_plans",
     "rooming_assignments",
     "rooming_checkin_queue",
@@ -102,6 +104,7 @@ const MODULE_PERMISSIONS = {
   board: ["board.read"],
   lodgers: ["lodging.read"],
   events: ["lodging.read"],
+  event_rooming: ["lodging.read"],
   reservations: ["reservation.read"],
   meals: ["meals.read"],
   settings: ["settings.read"],

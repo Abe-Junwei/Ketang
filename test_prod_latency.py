@@ -324,11 +324,15 @@ def phase_g_actual_ms(key: str, results: dict) -> int | None:
 
 def check_phase_g(results: dict, baseline: dict) -> list[str]:
     targets = baseline.get("phase_g_targets_ms", {})
+    rum_only = set(baseline.get("rum_only_phase_g_keys") or [])
     failures: list[str] = []
     for key, limit in targets.items():
         if key in ("extra_module_fetch_after_write_max", "d1_error_rate_max_pct"):
             continue
         if not str(key).endswith("_ms"):
+            continue
+        if key in rum_only:
+            # RUM-only（推送延迟等）：探针不采集，跳过缺失
             continue
         actual = phase_g_actual_ms(key, results)
         if actual is None:

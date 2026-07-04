@@ -44,11 +44,21 @@ def main():
         ("write refresh mark", 'ketangPerfMark("write-refresh:start")' in rc),
         ("delta mark", 'ketangPerfMark("delta:start")' in sync),
         ("delta measure", 'ketangPerfMeasure("delta"' in sync),
+        ("delta count", 'ketangPerfInc("delta_count")' in sync),
+        ("push mark", 'ketangPerfMark("push:start")' in sync),
+        ("push measure", 'ketangPerfMeasure("push"' in sync),
+        ("push sse source", 'pushSource: "sse"' in sync),
+        ("push poll source", 'pushSource: "poll"' in sync or 'pushSource: "poll"' in app),
+        ("perf counters", "function ketangPerfInc" in perf and "function ketangPerfCounters" in perf),
+        ("perf sample p95", "function ketangPerfSampleP95" in perf),
         ("app ready mark", 'ketangPerfMark("app-ready")' in app),
         ("baseline login p95", "login_to_ready_p95_ms" in baseline),
         ("baseline write refresh", "write_refresh_p95_ms" in baseline),
         ("baseline delta sync", "delta_sync_p95_ms" in baseline),
         ("baseline read modules", "read_module_p95_ms" in baseline),
+        ("baseline push latency", "push_latency_p95_ms" in baseline),
+        ("baseline rum only keys", "rum_only_phase_g_keys" in baseline),
+        ("baseline sync observability", "sync_observability" in baseline),
     ]
 
     failed = [name for name, ok in checks if not ok]

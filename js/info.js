@@ -44,7 +44,13 @@ function renderInfo(tab, options) {
 
 function infoRcTabDataReady(tab) {
   if (!infoUseApiData() || typeof rcModuleCached !== "function") return false;
-  if (tab === "events") return rcModuleCached("events");
+  if (tab === "events") {
+    return (
+      rcModuleCached("events") &&
+      rcModuleCached("lodgers_active") &&
+      rcModuleCached("reservations")
+    );
+  }
   var mod = INFO_READ_MODULES[tab];
   if (!mod) return false;
   if (!rcModuleCached(mod)) return false;

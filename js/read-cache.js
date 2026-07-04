@@ -39,10 +39,40 @@ function rcApplyDeltaPatches(patches, deletions) {
         var arr = mod.tables[table];
         rows.forEach(function (row) {
           if (!row) return;
-          var rowKey = table === "app_meta" ? row.key : row.id;
+          // Active-only modules drop non-在住 lodgers; full lodgers keeps history
+          var activeOnlyLodgerMod =
+            table === "lodgers" &&
+            (moduleKey === "board" ||
+              moduleKey === "lodgers_active" ||
+              moduleKey === "lodgers_records");
+          if (
+            activeOnlyLodgerMod &&
+            row.status &&
+            row.status !== "在住"
+          ) {
+            mod.tables[table] = arr.filter(function (r) {
+              return r.id != row.id;
+            });
+            return;
+          }
+          var rowKey =
+            table === "app_meta"
+              ? row.key
+              : table === "housekeeping"
+                ? row.bed_id != null
+                  ? row.bed_id
+                  : row.id
+                : row.id;
           if (rowKey == null) return;
           var idx = arr.findIndex(function (r) {
-            return table === "app_meta" ? r.key === row.key : r.id == row.id;
+            if (table === "app_meta") return r.key === row.key;
+            if (table === "housekeeping") {
+              return (
+                (row.bed_id != null && r.bed_id == row.bed_id) ||
+                (row.id != null && r.id == row.id)
+              );
+            }
+            return r.id == row.id;
           });
           if (idx >= 0) arr[idx] = row;
           else arr.push(row);
@@ -88,6 +118,13 @@ function rcModuleCached(moduleKey) {
 function rcApplyWriteResult(writeResult) {
   if (!writeResult || typeof rcApplyDeltaPatches !== "function") return;
   rcApplyDeltaPatches(writeResult.patches, writeResult.deletions);
+  // Only advance version when patches/deletions applied; otherwise keep delta reconcile
+  var hasPatch =
+    (writeResult.patches && Object.keys(writeResult.patches).length > 0) ||
+    (writeResult.deletions && writeResult.deletions.length > 0);
+  if (hasPatch && typeof touchBoardVersionFromWrite === "function") {
+    touchBoardVersionFromWrite(writeResult);
+  }
 }
 
 /**
@@ -726,7 +763,7 @@ var RC_INFO_TAB_MODULES = {
   beds: ["settings_beds", "lodgers", "board"],
   guests: ["settings_guests"],
   lodgers: ["lodgers", "lodgers_active", "board"],
-  events: ["events", "lodgers", "reservations", "board"],
+  events: ["events", "lodgers_active", "reservations", "board"],
 };
 
 function rcModulesForInfoTab(tab) {
@@ -901,6 +938,13 @@ function rcFindEventByName(name) {
   return fuzzy || null;
 }
 
+/** 排房模块表行（优先 event_rooming）| Rooming module rows */
+function rcEventRoomingRows(table) {
+  var rows = rcRows("event_rooming", table);
+  if (rows && rows.length) return rows;
+  return rcRows("events", table);
+}
+
 /** 营期预分房方案 | Rooming plan row for event */
 function rcRoomingPlanByEventId(eventId) {
   if (!eventId) return null;
@@ -913,7 +957,7 @@ function rcRoomingPlanByEventId(eventId) {
     );
   }
   return (
-    rcRows("events", "rooming_plans").find(function (p) {
+    rcEventRoomingRows("rooming_plans").find(function (p) {
       return p.event_id == eventId;
     }) || null
   );
@@ -1629,8 +1673,8 @@ var RC_VIEW_MODULES = {
   forecast: ["board", "reservations", "lodgers", "events"],
   housekeeping: ["board"],
   reports: ["meals", "lodgers", "events"],
-  rooming: ["board", "events", "lodgers", "reservations"],
-  info_events: ["events", "lodgers", "reservations"],
+  rooming: ["board", "events", "event_rooming", "lodgers_active", "reservations"],
+  info_events: ["events", "lodgers_active", "reservations"],
 };
 
 async function rcEnsureViewModules(viewName, force) {

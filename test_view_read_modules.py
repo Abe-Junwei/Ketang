@@ -33,6 +33,21 @@ def main():
         ("rcForecastTodayData", "function rcForecastTodayData" in rc),
         ("rcForecastFlowWeeks", "function rcForecastFlowWeeks" in rc),
         ("info_events module", "info_events:" in rc),
+        (
+            "info_events lodgers_active",
+            "lodgers_active" in rc.split("info_events:")[1].split("]")[0],
+        ),
+        (
+            "event_rooming module",
+            "event_rooming:" in read("functions/_shared/read-modules.js")
+            or 'event_rooming: [' in read("functions/_shared/read-modules.js"),
+        ),
+        (
+            "events module slim",
+            'events: ["events"]' in read("functions/_shared/read-modules.js"),
+        ),
+        ("rcApplyWriteResult touches version", "touchBoardVersionFromWrite" in rc),
+        ("rcEventRoomingRows", "function rcEventRoomingRows" in rc),
         ("meals rc read", "rcReadReady" in read("js/meals.js")),
         ("forecast rc today", "rcForecastTodayData" in read("js/forecast.js")),
         ("forecast rc flow", "rcForecastFlowWeeks" in read("js/forecast.js")),

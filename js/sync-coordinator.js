@@ -378,18 +378,24 @@ async function syncRemoteDeltaSince(sinceVersion, options) {
   if (since == null) return false;
   if (!options.quiet) setRemoteSyncStatus("loading");
   if (typeof ketangPerfMark === "function") ketangPerfMark("delta:start");
+  if (typeof ketangPerfInc === "function") ketangPerfInc("delta_count");
   try {
     var delta = await apiSyncDelta(since, since);
     if (delta && delta.not_modified) {
+      if (typeof ketangPerfInc === "function")
+        ketangPerfInc("delta_not_modified_count");
       if (delta.board_version != null)
         setLocalBoardVersion(delta.board_version);
       setRemoteSyncStatus("ready");
       return true;
     }
     if (delta && delta.full_sync_required) {
+      if (typeof ketangPerfInc === "function")
+        ketangPerfInc("delta_full_sync_count");
       await syncRemoteReadModel({ force: true });
       return true;
     }
+    if (typeof ketangPerfInc === "function") ketangPerfInc("delta_apply_count");
     if (typeof rcApplyDeltaPatches === "function" && delta) {
       if (delta.patch_mode && delta.patches) {
         rcApplyDeltaPatches(delta.patches, delta.deletions);
@@ -559,7 +565,9 @@ async function syncAfterRemoteWrite(writeResult, options) {
 }
 
 /** 轮询/SSE 触发的增量同步 | Background incremental sync */
-async function syncRemoteIfStale() {
+async function syncRemoteIfStale(options) {
+  options = options || {};
+  var pushSource = options.pushSource || null;
   if (typeof isRemoteDB !== "function" || !isRemoteDB()) return;
   if (typeof isLoggedIn === "function" && !isLoggedIn()) return;
   if (!remoteReadModelReady) {
@@ -574,8 +582,24 @@ async function syncRemoteIfStale() {
   var board = await apiBoardVersion();
   var remoteVersion = parseBoardVersion(board.version);
   if (remoteVersion == null || remoteVersion === localVersion) return;
-  await syncRemoteDeltaSince(localVersion);
-  refreshViewForScope(getActiveViewId());
+  // Push latency: version change detected → delta applied + view refresh
+  if (pushSource && typeof ketangPerfMark === "function") {
+    ketangPerfMark("push:start");
+  }
+  try {
+    await syncRemoteDeltaSince(localVersion);
+    refreshViewForScope(getActiveViewId());
+  } finally {
+    if (pushSource && typeof ketangPerfMark === "function") {
+      ketangPerfMark("push:end");
+      ketangPerfMeasure("push", "push:start", "push:end");
+      if (typeof ketangPerfInc === "function") {
+        ketangPerfInc("push_count");
+        if (pushSource === "sse") ketangPerfInc("push_sse_count");
+        if (pushSource === "poll") ketangPerfInc("push_poll_count");
+      }
+    }
+  }
 }
 
 function stopBoardStream(cancelRetry) {
@@ -620,7 +644,7 @@ function startBoardStream() {
       _boardSseRetryMs = 3000;
       if (_boardSseVersion != null && version === _boardSseVersion) return;
       _boardSseVersion = version;
-      syncRemoteIfStale().catch(function () {
+      syncRemoteIfStale({ pushSource: "sse" }).catch(function () {
         /* non-fatal */
       });
     } catch (e) {
@@ -646,7 +670,7 @@ function onBoardViewVisibilityChange() {
     return;
   }
   startBoardStream();
-  syncRemoteIfStale().catch(function () {
+  syncRemoteIfStale({ pushSource: "poll" }).catch(function () {
     /* non-fatal */
   });
 }

@@ -3,6 +3,8 @@ import {
   atomicWriteBatch,
   auditLogStatement,
   enrichWriteResponse,
+  fetchLatestHousekeepingPatches,
+  fetchMealDeletionsForLodgers,
   finishWrite,
 } from "./write-response.js";
 import { parsePersonNameInput } from "./person.js";
@@ -572,14 +574,29 @@ async function upsertEvent(env, session, body) {
         ],
       },
     ];
+    const patchRowIds = { beds: [], reservations: [], lodgers: [] };
+    let mealDeletions = [];
+    let housekeepingPatches = [];
+    let cancelCascade = false;
     if (status === "已取消" && old.status !== "已取消") {
+      cancelCascade = true;
       const today = new Date().toISOString().slice(0, 10);
       const lodgers = await queryD1(
         env,
         "SELECT id, bed_id FROM lodgers WHERE event_id=? AND status='在住'",
         [id],
       );
+      const reservations = await queryD1(
+        env,
+        "SELECT id FROM reservations WHERE event_id=? AND status IN ('预约','已确认')",
+        [id],
+      );
+      const lodgerIds = lodgers.map(function (l) {
+        return l.id;
+      });
+      mealDeletions = await fetchMealDeletionsForLodgers(env, lodgerIds, today);
       lodgers.forEach((lodger) => {
+        patchRowIds.lodgers.push(lodger.id);
         statements.push({
           sql: "UPDATE lodgers SET status='已取消', bed_id=NULL, actual_check_out=? WHERE id=?",
           params: [today, lodger.id],
@@ -589,6 +606,7 @@ async function upsertEvent(env, session, body) {
           params: [lodger.id, today],
         });
         if (lodger.bed_id) {
+          patchRowIds.beds.push(lodger.bed_id);
           statements.push({
             sql: "UPDATE beds SET status='可用' WHERE id=?",
             params: [lodger.bed_id],
@@ -604,17 +622,49 @@ async function upsertEvent(env, session, body) {
           });
         }
       });
+      reservations.forEach((row) => {
+        patchRowIds.reservations.push(row.id);
+      });
       statements.push({
         sql: "UPDATE reservations SET status='已取消' WHERE event_id=? AND status IN ('预约','已确认')",
         params: [id],
       });
     }
-    await batchD1(env, statements);
-    await insertAudit(env, "更新营期", "event", id, { name }, session);
+    statements.push(
+      auditLogStatement("更新营期", "event", id, { name }, session),
+    );
+    const domains = cancelCascade
+      ? ["events", "lodging", "reservations", "meals"]
+      : ["events"];
+    const modules = cancelCascade
+      ? ["events", "board", "lodgers_active", "reservations", "meals"]
+      : ["events"];
+    const writeMeta = await atomicWriteBatch(
+      env,
+      statements,
+      { event_id: id },
+      domains,
+      null,
+      modules,
+    );
+    if (cancelCascade && patchRowIds.beds.length) {
+      housekeepingPatches = await fetchLatestHousekeepingPatches(
+        env,
+        patchRowIds.beds,
+      );
+    }
     return enrichWriteResponse(
       env,
-      await finishWrite(env, { event_id: id }, ["events"], ["events"]),
-      { patchTable: "events", rowId: id },
+      writeMeta,
+      cancelCascade
+        ? {
+            patchTable: "events",
+            rowId: id,
+            patchRowIds: patchRowIds,
+            deletions: mealDeletions,
+            extraPatches: { housekeeping: housekeepingPatches },
+          }
+        : { patchTable: "events", rowId: id },
     );
   }
 
@@ -634,20 +684,22 @@ async function upsertEvent(env, session, body) {
       ...roomingValues,
     ],
   );
-  await insertAudit(
-    env,
-    "新增营期",
-    "event",
-    meta.last_row_id,
-    { name },
-    session,
-  );
   return enrichWriteResponse(
     env,
-    await finishWrite(
+    await atomicWriteBatch(
       env,
+      [
+        auditLogStatement(
+          "新增营期",
+          "event",
+          meta.last_row_id,
+          { name },
+          session,
+        ),
+      ],
       { event_id: meta.last_row_id },
       ["events"],
+      null,
       ["events"],
     ),
     { patchTable: "events", rowId: meta.last_row_id },

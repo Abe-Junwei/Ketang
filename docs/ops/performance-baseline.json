@@ -1,7 +1,7 @@
 {
-  "version": 3,
+  "version": 4,
   "updated": "2026-07-04",
-  "notes": "Phase G：RUM（真实用户）做最终判断，合成探针做回归。external gap 单独 WARN。阶段 SLO 见 phase_g_stage_targets_ms；终态见 phase_g_targets_ms。",
+  "notes": "Phase G：RUM（真实用户）做最终判断，合成探针做回归。external gap 单独 WARN。阶段 SLO 见 phase_g_stage_targets_ms；终态见 phase_g_targets_ms。v4 补推送延迟 / delta 次数 / read P95 会话样本。",
   "thresholds_ms": {
     "index_ttfb_ms": 5000,
     "login_role_ms": 15000,
@@ -21,8 +21,20 @@
     "delta_sync_p95_ms": 2000,
     "read_module_p95_ms": 800,
     "reports_history_query_p95_ms": 800,
+    "push_latency_p95_ms": 2000,
     "extra_module_fetch_after_write_max": 1,
     "d1_error_rate_max_pct": 0.1
+  },
+  "rum_only_phase_g_keys": [
+    "push_latency_p95_ms"
+  ],
+  "sync_observability": {
+    "push_latency_ms": "SSE/poll 检测到 board_version 变化 → delta 应用 + 视图刷新完成",
+    "delta_count": "会话内 /api/v1/sync/delta 调用次数（含 not_modified / full_sync / apply）",
+    "delta_apply_count": "实际应用 patches/modules 的次数",
+    "delta_not_modified_count": "304/not_modified 次数",
+    "delta_full_sync_count": "delta 回退全量 read-model 次数",
+    "read_module_p95_ms": "会话内 ketang:read:* measure 的 P95（RUM）；探针用 read_lodgers_active_ms"
   },
   "phase_g_stage_targets_ms": {
     "stage_1_first_view_ready_ms": 8000,
@@ -57,9 +69,10 @@
   "phase_g_metric_sources": {
     "login_to_ready_p95_ms": "优先 frontend_login_ready_ms / ketang:first-view-ready；否则代理 max(login, read_board)",
     "write_refresh_p95_ms": "frontend_write_refresh_ms：CDP（--probe-frontend）",
-    "delta_sync_p95_ms": "sync_delta_ms 外部 P95；server 见 sync_delta_timing",
-    "read_module_p95_ms": "read_lodgers_active_ms 外部 P95",
-    "reports_history_query_p95_ms": "read_events_ms 外部 P95"
+    "delta_sync_p95_ms": "sync_delta_ms 外部 P95；server 见 sync_delta_timing；RUM 见 delta_p95_ms / delta_ms",
+    "read_module_p95_ms": "探针 read_lodgers_active_ms 外部 P95；RUM 见会话内 read_module_p95_ms",
+    "reports_history_query_p95_ms": "read_events_ms 外部 P95",
+    "push_latency_p95_ms": "RUM only：ketang:push（SSE/poll 检测 → 视图刷新）；计数 push_count / push_sse_count / push_poll_count"
   },
   "frontend_marks": [
     "ketang:login:start",
@@ -84,6 +97,8 @@
     "ketang:write-refresh:end",
     "ketang:delta:start",
     "ketang:delta:end",
+    "ketang:push:start",
+    "ketang:push:end",
     "ketang:app-ready"
   ],
   "observed_production": {

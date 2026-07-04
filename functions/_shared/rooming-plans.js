@@ -403,7 +403,12 @@ export async function generateRoomingPlanAssignments(env, session, eventId) {
     session,
   );
   const bundle = await getRoomingPlanBundle(env, eventId);
-  const writeMeta = await finishWrite(env, {}, ["events"], ["events"]);
+  const writeMeta = await finishWrite(
+      env,
+      {},
+      ["events"],
+      ["events", "event_rooming"],
+    );
   return enrichWriteResponse(
     env,
     { ...bundle, ...writeMeta },
@@ -484,7 +489,12 @@ export async function saveRoomingPlan(env, session, body) {
     session,
   );
   const bundle = await getRoomingPlanBundle(env, plan.event_id);
-  const writeMeta = await finishWrite(env, {}, ["events"], ["events"]);
+  const writeMeta = await finishWrite(
+      env,
+      {},
+      ["events"],
+      ["events", "event_rooming"],
+    );
   return enrichWriteResponse(
     env,
     { ...bundle, ...writeMeta },
@@ -625,7 +635,12 @@ export async function handleRoomingPlanAction(env, session, body) {
     if (!eventId) throw new Error("缺少营期");
     await ensurePlanForEvent(env, session, eventId);
     const bundle = await getRoomingPlanBundle(env, eventId);
-    const writeMeta = await finishWrite(env, {}, ["events"], ["events"]);
+    const writeMeta = await finishWrite(
+      env,
+      {},
+      ["events"],
+      ["events", "event_rooming"],
+    );
     return enrichWriteResponse(
       env,
       { ...bundle, ...writeMeta },

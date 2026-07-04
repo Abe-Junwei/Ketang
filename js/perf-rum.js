@@ -18,6 +18,8 @@ var PERF_RUM_MEASURE_NAMES = [
   "render-rooms",
   "render-all",
   "app-ready",
+  "delta",
+  "push",
 ];
 
 function perfRumMetricKey(name) {
@@ -74,6 +76,31 @@ function perfRumCollectMeasures() {
       );
     }
   });
+  if (typeof ketangPerfSummary === "function") {
+    var summary = ketangPerfSummary();
+    var counters = summary.counters || {};
+    var samples = summary.samples || {};
+    [
+      "delta_count",
+      "delta_apply_count",
+      "delta_not_modified_count",
+      "delta_full_sync_count",
+      "push_count",
+      "push_sse_count",
+      "push_poll_count",
+    ].forEach(function (key) {
+      if (counters[key] != null && counters[key] > 0) metrics[key] = counters[key];
+    });
+    if (samples.push_latency_p95_ms != null) {
+      metrics.push_latency_p95_ms = samples.push_latency_p95_ms;
+    }
+    if (samples.delta_p95_ms != null) {
+      metrics.delta_p95_ms = samples.delta_p95_ms;
+    }
+    if (samples.read_module_p95_ms != null) {
+      metrics.read_module_p95_ms = samples.read_module_p95_ms;
+    }
+  }
   if (_perfRumLongTaskMax > 0) {
     metrics.long_task_max_ms = _perfRumLongTaskMax;
   }

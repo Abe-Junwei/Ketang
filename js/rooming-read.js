@@ -20,7 +20,10 @@ async function rcEnsureEventRooming(eventId, force) {
   var id = parseInt(eventId, 10);
   if (!id) return null;
   await rcEnsureBoard(force);
-  await rcFetchMany(["events", "lodgers", "reservations"], force);
+  await rcFetchMany(
+    ["events", "event_rooming", "lodgers_active", "reservations"],
+    force,
+  );
   return rcFetchEventDetail(id, force);
 }
 
@@ -272,9 +275,17 @@ function roomingListDraftReservedBedIds(eventId, planId, event) {
     };
     var eventsById = rcEventsById();
     var ids = {};
-    rcRows("events", "rooming_assignments").forEach(function (ra) {
+    var roomingAssignments =
+      typeof rcEventRoomingRows === "function"
+        ? rcEventRoomingRows("rooming_assignments")
+        : rcRows("events", "rooming_assignments");
+    var roomingPlans =
+      typeof rcEventRoomingRows === "function"
+        ? rcEventRoomingRows("rooming_plans")
+        : rcRows("events", "rooming_plans");
+    roomingAssignments.forEach(function (ra) {
       if (!ra.bed_id) return;
-      var plan = rcRows("events", "rooming_plans").find(function (p) {
+      var plan = roomingPlans.find(function (p) {
         return p.id == ra.plan_id;
       });
       if (!plan || plan.event_id == eventId) return;

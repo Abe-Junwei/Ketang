@@ -16,6 +16,8 @@
 
 **结论**：G-1～G-5 已落地。后续重心：RUM 样本积累 → 边缘 colo 治理决策 → 阶段 SLO 收敛。
 
+**同步可观测性（2026-07-04）**：`ketang:push`（SSE/poll → 视图刷新）、`delta_count` / `delta_apply_count`、会话内 `read_module_p95_ms` 已入 RUM 与 `performance-baseline.json`（`push_latency_p95_ms` ≤ 2s，RUM-only，探针不守门）。
+
 ---
 
 ## Phase G-1：RUM 最小闭环 ✅

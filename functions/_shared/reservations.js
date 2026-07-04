@@ -1,5 +1,10 @@
 import { batchD1, insertAudit, queryD1, runD1 } from "./d1.js";
-import { finishWrite, enrichWriteResponse } from "./write-response.js";
+import {
+  finishWrite,
+  enrichWriteResponse,
+  fetchLatestHousekeepingPatches,
+  fetchMealDeletionsForLodgers,
+} from "./write-response.js";
 import { parsePersonNameInput } from "./person.js";
 import { assertGuestIdentityFields, normalizePhone } from "./validation.js";
 import { parseParticipantTagFields } from "./rooming-tags.js";
@@ -238,7 +243,8 @@ export async function apiBatchEventMembers(env, session, body) {
   const today = new Date().toISOString().slice(0, 10);
   const statements = [];
 
-  const patchRowIds = { reservations: [], lodgers: [], beds: [] };
+  const patchRowIds = { reservations: [], beds: [], lodgers: [] };
+  const lodgerCancelIds = [];
   for (const item of items) {
     if (item.kind === "reservation") {
       patchRowIds.reservations.push(item.id);
@@ -255,35 +261,57 @@ export async function apiBatchEventMembers(env, session, body) {
       continue;
     }
     if (item.kind === "lodger" && action === "cancel") {
-      patchRowIds.lodgers.push(item.id);
-      const rows = await queryD1(
-        env,
-        "SELECT bed_id FROM lodgers WHERE id=? AND status='在住'",
-        [item.id],
-      );
-      const l = rows[0];
-      if (!l) continue;
-      statements.push({
-        sql: "UPDATE lodgers SET status='已取消', bed_id=NULL, actual_check_out=? WHERE id=? AND status='在住'",
-        params: [today, item.id],
-      });
-      statements.push({
-        sql: "DELETE FROM meals WHERE lodger_id=? AND date>?",
-        params: [item.id, today],
-      });
-      if (l.bed_id) {
-        patchRowIds.beds.push(l.bed_id);
-        statements.push({
-          sql: "UPDATE beds SET status='可用' WHERE id=?",
-          params: [l.bed_id],
-        });
-        statements.push({
-          sql: "INSERT INTO housekeeping (bed_id, status, operator, notes) VALUES (?, ?, ?, ?)",
-          params: [l.bed_id, "脏房", session.username, "批量取消挂单释放床位"],
-        });
-      }
+      lodgerCancelIds.push(item.id);
     }
   }
+  // One query for all bed_ids instead of N | Batch bed lookup
+  const bedByLodger = {};
+  if (lodgerCancelIds.length) {
+    const placeholders = lodgerCancelIds
+      .map(function () {
+        return "?";
+      })
+      .join(",");
+    const rows = await queryD1(
+      env,
+      `SELECT id, bed_id FROM lodgers WHERE id IN (${placeholders}) AND status='在住'`,
+      lodgerCancelIds,
+    );
+    rows.forEach(function (row) {
+      bedByLodger[row.id] = row.bed_id;
+    });
+  }
+  const activeLodgerIds = Object.keys(bedByLodger).map(function (id) {
+    return parseInt(id, 10);
+  });
+  const mealDeletions = await fetchMealDeletionsForLodgers(
+    env,
+    activeLodgerIds,
+    today,
+  );
+  activeLodgerIds.forEach(function (lodgerId) {
+    patchRowIds.lodgers.push(lodgerId);
+    const bedId = bedByLodger[lodgerId];
+    statements.push({
+      sql: "UPDATE lodgers SET status='已取消', bed_id=NULL, actual_check_out=? WHERE id=? AND status='在住'",
+      params: [today, lodgerId],
+    });
+    statements.push({
+      sql: "DELETE FROM meals WHERE lodger_id=? AND date>?",
+      params: [lodgerId, today],
+    });
+    if (bedId) {
+      patchRowIds.beds.push(bedId);
+      statements.push({
+        sql: "UPDATE beds SET status='可用' WHERE id=?",
+        params: [bedId],
+      });
+      statements.push({
+        sql: "INSERT INTO housekeeping (bed_id, status, operator, notes) VALUES (?, ?, ?, ?)",
+        params: [bedId, "脏房", session.username, "批量取消挂单释放床位"],
+      });
+    }
+  });
 
   if (!statements.length) throw new Error("没有可执行的变更");
   await batchD1(env, statements);
@@ -295,14 +323,21 @@ export async function apiBatchEventMembers(env, session, body) {
     { count: items.length },
     session,
   );
+  const housekeepingPatches = patchRowIds.beds.length
+    ? await fetchLatestHousekeepingPatches(env, patchRowIds.beds)
+    : [];
   return enrichWriteResponse(
     env,
     await finishWrite(
       env,
       { count: items.length },
       ["reservations", "lodging", "meals"],
-      ["reservations", "board", "meals"],
+      ["reservations", "board", "lodgers_active", "meals"],
     ),
-    { patchRowIds: patchRowIds },
+    {
+      patchRowIds: patchRowIds,
+      deletions: mealDeletions,
+      extraPatches: { housekeeping: housekeepingPatches },
+    },
   );
 }

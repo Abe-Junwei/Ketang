@@ -180,4 +180,58 @@ export async function enrichWriteResponse(env, response, options) {
   return out;
 }
 
+/** 床位最新房务态（board 用 bed_id 匹配）| Latest housekeeping rows for beds */
+export async function fetchLatestHousekeepingPatches(env, bedIds) {
+  const ids = [
+    ...new Set(
+      (bedIds || []).filter(function (id) {
+        return id != null && id !== "";
+      }),
+    ),
+  ];
+  if (!ids.length) return [];
+  const placeholders = ids
+    .map(function () {
+      return "?";
+    })
+    .join(",");
+  return queryD1(
+    env,
+    `SELECT h.id, h.bed_id, h.status, h.changed_at, h.operator, h.notes
+     FROM housekeeping h
+     INNER JOIN (
+       SELECT bed_id, MAX(changed_at) AS latest_at
+       FROM housekeeping
+       WHERE bed_id IN (${placeholders})
+       GROUP BY bed_id
+     ) x ON h.bed_id = x.bed_id AND h.changed_at = x.latest_at`,
+    ids,
+  );
+}
+
+/** 取消挂单后需从缓存移除的未来餐次 | Meal rows deleted after cancel */
+export async function fetchMealDeletionsForLodgers(env, lodgerIds, afterDate) {
+  const ids = [
+    ...new Set(
+      (lodgerIds || []).filter(function (id) {
+        return id != null && id !== "";
+      }),
+    ),
+  ];
+  if (!ids.length || !afterDate) return [];
+  const placeholders = ids
+    .map(function () {
+      return "?";
+    })
+    .join(",");
+  const rows = await queryD1(
+    env,
+    `SELECT id FROM meals WHERE lodger_id IN (${placeholders}) AND date > ?`,
+    ids.concat([afterDate]),
+  );
+  return rows.map(function (row) {
+    return { table_name: "meals", row_id: row.id };
+  });
+}
+
 export { recordSyncDeletion };

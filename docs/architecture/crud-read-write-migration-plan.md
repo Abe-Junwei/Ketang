@@ -45,9 +45,9 @@ flowchart LR
 | ---------- | ------------------------------------------------------------------ | ----------------------------------------------------------- |
 | 核心写 API | 核心业务、排房、运营设置已接 `finishWrite` / `enrichWriteResponse` | 公开预约与生产域契约仍需持续巡检                            |
 | 乐观 UI    | 信息管理、高频写按钮、部分小范围操作已有保存中/乐观反馈            | 入住/退房/换床仍保持低风险 L1，不做完整乐观                 |
-| 读路径     | D1–D6 在线热路径已迁到 `rc*` / read API，并有边界守卫              | 非热路径本地 fallback 仍保留；继续做语义 parity 抽样        |
+| 读路径     | D1–D7 在线热路径已迁到 `rc*` / read API，并有边界守卫              | 非热路径本地 fallback 仍保留；继续做语义 parity 抽样        |
 | 排房       | 读走 event detail / `rooming-read.js`，写返回行级 patches          | 冲突检查仍为服务端计算 action，后续可独立改成 read endpoint |
-| 同步       | `board_version`、delta、SSE、写后 patch 主体可用                   | 还缺按模块的延迟指标、失败重试可观测性                      |
+| 同步       | `board_version`、delta、SSE、写后 patch 主体可用                   | 推送延迟 / delta 次数 / read P95 已入 RUM 与 baseline；失败重试可观测性仍弱 |
 | sql.js     | 在线不加载 wasm；本地/灾备动态加载                                 | 本地 migration / 灾备恢复仍需保留并定期验证                 |
 
 ## 4. 分阶段计划

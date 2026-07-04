@@ -1026,7 +1026,7 @@ async function pollRemoteBoardVersion() {
   }
   try {
     if (typeof syncRemoteIfStale === "function") {
-      await syncRemoteIfStale();
+      await syncRemoteIfStale({ pushSource: "poll" });
     } else {
       await renderAll({ skipSync: false });
     }

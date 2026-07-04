@@ -707,43 +707,62 @@ bash scripts/run_p1_checklist.sh https://wulingkt.net https://<pages-preview>.ke
 
 ### 19.4 中期优先级（P2）
 
-#### P2-1 日常业务规则补强
+#### P2-1 日常业务规则补强（基本完成）
 
 目标：真实数据稳定后，收紧现场使用中最容易出错的字段和流程。
 
-任务：
+任务与现状：
 
-- 身份证必填、手机号允许海外/座机/无手机号但需联系人备注。
-- 备用床日常不计入、活动可计入的统计口径落地。
-- 房务“是否必须查房”做成配置项。
-- 押金、房费、收款方式继续用于统计。
+- 身份证必填、手机号允许海外/座机/无手机号但需联系人备注：**已完成**。
+  - 前端：`js/validation.js`（`isPhoneLooseValid`、`RULES.idCard/phoneLoose`、`validateGuestContact` 等）。
+  - 后端：`functions/_shared/validation.js`（`assertGuestIdentityFields`、`assertPhoneOrEmergency`）。
+  - 使用点：入住、预约、编辑、公开预约提交。
+  - 残留缺口：`reserve.html` 公开预约页实时逐字段校验未接入 `FIELD_RULES`，仅提交时校验。
+- 备用床日常不计入、活动可计入：**已完成**。
+  - 规则：`js/utils.js`（`isSpareRoom`、`spareRoomExcludeClause`）。
+  - 日常排除：房态看板、房务、预测、排房容量。
+  - 活动计入：`events.include_spare_beds` 字段 + `rooming-capacity.js` 按事件启用。
+- 房务“是否必须查房”配置项：**已完成**。
+  - Key：`housekeeping_require_inspect_v1`。
+  - UI：`js/housekeeping.js` 系统设置面板；API：`functions/api/v1/admin/operational-settings.js`。
+  - 生效点：分床、换床、退房、房务状态流转前后端一致。
+- 押金、房费、收款方式继续用于统计：**已完成**。
+  - 表：`payments`（type CHECK：押金/房费/退款/其他，含 method）。
+  - 写入：入住/退房 API 自动插入；报表日报/月报展示。
 
 验收：
 
 - 前端和后端校验一致。
 - 报表、导出、打印能反映最终业务口径。
 
-#### P2-2 移动端日常核心操作
+#### P2-2 移动端日常核心操作（基本完成）
 
 目标：手机端先能完成日常查看和轻操作，不承载复杂排房。
 
-任务：
+任务与现状：
 
-- 移动端导航、首页核心卡片、在住搜索、预约确认、入住/退房路径。
-- 表格密集页采用卡片或横向滚动方案。
-- 增加 iPhone 尺寸自动化验收。
+- 移动端导航：**已完成**。底部 Tab（房态/在住/办理/报表/更多）+ 更多抽屉菜单；权限过滤 `applyMobileMorePermissions`。
+- 手机首屏核心卡片：**已完成**。`js/mobile-ui.js` 展示今日预到、今日预离、空床、脏房四宫格。
+- 日常操作路径：**基本完成**。底部 Tab + 抽屉覆盖主要视图；在住卡片提供用斋/续住/换床/退房快捷按钮；预约确认入口在「更多」中，路径略深。
+- 表单输入优化：**部分完成**。入住/预约分步向导、身份证/手机号实时校验、大按钮/触控区已落地；统一提交后二次确认尚未完全覆盖（仅破坏性操作有 `confirm`）。
+- 弹窗/下拉小屏适配：**部分完成**。通用 modal 限制 `max-height`、底部对齐；床位选择、用斋选择未做独立小屏组件，依赖滚动。
+- 表格密集页：**部分完成**。在住列表、房务已卡片化；报表/历史/流动预测/预约列表仍用 `table-wrap` 横向滚动。
+- PWA 基础能力：**已完成**。`manifest.webmanifest`、viewport、theme-color、apple-mobile-web-app、`sw.js` 预缓存 Shell。
+- 移动端自动化验收：**已完成**。`test_mobile_viewport.py` 覆盖 viewport、导航、PWA、登录、首屏、卡片、向导、溢出检测、完整入住-退房 journey。
 
 验收：
 
 - 手机端无整体横向溢出。
 - 登录、房态、搜索、入住、退房可完成。
 
+残留缺口：预约确认入口较深、报表/历史/预测未卡片化、统一提交二次确认缺失、部分弹层选择器未独立小屏组件。
+
 ### 19.5 后置优先级（按新排期）
 
 - **当前执行：Phase 9 夏季活动排房**（活动标签 → 容量预测 → 预分房草稿 → 冲突检查 → 发布交接）。
 - **Phase 12 同步与读模型 v2**（主体已完成）：12.1 写契约与热修复 → 12.2 视图注册 → 12.3 模块读 API → 12.4 增量同步 → 12.5 看板 SSE。详见 [architecture/sync-read-model-v2.md](architecture/sync-read-model-v2.md)。
 - **Phase 13 在线读路径瘦身**：D1–D6 在线热路径与在线去 sql.js 主体已完成；后续重点转为语义 parity、生产性能基线、D1 读副本/SSE 优化触发评估。完整 CRUD / 读写链路迁移蓝图见 [architecture/crud-read-write-migration-plan.md](architecture/crud-read-write-migration-plan.md)。
-- **Phase 4 公开预约**：建议 Phase 13 的 P1 尾巴 A/B 至少完成后再开放；企业微信通知随公开预约一并接入。
+- **Phase 4 公开预约**：P1 尾巴已清零，具备开放技术条件；业务上确认后即可接入 `reserve.wulingkt.net` + Turnstile + 企业微信通知。
 - **最终总验收**：Phase 4 收尾后、正式对外大规模使用前一次性执行（见 §19.6）。
 - AI 辅助排房：等规则引擎、脱敏策略和活动排房数据稳定后再评估。
 
@@ -800,7 +819,8 @@ bash scripts/run_p1_checklist.sh https://wulingkt.net https://<pages-preview>.ke
 | P0 并行 | 完成 P1 尾巴 A/B/C/E：在线热路径零 `query()`（含 guests.js）  | 已完成 |
 | P1      | `index.html` 动态加载 `sql-wasm.js`，仅本地模式/灾备路径加载  | 已完成 |
 | P1      | `test_online_query_boundaries.py` 覆盖 `guests.js` 并修正历史查询命名 | 已完成 |
-| P1      | 补推送延迟、delta 次数、read P95 度量基线                     | 0.5 天 |
+| P1      | 补推送延迟、delta 次数、read P95 度量基线                     | 已完成 |
+| P1      | 营期链路瘦身（events/event_rooming、写 batch、跳过多余 delta） | 已完成 |
 | P2      | spike D1 读副本 + Pages WebSocket / Durable Object 可行性     | 0.5 天 |
 | P3      | 根据 spike 结果启动 D1 读副本或 SSE 优化                      | 待决策 |
 

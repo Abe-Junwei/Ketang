@@ -50,8 +50,12 @@ import { nowIso, normalizeSyncTimestamp } from "./sync-timestamp.js";
 
 export { nowIso, normalizeSyncTimestamp };
 
+let _syncMetaReady = false;
+
 export async function ensureSyncMetaSchema(env) {
+  if (_syncMetaReady) return;
   await runD1(env, SYNC_SCHEMA_SQL, []);
+  _syncMetaReady = true;
 }
 
 export async function logSyncVersion(env, boardVersion) {
