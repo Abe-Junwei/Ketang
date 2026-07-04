@@ -1,7 +1,7 @@
 import { readJson } from "../../../_shared/http.js";
 import { requireSession } from "../../../_shared/auth.js";
 import {
-  initRemoteDatabase,
+  ensureDatabaseReady,
   queryD1,
   safeErrorMessage,
 } from "../../../_shared/d1.js";
@@ -21,7 +21,9 @@ export async function onRequestPost({ request, env }) {
   }
   const timer = createRequestTimer();
   try {
-    await timer.stage("init_ms", () => initRemoteDatabase(env));
+    await timer.stage("init_ms", () =>
+      ensureDatabaseReady(env, { allowMigrationFallback: false }),
+    );
     const session = await timer.stage("auth_ms", () =>
       requireSession(request, env, bindQuery(env)),
     );

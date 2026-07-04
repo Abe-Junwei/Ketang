@@ -2,7 +2,7 @@ import { json, readJson, apiErrorStatus } from "../../../_shared/http.js";
 import { requireSession } from "../../../_shared/auth.js";
 import {
   batchD1,
-  initRemoteDatabase,
+  ensureDatabaseReady,
   queryD1,
   runD1,
   safeErrorMessage,
@@ -564,7 +564,7 @@ async function runChunkWithFallback(env, chunk) {
 }
 
 async function runImportBatched(env, statements) {
-  await initRemoteDatabase(env);
+  await ensureDatabaseReady(env, { allowMigrationFallback: true });
   for (let i = 0; i < statements.length; i += IMPORT_BATCH_SIZE) {
     const chunk = statements.slice(i, i + IMPORT_BATCH_SIZE);
     await runChunkWithFallback(env, chunk);
@@ -593,7 +593,7 @@ export async function onRequestGet({ request, env }) {
       queryD1(env, sql, p),
     );
     await requirePermission(env, session, "backup.read");
-    await initRemoteDatabase(env);
+    await ensureDatabaseReady(env, { allowMigrationFallback: true });
     const data = {};
     for (const table of EXPORT_TABLES) {
       data[table] = await queryD1(env, `SELECT * FROM ${table}`, []);

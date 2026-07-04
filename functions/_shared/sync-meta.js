@@ -1,4 +1,4 @@
-import { getBoardVersion, queryD1, runD1 } from "./d1.js";
+import { batchD1, queryD1, runD1 } from "./d1.js";
 
 /** 变更域 → 模块读 API 键 | Domain to read-module key */
 export const DOMAIN_MODULE_KEYS = {
@@ -63,37 +63,75 @@ export async function ensureSyncMetaSchema(env) {
   _syncMetaReady = true;
 }
 
+export function syncVersionStatement(boardVersion) {
+  return {
+    sql: "INSERT OR REPLACE INTO sync_version_log (version, bumped_at) VALUES (?, ?)",
+    params: [boardVersion, nowIso()],
+  };
+}
+
+export function syncDomainStatements(domains, boardVersion) {
+  const normalized = normalizeSyncDomains(domains);
+  const bumpedAt = nowIso();
+  return normalized.map(function (domain) {
+    return {
+      sql: "INSERT INTO sync_domain_log (domain, board_version, bumped_at) VALUES (?, ?, ?)",
+      params: [domain, boardVersion, bumpedAt],
+    };
+  });
+}
+
+export function syncDeletionStatement(tableName, rowId, boardVersion) {
+  return {
+    sql: "INSERT INTO sync_deletions (table_name, row_id, board_version, deleted_at) VALUES (?, ?, ?, ?)",
+    params: [tableName, rowId, boardVersion, nowIso()],
+  };
+}
+
+/** Batch sync version/domain/deletion logs in one D1 round-trip */
+export async function batchLogSyncMeta(env, boardVersion, domains, deletion) {
+  await ensureSyncMetaSchema(env);
+  const statements = [syncVersionStatement(boardVersion)].concat(
+    syncDomainStatements(domains, boardVersion),
+  );
+  if (deletion && deletion.table_name && deletion.row_id) {
+    statements.push(
+      syncDeletionStatement(
+        deletion.table_name,
+        deletion.row_id,
+        boardVersion,
+      ),
+    );
+  }
+  if (statements.length === 1) {
+    await runD1(env, statements[0].sql, statements[0].params);
+    return;
+  }
+  await batchD1(env, statements);
+}
+
 export async function logSyncVersion(env, boardVersion) {
   await ensureSyncMetaSchema(env);
-  await runD1(
-    env,
-    "INSERT OR REPLACE INTO sync_version_log (version, bumped_at) VALUES (?, ?)",
-    [boardVersion, nowIso()],
-  );
+  const stmt = syncVersionStatement(boardVersion);
+  await runD1(env, stmt.sql, stmt.params);
 }
 
 export async function logSyncDomains(env, domains, boardVersion) {
-  const normalized = normalizeSyncDomains(domains);
-  if (!normalized.length) return;
+  const statements = syncDomainStatements(domains, boardVersion);
+  if (!statements.length) return;
   await ensureSyncMetaSchema(env);
-  const bumpedAt = nowIso();
-  for (const domain of normalized) {
-    await runD1(
-      env,
-      "INSERT INTO sync_domain_log (domain, board_version, bumped_at) VALUES (?, ?, ?)",
-      [domain, boardVersion, bumpedAt],
-    );
+  if (statements.length === 1) {
+    await runD1(env, statements[0].sql, statements[0].params);
+    return;
   }
+  await batchD1(env, statements);
 }
 
 export async function recordSyncDeletion(env, tableName, rowId, boardVersion) {
   if (!tableName || !rowId) return;
   await ensureSyncMetaSchema(env);
-  await runD1(
-    env,
-    "INSERT INTO sync_deletions (table_name, row_id, board_version, deleted_at) VALUES (?, ?, ?, ?)",
-    [tableName, rowId, boardVersion, nowIso()],
-  );
+  const stmt = syncDeletionStatement(tableName, rowId, boardVersion);
+  await runD1(env, stmt.sql, stmt.params);
 }
 
 export async function domainsDirtySince(env, sinceVersion) {

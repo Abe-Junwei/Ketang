@@ -56,11 +56,13 @@ def main() -> int:
     if "probeProductionDatabaseReady" not in d1 or "authEnsureReady" not in d1:
         failed.append("d1.js missing schema_version probe / authEnsureReady cache")
 
-    init_remote = fn_body(d1, "initRemoteDatabase") or ""
-    probe_pos = init_remote.find("probeProductionDatabaseReady")
-    rooming_pos = init_remote.find("ensureRoomingSchemaColumnsIfTablesExist")
-    if probe_pos < 0 or rooming_pos < 0 or rooming_pos < probe_pos:
-        failed.append("initRemoteDatabase must probe production readiness before rooming schema checks")
+    ready_gate = fn_body(d1, "ensureDatabaseReady") or ""
+    probe_pos = ready_gate.find("probeProductionDatabaseReady")
+    migrate_pos = ready_gate.find("runMigrationsOrRepair")
+    if probe_pos < 0 or migrate_pos < 0 or migrate_pos < probe_pos:
+        failed.append("ensureDatabaseReady must probe before migration/repair branch")
+    if "allowMigrationFallback" not in ready_gate:
+        failed.append("ensureDatabaseReady must honor allowMigrationFallback")
     if "schema_ready_version" not in d1:
         failed.append("must use app_meta schema_ready_version ready gate")
     if "SELECT include_spare_beds" not in d1 or "SELECT updated_at FROM rooming_plans" not in d1:

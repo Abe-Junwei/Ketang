@@ -8,13 +8,13 @@ import {
 import { ensureRowSyncSchema, tryBuildRowPatches } from "./row-sync.js";
 import { canSyncReadModel } from "./read-model.js";
 import { getSessionPermissions } from "./permissions.js";
-import { initRemoteDatabase } from "./d1.js";
+import { ensureDatabaseReady } from "./d1.js";
 
 const MAX_DELTA_MODULES = 6;
 
 export async function buildSyncDelta(env, session, sinceVersion, options) {
   if (!options?.skipInit) {
-    await initRemoteDatabase(env);
+    await ensureDatabaseReady(env, { allowMigrationFallback: false });
   }
   const permissions = await getSessionPermissions(env, session);
   if (!canSyncReadModel(permissions)) {

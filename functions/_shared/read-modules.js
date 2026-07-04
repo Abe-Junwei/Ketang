@@ -1,4 +1,4 @@
-import { getBoardVersion, initRemoteDatabase, queryD1 } from "./d1.js";
+import { getBoardVersion, ensureDatabaseReady, queryD1 } from "./d1.js";
 import { LODGING_APP_META_KEYS } from "./operational-settings.js";
 import { getSessionPermissions } from "./permissions.js";
 import { canSyncReadModel, sanitizeRowForRole } from "./read-model.js";
@@ -215,7 +215,7 @@ async function fetchModuleTableRows(env, table, permissions, moduleKey) {
 
 export async function buildLodgersHistoryPage(env, session, query, options) {
   if (!options?.skipInit) {
-    await initRemoteDatabase(env);
+    await ensureDatabaseReady(env, { allowMigrationFallback: false });
   }
   const permissions = await getSessionPermissions(env, session);
   if (!canSyncReadModel(permissions)) throw new Error("权限不足");
@@ -300,7 +300,7 @@ export async function buildReadModule(env, session, moduleKey, options) {
     throw new Error("请使用专用 history 构建器");
   }
   if (!options?.skipInit) {
-    await initRemoteDatabase(env);
+    await ensureDatabaseReady(env, { allowMigrationFallback: false });
   }
   const permissions = await getSessionPermissions(env, session);
   if (!canSyncReadModel(permissions)) {
@@ -347,7 +347,7 @@ export async function buildReadModule(env, session, moduleKey, options) {
 
 export async function buildEventDetailModule(env, session, eventId, options) {
   if (!options?.skipInit) {
-    await initRemoteDatabase(env);
+    await ensureDatabaseReady(env, { allowMigrationFallback: false });
   }
   const permissions = await getSessionPermissions(env, session);
   if (!permissions.includes("lodging.read")) throw new Error("权限不足");

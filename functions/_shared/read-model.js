@@ -1,4 +1,4 @@
-import { queryD1, getBoardVersion, initRemoteDatabase } from "./d1.js";
+import { queryD1, getBoardVersion, ensureDatabaseReady } from "./d1.js";
 import { getSessionPermissions } from "./permissions.js";
 import { LODGING_APP_META_KEYS } from "./operational-settings.js";
 
@@ -162,7 +162,7 @@ async function fetchReadModelTableRows(env, table, permissions) {
 
 export async function buildReadModel(env, session, options) {
   if (!options?.skipInit) {
-    await initRemoteDatabase(env);
+    await ensureDatabaseReady(env, { allowMigrationFallback: false });
   }
   const permissions = await getSessionPermissions(env, session);
   if (!canSyncReadModel(permissions)) {

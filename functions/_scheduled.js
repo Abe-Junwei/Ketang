@@ -1,6 +1,6 @@
 /** R2 定时备份 | Scheduled D1 → R2 backup (Phase 6) */
 
-import { initRemoteDatabase } from "./_shared/d1.js";
+import { ensureDatabaseReady } from "./_shared/d1.js";
 import { exportD1BackupJson } from "./_shared/backup-export.js";
 
 export async function onScheduled(event, env, ctx) {
@@ -16,7 +16,7 @@ export async function onScheduled(event, env, ctx) {
 }
 
 async function runBackup(env) {
-  await initRemoteDatabase(env);
+  await ensureDatabaseReady(env, { allowMigrationFallback: true });
   const payload = await exportD1BackupJson(env);
   const stamp = payload.exported_at.replace(/[:.]/g, "-");
   const key = `ketang-backup-${stamp}.json`;

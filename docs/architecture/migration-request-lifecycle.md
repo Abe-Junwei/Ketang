@@ -24,9 +24,10 @@ updated: 2026-07-04
 | 最重 PRAGMA 风暴 | 已挡住：ready 成功则跳过 `ensureRoomingSchemaColumnsIfTablesExist` |
 | ready probe | **Phase B**：`app_meta.schema_ready_version` 单次查询；未盖章时一次性列校验后盖章 |
 | light path | **Phase D**：ready 后仅内存标记，零 DDL / 零 version 探测 |
-| API 入口 | `initRemoteDatabase` / `ensureDatabaseForAuth` 分叉 |
-| 写尾 | 多次串行 D1 |
-| 观测 | `admin/records` 已分段 `init_ms` / `auth_ms` / `biz_ms`（`?timing=1`） |
+| API 入口 | **Phase A**：统一 `ensureDatabaseReady`；业务 `allowMigrationFallback: false` |
+| 写尾 | **Phase E**：`batchLogSyncMeta` 合并 version/domain/deletion 日志 |
+| 观测 | `admin/records` 分段 `init_ms` / `auth_ms` / `biz_ms`；`test_admin_write_latency.py` |
+| 显式迁移 | `POST /api/v1/admin/migrate`（admin only） |
 
 ## 目标架构
 

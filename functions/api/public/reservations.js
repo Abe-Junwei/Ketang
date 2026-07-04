@@ -1,5 +1,5 @@
 import { json, readJson } from "../../_shared/http.js";
-import { initRemoteDatabase, safeErrorMessage } from "../../_shared/d1.js";
+import { ensureDatabaseReady, safeErrorMessage } from "../../_shared/d1.js";
 import { apiPublicReservation } from "../../_shared/lodgers.js";
 import {
   checkRateLimit,
@@ -11,7 +11,7 @@ import { queryD1, runD1 } from "../../_shared/d1.js";
 export async function onRequestPost({ request, env }) {
   if (!env.KETANG_DB) return json({ error: "缺少 D1 绑定 KETANG_DB" }, 500);
   try {
-    await initRemoteDatabase(env);
+    await ensureDatabaseReady(env, { allowMigrationFallback: false });
     const ip = clientIp(request);
     const bindQ = (sql, p) => queryD1(env, sql, p);
     const bindR = (sql, p) => runD1(env, sql, p);

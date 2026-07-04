@@ -1,9 +1,5 @@
 import { batchD1, bumpBoardVersion, getBoardVersion, queryD1 } from "./d1.js";
-import {
-  logSyncDomains,
-  logSyncVersion,
-  recordSyncDeletion,
-} from "./sync-meta.js";
+import { batchLogSyncMeta, recordSyncDeletion } from "./sync-meta.js";
 import { resolveChangedModules } from "./sync-modules.js";
 
 /** D1 batch 内递增看板版本 | Bump board_version inside atomic batch */
@@ -39,8 +35,7 @@ export function auditLogStatement(
 export async function finishWrite(env, data, changedDomains, changedModules) {
   await bumpBoardVersion(env);
   const board_version = await getBoardVersion(env);
-  await logSyncVersion(env, board_version);
-  await logSyncDomains(env, changedDomains, board_version);
+  await batchLogSyncMeta(env, board_version, changedDomains, null);
   const changed_domains = Array.isArray(changedDomains) ? changedDomains : [];
   return {
     ok: true,
@@ -65,16 +60,7 @@ export async function atomicWriteBatch(
     { sql: BOARD_VERSION_BUMP_SQL, params: [] },
   ]);
   const board_version = await getBoardVersion(env);
-  await logSyncVersion(env, board_version);
-  await logSyncDomains(env, changedDomains, board_version);
-  if (deletion && deletion.table_name && deletion.row_id) {
-    await recordSyncDeletion(
-      env,
-      deletion.table_name,
-      deletion.row_id,
-      board_version,
-    );
-  }
+  await batchLogSyncMeta(env, board_version, changedDomains, deletion || null);
   const changed_domains = Array.isArray(changedDomains) ? changedDomains : [];
   return {
     ok: true,

@@ -7,7 +7,7 @@ import {
 import { requireSession } from "../../../_shared/auth.js";
 import { buildDualAuthSuccess } from "../../../_shared/auth-response.js";
 import {
-  initRemoteDatabase,
+  ensureDatabaseReady,
   queryD1,
   safeErrorMessage,
 } from "../../../_shared/d1.js";
@@ -25,7 +25,7 @@ const bindQuery = (env) => (sql, p) => queryD1(env, sql, p);
 export async function onRequestGet({ request, env }) {
   if (!env.KETANG_DB) return json({ error: "缺少 D1 绑定 KETANG_DB" }, 500);
   try {
-    await initRemoteDatabase(env);
+    await ensureDatabaseReady(env, { allowMigrationFallback: false });
     const session = await requireSession(request, env, bindQuery(env));
     const users = await listUsers(env, session);
     return json({ users });
@@ -38,7 +38,7 @@ export async function onRequestGet({ request, env }) {
 export async function onRequestPost({ request, env }) {
   if (!env.KETANG_DB) return json({ error: "缺少 D1 绑定 KETANG_DB" }, 500);
   try {
-    await initRemoteDatabase(env);
+    await ensureDatabaseReady(env, { allowMigrationFallback: false });
     const session = await requireSession(request, env, bindQuery(env));
     const body = await readJson(request);
     if (!body?.action) return json({ error: "缺少 action" }, 400);

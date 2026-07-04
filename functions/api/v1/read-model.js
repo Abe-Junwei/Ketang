@@ -1,6 +1,6 @@
 import { requireSession } from "../../_shared/auth.js";
 import {
-  ensureDatabaseForAuth,
+  ensureDatabaseReady,
   getBoardVersion,
   queryD1,
   safeErrorMessage,
@@ -30,7 +30,9 @@ export async function onRequestGet({ request, env }) {
     ) {
       return timer.finish304(request, version);
     }
-    await timer.stage("init_ms", () => ensureDatabaseForAuth(env));
+    await timer.stage("init_ms", () =>
+      ensureDatabaseReady(env, { allowMigrationFallback: false }),
+    );
     const payload = await timer.stage("read_model_ms", () =>
       buildReadModel(env, session, { skipInit: true }),
     );

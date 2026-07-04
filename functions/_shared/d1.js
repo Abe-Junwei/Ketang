@@ -275,29 +275,35 @@ async function ensureDefaultUsers(env) {
   }
 }
 
-export async function initRemoteDatabase(env) {
+/**
+ * Unified DB ready gate for all API entrypoints.
+ * Ready path: O(1) app_meta read + memory flags (no PRAGMA/DDL).
+ * Migration/repair only when allowMigrationFallback is true.
+ */
+export async function ensureDatabaseReady(env, options) {
+  options = options || {};
   if (remoteInitReady) return false;
+  if (authEnsureReady && options.authOnly) return false;
   if (remoteInitPromise) return remoteInitPromise;
+
+  const allowMigration = options.allowMigrationFallback !== false;
+
   remoteInitPromise = (async function () {
     if (await probeProductionDatabaseReady(env)) {
       return await ensureDatabaseForAuthLight(env);
     }
-    await ensureRoomingSchemaColumnsIfTablesExist(env);
-    return await initRemoteDatabaseOnce(env);
+    if (!allowMigration) {
+      throw new Error("数据库结构未就绪，请先运行迁移");
+    }
+    return await runMigrationsOrRepair(env);
   })().finally(() => {
     remoteInitPromise = null;
   });
   return remoteInitPromise;
 }
 
-/** 登录前轻量探测：已有业务数据则跳过全量 schema 重放 | Fast path before login */
-export async function ensureDatabaseForAuth(env) {
-  if (authEnsureReady) return false;
-
-  if (remoteInitReady || (await probeProductionDatabaseReady(env))) {
-    return await ensureDatabaseForAuthLight(env);
-  }
-
+/** Explicit migration/repair branch (not for normal ready traffic) */
+async function runMigrationsOrRepair(env) {
   await ensureRoomingSchemaColumnsIfTablesExist(env);
   await ensureSyncMetaSchema(env);
   await ensureRowSyncSchema(env);
@@ -321,7 +327,18 @@ export async function ensureDatabaseForAuth(env) {
       return false;
     }
   }
-  return await initRemoteDatabase(env);
+  return await initRemoteDatabaseOnce(env);
+}
+
+/** @deprecated use ensureDatabaseReady */
+export async function initRemoteDatabase(env) {
+  return ensureDatabaseReady(env, { allowMigrationFallback: true });
+}
+
+/** @deprecated use ensureDatabaseReady */
+export async function ensureDatabaseForAuth(env) {
+  if (authEnsureReady) return false;
+  return ensureDatabaseReady(env, { allowMigrationFallback: true });
 }
 
 async function addRemoteColumnIfMissing(env, table, column, definition) {

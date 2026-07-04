@@ -1,7 +1,7 @@
 import { json, readJson, apiErrorStatus } from "../../../_shared/http.js";
 import { requireSession } from "../../../_shared/auth.js";
 import {
-  ensureDatabaseForAuth,
+  ensureDatabaseReady,
   queryD1,
   safeErrorMessage,
 } from "../../../_shared/d1.js";
@@ -25,7 +25,7 @@ export async function onRequestPost({ request, env }) {
     const session = await requireSession(request, env, (sql, p) =>
       queryD1(env, sql, p),
     );
-    await ensureDatabaseForAuth(env);
+    await ensureDatabaseReady(env, { allowMigrationFallback: false });
     const body = await readJson(request);
     if (!body) return json({ error: "请求格式错误" }, 400);
     if (PUBLISH_ACTIONS.has(body.action)) {
