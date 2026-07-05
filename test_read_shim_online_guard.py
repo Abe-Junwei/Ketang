@@ -24,7 +24,7 @@ def main():
             and 'readUseCachedModules(["events", "lodgers_active", "reservations"])' in src
             and "rcEventMembers(eventId)" in src,
         ),
-        ("event delete safe count", "if (readUseOnlineDataPath()) return 0" in src),
+        ("event delete safe count", "if (readUseOnlineDataPath()) return 1" in src),
         ("lodger pending null", "readOnlineCachePending()) return null" in src),
         ("meals pending empty", "readOnlineCachePending()) return []" in src),
         (

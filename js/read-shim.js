@@ -460,7 +460,7 @@ function readEventRelatedCount(eventId) {
     }).length;
     return lodgers + resvs;
   }
-  if (readUseOnlineDataPath()) return 0;
+  if (readUseOnlineDataPath()) return 1;
   if (readOnlineCachePending()) return 0;
   return readLocalQuery(0, function () {
     return (
