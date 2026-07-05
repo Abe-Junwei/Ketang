@@ -49,6 +49,48 @@ function showToast(msg) {
   setTimeout(() => (t.style.display = "none"), 2500);
 }
 
+/** 项目弹窗：替代 window.alert | Project alert dialog */
+function uiAlert(message, title) {
+  if (typeof showAlert === "function") {
+    return showAlert({
+      title: title || "提示",
+      message: message == null ? "" : String(message),
+    });
+  }
+  alert(message);
+  return Promise.resolve();
+}
+
+/** 项目弹窗：替代 window.confirm | Project confirm dialog */
+function uiConfirm(message, options) {
+  options = options || {};
+  if (typeof showConfirm === "function") {
+    return showConfirm({
+      title: options.title || "确认",
+      message: message == null ? "" : String(message),
+      confirmText: options.confirmText || "确定",
+      cancelText: options.cancelText || "取消",
+      danger: !!options.danger,
+    });
+  }
+  return Promise.resolve(confirm(message));
+}
+
+/** 项目弹窗：替代 window.prompt | Project prompt dialog */
+function uiPrompt(message, options) {
+  options = options || {};
+  if (typeof showPrompt === "function") {
+    return showPrompt({
+      title: options.title || "请输入",
+      message: message == null ? "" : String(message),
+      defaultValue: options.defaultValue || "",
+      confirmText: options.confirmText || "确定",
+      cancelText: options.cancelText || "取消",
+    });
+  }
+  return Promise.resolve(prompt(message, options.defaultValue || ""));
+}
+
 function actionPendingTarget(source) {
   var node = source && (source.currentTarget || source.target || source);
   if (!node || !node.nodeType) return null;

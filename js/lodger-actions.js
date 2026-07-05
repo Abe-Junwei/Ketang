@@ -131,13 +131,13 @@ async function submitExtend(event, id) {
   return withActionPending(event, "保存中…", async function () {
     const date = document.getElementById("ext-date").value;
     if (!date) {
-      alert("请选择新的预离日期");
+      await uiAlert("请选择新的预离日期");
       return;
     }
     const l = readLodger(id);
     if (!l) return;
     if (date < l.check_in_date) {
-      alert("预离日期不能早于入住日期");
+      await uiAlert("预离日期不能早于入住日期");
       return;
     }
     try {
@@ -188,7 +188,7 @@ async function submitExtend(event, id) {
       rcRefreshAfterWrite(writeResult);
     } catch (e) {
       console.error(e);
-      alert("续住失败：" + e.message);
+      await uiAlert("续住失败：" + e.message);
     }
   });
 }
@@ -262,13 +262,13 @@ async function submitChangeBed(event, lodgerId, gender) {
   return withActionPending(event, "保存中…", async function () {
     const bedId = document.getElementById("chg-bed").value;
     if (!bedId) {
-      alert("请选择新床位");
+      await uiAlert("请选择新床位");
       return;
     }
     const bed = readBedJoined(bedId);
     if (!bed) return;
     if (!dormMatchGender(bed.dorm_type, gender)) {
-      alert("该床位所在房间寮类型不符");
+      await uiAlert("该床位所在房间寮类型不符");
       return;
     }
     var occ = readUseRc()
@@ -280,11 +280,11 @@ async function submitChangeBed(event, lodgerId, gender) {
           [bedId],
         )[0]?.c || 0;
     if (occ > 0) {
-      alert("该床位已有人");
+      await uiAlert("该床位已有人");
       return;
     }
     if (!isBedAssignable(bedId)) {
-      alert("该床位当前不可分配（可能未清洁或处于维修状态）");
+      await uiAlert("该床位当前不可分配（可能未清洁或处于维修状态）");
       return;
     }
     try {
@@ -335,7 +335,7 @@ async function submitChangeBed(event, lodgerId, gender) {
       rcRefreshAfterWrite(writeResult);
     } catch (e) {
       console.error(e);
-      alert("换床失败：" + e.message);
+      await uiAlert("换床失败：" + e.message);
     }
   });
 }
@@ -420,7 +420,7 @@ async function submitEditLodger(event, id) {
         "edit-emergency-phone",
       ])
     ) {
-      alert("请修正红色标记的字段后重新提交");
+      await uiAlert("请修正红色标记的字段后重新提交");
       return;
     }
     const name = document.getElementById("edit-name").value.trim();
@@ -442,20 +442,20 @@ async function submitEditLodger(event, id) {
       emergencyPhone: emergencyPhone,
     });
     if (!contact.ok) {
-      alertGuestContactError(contact);
+      await alertGuestContactError(contact);
       return;
     }
 
     const gender = document.getElementById("edit-gender").value;
     const l = readLodger(id);
     if (!l || !l.bed_id) {
-      alert("挂单数据不可用");
+      await uiAlert("挂单数据不可用");
       return;
     }
     const bed = readBedJoined(l.bed_id);
     if (!dormMatchGender(bed.dorm_type, gender)) {
       if (
-        !confirm(
+        !await uiConfirm(
           `该床位所在房间为「${bed.dorm_type}」，修改性别后可能不符合安排。是否继续？`,
         )
       )
@@ -465,7 +465,7 @@ async function submitEditLodger(event, id) {
     const checkIn = document.getElementById("edit-in").value;
     const checkOut = document.getElementById("edit-out").value || null;
     if (checkOut && checkOut < checkIn) {
-      alert("预离日期不能早于入住日期");
+      await uiAlert("预离日期不能早于入住日期");
       return;
     }
 
@@ -474,7 +474,7 @@ async function submitEditLodger(event, id) {
       const info =
         personDisplayName(dup) + (dup.phone ? " · " + dup.phone : "");
       if (
-        !confirm(`检测到该手机号/身份证已有在住记录：${info}\n是否继续保存？`)
+        !await uiConfirm(`检测到该手机号/身份证已有在住记录：${info}\n是否继续保存？`)
       )
         return;
     }
@@ -483,7 +483,7 @@ async function submitEditLodger(event, id) {
     try {
       participantTags = readParticipantTagsFromForm("edit");
     } catch (err) {
-      alert(err.message || String(err));
+      await uiAlert(err.message || String(err));
       return;
     }
 
@@ -589,7 +589,7 @@ async function submitEditLodger(event, id) {
       rcRefreshAfterWrite(writeResult);
     } catch (e) {
       console.error(e);
-      alert("保存修改失败：" + e.message);
+      await uiAlert("保存修改失败：" + e.message);
     }
   });
 }
@@ -630,7 +630,7 @@ async function deleteLodger(id) {
     rcRefreshAfterWrite(writeResult);
   } catch (e) {
     console.error(e);
-    alert("删除失败：" + e.message);
+    await uiAlert("删除失败：" + e.message);
   }
 }
 
@@ -684,13 +684,13 @@ async function submitCheckout(event, id) {
     const method = document.getElementById("co-refund-method").value;
     const notes = document.getElementById("co-notes").value.trim() || null;
     if (refund < 0) {
-      alert("退款金额不能为负数");
+      await uiAlert("退款金额不能为负数");
       return;
     }
     const paid = readPaymentSummary(id);
     const balance = paid.balance;
     if (refund > balance) {
-      alert(`退款金额不能超过余额 ${balance.toFixed(2)}`);
+      await uiAlert(`退款金额不能超过余额 ${balance.toFixed(2)}`);
       return;
     }
     const l = readLodger(id);
@@ -747,7 +747,7 @@ async function submitCheckout(event, id) {
       rcRefreshAfterWrite(writeResult);
     } catch (e) {
       console.error(e);
-      alert("退房失败：" + e.message);
+      await uiAlert("退房失败：" + e.message);
     }
   });
 }

@@ -847,10 +847,10 @@ function renderMealsPanelCharts(byRole) {
   });
 }
 
-function openMealModal(lodgerId) {
+async function openMealModal(lodgerId) {
   const l = mealLodgerEnrichedById(lodgerId);
   if (!l) {
-    alert(
+    await uiAlert(
       typeof readUseRc === "function" && readUseRc()
         ? "数据加载中，请稍候再试"
         : "找不到该挂单记录",
@@ -993,7 +993,7 @@ function mealGridSkipToday() {
     });
 }
 
-function buildMealDaysFromModal(lodger, defaults) {
+async function buildMealDaysFromModal(lodger, defaults) {
   const days = {};
   document.querySelectorAll(".meal-skip-cb").forEach(function (cb) {
     const d = cb.dataset.date;
@@ -1025,7 +1025,7 @@ async function submitMeals(event, lodgerId) {
     }
     const l = typeof readLodger === "function" ? readLodger(lodgerId) : null;
     if (!l) {
-      alert("找不到该挂单记录");
+      await uiAlert("找不到该挂单记录");
       return;
     }
     const days = buildMealDaysFromModal(l, defaults);
@@ -1074,12 +1074,12 @@ async function submitMeals(event, lodgerId) {
       var refreshOk = await forceRefreshMeals();
       refreshMealsVisibleSurfaces();
       if (!rollbackOk && !refreshOk) {
-        alert(
+        await uiAlert(
           "保存用斋设置失败，且无法恢复最新用斋数据，请手动刷新页面：" +
             e.message,
         );
       } else {
-        alert("保存用斋设置失败：" + e.message);
+        await uiAlert("保存用斋设置失败：" + e.message);
       }
     }
   });

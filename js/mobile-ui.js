@@ -171,29 +171,29 @@ function syncStayFormWizard(formId) {
   if (submit) submit.hidden = step < cfg.steps.length;
 }
 
-function validateWizardStep(formId, stepIndex) {
+async function validateWizardStep(formId, stepIndex) {
   var cfg = WIZARD_FORMS[formId];
   if (!cfg || !cfg.steps[stepIndex - 1]) return true;
   var fields = cfg.steps[stepIndex - 1].fields.slice();
   if (formId === "checkin-form" && stepIndex === 1) {
     if (!document.getElementById("ci-gender")?.value) {
-      alert("请选择性别");
+      await uiAlert("请选择性别");
       return false;
     }
   }
   if (formId === "checkin-form" && stepIndex === 2) {
     if (!document.getElementById("ci-bed")?.value) {
-      alert("请选择床位");
+      await uiAlert("请选择床位");
       return false;
     }
     if (!document.getElementById("ci-in")?.value) {
-      alert("请选择入住日期");
+      await uiAlert("请选择入住日期");
       return false;
     }
   }
   if (formId === "resv-form" && stepIndex === 1) {
     if (!document.getElementById("resv-gender")?.value) {
-      alert("请选择性别");
+      await uiAlert("请选择性别");
       return false;
     }
   }

@@ -555,7 +555,7 @@ function assignmentsForConflictCheck(savedAssignments, formAssignments) {
 
 async function renderRoomingPlan(eventId, options) {
   if (typeof hasPermission === "function" && !hasPermission("settings.read")) {
-    alert("权限不足");
+    await uiAlert("权限不足");
     return;
   }
   if (!roomingUseLocalRead()) {
@@ -563,7 +563,7 @@ async function renderRoomingPlan(eventId, options) {
   }
   var evt = roomingGetEvent(eventId);
   if (!evt) {
-    alert("营期不存在");
+    await uiAlert("营期不存在");
     return;
   }
   var canEdit =
@@ -734,11 +734,11 @@ async function handleGenerateRoomingPlan(source, eventId) {
       typeof hasPermission === "function" &&
       !hasPermission("settings.write")
     ) {
-      alert("权限不足");
+      await uiAlert("权限不足");
       return;
     }
     if (
-      !confirm(
+      !await uiConfirm(
         "将按当前报名与预计人数重新生成床位预分房，现有草稿条目会被覆盖。继续？",
       )
     ) {
@@ -749,7 +749,7 @@ async function handleGenerateRoomingPlan(source, eventId) {
       showToast("已自动生成预分房草稿");
       await renderRoomingPlan(eventId);
     } catch (err) {
-      alert("生成失败：" + (err.message || err));
+      await uiAlert("生成失败：" + (err.message || err));
     }
   });
 }
@@ -757,7 +757,7 @@ async function handleGenerateRoomingPlan(source, eventId) {
 async function handleRefreshRoomingConflicts(eventId) {
   var bundle = await fetchRoomingPlanBundle(eventId);
   if (!bundle.plan) {
-    alert("请先生成预分房草稿");
+    await uiAlert("请先生成预分房草稿");
     return;
   }
   var state = collectRoomingPlanFormState(bundle.plan, bundle.assignments);
@@ -770,12 +770,12 @@ async function handleSaveRoomingPlan(source, eventId) {
       typeof hasPermission === "function" &&
       !hasPermission("settings.write")
     ) {
-      alert("权限不足");
+      await uiAlert("权限不足");
       return;
     }
     var bundle = await fetchRoomingPlanBundle(eventId);
     if (!bundle.plan) {
-      alert("请先自动生成预分房");
+      await uiAlert("请先自动生成预分房");
       return;
     }
     var state = collectRoomingPlanFormState(bundle.plan, bundle.assignments);
@@ -789,7 +789,7 @@ async function handleSaveRoomingPlan(source, eventId) {
       checkAssignments,
     );
     if (state.plan.status === "已确认" && conflictReport.error_count > 0) {
-      alert(
+      await uiAlert(
         "存在 " +
           conflictReport.error_count +
           " 项硬性冲突，请先处理后再标记为「已确认」。可点击「刷新冲突检查」查看详情。",
@@ -800,7 +800,7 @@ async function handleSaveRoomingPlan(source, eventId) {
     if (
       state.plan.status === "已确认" &&
       conflictReport.warning_count > 0 &&
-      !confirm(
+      !await uiConfirm(
         "仍有 " +
           conflictReport.warning_count +
           " 项待人工确认的问题。确定在负责人已知情的情况下标记为「已确认」？",
@@ -819,7 +819,7 @@ async function handleSaveRoomingPlan(source, eventId) {
       showToast("预分房草稿已保存");
       await renderRoomingPlan(eventId);
     } catch (err) {
-      alert("保存失败：" + (err.message || err));
+      await uiAlert("保存失败：" + (err.message || err));
     }
   });
 }

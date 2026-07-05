@@ -328,10 +328,10 @@ async function renderTodayForecast() {
   );
 }
 
-function exportTodayForecastCSV() {
+async function exportTodayForecastCSV() {
   const date = document.getElementById("fc-today-date").value;
   if (!date) {
-    alert("请选择日期");
+    await uiAlert("请选择日期");
     return;
   }
 

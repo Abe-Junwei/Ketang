@@ -723,7 +723,7 @@ async function forceFullRemoteSync() {
     if (typeof showToast === "function") showToast("当前环境未启用云端读模型");
     return;
   }
-  if (!confirm("将重新从云端拉取全部数据，可能需要十几秒。继续？")) return;
+  if (!await uiConfirm("将重新从云端拉取全部数据，可能需要十几秒。继续？")) return;
   setRemoteSyncStatus("loading");
   try {
     await rcEnsureAppData(true, { hydrateSql: isLocalForceDb() });

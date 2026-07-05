@@ -159,8 +159,8 @@ function validateGuestContactRow(row) {
   });
 }
 
-function alertGuestContactError(result) {
-  alert(result.msg);
+async function alertGuestContactError(result) {
+  await uiAlert(result.msg);
   if (result.field === "idcard") {
     const el =
       document.getElementById("ci-idcard") ||

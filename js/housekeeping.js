@@ -229,14 +229,14 @@ async function setHkAndRender(source, bedId, status) {
             [bedId],
           )[0]?.c || 0) > 0;
     if (occupied) {
-      alert("该床位当前有在住住客，不能设为维修");
+      await uiAlert("该床位当前有在住住客，不能设为维修");
       return;
     }
   }
   const current = getHouseStatus(bedId);
   const requireInspect = housekeepingRequiresInspect();
   if (!isHousekeepingTransitionAllowed(current, status, requireInspect)) {
-    alert(
+    await uiAlert(
       requireInspect
         ? `当前为「${current}」，需按脏房→净房→查房→可入住流转`
         : `当前为「${current}」，不能直接设为「${status}」`,
@@ -284,9 +284,9 @@ async function setHkAndRender(source, bedId, status) {
     var refreshOk = await forceRefreshHousekeeping();
     if (writeResult) {
       if (refreshOk) showToast("房务状态已保存");
-      else alert("房务状态已保存，但刷新失败，请手动刷新页面查看最新数据");
+      else await uiAlert("房务状态已保存，但刷新失败，请手动刷新页面查看最新数据");
     } else {
-      alert("房务状态变更失败：" + e.message);
+      await uiAlert("房务状态变更失败：" + e.message);
     }
   } finally {
     delete HOUSEKEEPING_PENDING_BEDS[bedId];
@@ -368,7 +368,7 @@ async function saveOperationalSettings(source) {
       )
         renderHousekeeping();
     } catch (e) {
-      alert("保存失败：" + e.message);
+      await uiAlert("保存失败：" + e.message);
     }
   });
 }

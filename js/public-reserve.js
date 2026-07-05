@@ -7,9 +7,9 @@
 
   function showReserveError(msg) {
     if (!resultEl) {
-      alert(msg);
-      return;
+      resultEl = document.getElementById("reserve-result");
     }
+    if (!resultEl) return;
     resultEl.hidden = false;
     resultEl.className = "";
     resultEl.innerHTML =

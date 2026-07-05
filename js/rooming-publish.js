@@ -247,7 +247,7 @@ function renderRoomingQueueTable(eventId, queue, canProcess) {
 
 async function renderRoomingCheckinQueue(eventId) {
   if (typeof hasPermission === "function" && !hasPermission("lodging.read")) {
-    alert("权限不足");
+    await uiAlert("权限不足");
     return;
   }
   if (!roomingUseLocalRead()) {
@@ -255,7 +255,7 @@ async function renderRoomingCheckinQueue(eventId) {
   }
   var evt = roomingGetEvent(eventId);
   if (!evt) {
-    alert("营期不存在");
+    await uiAlert("营期不存在");
     return;
   }
   var bundle = await fetchRoomingQueueBundle(eventId);
@@ -333,11 +333,11 @@ async function handlePublishRoomingPlan(source, eventId) {
       typeof hasPermission === "function" &&
       !hasPermission("settings.write")
     ) {
-      alert("权限不足");
+      await uiAlert("权限不足");
       return;
     }
     if (
-      !confirm(
+      !await uiConfirm(
         "将生成「待入住清单」供知客师逐条办理，不会自动写入床位。预计占位人员不会进入清单。继续发布？",
       )
     ) {
@@ -355,7 +355,7 @@ async function handlePublishRoomingPlan(source, eventId) {
       showToast("已发布待入住清单");
       await renderRoomingCheckinQueue(eventId);
     } catch (err) {
-      alert("发布失败：" + (err.message || err));
+      await uiAlert("发布失败：" + (err.message || err));
     }
   });
 }
@@ -366,11 +366,11 @@ async function handleRepublishRoomingPlan(source, eventId) {
       typeof hasPermission === "function" &&
       !hasPermission("settings.write")
     ) {
-      alert("权限不足");
+      await uiAlert("权限不足");
       return;
     }
     if (
-      !confirm(
+      !await uiConfirm(
         "重新发布会按当前草稿重建所有「待办理」条目；已办理/已跳过记录保留。继续？",
       )
     ) {
@@ -389,7 +389,7 @@ async function handleRepublishRoomingPlan(source, eventId) {
       showToast("已重新发布待入住清单");
       await renderRoomingCheckinQueue(eventId);
     } catch (err) {
-      alert("重新发布失败：" + (err.message || err));
+      await uiAlert("重新发布失败：" + (err.message || err));
     }
   });
 }
@@ -406,21 +406,21 @@ async function handleRoomingQueueCheckin(source, queueId, eventId) {
       typeof hasPermission === "function" &&
       !hasPermission("lodging.checkin")
     ) {
-      alert("权限不足");
+      await uiAlert("权限不足");
       return;
     }
     var item = await findRoomingQueueItem(queueId, eventId);
     if (!item || item.queue_status !== "待办理") return;
     if (!item.suggested_bed_id) {
-      alert("该条目未指定建议床位，请在住宿办理中手动操作。");
+      await uiAlert("该条目未指定建议床位，请在住宿办理中手动操作。");
       return;
     }
     if (!item.member_ref_id) {
-      alert("该条目缺少关联人员，无法自动办理。");
+      await uiAlert("该条目缺少关联人员，无法自动办理。");
       return;
     }
     if (
-      !confirm(
+      !await uiConfirm(
         "按预分床位为「" +
           String(item.member_name || "") +
           "」办理？仍将走正常入住/分床流程，请确认房态与身份无误。",
@@ -461,7 +461,7 @@ async function handleRoomingQueueCheckin(source, queueId, eventId) {
           await completeRoomingQueueCheckin(queueId, eventId, item);
           return;
         }
-        alert(
+        await uiAlert(
           "办理未完成：床位状态与预分不一致，请核对后手动标记「已办理」或「跳过」。",
         );
         return;
@@ -473,11 +473,11 @@ async function handleRoomingQueueCheckin(source, queueId, eventId) {
           await completeRoomingQueueCheckin(queueId, eventId, item);
           return;
         } catch (markErr) {
-          alert("办理失败：" + (markErr.message || markErr));
+          await uiAlert("办理失败：" + (markErr.message || markErr));
           return;
         }
       }
-      alert("办理失败：" + (err.message || err));
+      await uiAlert("办理失败：" + (err.message || err));
     }
   });
 }
@@ -488,10 +488,10 @@ async function handleRoomingQueueSkip(source, queueId, eventId) {
       typeof hasPermission === "function" &&
       !hasPermission("lodging.checkin")
     ) {
-      alert("权限不足");
+      await uiAlert("权限不足");
       return;
     }
-    if (!confirm("标记为「已跳过」？表示本条暂不按预分床办理。")) return;
+    if (!await uiConfirm("标记为「已跳过」？表示本条暂不按预分床办理。")) return;
     var item = await findRoomingQueueItem(queueId, eventId);
     if (!item || item.queue_status !== "待办理") return;
     try {
@@ -509,7 +509,7 @@ async function handleRoomingQueueSkip(source, queueId, eventId) {
       showToast("已跳过");
       await renderRoomingCheckinQueue(eventId);
     } catch (err) {
-      alert("操作失败：" + (err.message || err));
+      await uiAlert("操作失败：" + (err.message || err));
     }
   });
 }
@@ -521,7 +521,7 @@ async function exportRoomingCheckinListCSV(eventId) {
   var bundle = await fetchRoomingQueueBundle(eventId);
   var queue = bundle.queue || [];
   if (!queue.length) {
-    alert("暂无待入住清单");
+    await uiAlert("暂无待入住清单");
     return;
   }
   var lines = [
@@ -572,7 +572,7 @@ async function exportRoomingRoomTableCSV(eventId) {
     return row.suggested_bed_id;
   });
   if (!queue.length) {
-    alert("暂无已指定床位的清单条目");
+    await uiAlert("暂无已指定床位的清单条目");
     return;
   }
   queue.sort(function (a, b) {
@@ -655,7 +655,7 @@ async function loadRoomingPrintQueue(eventId) {
   if (!roomingUseLocalRead()) await roomingEnsureEvent(eventId, false);
   var evt = roomingGetEvent(eventId);
   if (!evt) {
-    alert("营期不存在");
+    await uiAlert("营期不存在");
     return null;
   }
   var bundle = await fetchRoomingQueueBundle(eventId);
@@ -663,7 +663,7 @@ async function loadRoomingPrintQueue(eventId) {
     return row.suggested_bed_id;
   });
   if (!queue.length) {
-    alert("暂无已指定床位的清单条目，请先发布预分房");
+    await uiAlert("暂无已指定床位的清单条目，请先发布预分房");
     return null;
   }
   return { evt: evt, queue: queue, groups: groupRoomingQueueByRoom(queue) };
@@ -801,7 +801,7 @@ function buildRoomingBedLabelsPrintHtml(evt, queue) {
 
 async function printRoomingRoomTable(eventId) {
   if (typeof hasPermission === "function" && !hasPermission("lodging.read")) {
-    alert("权限不足");
+    await uiAlert("权限不足");
     return;
   }
   var data = await loadRoomingPrintQueue(eventId);
@@ -814,7 +814,7 @@ async function printRoomingRoomTable(eventId) {
 
 async function printRoomingDoorLabels(eventId) {
   if (typeof hasPermission === "function" && !hasPermission("lodging.read")) {
-    alert("权限不足");
+    await uiAlert("权限不足");
     return;
   }
   var data = await loadRoomingPrintQueue(eventId);
@@ -827,7 +827,7 @@ async function printRoomingDoorLabels(eventId) {
 
 async function printRoomingBedLabels(eventId) {
   if (typeof hasPermission === "function" && !hasPermission("lodging.read")) {
-    alert("权限不足");
+    await uiAlert("权限不足");
     return;
   }
   var data = await loadRoomingPrintQueue(eventId);

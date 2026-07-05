@@ -701,9 +701,9 @@ function applyPermissions() {
   }
 }
 
-function requireAdmin() {
+async function requireAdmin() {
   if (!hasPermission("users.write")) {
-    alert("需要用户管理权限");
+    await uiAlert("需要用户管理权限");
     return false;
   }
   return true;
@@ -810,8 +810,8 @@ function toggleRolePermissionDraft(role, code, enabled) {
   rolePermissionsDraft[role] = [...set];
 }
 
-function resetRolePermissionsDraft() {
-  if (!confirm("确定将所有角色权限恢复为系统默认模板吗？")) return;
+async function resetRolePermissionsDraft() {
+  if (!(await uiConfirm("确定将所有角色权限恢复为系统默认模板吗？"))) return;
   initRolePermissionDefaults().then(function () {
     const defaults = getDefaultRolePermissions();
     rolePermissionsDraft = {};
@@ -835,7 +835,7 @@ async function saveRolePermissionsConfig() {
     showToast("角色权限已保存，请相关账号重新登录后生效");
     renderRolePermissionsPanel();
   } catch (e) {
-    alert("保存失败：" + e.message);
+    await uiAlert("保存失败：" + e.message);
   }
 }
 
@@ -853,17 +853,17 @@ function bindUserRoleAdvancedToggle() {
   roleEl.addEventListener("change", updateUserAdvancedFieldVisibility);
 }
 
-function requireBackupRead() {
+async function requireBackupRead() {
   if (!hasPermission("backup.read")) {
-    alert("需要备份读取权限");
+    await uiAlert("需要备份读取权限");
     return false;
   }
   return true;
 }
 
-function requireBackupWrite() {
+async function requireBackupWrite() {
   if (!hasPermission("backup.write")) {
-    alert("需要备份写入权限");
+    await uiAlert("需要备份写入权限");
     return false;
   }
   return true;
@@ -948,20 +948,20 @@ function paintUserList(container, users) {
   container.innerHTML = html;
 }
 
-function openUserModal(id) {
+async function openUserModal(id) {
   if (!requireAdmin()) return;
   const isEdit = !!id;
   if (isEdit) {
     lookupAdminUser(id)
-      .then(function (u) {
+      .then(async function (u) {
         if (!u) {
-          alert("用户不存在");
+          await uiAlert("用户不存在");
           return;
         }
         mountUserModal(u, true);
       })
-      .catch(function (e) {
-        alert("加载用户失败：" + (e.message || "未知错误"));
+      .catch(async function (e) {
+        await uiAlert("加载用户失败：" + (e.message || "未知错误"));
       });
     return;
   }
@@ -1000,7 +1000,7 @@ function mountUserModal(u, isEdit) {
   updateUserAdvancedFieldVisibility();
 }
 
-function closeUserModal() {
+async function closeUserModal() {
   closeModal();
 }
 
@@ -1019,11 +1019,11 @@ async function submitUser(e) {
     role === "zhike" && advancedEl && advancedEl.checked ? 1 : 0;
 
   if (!username) {
-    alert("请输入账号");
+    await uiAlert("请输入账号");
     return;
   }
   if (!id && !password) {
-    alert("请输入密码");
+    await uiAlert("请输入密码");
     return;
   }
 
@@ -1031,7 +1031,7 @@ async function submitUser(e) {
     if (!id) validateUsername(username);
     if (password) validateNewPassword(password);
   } catch (e) {
-    alert(e.message);
+    await uiAlert(e.message);
     return;
   }
 
@@ -1043,7 +1043,7 @@ async function submitUser(e) {
       try {
         await ensureAdminUsersCache();
       } catch (e) {
-        alert("加载用户失败：" + e.message);
+        await uiAlert("加载用户失败：" + e.message);
         return;
       }
     }
@@ -1056,7 +1056,7 @@ async function submitUser(e) {
       role !== "admin" &&
       countActiveAdmins(id) === 0
     ) {
-      alert("不能移除最后一名管理员");
+      await uiAlert("不能移除最后一名管理员");
       return;
     }
   }
@@ -1133,7 +1133,7 @@ async function submitUser(e) {
       logAudit("新增用户", "user", result.lastInsertId, { username, role });
     }
   } catch (err) {
-    alert("保存失败：" + err.message);
+    await uiAlert("保存失败：" + err.message);
     return;
   }
 
@@ -1151,19 +1151,19 @@ async function deleteUser(id) {
   try {
     u = await lookupAdminUser(id);
   } catch (e) {
-    alert("加载用户失败：" + e.message);
+    await uiAlert("加载用户失败：" + e.message);
     return;
   }
   if (!u) return;
   if (currentUser && currentUser.id === id) {
-    alert("不能停用当前登录账号");
+    await uiAlert("不能停用当前登录账号");
     return;
   }
   if (u.role === "admin" && countActiveAdmins(id) === 0) {
-    alert("不能停用最后一名管理员");
+    await uiAlert("不能停用最后一名管理员");
     return;
   }
-  if (!confirm(`确定停用用户「${u.username}」吗？`)) return;
+  if (!(await uiConfirm(`确定停用用户「${u.username}」吗？`))) return;
   try {
     if (useOnlineDataPath()) {
       await apiAdminDeactivateUser(id);
@@ -1176,7 +1176,7 @@ async function deleteUser(id) {
       await saveDB();
     }
   } catch (e) {
-    alert("停用失败：" + e.message);
+    await uiAlert("停用失败：" + e.message);
     return;
   }
   showToast("用户已停用");
@@ -1185,7 +1185,7 @@ async function deleteUser(id) {
 
 async function reactivateUser(id) {
   if (!requireAdmin()) return;
-  if (!confirm("确定重新启用该用户吗？")) return;
+  if (!(await uiConfirm("确定重新启用该用户吗？"))) return;
   try {
     if (useOnlineDataPath()) {
       await apiAdminReactivateUser(id);
@@ -1197,7 +1197,7 @@ async function reactivateUser(id) {
       await saveDB();
     }
   } catch (e) {
-    alert("启用失败：" + e.message);
+    await uiAlert("启用失败：" + e.message);
     return;
   }
   showToast("用户已启用");
@@ -1212,18 +1212,23 @@ async function resetUserPassword(id) {
     username = u?.username || "";
     if (!u) return;
   } catch (e) {
-    alert("加载用户失败：" + e.message);
+    await uiAlert("加载用户失败：" + e.message);
     return;
   }
-  const temp = prompt(`为「${username || id}」设置临时密码（至少 6 位）：`);
+  const temp = await uiPrompt(
+    `为「${username || id}」设置临时密码（至少 6 位）：`,
+  );
   if (temp == null) return;
   try {
     validateNewPassword(temp);
   } catch (e) {
-    alert(e.message);
+    await uiAlert(e.message);
     return;
   }
-  if (!confirm(`确定重置「${username}」的密码吗？其他设备会话将失效。`)) return;
+  if (
+    !(await uiConfirm(`确定重置「${username}」的密码吗？其他设备会话将失效。`))
+  )
+    return;
   try {
     if (useOnlineDataPath()) {
       await apiAdminResetUserPassword(id, temp);
@@ -1239,7 +1244,7 @@ async function resetUserPassword(id) {
       await saveDB();
     }
   } catch (e) {
-    alert("重置失败：" + e.message);
+    await uiAlert("重置失败：" + e.message);
     return;
   }
   showToast("密码已重置，请告知用户临时密码");

@@ -531,7 +531,7 @@ function toggleSelectAllEventMembers(source) {
   document.getElementById("event-member-select-all-header").checked = checked;
 }
 
-function getSelectedEventMembers() {
+async function getSelectedEventMembers() {
   const selected = [];
   document.querySelectorAll(".event-member-checkbox:checked").forEach((cb) => {
     selected.push({ id: parseInt(cb.dataset.id, 10), kind: cb.dataset.kind });
@@ -543,10 +543,10 @@ async function batchCancelEventMembers(source) {
   if (EVENT_MEMBER_BATCH_PENDING) return;
   const selected = getSelectedEventMembers();
   if (!selected.length) {
-    alert("请先勾选要取消的成员");
+    await uiAlert("请先勾选要取消的成员");
     return;
   }
-  if (!confirm(`确定要取消选中的 ${selected.length} 人吗？此操作不可恢复。`))
+  if (!await uiConfirm(`确定要取消选中的 ${selected.length} 人吗？此操作不可恢复。`))
     return;
 
   let eventId = null;
@@ -625,11 +625,11 @@ async function batchCancelEventMembers(source) {
     var rollbackOk = rollbackEventMembersOptimistic(original);
     var refreshOk = await forceRefreshEventMembers();
     if (!rollbackOk && !refreshOk) {
-      alert(
+      await uiAlert(
         "批量取消失败，且无法恢复最新成员数据，请手动刷新页面：" + e.message,
       );
     } else {
-      alert("批量取消失败：" + e.message);
+      await uiAlert("批量取消失败：" + e.message);
     }
     return;
   } finally {
@@ -645,10 +645,10 @@ async function batchNoShowEventMembers(source) {
   // No-show 仅适用于预约，过滤掉在住挂单
   const resvOnly = selected.filter((item) => item.kind === "reservation");
   if (!resvOnly.length) {
-    alert("No-show 仅适用于预约记录，请勾选预约成员");
+    await uiAlert("No-show 仅适用于预约记录，请勾选预约成员");
     return;
   }
-  if (!confirm(`确定要将选中的 ${resvOnly.length} 人标记为 No-show 吗？`))
+  if (!await uiConfirm(`确定要将选中的 ${resvOnly.length} 人标记为 No-show 吗？`))
     return;
 
   let eventId = null;
@@ -707,12 +707,12 @@ async function batchNoShowEventMembers(source) {
     var rollbackOk = rollbackEventMembersOptimistic(original);
     var refreshOk = await forceRefreshEventMembers();
     if (!rollbackOk && !refreshOk) {
-      alert(
+      await uiAlert(
         "批量标记 No-show 失败，且无法恢复最新成员数据，请手动刷新页面：" +
           e.message,
       );
     } else {
-      alert("批量标记 No-show 失败：" + e.message);
+      await uiAlert("批量标记 No-show 失败：" + e.message);
     }
     return;
   } finally {
@@ -723,15 +723,15 @@ async function batchNoShowEventMembers(source) {
 }
 
 // 营期编辑弹窗
-function openEventModal(id) {
+async function openEventModal(id) {
   if (typeof hasPermission === "function" && !hasPermission("settings.write")) {
-    alert("需要信息管理编辑权限");
+    await uiAlert("需要信息管理编辑权限");
     return;
   }
   const isEdit = !!id;
   const e = isEdit ? eventGetById(id) : null;
   if (isEdit && !e) {
-    alert(eventUseApiData() ? "数据加载中，请稍候再试" : "营期不存在");
+    await uiAlert(eventUseApiData() ? "数据加载中，请稍候再试" : "营期不存在");
     return;
   }
 
@@ -763,7 +763,7 @@ function openEventModal(id) {
   document.getElementById("modal").classList.add("active");
 }
 
-function closeEventModal() {
+async function closeEventModal() {
   closeModal();
 }
 
@@ -789,16 +789,16 @@ async function submitEvent(e) {
     rooming = readEventRoomingFromForm();
     roomingValues = eventRoomingDbValues(rooming);
   } catch (err) {
-    alert(err.message || String(err));
+    await uiAlert(err.message || String(err));
     return;
   }
 
   if (!name) {
-    alert("请输入营期名称");
+    await uiAlert("请输入营期名称");
     return;
   }
   if (startDate && endDate && endDate < startDate) {
-    alert("结束日期不能早于开始日期");
+    await uiAlert("结束日期不能早于开始日期");
     return;
   }
   if (
@@ -806,7 +806,7 @@ async function submitEvent(e) {
     rooming.departure_date &&
     rooming.departure_date < rooming.arrival_date
   ) {
-    alert("离寺日期不能早于报到日期");
+    await uiAlert("离寺日期不能早于报到日期");
     return;
   }
 
@@ -975,7 +975,7 @@ async function submitEvent(e) {
   } catch (e) {
     console.error(e);
     if (eventUseApiData()) await eventRevertAfterWriteFailure();
-    alert("保存营期失败：" + e.message);
+    await uiAlert("保存营期失败：" + e.message);
   } finally {
     finishPending();
   }
@@ -986,10 +986,10 @@ async function deleteEvent(id) {
   if (!e) return;
   const related = eventRelatedCount(id);
   if (related > 0) {
-    alert(`该营期下还有 ${related} 条记录，无法删除。请先取消或转移这些记录。`);
+    await uiAlert(`该营期下还有 ${related} 条记录，无法删除。请先取消或转移这些记录。`);
     return;
   }
-  if (!confirm(`确定删除营期「${e.name}」吗？`)) return;
+  if (!await uiConfirm(`确定删除营期「${e.name}」吗？`)) return;
   try {
     var deleteResult = null;
     if (isLocalForceDb()) {
@@ -1012,7 +1012,7 @@ async function deleteEvent(id) {
   } catch (e) {
     console.error(e);
     if (eventUseApiData()) await eventRevertAfterWriteFailure();
-    alert("删除营期失败：" + e.message);
+    await uiAlert("删除营期失败：" + e.message);
   }
 }
 

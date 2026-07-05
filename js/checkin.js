@@ -280,11 +280,11 @@ function renderAssignPickSection(title, emptyTip, rowsHtml) {
   );
 }
 
-function openAssignBedModal(bedId) {
+async function openAssignBedModal(bedId) {
   const bed = readBedJoined(bedId);
   if (!bed) return;
   if (!isBedAssignable(bedId)) {
-    alert("该床位当前不可分配（可能未清洁或已占用）");
+    await uiAlert("该床位当前不可分配（可能未清洁或已占用）");
     return;
   }
 
@@ -368,12 +368,12 @@ async function assignExistingLodgerToBed(lodgerId, bedId, opts) {
     lodgerId,
   ])[0];
   if (!l) {
-    alert("挂单不存在或已不在住");
+    await uiAlert("挂单不存在或已不在住");
     if (finishPending) finishPending();
     return false;
   }
   if (l.bed_id) {
-    alert("该挂单已有床位");
+    await uiAlert("该挂单已有床位");
     if (finishPending) finishPending();
     return false;
   }
@@ -386,12 +386,12 @@ async function assignExistingLodgerToBed(lodgerId, bedId, opts) {
     return false;
   }
   if (!dormMatchGender(bed.dorm_type, l.gender)) {
-    alert("该床位所在房间寮类型不符");
+    await uiAlert("该床位所在房间寮类型不符");
     if (finishPending) finishPending();
     return false;
   }
   if (!isBedAssignable(bedId)) {
-    alert("该床位当前不可分配");
+    await uiAlert("该床位当前不可分配");
     if (finishPending) finishPending();
     return false;
   }
@@ -435,7 +435,7 @@ async function assignExistingLodgerToBed(lodgerId, bedId, opts) {
     return true;
   } catch (e) {
     console.error(e);
-    alert("分配床位失败：" + e.message);
+    await uiAlert("分配床位失败：" + e.message);
     return false;
   } finally {
     if (finishPending) finishPending();
@@ -451,7 +451,7 @@ async function assignReservationToBed(resvId, bedId, opts) {
   if (opts.source && !finishPending) return false;
   const r = query("SELECT * FROM reservations WHERE id=?", [resvId])[0];
   if (!r || (r.status !== "预约" && r.status !== "已确认")) {
-    alert("该预约当前不可分配床位");
+    await uiAlert("该预约当前不可分配床位");
     if (finishPending) finishPending();
     return false;
   }
@@ -464,19 +464,19 @@ async function assignReservationToBed(resvId, bedId, opts) {
     return false;
   }
   if (!dormMatchGender(bed.dorm_type, r.gender)) {
-    alert("该床位所在房间寮类型不符");
+    await uiAlert("该床位所在房间寮类型不符");
     if (finishPending) finishPending();
     return false;
   }
   if (!isBedAssignable(bedId)) {
-    alert("该床位当前不可分配");
+    await uiAlert("该床位当前不可分配");
     if (finishPending) finishPending();
     return false;
   }
   const checkIn = r.expected_check_in || todayStr();
   const checkOut = r.expected_check_out || null;
   if (checkOut && checkOut < checkIn) {
-    alert("预约离院日期不能早于入住日期");
+    await uiAlert("预约离院日期不能早于入住日期");
     return false;
   }
   try {
@@ -562,7 +562,7 @@ async function assignReservationToBed(resvId, bedId, opts) {
     return true;
   } catch (e) {
     console.error(e);
-    alert("分配床位失败：" + e.message);
+    await uiAlert("分配床位失败：" + e.message);
     return false;
   } finally {
     if (finishPending) finishPending();
@@ -575,7 +575,7 @@ document
     e.preventDefault();
     const bedId = document.getElementById("ci-bed").value;
     if (!bedId) {
-      alert("请选择床位");
+      await uiAlert("请选择床位");
       return;
     }
     const bed = query(
@@ -589,11 +589,11 @@ document
     )[0];
     const gender = document.getElementById("ci-gender").value;
     if (bed.dorm_type !== "不限" && !dormMatchGender(bed.dorm_type, gender)) {
-      alert(`该房间为「${bed.dorm_type}」，请选择对应床位。`);
+      await uiAlert(`该房间为「${bed.dorm_type}」，请选择对应床位。`);
       return;
     }
     if (!isBedAssignable(bedId)) {
-      alert("该床位当前不可分配（可能未清洁或已占用），请选择其他床位。");
+      await uiAlert("该床位当前不可分配（可能未清洁或已占用），请选择其他床位。");
       return;
     }
 
@@ -628,14 +628,14 @@ document
         .value.trim(),
     });
     if (!contact.ok) {
-      alertGuestContactError(contact);
+      await alertGuestContactError(contact);
       return;
     }
 
     const checkIn = document.getElementById("ci-in").value;
     const checkOut = document.getElementById("ci-out").value || null;
     if (checkOut && checkOut < checkIn) {
-      alert("预离日期不能早于入住日期");
+      await uiAlert("预离日期不能早于入住日期");
       return;
     }
     if (!validateMealNeedPicker("ci-meal-need")) return;
@@ -646,7 +646,7 @@ document
       const info =
         personDisplayName(dup) + (dup.phone ? " · " + dup.phone : "");
       if (
-        !confirm(`检测到该手机号/身份证已有在住记录：${info}\n是否继续登记？`)
+        !await uiConfirm(`检测到该手机号/身份证已有在住记录：${info}\n是否继续登记？`)
       )
         return;
     }
@@ -656,7 +656,7 @@ document
     if (resvId) {
       const rsv = query("SELECT * FROM reservations WHERE id=?", [resvId])[0];
       if (!rsv || !["预约", "已确认"].includes(rsv.status)) {
-        alert("该预约状态已变更，请重新选择预约或取消关联。");
+        await uiAlert("该预约状态已变更，请重新选择预约或取消关联。");
         document.getElementById("ci-resv-id").value = "";
         return;
       }
@@ -666,7 +666,7 @@ document
     try {
       participantTags = readParticipantTagsFromForm("ci");
     } catch (err) {
-      alert(err.message || String(err));
+      await uiAlert(err.message || String(err));
       return;
     }
 
@@ -835,7 +835,7 @@ document
       });
     } catch (err) {
       console.error(err);
-      alert("入住登记失败：" + err.message);
+      await uiAlert("入住登记失败：" + err.message);
     } finally {
       finishPending();
     }

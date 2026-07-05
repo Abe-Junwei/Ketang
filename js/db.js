@@ -611,7 +611,7 @@ function applyRemoteDelta(delta, options) {
   }
 }
 
-function resetRemoteReadModelState() {
+async function resetRemoteReadModelState() {
   if (!isRemoteDB()) return;
   remoteReadModelReady = false;
   remoteLocalSchemaReady = false;
@@ -756,7 +756,7 @@ async function saveDB() {
     });
   } catch (e) {
     console.error("保存数据失败：", e);
-    alert(
+    await uiAlert(
       "保存数据失败：" +
         e.message +
         "\n请立即导出 ketang.db 备份，避免数据丢失！",
@@ -2657,7 +2657,7 @@ function formatImportSummary(summary) {
   );
 }
 
-function exportDB() {
+async function exportDB() {
   if (!requireBackupRead()) return;
   if (isRemoteDB()) {
     apiExportJsonBackup()
@@ -2670,8 +2670,8 @@ function exportDB() {
         checkBackupReminder();
         showToast("已导出 JSON 备份");
       })
-      .catch(function (e) {
-        alert("导出失败：" + e.message);
+      .catch(async function (e) {
+        await uiAlert("导出失败：" + e.message);
       });
     return;
   }
@@ -2698,7 +2698,7 @@ async function importDB(input) {
   if (isRemoteDB()) {
     const file = input.files[0];
     if (!file) return;
-    if (!confirm("恢复备份会覆盖当前云端数据，是否继续？")) {
+    if (!(await uiConfirm("恢复备份会覆盖当前云端数据，是否继续？"))) {
       input.value = "";
       return;
     }
@@ -2713,7 +2713,7 @@ async function importDB(input) {
         await renderAll({ forceSync: true });
         showToast(formatImportSummary(result.summary));
       } catch (err) {
-        alert("恢复失败：" + err.message);
+        await uiAlert("恢复失败：" + err.message);
       } finally {
         input.value = "";
       }
@@ -2723,7 +2723,7 @@ async function importDB(input) {
   }
   const file = input.files[0];
   if (!file) return;
-  if (!confirm("恢复备份会覆盖当前数据，是否继续？")) {
+  if (!(await uiConfirm("恢复备份会覆盖当前数据，是否继续？"))) {
     input.value = "";
     return;
   }
@@ -2768,7 +2768,7 @@ async function importDB(input) {
       await renderAll();
       showToast(formatImportSummary(summarizeLocalImportCounts()));
     } catch (err) {
-      alert("恢复失败：" + err.message);
+      await uiAlert("恢复失败：" + err.message);
     } finally {
       input.value = "";
     }
@@ -2776,13 +2776,26 @@ async function importDB(input) {
   reader.readAsArrayBuffer(file);
 }
 
+async function confirmResetDatabase() {
+  if (
+    await uiConfirm({
+      title: "重置数据库",
+      message: "确定要重置所有数据吗？此操作不可恢复！",
+      confirmText: "重置",
+      danger: true,
+    })
+  ) {
+    await resetDatabase();
+  }
+}
+
 async function resetDatabase() {
   if (!requireAdmin()) {
-    alert("需要管理员权限");
+    await uiAlert("需要管理员权限");
     return;
   }
   if (isRemoteDB()) {
-    alert(
+    await uiAlert(
       "云端模式不允许从浏览器重置数据库；请在 Cloudflare D1 控制台执行维护操作。",
     );
     return;

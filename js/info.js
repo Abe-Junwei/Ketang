@@ -616,8 +616,8 @@ async function infoRevertTab(tab) {
   await infoLoadAndRenderCurrentTab({ forceFetch: true, skipLoading: true });
 }
 
-function infoConfirm(msg) {
-  return confirm(msg);
+async function infoConfirm(msg) {
+  return await uiConfirm(msg);
 }
 
 function infoSelectHtml(id, options, selected, attrs) {
@@ -747,7 +747,7 @@ function renderRoomList() {
   infoFinishListRender("rooms", toolbar, tableHtml, rowsHtml, "");
 }
 
-function openRoomModal(id) {
+async function openRoomModal(id) {
   const isEdit = !!id;
   let r = { name: "", location: "", floor: 1, dorm_type: "不限", notes: "" };
   if (isEdit) {
@@ -787,7 +787,7 @@ async function submitRoom(event, id) {
     try {
       roomTags = readRoomTagFieldsFromForm();
     } catch (err) {
-      alert(err.message || String(err));
+      await uiAlert(err.message || String(err));
       return;
     }
 
@@ -867,7 +867,8 @@ async function deleteRoom(id) {
       `该房间下还有 ${bedCount} 张床位，请先删除床位后再删除房间`,
     );
   }
-  if (!infoConfirm(`确定删除房间「${r.name}」吗？此操作不可恢复。`)) return;
+  if (!(await infoConfirm(`确定删除房间「${r.name}」吗？此操作不可恢复。`)))
+    return;
   try {
     if (infoUseApiData()) {
       infoApplyOptimistic(
@@ -961,7 +962,7 @@ function renderBedList() {
   infoFinishListRender("beds", toolbar, tableHtml, rowsHtml, "");
 }
 
-function openBedModal(id) {
+async function openBedModal(id) {
   const isEdit = !!id;
   let b = { room_id: "", bed_number: "", status: "可用", notes: "" };
   let occupied = false;
@@ -1008,7 +1009,7 @@ async function submitBed(event, id) {
     try {
       bedTags = readBedTagFieldsFromForm();
     } catch (err) {
-      alert(err.message || String(err));
+      await uiAlert(err.message || String(err));
       return;
     }
 
@@ -1099,9 +1100,9 @@ async function deleteBed(id) {
     return infoToast("该床位当前有在住住客，无法删除");
   }
   if (
-    !infoConfirm(
+    !(await infoConfirm(
       `确定删除 ${infoEscape(b.room_name)} 的 ${infoEscape(b.bed_number)} 吗？此操作不可恢复。`,
-    )
+    ))
   )
     return;
   try {
@@ -1189,7 +1190,7 @@ function renderGuestList() {
   infoFinishListRender("guests", toolbar, tableHtml, rowsHtml, "");
 }
 
-function openGuestModal(id) {
+async function openGuestModal(id) {
   const isEdit = !!id;
   let g = {
     name: "",
@@ -1257,7 +1258,7 @@ async function submitGuest(event, id) {
       } else if (contact.field === "emergency_phone") {
         infoShowFieldError("info-guest-emergency-phone", contact.msg);
       } else {
-        alert(contact.msg);
+        await uiAlert(contact.msg);
       }
       return;
     }
@@ -1340,9 +1341,9 @@ async function deleteGuest(id) {
     return infoToast(`该档案已被 ${refCount} 条挂单记录引用，无法删除`);
   }
   if (
-    !infoConfirm(
+    !(await infoConfirm(
       `确定删除住客档案「${personDisplayName(g)}」吗？此操作不可恢复。`,
-    )
+    ))
   )
     return;
   try {
@@ -1497,7 +1498,7 @@ function openLodgerModal(id) {
   document.getElementById("modal").classList.add("active");
 }
 
-function infoReloadBedOptions(roomSelectId, bedSelectId, selectedBedId) {
+async function infoReloadBedOptions(roomSelectId, bedSelectId, selectedBedId) {
   const roomId = document.getElementById(roomSelectId).value;
   const bedSelect = document.getElementById(bedSelectId);
   if (!roomId) {
@@ -1543,7 +1544,7 @@ async function submitLodger(event, id) {
       } else if (contact.field === "phone") {
         infoShowFieldError("info-lodger-phone", contact.msg);
       } else {
-        alert(contact.msg);
+        await uiAlert(contact.msg);
       }
       return;
     }
@@ -1563,9 +1564,9 @@ async function submitLodger(event, id) {
       const infoDup =
         personDisplayName(dup) + (dup.phone ? " · " + dup.phone : "");
       if (
-        !confirm(
+        !(await uiConfirm(
           `检测到该手机号/身份证已有在住记录：${infoDup}\n是否继续保存？`,
-        )
+        ))
       )
         return;
     }
@@ -1652,7 +1653,8 @@ async function deleteInfoLodger(id) {
   const l = infoFindLodger(id);
   if (!l) return infoToast("挂单记录不存在");
   const info = personDisplayName(l) + (l.phone ? " · " + l.phone : "");
-  if (!infoConfirm(`确定删除挂单记录？\n${info}\n删除后不可恢复。`)) return;
+  if (!(await infoConfirm(`确定删除挂单记录？\n${info}\n删除后不可恢复。`)))
+    return;
   try {
     if (infoUseApiData()) {
       infoApplyOptimistic(

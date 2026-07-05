@@ -213,10 +213,10 @@ function renderMealReportCharts(byRole, byRoom) {
   }
 }
 
-function exportMealReportCSV() {
+async function exportMealReportCSV() {
   const date = document.getElementById("r-meal-date").value;
   if (!date) {
-    alert("请选择日期");
+    await uiAlert("请选择日期");
     return;
   }
   const byRole = getMealReportByRole(date);
@@ -471,7 +471,7 @@ function renderDailyReportCharts(
   });
 }
 
-function renderReportTable(rows, cols) {
+async function renderReportTable(rows, cols) {
   if (!rows.length) return '<p class="empty-tip">无</p>';
   return (
     `<table><thead><tr>${cols.map((c) => `<th>${c}</th>`).join("")}</tr></thead><tbody>` +
@@ -488,7 +488,7 @@ function renderReportTable(rows, cols) {
 async function exportDailyReportCSV() {
   const date = document.getElementById("r-daily-date").value;
   if (!date) {
-    alert("请选择日期");
+    await uiAlert("请选择日期");
     return;
   }
   await reportsEnsureData(date);
@@ -641,7 +641,7 @@ async function renderMonthlyReport() {
   renderMonthlyReportCharts(byDay, payMap);
 }
 
-function renderMonthlyReportCharts(byDay, payMap) {
+async function renderMonthlyReportCharts(byDay, payMap) {
   if (typeof Chart === "undefined") return;
   const T = getChartTheme();
   if (byDay.length) {
@@ -699,7 +699,7 @@ function renderMonthlyReportCharts(byDay, payMap) {
 async function exportMonthlyReportCSV() {
   const month = document.getElementById("r-month").value;
   if (!month) {
-    alert("请选择月份");
+    await uiAlert("请选择月份");
     return;
   }
   await reportsEnsureData(month);

@@ -6,12 +6,12 @@ document.getElementById("resv-form").addEventListener("submit", async (e) => {
   const gender = document.getElementById("resv-gender").value;
   const checkIn = document.getElementById("resv-in").value;
   if (!name || !gender || !checkIn) {
-    alert("请填写姓名、性别和预计入住日期");
+    await uiAlert("请填写姓名、性别和预计入住日期");
     return;
   }
   const checkOut = document.getElementById("resv-out").value || null;
   if (checkOut && checkOut < checkIn) {
-    alert("预计离院日期不能早于预计入住日期");
+    await uiAlert("预计离院日期不能早于预计入住日期");
     return;
   }
   if (!validateFields(["resv-phone", "resv-idcard", "resv-emergency-phone"])) {
@@ -30,7 +30,7 @@ document.getElementById("resv-form").addEventListener("submit", async (e) => {
       .value.trim(),
   });
   if (!contact.ok) {
-    alertGuestContactError(contact);
+    await alertGuestContactError(contact);
     return;
   }
   const person = parsePersonNameInput(name);
@@ -39,7 +39,7 @@ document.getElementById("resv-form").addEventListener("submit", async (e) => {
     const evt =
       typeof eventGetById === "function" ? eventGetById(eventId) : null;
     if (!evt || evt.status === "已取消") {
-      alert("所选营期不存在或已取消，请重新选择");
+      await uiAlert("所选营期不存在或已取消，请重新选择");
       return;
     }
   }
@@ -50,7 +50,7 @@ document.getElementById("resv-form").addEventListener("submit", async (e) => {
   try {
     participantTags = readParticipantTagsFromForm("resv");
   } catch (err) {
-    alert(err.message || String(err));
+    await uiAlert(err.message || String(err));
     return;
   }
 
@@ -187,7 +187,7 @@ document.getElementById("resv-form").addEventListener("submit", async (e) => {
     rcRefreshAfterWrite(writeResult);
   } catch (e) {
     console.error(e);
-    alert("保存预约失败：" + e.message);
+    await uiAlert("保存预约失败：" + e.message);
   } finally {
     finishPending();
   }
@@ -208,11 +208,11 @@ function resetResvForm() {
   }
 }
 
-function editResv(id) {
+async function editResv(id) {
   const r = reservationForStatus(id);
   if (!r) return;
   if (r.status === "已入住" || r.status === "已取消") {
-    alert("已入住或已取消的预约不可编辑");
+    await uiAlert("已入住或已取消的预约不可编辑");
     return;
   }
   showView("reservations");
@@ -384,7 +384,7 @@ function applyReservationStatusOptimistic(row, status) {
   return original;
 }
 
-function rollbackReservationStatusOptimistic(original) {
+async function rollbackReservationStatusOptimistic(original) {
   if (!original || typeof rcApplyDeltaPatches !== "function") return true;
   try {
     rcApplyDeltaPatches({ reservations: [original] }, []);
@@ -444,11 +444,11 @@ async function updateResvStatus(source, id, status) {
     var rollbackOk = rollbackReservationStatusOptimistic(original);
     var refreshOk = await forceRefreshReservations();
     if (!rollbackOk && !refreshOk) {
-      alert(
+      await uiAlert(
         "更新预约状态失败，且无法恢复最新数据，请手动刷新页面：" + e.message,
       );
     } else {
-      alert("更新预约状态失败：" + e.message);
+      await uiAlert("更新预约状态失败：" + e.message);
     }
   } finally {
     delete RESERVATION_STATUS_PENDING[id];
@@ -456,11 +456,11 @@ async function updateResvStatus(source, id, status) {
   }
 }
 
-function checkInFromResv(id) {
+async function checkInFromResv(id) {
   const r = reservationForStatus(id);
   if (!r) return;
   if (r.status === "已取消" || r.status === "No-show") {
-    alert("该预约已取消或 No-show，无法转入住");
+    await uiAlert("该预约已取消或 No-show，无法转入住");
     return;
   }
   const mf = reservationMealFlags(r);

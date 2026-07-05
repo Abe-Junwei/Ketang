@@ -114,7 +114,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       ? `
       <button class="btn btn-warning" onclick="document.getElementById('import-file').click()">从文件恢复数据</button>
       <input type="file" id="import-file" style="display:none" accept="${importAccept}" onchange="importDB(this)">
-      <button class="btn btn-danger" onclick="if(confirm('确定要重置所有数据吗？此操作不可恢复！')){resetDatabase()}">重置数据库</button>
+      <button class="btn btn-danger" onclick="confirmResetDatabase()">重置数据库</button>
     `
       : `<p class="empty-tip">需要管理员权限才能恢复或重置数据。请使用管理员账号登录后刷新页面。</p>`;
     document.querySelector("main").innerHTML = `
@@ -456,7 +456,7 @@ function syncMobileNavActive(viewName, stayMode) {
   }
 }
 
-function showView(name) {
+async function showView(name) {
   if (!requireAuth()) return;
   closeMobileMoreMenu();
   // 权限检查：info 和 backup 仅管理员可访问
@@ -464,7 +464,7 @@ function showView(name) {
     (name === "info" && !hasPermission("settings.read")) ||
     (name === "backup" && !hasPermission("backup.read"))
   ) {
-    alert("需要管理员权限");
+    await uiAlert("需要管理员权限");
     return;
   }
   if (name === "checkin") {
@@ -2006,6 +2006,100 @@ function setModalWide(wide) {
 }
 
 let _confirmResolver = null;
+let _alertResolver = null;
+let _promptResolver = null;
+
+function dismissAlert() {
+  if (!_alertResolver) return;
+  const resolve = _alertResolver;
+  _alertResolver = null;
+  document.getElementById("modal").classList.remove("active");
+  setModalWide(false);
+  if (typeof closeAllSelectPickers === "function") closeAllSelectPickers();
+  resolve();
+}
+
+/** 单按钮提示弹窗（替代 alert）| Alert dialog replacing window.alert */
+function showAlert(options) {
+  options = options || {};
+  return new Promise(function (resolve) {
+    _alertResolver = resolve;
+    document.getElementById("modal-title").textContent =
+      options.title || "提示";
+    setModalBody(
+      '<div class="modal-form confirm-dialog">' +
+        '<p class="confirm-dialog-message">' +
+        escapeHtml(String(options.message || "")).replace(/\n/g, "<br>") +
+        "</p>" +
+        '<div class="modal-actions">' +
+        '<button type="button" class="btn btn-primary" id="alert-ok">' +
+        escapeHtml(options.okText || "确定") +
+        "</button>" +
+        "</div>" +
+        "</div>",
+    );
+    document.getElementById("alert-ok").onclick = function () {
+      dismissAlert();
+    };
+    document.getElementById("modal").classList.add("active");
+  });
+}
+
+function dismissPrompt(value) {
+  if (!_promptResolver) return;
+  const resolve = _promptResolver;
+  _promptResolver = null;
+  document.getElementById("modal").classList.remove("active");
+  setModalWide(false);
+  if (typeof closeAllSelectPickers === "function") closeAllSelectPickers();
+  resolve(value);
+}
+
+/** 输入弹窗（替代 prompt）| Prompt dialog replacing window.prompt */
+function showPrompt(options) {
+  options = options || {};
+  return new Promise(function (resolve) {
+    _promptResolver = resolve;
+    const inputId = "prompt-input-value";
+    document.getElementById("modal-title").textContent =
+      options.title || "请输入";
+    const messageHtml = options.message
+      ? '<p class="confirm-dialog-message">' +
+        escapeHtml(String(options.message)).replace(/\n/g, "<br>") +
+        "</p>"
+      : "";
+    setModalBody(
+      '<div class="modal-form confirm-dialog">' +
+        messageHtml +
+        '<label class="field"><input type="text" id="' +
+        inputId +
+        '" class="input" value="' +
+        escapeHtml(String(options.defaultValue || "")) +
+        '"></label>' +
+        '<div class="modal-actions">' +
+        '<button type="button" class="btn btn-default" id="prompt-cancel">' +
+        escapeHtml(options.cancelText || "取消") +
+        "</button>" +
+        '<button type="button" class="btn btn-primary" id="prompt-ok">' +
+        escapeHtml(options.confirmText || "确定") +
+        "</button>" +
+        "</div>" +
+        "</div>",
+    );
+    document.getElementById("prompt-cancel").onclick = function () {
+      dismissPrompt(null);
+    };
+    document.getElementById("prompt-ok").onclick = function () {
+      dismissPrompt(document.getElementById(inputId).value);
+    };
+    document.getElementById("modal").classList.add("active");
+    const input = document.getElementById(inputId);
+    if (input) {
+      input.focus();
+      input.select();
+    }
+  });
+}
 
 function dismissConfirm(result) {
   if (!_confirmResolver) return;
@@ -2058,6 +2152,14 @@ function closeModal() {
     typeof isPasswordChangeBlocking === "function" &&
     isPasswordChangeBlocking()
   ) {
+    return;
+  }
+  if (_promptResolver) {
+    dismissPrompt(null);
+    return;
+  }
+  if (_alertResolver) {
+    dismissAlert();
     return;
   }
   if (_confirmResolver) {

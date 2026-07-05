@@ -200,7 +200,7 @@ function renderRoomingAdjustmentsTable(rows) {
 
 async function renderRoomingRetrospective(eventId) {
   if (typeof hasPermission === "function" && !hasPermission("lodging.read")) {
-    alert("权限不足");
+    await uiAlert("权限不足");
     return;
   }
   if (!roomingUseLocalRead()) {
@@ -257,7 +257,7 @@ async function renderRoomingRetrospective(eventId) {
 
     infoPageShell(toolbar, bodyHtml);
   } catch (err) {
-    alert("加载复盘失败：" + (err.message || err));
+    await uiAlert("加载复盘失败：" + (err.message || err));
   }
 }
 
@@ -266,10 +266,10 @@ async function handleRoomingManualNote(eventId) {
     typeof hasPermission === "function" &&
     !hasPermission("lodging.checkin")
   ) {
-    alert("权限不足");
+    await uiAlert("权限不足");
     return;
   }
-  var reason = prompt("请输入调整说明（将记入活动调整记录）：");
+  var reason = await uiPrompt("请输入调整说明（将记入活动调整记录）：");
   if (!reason || !String(reason).trim()) return;
   var plan = getPublishedRoomingPlan(eventId);
   try {
@@ -282,7 +282,7 @@ async function handleRoomingManualNote(eventId) {
     showToast("已记录调整备注");
     await renderRoomingRetrospective(eventId);
   } catch (err) {
-    alert("记录失败：" + (err.message || err));
+    await uiAlert("记录失败：" + (err.message || err));
   }
 }
 
@@ -290,7 +290,7 @@ async function exportRoomingRetrospectiveCSV(eventId) {
   var data = await fetchRoomingRetrospective(eventId);
   var rows = data.adjustments || [];
   if (!rows.length) {
-    alert("暂无调整记录可导出");
+    await uiAlert("暂无调整记录可导出");
     return;
   }
   var lines = [
