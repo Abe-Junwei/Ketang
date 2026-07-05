@@ -460,7 +460,7 @@ def test_login_ui_has_no_fake_identity_loading():
     if 'apiAuthRefreshForRestore' not in api_client or 'apiFetch("/api/v1/auth/refresh"' not in api_client:
         print('FAIL refresh restore must use apiFetch with timeout')
         sys.exit(1)
-    if 'ketang-shell-v26' not in read('sw.js'):
+    if 'ketang-shell-v29' not in read('sw.js'):
         print('FAIL sw.js must bump cache version after startup UX change')
         sys.exit(1)
     db_js = read('js/db.js')

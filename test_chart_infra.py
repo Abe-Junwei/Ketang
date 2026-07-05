@@ -37,12 +37,20 @@ def main():
         "chart_pilot_keys",
         "shouldUseKetangEchartsForKey",
         "ketangChartUpdateQueue",
+        "ketangEchartUpdateQueue",
         "scheduleKetangChartUpdate",
+        "scheduleKetangEchartUpdate",
         "canReuseKetangChart",
+        "getKetangChartVisibilityElement",
         "chartJsConfigToEchartsOption",
         "upsertKetangChart",
         "requestAnimationFrame",
         'chart.update("none")',
+        "assignKetangEchartsGroup",
+        "chart.group = groupId",
+        "yAxisIndex: 0",
+        "role",
+        "aria-label",
         'return "echarts"',
     ]
     for token in required:
@@ -53,7 +61,7 @@ def main():
     if "destroyKetangChart(key);\n  var merged" in chart_theme:
         print("FAIL chart helpers must not destroy and recreate on every render")
         raise SystemExit(1)
-    if 'chart-theme.js?v=9' not in index:
+    if 'chart-theme.js?v=10' not in index:
         print("FAIL index.html must bump chart-theme asset version")
         raise SystemExit(1)
     if 'events.js?v=28' not in index:
@@ -72,7 +80,7 @@ def main():
     if "./lib/echarts.min.js" not in sw:
         print("FAIL sw.js must precache echarts runtime")
         raise SystemExit(1)
-    if "ketang-shell-v26" not in sw:
+    if "ketang-shell-v29" not in sw:
         print("FAIL sw.js must bump cache version after chart runtime change")
         raise SystemExit(1)
 

@@ -9,6 +9,8 @@ var ketangEcharts = {};
 var ketangEchartMeta = {};
 var ketangChartUpdateQueue = {};
 var ketangChartUpdateScheduled = false;
+var ketangEchartUpdateQueue = {};
+var ketangEchartUpdateScheduled = false;
 var ketangChartEngineWarned = false;
 var ketangChartDeferred = {};
 var ketangChartDeferredObserver = null;
@@ -65,6 +67,13 @@ function isKetangChartElementVisible(el) {
     node = node.parentElement;
   }
   return true;
+}
+
+function getKetangChartVisibilityElement(el) {
+  if (el && el.__ketangEchartHost && el.__ketangEchartHost.isConnected) {
+    return el.__ketangEchartHost;
+  }
+  return el;
 }
 
 function ensureKetangChartDeferredObserver() {
@@ -141,7 +150,14 @@ function mountKetangChartsInRoot(root) {
     var pending = ketangChartDeferred[key];
     if (!pending) return;
     var el = resolveChartCanvas(pending.canvasOrId);
-    if (el && root.contains(el) && isKetangChartElementVisible(el)) {
+    if (!el || !root.contains(el)) return;
+    // 视图已激活时直接 flush，避免 canvas 尚未布局时 rect 为 0 卡住延迟队列。
+    if (root.classList.contains("active")) {
+      flushDeferredKetangChart(key);
+      return;
+    }
+    var visibleEl = getKetangChartVisibilityElement(el);
+    if (isKetangChartElementVisible(visibleEl)) {
       flushDeferredKetangChart(key);
     }
   });
@@ -280,6 +296,7 @@ function destroyKetangChart(key) {
   delete ketangChartMeta[key];
   delete ketangEchartMeta[key];
   delete ketangChartUpdateQueue[key];
+  delete ketangEchartUpdateQueue[key];
 }
 
 function destroyKetangChartsByPrefix(prefix) {
@@ -449,6 +466,18 @@ function resolveKetangEchartHost(canvasEl, key, mode) {
   if (mode === "ring") host.classList.add("ketang-echart-host--ring");
   if (canvasEl.id) host.id = canvasEl.id + "-echart";
   host.setAttribute("data-ketang-chart-key", String(key || ""));
+  if (canvasEl.getAttribute("role")) {
+    host.setAttribute("role", canvasEl.getAttribute("role"));
+  }
+  if (canvasEl.getAttribute("aria-label")) {
+    host.setAttribute("aria-label", canvasEl.getAttribute("aria-label"));
+  }
+  if (canvasEl.getAttribute("aria-describedby")) {
+    host.setAttribute(
+      "aria-describedby",
+      canvasEl.getAttribute("aria-describedby"),
+    );
+  }
   host.style.flex = "1";
   host.style.minHeight = "0";
   host.style.width = "100%";
@@ -543,6 +572,36 @@ function scheduleKetangChartUpdate(key, merged) {
   });
 }
 
+function scheduleKetangEchartUpdate(key, chart, option) {
+  ketangEchartUpdateQueue[key] = { chart: chart, option: option };
+  if (ketangEchartUpdateScheduled) return;
+  ketangEchartUpdateScheduled = true;
+  var schedule =
+    typeof requestAnimationFrame === "function"
+      ? requestAnimationFrame
+      : function (fn) {
+          return setTimeout(fn, 0);
+        };
+  schedule(function () {
+    var queue = ketangEchartUpdateQueue;
+    ketangEchartUpdateQueue = {};
+    ketangEchartUpdateScheduled = false;
+    Object.keys(queue).forEach(function (queuedKey) {
+      try {
+        var item = queue[queuedKey];
+        if (!item || ketangEcharts[queuedKey] !== item.chart) return;
+        // 与 Chart.js 保持同帧合并语义 | Keep ECharts updates coalesced with Chart.js.
+        var updateStart = ketangChartNow();
+        item.chart.setOption(item.option, true, true);
+        item.chart.resize();
+        recordKetangChartPerf("update", updateStart);
+      } catch (err) {
+        console.error("图表更新失败 | Chart update failed:", queuedKey, err);
+      }
+    });
+  });
+}
+
 function defaultChartTypeForMode(mode) {
   if (mode === "ring") return "doughnut";
   if (mode === "pie") return "pie";
@@ -585,19 +644,34 @@ function chartJsLegendToEcharts(chartOpts, mode) {
   return result;
 }
 
-function applyKetangEchartsDataZoom(option, labels, threshold) {
+function applyKetangEchartsDataZoom(option, labels, threshold, isHorizontal) {
   threshold = threshold || 10;
   if (!labels || labels.length <= threshold) return;
+  var sliderBase = {
+    type: "slider",
+    borderColor: "transparent",
+    fillerColor: hexToRgba(cssHex("--color-primary", "#a64b3f"), 0.15),
+  };
+  if (isHorizontal) {
+    option.dataZoom = [
+      { type: "inside", yAxisIndex: 0 },
+      Object.assign({}, sliderBase, {
+        yAxisIndex: 0,
+        width: 14,
+        right: 2,
+      }),
+    ];
+    option.grid = option.grid || {};
+    option.grid.right = (option.grid.right || 16) + 22;
+    return;
+  }
   option.dataZoom = [
     { type: "inside", xAxisIndex: 0 },
-    {
-      type: "slider",
+    Object.assign({}, sliderBase, {
       xAxisIndex: 0,
       height: 14,
       bottom: 2,
-      borderColor: "transparent",
-      fillerColor: hexToRgba(cssHex("--color-primary", "#a64b3f"), 0.15),
-    },
+    }),
   ];
   option.grid = option.grid || {};
   option.grid.bottom = (option.grid.bottom || 36) + 22;
@@ -634,6 +708,12 @@ function getKetangEchartsGroupId(key) {
 function connectKetangEchartsGroup(groupId) {
   if (!groupId || typeof echarts === "undefined" || !echarts.connect) return;
   echarts.connect(groupId);
+}
+
+function assignKetangEchartsGroup(chart, groupId) {
+  if (!chart || !groupId) return;
+  chart.group = groupId;
+  connectKetangEchartsGroup(groupId);
 }
 
 function ensureKetangChartResizeListener() {
@@ -798,7 +878,7 @@ function chartJsConfigToEchartsOption(merged, mode) {
       if (stacked || ds.stack) barSeries.stack = String(ds.stack || "total");
       return barSeries;
     });
-    applyKetangEchartsDataZoom(option, labels, 8);
+    applyKetangEchartsDataZoom(option, labels, 8, isHorizontal);
     return option;
   }
 
@@ -815,7 +895,7 @@ function chartJsConfigToEchartsOption(merged, mode) {
     if (stacked || ds.stack) series.stack = String(ds.stack || "total");
     return series;
   });
-  applyKetangEchartsDataZoom(option, labels, 12);
+  applyKetangEchartsDataZoom(option, labels, 12, isHorizontal);
   return option;
 }
 
@@ -837,11 +917,10 @@ function upsertKetangEchart(key, canvasEl, merged, mode) {
   if (!host) return null;
   var option = chartJsConfigToEchartsOption(merged, mode);
   if (canReuseKetangEchart(key, host, type)) {
-    var reuseStart = ketangChartNow();
-    ketangEcharts[key].setOption(option, true, true);
-    ketangEcharts[key].resize();
+    var existingGroupId = getKetangEchartsGroupId(key);
+    assignKetangEchartsGroup(ketangEcharts[key], existingGroupId);
     ketangChartPerf.reuseCount += 1;
-    recordKetangChartPerf("update", reuseStart);
+    scheduleKetangEchartUpdate(key, ketangEcharts[key], option);
     return ketangEcharts[key];
   }
   destroyKetangChart(key);
@@ -856,7 +935,7 @@ function upsertKetangEchart(key, canvasEl, merged, mode) {
   );
   chart.setOption(option, true, true);
   chart.resize();
-  if (groupId) connectKetangEchartsGroup(groupId);
+  assignKetangEchartsGroup(chart, groupId);
   recordKetangChartPerf("init", initStart);
   ketangEcharts[key] = chart;
   ketangEchartMeta[key] = { el: host, canvasEl: canvasEl, type: type };
@@ -871,9 +950,13 @@ function upsertKetangChart(key, canvasOrId, config, mode, prepare, options) {
   if (typeof prepare === "function") prepare(merged);
   merged.type = merged.type || defaultChartTypeForMode(mode);
   merged.options = applyKetangChartDefaults(merged.options || {}, mode);
-  var visible = options.skipDefer || isKetangChartElementVisible(el);
+  var visibleEl = getKetangChartVisibilityElement(el);
+  var visible = options.skipDefer || isKetangChartElementVisible(visibleEl);
   if (shouldUseKetangEchartsForKey(key)) {
-    var echartHost = resolveKetangEchartHost(el, key, mode);
+    var echartHost =
+      el.__ketangEchartHost && el.__ketangEchartHost.isConnected
+        ? el.__ketangEchartHost
+        : null;
     if (
       !visible &&
       !canReuseKetangEchart(key, echartHost, merged.type)

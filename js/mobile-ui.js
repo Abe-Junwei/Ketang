@@ -14,6 +14,7 @@ function renderMobileBoardHero() {
   }
   if (typeof getBoardBedStats !== "function") return;
   var stats = getBoardBedStats();
+  if (!stats) return;
   var today = todayStr();
   var flow;
   if (useOnlineDataPath() && typeof rcGetBoardFlowStats === "function") {
