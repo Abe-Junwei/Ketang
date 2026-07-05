@@ -1,6 +1,7 @@
 /* 云端业务 API 客户端 | Remote business API client */
 
 var _refreshInFlight = null;
+var RESTORE_SESSION_TIMEOUT_MS = 10000;
 
 function remoteApiCredentials() {
   return typeof isRemoteDB === "function" && isRemoteDB()
@@ -192,19 +193,12 @@ async function apiAuthRefreshForRestore(options) {
     throw new Error("登录已过期，请重新登录");
   }
   var bootstrapBoard = !!(options && options.bootstrapBoard);
-  const response = await fetch("/api/v1/auth/refresh", {
+  return apiFetch("/api/v1/auth/refresh", {
     method: "POST",
-    credentials: "include",
-    headers: bootstrapBoard
-      ? { "Content-Type": "application/json" }
-      : undefined,
-    body: bootstrapBoard
-      ? JSON.stringify({ bootstrap_board: true })
-      : undefined,
+    preserveSessionOn401: true,
+    timeoutMs: RESTORE_SESSION_TIMEOUT_MS,
+    body: bootstrapBoard ? { bootstrap_board: true } : undefined,
   });
-  const data = await parseJsonResponse(response);
-  if (!response.ok) throw new Error(data.error || "登录已过期，请重新登录");
-  return data;
 }
 
 async function apiAuthLogout() {
@@ -290,7 +284,10 @@ async function apiSessionMe() {
 /** 启动恢复会话：401 时不立即清空，由 restoreRemoteSession 决定 | Boot-time session restore */
 async function apiSessionMeForRestore(options) {
   var qs = options && options.bootstrapBoard ? "?bootstrap_board=1" : "";
-  return apiFetch("/api/v1/session" + qs, { preserveSessionOn401: true });
+  return apiFetch("/api/v1/session" + qs, {
+    preserveSessionOn401: true,
+    timeoutMs: RESTORE_SESSION_TIMEOUT_MS,
+  });
 }
 
 async function apiAdminListUsers() {

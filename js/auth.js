@@ -111,10 +111,6 @@ function restoreCachedUserFromStorage(isRemote) {
   }
 }
 
-function clearAuthPendingGate() {
-  document.documentElement.classList.remove("ketang-auth-pending");
-}
-
 function bootAuthUI() {
   const isRemote = typeof isRemoteDB === "function" && isRemoteDB();
   if (isRemote && typeof purgeLegacyClientTokens === "function") {
@@ -134,7 +130,7 @@ function bootAuthUI() {
       showCachedSessionBootstrapping();
       return;
     }
-    // No cached user yet: use the restore login panel until session is confirmed.
+    // No cached user yet: use a neutral boot gate until session is confirmed.
     showBootstrapping();
     return;
   }
@@ -196,14 +192,28 @@ function setBootBannerVisible(visible) {
   if (el) el.hidden = !visible;
 }
 
+function setAuthBootScreenVisible(visible) {
+  const el = document.getElementById("auth-boot-screen");
+  const card = el ? el.querySelector(".auth-boot-card") : null;
+  if (el) el.classList.toggle("active", !!visible);
+  if (card) card.setAttribute("aria-busy", visible ? "true" : "false");
+}
+
+function clearAuthPendingGate() {
+  document.documentElement.classList.remove("ketang-auth-pending");
+  setAuthBootScreenVisible(false);
+}
+
 function showBootstrapping() {
-  // Keep login overlay (restore panel) up so shell never flashes before auth.
+  // 认证未知时只显示中性启动屏，不显示登录页 | Unknown auth shows neutral boot, not the login UI.
   document.body.classList.remove("auth-logged-in");
-  document.body.classList.add("auth-login-required", "auth-bootstrapping");
+  document.body.classList.remove("auth-login-required");
+  document.body.classList.add("auth-bootstrapping");
   const overlay = document.getElementById("login-overlay");
-  if (overlay) overlay.classList.add("active");
-  setLoginOverlayPanel("restore");
-  setBootBannerVisible(true);
+  if (overlay) overlay.classList.remove("active");
+  setLoginOverlayPanel("form");
+  setAuthBootScreenVisible(true);
+  setBootBannerVisible(false);
 }
 
 function showCachedSessionBootstrapping() {
@@ -221,6 +231,7 @@ function showCachedSessionBootstrapping() {
 
 function hideBootstrapping() {
   document.body.classList.remove("auth-bootstrapping");
+  setAuthBootScreenVisible(false);
   setBootBannerVisible(false);
 }
 

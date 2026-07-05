@@ -392,6 +392,15 @@ def test_login_ui_has_no_fake_identity_loading():
     if '.login-overlay:not(.active)' not in index:
         print('FAIL index.html must inline-hide inactive login overlay before styles.css loads')
         sys.exit(1)
+    if 'auth-boot-screen active' not in index:
+        print('FAIL index.html must show neutral auth boot screen before auth resolves')
+        sys.exit(1)
+    if 'aria-label="正在恢复会话"' not in index:
+        print('FAIL auth boot screen must have a clear accessible label')
+        sys.exit(1)
+    if '.auth-boot-screen:not(.active)' not in index:
+        print('FAIL index.html must inline-hide inactive auth boot screen')
+        sys.exit(1)
     if 'app-boot-banner' not in index:
         print('FAIL index.html missing app boot banner for session restore')
         sys.exit(1)
@@ -401,8 +410,17 @@ def test_login_ui_has_no_fake_identity_loading():
     if 'change-password-form' not in index or 'openChangePasswordModal(false)' not in index:
         print('FAIL index.html missing self-service change password UI')
         sys.exit(1)
-    if 'setLoginOverlayPanel("restore")' not in auth:
-        print('FAIL showBootstrapping must keep restore panel over app shell')
+    if 'setAuthBootScreenVisible(true)' not in auth:
+        print('FAIL showBootstrapping must use neutral auth boot screen')
+        sys.exit(1)
+    if 'aria-busy' not in auth or 'visible ? "true" : "false"' not in auth:
+        print('FAIL auth boot screen must update aria-busy when shown/hidden')
+        sys.exit(1)
+    if 'hideBootstrapping();' not in auth:
+        print('FAIL showLoginOverlay must clear auth boot screen before showing login')
+        sys.exit(1)
+    if 'setLoginOverlayPanel("restore")' in auth:
+        print('FAIL unknown auth state must not show the login restore panel')
         sys.exit(1)
     if 'showCachedSessionBootstrapping' not in auth:
         print('FAIL auth.js must restore cached sessions without showing login overlay')
@@ -412,6 +430,10 @@ def test_login_ui_has_no_fake_identity_loading():
         sys.exit(1)
     if 'body.auth-bootstrapping:not(.auth-login-required)' not in read('styles.css'):
         print('FAIL cached-session restore shell must disable interaction until verified')
+        sys.exit(1)
+    styles = read('styles.css')
+    if 'z-index: 1990' not in styles or 'z-index: 2000' not in styles:
+        print('FAIL auth boot screen must remain below login overlay')
         sys.exit(1)
     if 'clearAuthPendingGate' not in auth:
         print('FAIL auth.js must clear ketang-auth-pending after auth gate resolves')
@@ -425,7 +447,17 @@ def test_login_ui_has_no_fake_identity_loading():
     if 'acceptCachedSessionDegraded' not in auth:
         print('FAIL auth.js missing degraded cached-session path')
         sys.exit(1)
-    if 'ketang-shell-v17' not in read('sw.js'):
+    api_client = read('js/api-client.js')
+    if 'RESTORE_SESSION_TIMEOUT_MS = 10000' not in api_client:
+        print('FAIL restore session API calls must have a bounded timeout')
+        sys.exit(1)
+    if 'apiSessionMeForRestore' not in api_client or 'timeoutMs: RESTORE_SESSION_TIMEOUT_MS' not in api_client:
+        print('FAIL session restore fetch must pass timeoutMs')
+        sys.exit(1)
+    if 'apiAuthRefreshForRestore' not in api_client or 'apiFetch("/api/v1/auth/refresh"' not in api_client:
+        print('FAIL refresh restore must use apiFetch with timeout')
+        sys.exit(1)
+    if 'ketang-shell-v19' not in read('sw.js'):
         print('FAIL sw.js must bump cache version after auth-gate HTML change')
         sys.exit(1)
     if 'bootAuthUI' not in read('js/app.js'):

@@ -26,10 +26,14 @@
       href="icons/icon-192.png"
     />
     <link rel="stylesheet" href="fonts/fonts.css?v=1" />
-    <link rel="stylesheet" href="styles.css?v=70" />
+    <link rel="stylesheet" href="styles.css?v=72" />
     <style>
       /* Hide app chrome until auth gate resolves | Prevent unauthenticated flash */
       .login-overlay:not(.active) {
+        display: none !important;
+      }
+
+      .auth-boot-screen:not(.active) {
         display: none !important;
       }
 
@@ -44,6 +48,19 @@
     <title>客堂管理系统</title>
   </head>
   <body>
+    <!-- 认证启动屏 | Neutral auth bootstrap screen before login is confirmed -->
+    <div
+      class="auth-boot-screen active"
+      id="auth-boot-screen"
+      role="status"
+      aria-label="正在恢复会话"
+    >
+      <div class="auth-boot-card" aria-live="polite" aria-busy="true">
+        <h1>客堂管理系统</h1>
+        <p>正在恢复会话…</p>
+      </div>
+    </div>
+
     <!-- 登录覆盖层 | Login overlay (shown only when unauthenticated) -->
     <div class="login-overlay" id="login-overlay">
       <div class="login-split">
@@ -1943,7 +1960,7 @@
     <script src="./js/perf.js?v=1"></script>
     <script src="./js/perf-rum.js?v=4"></script>
     <script src="./js/db.js?v=41"></script>
-    <script src="./js/api-client.js?v=14"></script>
+    <script src="./js/api-client.js?v=15"></script>
     <script src="./js/read-cache.js?v=30"></script>
     <script src="./js/read-shim.js?v=3"></script>
     <script src="./js/sync-coordinator.js?v=20"></script>
@@ -1970,7 +1987,7 @@
     <script src="./js/rooming-publish.js?v=5"></script>
     <script src="./js/info.js?v=27"></script>
     <script src="./js/permissions.js?v=5"></script>
-    <script src="./js/auth.js?v=35"></script>
+    <script src="./js/auth.js?v=37"></script>
     <script src="./js/icons.js?v=8"></script>
     <script src="./js/picker.js?v=4"></script>
     <script src="./js/mobile-ui.js?v=2"></script>
