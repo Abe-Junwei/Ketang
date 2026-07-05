@@ -404,6 +404,15 @@ def test_login_ui_has_no_fake_identity_loading():
     if 'setLoginOverlayPanel("restore")' not in auth:
         print('FAIL showBootstrapping must keep restore panel over app shell')
         sys.exit(1)
+    if 'showCachedSessionBootstrapping' not in auth:
+        print('FAIL auth.js must restore cached sessions without showing login overlay')
+        sys.exit(1)
+    if 'if (currentUser) {\n      showCachedSessionBootstrapping();' not in auth:
+        print('FAIL bootAuthUI must prefer cached-session shell over login restore overlay')
+        sys.exit(1)
+    if 'body.auth-bootstrapping:not(.auth-login-required)' not in read('styles.css'):
+        print('FAIL cached-session restore shell must disable interaction until verified')
+        sys.exit(1)
     if 'clearAuthPendingGate' not in auth:
         print('FAIL auth.js must clear ketang-auth-pending after auth gate resolves')
         sys.exit(1)
@@ -416,7 +425,7 @@ def test_login_ui_has_no_fake_identity_loading():
     if 'acceptCachedSessionDegraded' not in auth:
         print('FAIL auth.js missing degraded cached-session path')
         sys.exit(1)
-    if 'ketang-shell-v14' not in read('sw.js'):
+    if 'ketang-shell-v16' not in read('sw.js'):
         print('FAIL sw.js must bump cache version after auth-gate HTML change')
         sys.exit(1)
     if 'bootAuthUI' not in read('js/app.js'):

@@ -239,6 +239,12 @@ label,
   min-width: 0;
 }
 
+body.auth-bootstrapping:not(.auth-login-required) .sidebar,
+body.auth-bootstrapping:not(.auth-login-required) .app-shell {
+  pointer-events: none;
+  cursor: progress;
+}
+
 /* 宣纸底纹 | 仅用暖杏/柔沙，不用白高光冲淡底色 */
 body::before {
   content: "";

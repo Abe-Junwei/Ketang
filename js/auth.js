@@ -130,7 +130,11 @@ function bootAuthUI() {
       showLoginOverlay();
       return;
     }
-    // Always cover app shell until session is confirmed (no main-page flash).
+    if (currentUser) {
+      showCachedSessionBootstrapping();
+      return;
+    }
+    // No cached user yet: use the restore login panel until session is confirmed.
     showBootstrapping();
     return;
   }
@@ -199,6 +203,19 @@ function showBootstrapping() {
   const overlay = document.getElementById("login-overlay");
   if (overlay) overlay.classList.add("active");
   setLoginOverlayPanel("restore");
+  setBootBannerVisible(true);
+}
+
+function showCachedSessionBootstrapping() {
+  // 已有缓存用户时保持应用壳可见，避免刷新闪回登录页 | Keep shell visible for cached users to avoid login flash on refresh.
+  markAuthenticated();
+  document.body.classList.remove("auth-login-required");
+  document.body.classList.add("auth-bootstrapping");
+  const overlay = document.getElementById("login-overlay");
+  if (overlay) overlay.classList.remove("active");
+  setLoginOverlayPanel("form");
+  updateAuthUI();
+  clearAuthPendingGate();
   setBootBannerVisible(true);
 }
 
