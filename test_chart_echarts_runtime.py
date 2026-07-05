@@ -181,8 +181,65 @@ def main():
                 sys.exit(1)
         if result.get("width", 0) <= 0 and result.get("height", 0) <= 0:
             if result.get("pixelWidth", 0) <= 0 or result.get("pixelHeight", 0) <= 0:
-                print("FAIL: ECharts host has no rendered size")
+                print("FAIL: ECharts ring host has no rendered size")
                 print(result)
+                sys.exit(1)
+
+        pie_expr = """
+          (async () => {
+            try {
+              document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+              document.getElementById('view-board').classList.add('active');
+              if (typeof renderTodayMealsPanel === 'function') {
+                renderTodayMealsPanel();
+              }
+              mountKetangChartsInRoot(document.getElementById('view-board'));
+              if (typeof resizeKetangChart === 'function') {
+                resizeKetangChart('meals-panel-bf');
+              }
+              await new Promise(r => setTimeout(r, 120));
+              await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+              const host = document.getElementById('chart-meals-bf-echart');
+              const innerCanvas = host ? host.querySelector('canvas') : null;
+              const sizeEl = innerCanvas || host;
+              const rect = sizeEl ? sizeEl.getBoundingClientRect() : null;
+              return {
+                hasHost: !!host,
+                hasPieClass: host ? host.classList.contains('ketang-echart-host--pie') : false,
+                hasCanvas: !!innerCanvas,
+                width: rect ? Math.round(rect.width) : 0,
+                height: rect ? Math.round(rect.height) : 0,
+                pixelWidth: innerCanvas ? innerCanvas.width : 0,
+                pixelHeight: innerCanvas ? innerCanvas.height : 0,
+                engine: typeof ketangEcharts !== 'undefined' && ketangEcharts['meals-panel-bf']
+                  ? 'echarts'
+                  : null,
+              };
+            } catch (err) {
+              return { error: err && (err.stack || err.message || String(err)) };
+            }
+          })()
+        """
+        pie_result = evaluate(ws, pie_expr, timeout=30).get("value") or {}
+        if pie_result.get("error"):
+            print("FAIL: meals pie runtime error")
+            print(pie_result)
+            sys.exit(1)
+        pie_expected = {
+            "hasHost": True,
+            "hasPieClass": True,
+            "hasCanvas": True,
+            "engine": "echarts",
+        }
+        for key, value in pie_expected.items():
+            if pie_result.get(key) != value:
+                print(f"FAIL: meals pie {key} expected {value!r}, got {pie_result.get(key)!r}")
+                print(pie_result)
+                sys.exit(1)
+        if pie_result.get("width", 0) <= 0 or pie_result.get("height", 0) <= 0:
+            if pie_result.get("pixelWidth", 0) <= 0 or pie_result.get("pixelHeight", 0) <= 0:
+                print("FAIL: meals pie ECharts host has no rendered size")
+                print(pie_result)
                 sys.exit(1)
 
         print("OK ECharts runtime checks passed")

@@ -778,7 +778,6 @@ function renderMealsPanelCharts(byRole) {
     typeof createKetangPieChart !== "function"
   )
     return;
-  destroyKetangChartsByPrefix("meals-panel-");
   var T = getChartTheme();
   var specs = [
     {

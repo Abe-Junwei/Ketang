@@ -5407,12 +5407,44 @@ form .field {
   height: 100%;
 }
 
+.ketang-echart-host--pie {
+  flex: none;
+  width: 100%;
+  max-width: 100%;
+  max-height: 180px;
+  aspect-ratio: 1;
+}
+
+.meals-meal-chart-body--pie .ketang-echart-host--pie {
+  max-height: 180px;
+}
+
+.ketang-echart-host--doughnut {
+  flex: 1;
+  min-height: 120px;
+  max-height: 220px;
+  aspect-ratio: 1;
+}
+
+.forecast-chart-box .ketang-echart-host--doughnut {
+  max-height: 200px;
+}
+
 .board-chart-body .ketang-echart-host,
 .forecast-chart-box .ketang-echart-host,
 .meals-meal-chart-body .ketang-echart-host {
+  width: 100%;
+}
+
+.board-chart-body .ketang-echart-host:not(.ketang-echart-host--ring):not(
+    .ketang-echart-host--pie
+  ):not(.ketang-echart-host--doughnut),
+.forecast-chart-box
+  .ketang-echart-host:not(.ketang-echart-host--doughnut):not(
+    .ketang-echart-host--pie
+  ) {
   flex: 1;
   min-height: 0;
-  width: 100%;
 }
 
 /* ============================================================

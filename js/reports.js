@@ -51,7 +51,7 @@ function populateReportEventSelect() {
 }
 
 function destroyReportCharts() {
-  destroyKetangChartsByPrefix("report-");
+  /* upsertKetangChart 负责复用/更新，无需每次 render 全量 destroy */
 }
 
 async function reportsEnsureData(rangeHint) {

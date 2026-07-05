@@ -482,7 +482,6 @@ function renderBoardCapacityForecast() {
 
 function renderBoardCapacityChart(rows) {
   if (!isKetangChartRuntimeReady() || !rows.length) return;
-  destroyKetangChartsByPrefix("board-cap");
   var T = getChartTheme();
   var labels = rows.map(function (r) {
     return r.day.slice(5);

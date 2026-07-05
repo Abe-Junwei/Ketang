@@ -729,7 +729,6 @@ function renderBoardRingChart(key, canvasId, pctElId, stats) {
 
 function renderBoardCharts() {
   if (!isKetangChartRuntimeReady()) return;
-  destroyKetangChartsByPrefix("board-");
   var stats = getBoardBedStats();
   if (!stats) return;
   var today = todayStr();

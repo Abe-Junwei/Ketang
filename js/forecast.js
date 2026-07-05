@@ -56,8 +56,6 @@ function initForecastDates() {
 }
 
 function renderForecastTab(tab) {
-  // 切换 tab 时统一销毁旧图表，避免 canvas 移除后实例泄漏
-  destroyKetangChartsByPrefix("forecast-");
   document
     .querySelectorAll(".forecast-tab-btn")
     .forEach((b) => b.classList.remove("active"));

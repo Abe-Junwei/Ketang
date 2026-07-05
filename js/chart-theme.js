@@ -455,15 +455,21 @@ function resolveChartCanvas(canvasOrId) {
     : canvasOrId;
 }
 
-function resolveKetangEchartHost(canvasEl, key, mode) {
+function resolveKetangEchartHost(canvasEl, key, mode, chartType) {
   if (!canvasEl) return null;
   if (canvasEl.tagName !== "CANVAS") return canvasEl;
+  chartType = chartType || defaultChartTypeForMode(mode);
   if (canvasEl.__ketangEchartHost && canvasEl.__ketangEchartHost.isConnected) {
     return canvasEl.__ketangEchartHost;
   }
   var host = document.createElement("div");
   host.className = "ketang-echart-host";
   if (mode === "ring") host.classList.add("ketang-echart-host--ring");
+  else if (mode === "pie" || chartType === "pie") {
+    host.classList.add("ketang-echart-host--pie");
+  } else if (chartType === "doughnut") {
+    host.classList.add("ketang-echart-host--doughnut");
+  }
   if (canvasEl.id) host.id = canvasEl.id + "-echart";
   host.setAttribute("data-ketang-chart-key", String(key || ""));
   if (canvasEl.getAttribute("role")) {
@@ -478,16 +484,60 @@ function resolveKetangEchartHost(canvasEl, key, mode) {
       canvasEl.getAttribute("aria-describedby"),
     );
   }
-  host.style.flex = "1";
-  host.style.minHeight = "0";
   host.style.width = "100%";
+  if (mode === "ring") {
+    host.style.flex = "1";
+    host.style.minHeight = "0";
+  } else if (mode === "pie" || chartType === "pie") {
+    host.style.flex = "none";
+    host.style.maxHeight = "180px";
+    host.style.aspectRatio = "1";
+  } else if (chartType === "doughnut") {
+    host.style.flex = "1";
+    host.style.minHeight = "120px";
+    host.style.maxHeight = "220px";
+    host.style.aspectRatio = "1";
+  } else {
+    host.style.flex = "1";
+    host.style.minHeight = "0";
+  }
   canvasEl.style.display = "none";
   if (canvasEl.parentNode) {
     canvasEl.parentNode.insertBefore(host, canvasEl.nextSibling);
   }
   canvasEl.__ketangEchartHost = host;
   host.__ketangChartCanvas = canvasEl;
+  syncKetangEchartHostLayout(host);
   return host;
+}
+
+/** 饼/环形容器在 flex 内 aspect-ratio 可能算不出高度，需显式同步 | Explicit pie/doughnut sizing in flex layouts */
+function syncKetangEchartHostLayout(host) {
+  if (!host) return;
+  if (host.classList.contains("ketang-echart-host--pie")) {
+    var pieMax = 180;
+    var pieParent = host.parentElement;
+    var pieParentW = pieParent ? pieParent.clientWidth : 0;
+    var pieSize = pieParentW > 0 ? Math.min(pieMax, pieParentW) : pieMax;
+    host.style.flex = "none";
+    host.style.width = pieSize + "px";
+    host.style.height = pieSize + "px";
+    host.style.maxHeight = pieMax + "px";
+    return;
+  }
+  if (host.classList.contains("ketang-echart-host--doughnut")) {
+    var doughnutMax = 220;
+    var doughnutMin = 120;
+    var doughnutParent = host.parentElement;
+    var doughnutParentW = doughnutParent ? doughnutParent.clientWidth : 0;
+    var doughnutSize =
+      doughnutParentW > 0
+        ? Math.min(doughnutMax, Math.max(doughnutMin, doughnutParentW))
+        : doughnutMax;
+    host.style.width = doughnutSize + "px";
+    host.style.height = doughnutSize + "px";
+    host.style.maxHeight = doughnutMax + "px";
+  }
 }
 
 function releaseKetangEchartHostByKey(key) {
@@ -511,6 +561,8 @@ function releaseKetangEchartHost(canvasEl) {
 }
 
 function resizeKetangChart(key) {
+  var meta = ketangEchartMeta[key];
+  if (meta && meta.el) syncKetangEchartHostLayout(meta.el);
   if (ketangEcharts[key] && typeof ketangEcharts[key].resize === "function") {
     ketangEcharts[key].resize();
   }
@@ -779,16 +831,28 @@ function chartJsConfigToEchartsOption(merged, mode) {
       chartOpts.cutout,
       mode === "ring" ? 76 : 50,
     );
+    var legendCfg = chartJsLegendToEcharts(chartOpts, mode);
+    option.legend = legendCfg;
+    var center = ["50%", "50%"];
+    if (legendCfg.show && legendCfg.right != null) {
+      center = ["38%", "50%"];
+    } else if (legendCfg.show && legendCfg.bottom === 0) {
+      center = ["50%", "44%"];
+    }
     var radius =
       type === "doughnut"
         ? [cutout + "%", mode === "ring" ? "92%" : "78%"]
-        : "72%";
+        : ["0%", "68%"];
+    if (mode === "pie" && !legendCfg.show) {
+      radius = ["0%", "72%"];
+    }
     var segmentColors = Array.isArray(first.backgroundColor)
       ? first.backgroundColor
       : null;
     option.series = [
       {
         type: "pie",
+        center: center,
         radius: radius,
         avoidLabelOverlap: true,
         itemStyle: {
@@ -913,7 +977,7 @@ function canReuseKetangEchart(key, el, type) {
 
 function upsertKetangEchart(key, canvasEl, merged, mode) {
   var type = merged.type || defaultChartTypeForMode(mode);
-  var host = resolveKetangEchartHost(canvasEl, key, mode);
+  var host = resolveKetangEchartHost(canvasEl, key, mode, type);
   if (!host) return null;
   var option = chartJsConfigToEchartsOption(merged, mode);
   if (canReuseKetangEchart(key, host, type)) {
@@ -924,7 +988,8 @@ function upsertKetangEchart(key, canvasEl, merged, mode) {
     return ketangEcharts[key];
   }
   destroyKetangChart(key);
-  host = resolveKetangEchartHost(canvasEl, key, mode);
+  host = resolveKetangEchartHost(canvasEl, key, mode, type);
+  syncKetangEchartHostLayout(host);
   var groupId = getKetangEchartsGroupId(key);
   var initStart = ketangChartNow();
   ensureKetangChartResizeListener();
