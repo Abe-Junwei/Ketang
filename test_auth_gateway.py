@@ -389,6 +389,9 @@ def test_login_ui_has_no_fake_identity_loading():
     if 'ketang-auth-pending' not in index:
         print('FAIL index.html must gate app shell with ketang-auth-pending until auth resolves')
         sys.exit(1)
+    if '.login-overlay:not(.active)' not in index:
+        print('FAIL index.html must inline-hide inactive login overlay before styles.css loads')
+        sys.exit(1)
     if 'app-boot-banner' not in index:
         print('FAIL index.html missing app boot banner for session restore')
         sys.exit(1)
@@ -413,7 +416,7 @@ def test_login_ui_has_no_fake_identity_loading():
     if 'acceptCachedSessionDegraded' not in auth:
         print('FAIL auth.js missing degraded cached-session path')
         sys.exit(1)
-    if 'ketang-shell-v13' not in read('sw.js'):
+    if 'ketang-shell-v14' not in read('sw.js'):
         print('FAIL sw.js must bump cache version after auth-gate HTML change')
         sys.exit(1)
     if 'bootAuthUI' not in read('js/app.js'):

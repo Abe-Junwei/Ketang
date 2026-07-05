@@ -29,6 +29,10 @@
     <link rel="stylesheet" href="styles.css?v=70" />
     <style>
       /* Hide app chrome until auth gate resolves | Prevent unauthenticated flash */
+      .login-overlay:not(.active) {
+        display: none !important;
+      }
+
       html.ketang-auth-pending .sidebar,
       html.ketang-auth-pending .app-shell {
         display: none !important;
