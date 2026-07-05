@@ -145,6 +145,12 @@ function mountKetangChartsInRoot(root) {
       flushDeferredKetangChart(key);
     }
   });
+  Object.keys(ketangEcharts).forEach(function (key) {
+    var meta = ketangEchartMeta[key];
+    if (meta && meta.canvasEl && root.contains(meta.canvasEl)) {
+      resizeKetangChart(key);
+    }
+  });
 }
 
 function normalizeKetangChartEngine(engine) {
@@ -172,7 +178,11 @@ function readKetangChartEnginePreference() {
   } catch (e) {
     /* ignore */
   }
-  return "chartjs";
+  return "echarts";
+}
+
+function isKetangChartRuntimeReady() {
+  return isKetangEchartsReady() || typeof Chart !== "undefined";
 }
 
 function setKetangChartEngine(engine, options) {
@@ -428,7 +438,7 @@ function resolveChartCanvas(canvasOrId) {
     : canvasOrId;
 }
 
-function resolveKetangEchartHost(canvasEl, key) {
+function resolveKetangEchartHost(canvasEl, key, mode) {
   if (!canvasEl) return null;
   if (canvasEl.tagName !== "CANVAS") return canvasEl;
   if (canvasEl.__ketangEchartHost && canvasEl.__ketangEchartHost.isConnected) {
@@ -436,6 +446,7 @@ function resolveKetangEchartHost(canvasEl, key) {
   }
   var host = document.createElement("div");
   host.className = "ketang-echart-host";
+  if (mode === "ring") host.classList.add("ketang-echart-host--ring");
   if (canvasEl.id) host.id = canvasEl.id + "-echart";
   host.setAttribute("data-ketang-chart-key", String(key || ""));
   host.style.flex = "1";
@@ -540,8 +551,104 @@ function defaultChartTypeForMode(mode) {
 
 function chartJsDatasetColor(ds, idx) {
   if (!ds) return null;
-  if (Array.isArray(ds.backgroundColor)) return ds.backgroundColor[0] || null;
+  if (Array.isArray(ds.backgroundColor)) {
+    return ds.backgroundColor[idx] || ds.backgroundColor[0] || null;
+  }
   return ds.backgroundColor || ds.borderColor || null;
+}
+
+function parseCutoutPercent(cutout, fallback) {
+  if (cutout == null) return fallback;
+  var n = parseFloat(String(cutout).replace("%", ""));
+  return isNaN(n) ? fallback : n;
+}
+
+function chartJsLegendToEcharts(chartOpts, mode) {
+  var legend = (chartOpts && chartOpts.plugins && chartOpts.plugins.legend) || {};
+  if (legend.display === false || mode === "ring") {
+    return { show: false };
+  }
+  var result = {
+    show: true,
+    textStyle: { color: cssHex("--color-muted", "#6a5e52") },
+  };
+  var pos = legend.position || "bottom";
+  if (pos === "right") {
+    result.orient = "vertical";
+    result.right = 0;
+    result.top = "middle";
+  } else if (pos === "top") {
+    result.top = 0;
+  } else {
+    result.bottom = 0;
+  }
+  return result;
+}
+
+function applyKetangEchartsDataZoom(option, labels, threshold) {
+  threshold = threshold || 10;
+  if (!labels || labels.length <= threshold) return;
+  option.dataZoom = [
+    { type: "inside", xAxisIndex: 0 },
+    {
+      type: "slider",
+      xAxisIndex: 0,
+      height: 14,
+      bottom: 2,
+      borderColor: "transparent",
+      fillerColor: hexToRgba(cssHex("--color-primary", "#a64b3f"), 0.15),
+    },
+  ];
+  option.grid = option.grid || {};
+  option.grid.bottom = (option.grid.bottom || 36) + 22;
+}
+
+function chartJsBarSeriesData(ds, isHorizontal) {
+  var values = ds.data || [];
+  if (
+    Array.isArray(ds.backgroundColor) &&
+    ds.backgroundColor.length === values.length
+  ) {
+    return values.map(function (v, idx) {
+      return {
+        value: Number(v || 0),
+        itemStyle: {
+          color: ds.backgroundColor[idx],
+          borderRadius: isHorizontal ? [0, 6, 6, 0] : 6,
+        },
+      };
+    });
+  }
+  return values.map(function (v) {
+    return Number(v || 0);
+  });
+}
+
+function getKetangEchartsGroupId(key) {
+  if (String(key || "").indexOf("board-") === 0) return "ketang-board";
+  if (String(key || "").indexOf("report-") === 0) return "ketang-report";
+  if (String(key || "").indexOf("forecast-") === 0) return "ketang-forecast";
+  return null;
+}
+
+function connectKetangEchartsGroup(groupId) {
+  if (!groupId || typeof echarts === "undefined" || !echarts.connect) return;
+  echarts.connect(groupId);
+}
+
+function ensureKetangChartResizeListener() {
+  if (
+    ensureKetangChartResizeListener._ready ||
+    typeof window === "undefined"
+  ) {
+    return;
+  }
+  ensureKetangChartResizeListener._ready = true;
+  window.addEventListener("resize", function () {
+    Object.keys(ketangEcharts).forEach(function (key) {
+      resizeKetangChart(key);
+    });
+  });
 }
 
 function chartJsConfigToEchartsOption(merged, mode) {
@@ -578,26 +685,48 @@ function chartJsConfigToEchartsOption(merged, mode) {
     textStyle: {
       color: cssHex("--color-muted", "#6a5e52"),
     },
-    tooltip: { trigger: type === "bar" ? "axis" : "item" },
-    legend: {
-      show: true,
-      bottom: 0,
-      textStyle: { color: cssHex("--color-muted", "#6a5e52") },
+    tooltip: {
+      trigger: type === "bar" || type === "line" ? "axis" : "item",
+      axisPointer: { type: "shadow" },
     },
+    legend: chartJsLegendToEcharts(chartOpts, mode),
     color: getChartColors(Math.max(datasets.length, labels.length, 1)),
   };
 
   if (type === "pie" || type === "doughnut") {
     var first = datasets[0] || { data: [] };
-    var radius = type === "doughnut" ? ["52%", "78%"] : "72%";
+    var cutout = parseCutoutPercent(
+      chartOpts.cutout,
+      mode === "ring" ? 76 : 50,
+    );
+    var radius =
+      type === "doughnut"
+        ? [cutout + "%", mode === "ring" ? "92%" : "78%"]
+        : "72%";
+    var segmentColors = Array.isArray(first.backgroundColor)
+      ? first.backgroundColor
+      : null;
     option.series = [
       {
         type: "pie",
         radius: radius,
         avoidLabelOverlap: true,
-        itemStyle: { borderRadius: 6 },
+        itemStyle: {
+          borderRadius: 6,
+          borderColor: getChartTheme().card,
+          borderWidth: 2,
+        },
         data: labels.map(function (label, idx) {
-          return { name: label, value: Number(first.data[idx] || 0) };
+          var item = {
+            name: label,
+            value: Number(first.data[idx] || 0),
+          };
+          if (segmentColors && segmentColors[idx]) {
+            item.itemStyle = Object.assign({}, item.itemStyle || {}, {
+              color: segmentColors[idx],
+            });
+          }
+          return item;
         }),
       },
     ];
@@ -618,22 +747,75 @@ function chartJsConfigToEchartsOption(merged, mode) {
     option.xAxis = Object.assign({ type: "category", data: labels }, axisStyle);
     option.yAxis = valueAxisStyle;
   }
+
+  var hasLineSeries = datasets.some(function (ds) {
+    return (ds.type || type) === "line";
+  });
+
+  if (type === "line" && !hasLineSeries) {
+    hasLineSeries = true;
+  }
+
+  if (hasLineSeries) {
+    option.series = datasets.map(function (ds, idx) {
+      var dsType = ds.type || type;
+      if (dsType === "line") {
+        return {
+          type: "line",
+          name: ds.label || "",
+          data: (ds.data || []).map(function (v) {
+            return Number(v || 0);
+          }),
+          smooth: ds.tension ? true : false,
+          showSymbol: ds.pointRadius !== 0,
+          lineStyle: {
+            color: ds.borderColor || chartJsDatasetColor(ds, idx),
+            type: ds.borderDash ? "dashed" : "solid",
+            width: ds.borderWidth || 2,
+          },
+          itemStyle: {
+            color: ds.borderColor || chartJsDatasetColor(ds, idx),
+          },
+          areaStyle: ds.fill
+            ? {
+                color: ds.backgroundColor || chartJsDatasetColor(ds, idx),
+                opacity: 0.18,
+              }
+            : undefined,
+          z: 2,
+        };
+      }
+      var barSeries = {
+        type: "bar",
+        name: ds.label || "",
+        data: chartJsBarSeriesData(ds, isHorizontal),
+        itemStyle: {
+          borderRadius: isHorizontal ? [0, 6, 6, 0] : 6,
+          color: chartJsDatasetColor(ds, idx) || undefined,
+        },
+        z: 1,
+      };
+      if (stacked || ds.stack) barSeries.stack = String(ds.stack || "total");
+      return barSeries;
+    });
+    applyKetangEchartsDataZoom(option, labels, 8);
+    return option;
+  }
+
   option.series = datasets.map(function (ds, idx) {
-    var seriesColor = chartJsDatasetColor(ds, idx);
     var series = {
       type: "bar",
       name: ds.label || "",
-      data: (ds.data || []).map(function (v) {
-        return Number(v || 0);
-      }),
+      data: chartJsBarSeriesData(ds, isHorizontal),
       itemStyle: {
         borderRadius: isHorizontal ? [0, 6, 6, 0] : 6,
-        color: seriesColor || undefined,
+        color: chartJsDatasetColor(ds, idx) || undefined,
       },
     };
-    if (stacked || ds.stack) series.stack = "total";
+    if (stacked || ds.stack) series.stack = String(ds.stack || "total");
     return series;
   });
+  applyKetangEchartsDataZoom(option, labels, 12);
   return option;
 }
 
@@ -651,7 +833,7 @@ function canReuseKetangEchart(key, el, type) {
 
 function upsertKetangEchart(key, canvasEl, merged, mode) {
   var type = merged.type || defaultChartTypeForMode(mode);
-  var host = resolveKetangEchartHost(canvasEl, key);
+  var host = resolveKetangEchartHost(canvasEl, key, mode);
   if (!host) return null;
   var option = chartJsConfigToEchartsOption(merged, mode);
   if (canReuseKetangEchart(key, host, type)) {
@@ -663,11 +845,18 @@ function upsertKetangEchart(key, canvasEl, merged, mode) {
     return ketangEcharts[key];
   }
   destroyKetangChart(key);
-  host = resolveKetangEchartHost(canvasEl, key);
+  host = resolveKetangEchartHost(canvasEl, key, mode);
+  var groupId = getKetangEchartsGroupId(key);
   var initStart = ketangChartNow();
-  var chart = echarts.init(host);
+  ensureKetangChartResizeListener();
+  var chart = echarts.init(
+    host,
+    null,
+    groupId ? { group: groupId } : undefined,
+  );
   chart.setOption(option, true, true);
   chart.resize();
+  if (groupId) connectKetangEchartsGroup(groupId);
   recordKetangChartPerf("init", initStart);
   ketangEcharts[key] = chart;
   ketangEchartMeta[key] = { el: host, canvasEl: canvasEl, type: type };
@@ -684,7 +873,7 @@ function upsertKetangChart(key, canvasOrId, config, mode, prepare, options) {
   merged.options = applyKetangChartDefaults(merged.options || {}, mode);
   var visible = options.skipDefer || isKetangChartElementVisible(el);
   if (shouldUseKetangEchartsForKey(key)) {
-    var echartHost = resolveKetangEchartHost(el, key);
+    var echartHost = resolveKetangEchartHost(el, key, mode);
     if (
       !visible &&
       !canReuseKetangEchart(key, echartHost, merged.type)
@@ -696,7 +885,7 @@ function upsertKetangChart(key, canvasOrId, config, mode, prepare, options) {
     return upsertKetangEchart(key, el, merged, mode);
   }
   releaseKetangEchartHost(el);
-  if (typeof Chart === "undefined") return null;
+  if (!isKetangChartRuntimeReady()) return null;
   var type = merged.type;
   if (canReuseKetangChart(key, el, type)) {
     delete ketangChartDeferred[key];

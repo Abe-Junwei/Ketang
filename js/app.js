@@ -728,7 +728,7 @@ function renderBoardRingChart(key, canvasId, pctElId, stats) {
 }
 
 function renderBoardCharts() {
-  if (typeof Chart === "undefined") return;
+  if (!isKetangChartRuntimeReady()) return;
   destroyKetangChartsByPrefix("board-");
   var stats = getBoardBedStats();
   if (!stats) return;
@@ -880,7 +880,7 @@ function renderLodging() {
 }
 
 function renderLodgingOccupancyChart() {
-  if (typeof Chart === "undefined") return;
+  if (!isKetangChartRuntimeReady()) return;
   renderBoardRingChart(
     "lodging-occ",
     "chart-lodging-occ",

@@ -148,7 +148,7 @@ async function renderMealReport() {
 }
 
 function renderMealReportCharts(byRole, byRoom) {
-  if (typeof Chart === "undefined") return;
+  if (!isKetangChartRuntimeReady()) return;
   const T = getChartTheme();
   if (byRole.length) {
     createKetangChart("report-meal-role", "chart-meal-role", {
@@ -404,7 +404,7 @@ function renderDailyReportCharts(
   payMap,
   meals,
 ) {
-  if (typeof Chart === "undefined") return;
+  if (!isKetangChartRuntimeReady()) return;
   const T = getChartTheme();
   createKetangChart("report-daily-flow", "chart-daily-flow", {
     type: "bar",
@@ -642,7 +642,7 @@ async function renderMonthlyReport() {
 }
 
 async function renderMonthlyReportCharts(byDay, payMap) {
-  if (typeof Chart === "undefined") return;
+  if (!isKetangChartRuntimeReady()) return;
   const T = getChartTheme();
   if (byDay.length) {
     createKetangChart("report-monthly-checkins", "chart-monthly-checkins", {
@@ -851,7 +851,7 @@ async function renderEventReport() {
 }
 
 function renderEventReportCharts(groupNames, groups) {
-  if (typeof Chart === "undefined") return;
+  if (!isKetangChartRuntimeReady()) return;
   const T = getChartTheme();
   createKetangChart("report-event-gender", "chart-event-gender", {
     type: "bar",

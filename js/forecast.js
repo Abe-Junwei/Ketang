@@ -749,7 +749,7 @@ function renderTodayForecastCharts(
   arrivalsResv,
   arrivalsLodger,
 ) {
-  if (typeof Chart === "undefined") return;
+  if (!isKetangChartRuntimeReady()) return;
   const T = getChartTheme();
 
   createKetangChart("forecast-today-flow", "chart-today-flow", {
@@ -823,7 +823,7 @@ function renderTodayForecastCharts(
 }
 
 function renderFlowForecastCharts(weekData, totalMaleBeds, totalFemaleBeds) {
-  if (typeof Chart === "undefined" || weekData.length === 0) return;
+  if (!isKetangChartRuntimeReady() || weekData.length === 0) return;
   const T = getChartTheme();
 
   const labels = weekData.map((w) => w.label.split(" ~ ")[0]);

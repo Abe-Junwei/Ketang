@@ -21,8 +21,13 @@ def main():
         "resolveKetangEchartHost",
         "releaseKetangEchartHost",
         "chartJsDatasetColor",
+        "applyKetangEchartsDataZoom",
+        "getKetangEchartsGroupId",
+        "connectKetangEchartsGroup",
+        "isKetangChartRuntimeReady",
         'indexAxis === "y"',
-        'series.stack = "total"',
+        'ds.stack || "total"',
+        'type: "line"',
         "getKetangChartPerfSummary",
         "ketangChartPerf",
         "KETANG_CHART_ENGINE_STORAGE_KEY",
@@ -37,7 +42,8 @@ def main():
         "chartJsConfigToEchartsOption",
         "upsertKetangChart",
         "requestAnimationFrame",
-        "chart.update(\"none\")",
+        'chart.update("none")',
+        'return "echarts"',
     ]
     for token in required:
         if token not in chart_theme:
@@ -47,7 +53,7 @@ def main():
     if "destroyKetangChart(key);\n  var merged" in chart_theme:
         print("FAIL chart helpers must not destroy and recreate on every render")
         raise SystemExit(1)
-    if 'chart-theme.js?v=8' not in index:
+    if 'chart-theme.js?v=9' not in index:
         print("FAIL index.html must bump chart-theme asset version")
         raise SystemExit(1)
     if 'events.js?v=28' not in index:
@@ -57,13 +63,16 @@ def main():
     if 'createKetangChart("events-progress"' not in events_js:
         print("FAIL events.js must keep events-progress PoC chart key")
         raise SystemExit(1)
+    if "isKetangChartRuntimeReady()" not in read("js/app.js"):
+        print("FAIL app.js must use isKetangChartRuntimeReady chart guard")
+        raise SystemExit(1)
     if 'echarts.min.js?v=1' not in index:
         print("FAIL index.html must include vendored echarts runtime")
         raise SystemExit(1)
     if "./lib/echarts.min.js" not in sw:
         print("FAIL sw.js must precache echarts runtime")
         raise SystemExit(1)
-    if "ketang-shell-v25" not in sw:
+    if "ketang-shell-v26" not in sw:
         print("FAIL sw.js must bump cache version after chart runtime change")
         raise SystemExit(1)
 

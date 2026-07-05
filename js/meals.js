@@ -774,7 +774,7 @@ function renderMealPieSidePanel(rows, key, colors) {
 
 function renderMealsPanelCharts(byRole) {
   if (
-    typeof Chart === "undefined" ||
+    !isKetangChartRuntimeReady() ||
     typeof createKetangPieChart !== "function"
   )
     return;

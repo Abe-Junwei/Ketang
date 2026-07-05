@@ -1,6 +1,6 @@
 # 图表引擎迁移规划（Chart.js → ECharts）
 
-> **状态：** Phase A/B 基础设施已落地（2026-07）；Phase C 起待灰度  
+> **状态：** Phase A–G 已完成（2026-07）；默认 ECharts，Chart.js 灾备  
 > **原则：** Phase A 的「不换库高收益优化」是 ECharts 迁移的**前置基础层**，不是迁移后的附加项  
 > **封装入口：** `js/chart-theme.js`（`createKetangChart` / `createKetangRingChart` / `createKetangPieChart`）
 
@@ -18,13 +18,13 @@
 
 | 阶段 | 名称 | 目标 | 状态 |
 | ---- | ---- | ---- | ---- |
-| **A** | Chart.js 封装性能优化 | 实例复用、更新队列、延迟挂载、性能埋点 | **主体完成** |
-| **B** | ECharts 适配层与开关 | 双引擎 adapter、URL/localStorage 切换、pilot keys | **主体完成** |
+| **A** | Chart.js 封装性能优化 | 实例复用、更新队列、延迟挂载、性能埋点 | ✅ 完成 |
+| **B** | ECharts 适配层与开关 | 双引擎 adapter、URL/localStorage 切换、pilot keys | ✅ 完成 |
 | **C** | 单图 PoC | 一张低风险柱状图双引擎验收 | ✅ 完成（`events-progress`） |
-| **D** | 低风险页面灰度 | 营期/报表柱状图 → 预测 → 看板 | 待办 |
-| **E** | 看板核心图迁移 | 环图、饼图、寮别余床等 | 待办 |
-| **F** | ECharts 增强能力 | dataZoom、联动高亮、progressive 等 | 待办 |
-| **G** | 默认切换与 Chart.js 清理 | 默认 ECharts、移除 Chart.js 依赖 | 待办 |
+| **D** | 页面灰度 | 报表/预测/营期/看板柱图 | ✅ 完成 |
+| **E** | 看板核心 | 环图、饼图、容量折线 | ✅ 完成 |
+| **F** | ECharts 增强 | dataZoom、同页联动 | ✅ 完成 |
+| **G** | 默认切换 | 默认 ECharts + Chart.js 灾备 | ✅ 完成 |
 
 ---
 
@@ -143,29 +143,40 @@ window.KETANG_ECHARTS_PILOT_KEYS = ["events-progress"];
 
 ---
 
-## 6. Phase D–G：灰度与收尾（待办）
+## 6. Phase D–G：灰度与收尾 ✅
 
-### D 页面顺序
+### D 页面灰度（全部 chart key 已走统一 adapter）
 
-1. 营期 / 报表简单柱状图
-2. 预测趋势图（`forecast-*`）
-3. 看板柱状图（`board-flow`、`board-dorm`）
-4. 饼图 / 环图（用斋、入住率）
-5. ECharts 增强（Phase F）
+- 营期 `events-progress`、报表 `report-*`、预测 `forecast-*`、看板 `board-flow` / `board-dorm` / `board-capacity`
+- 无需逐页改调用方；`shouldUseKetangEchartsForKey` 在无 pilot 限制时对全部 key 生效
 
 ### E 看板核心
 
-- `board-occ` 环图、`chart-meals-*` 饼图、`board-capacity` — 视觉与 tooltip 回归成本高，排在柱状图之后。
+- `board-occ` / `lodging-occ` 环图：cutout 映射 + `.ketang-echart-host--ring`
+- `meals-panel-*` 饼图：分段 `backgroundColor` 映射
+- `board-capacity` 折线：line + areaStyle
 
-### F 仅 ECharts 后做（现在不做）
+### F ECharts 增强
 
-- `dataZoom`、图表联动高亮、大数据 `progressive` — 等真实指标或 Phase E 稳定后再上。
+- **dataZoom**：标签数 > 8（折线/混图）或 > 12（柱图）自动启用 inside + slider
+- **同页联动**：`board-*` / `report-*` / `forecast-*` 分组 `echarts.connect`
+- **progressive 大数据**：当前数据量未触发，保留扩展点
 
-### G 完成定义
+### G 默认切换
 
-- 默认引擎 ECharts；Chart.js 仅灾备或移除
-- SW 体积与首屏预算复测
-- README / 使用说明补充运维切换说明
+- 默认引擎：**ECharts**（`readKetangChartEnginePreference` 无存储时返回 `echarts`）
+- **灾备**：`?chart_engine=chartjs` 或 `localStorage.ketang_chart_engine=chartjs`；ECharts 未加载时自动回 Chart.js
+- Chart.js 仍保留在 `index.html` 作离线灾备，未从 SW 移除
+
+**切换示例：**
+
+```text
+# 默认已是 ECharts；强制 Chart.js 灾备：
+?chart_engine=chartjs
+
+# 仅灰度单图（可选，迁移期调试）：
+?chart_engine=echarts&chart_pilot_keys=events-progress
+```
 
 ---
 

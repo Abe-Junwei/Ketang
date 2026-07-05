@@ -918,20 +918,16 @@ bash scripts/run_p1_checklist.sh https://wulingkt.net https://<pages-preview>.ke
 
 | 阶段 | 内容 | 状态 |
 | ---- | ---- | ---- |
-| **A** | 实例复用、rAF 更新队列、延迟挂载、性能埋点 | ✅ 完成（`chart-theme.js` v8） |
+| **A** | 实例复用、rAF 更新队列、延迟挂载、性能埋点 | ✅ 完成（`chart-theme.js` v9） |
 | **B** | ECharts adapter、`chart_engine` / pilot keys 开关、配置转换 | ✅ 主体完成 |
 | **C** | 单图 PoC（`events-progress` 营期招生进度柱图） | ✅ 完成 |
-| **D–G** | 页面灰度 → 看板核心 → ECharts 增强 → 默认切换与 Chart.js 清理 | 待办 |
+| **D–G** | 全量 adapter 灰度、看板核心图、dataZoom/联动、默认 ECharts | ✅ 完成 |
 
-**Phase A 已落地要点：**
+**默认行为：** 生产默认 **ECharts** 渲染全部图表；Chart.js 仅作 `?chart_engine=chartjs` 灾备。
 
-- `upsertKetangChart`：同 key 复用 + 同帧合并更新，避免每次 render destroy/new
-- `ketangChartDeferred` + `mountKetangChartsInRoot`：非 active 视图 / 隐藏 tab 不 init
-- `getKetangChartPerfSummary()`：init/update/destroy/reuse/defer 计数，供 C 阶段 A/B 对比
+**运维切换：** `localStorage.ketang_chart_engine` = `echarts` | `chartjs`；性能对比 `getKetangChartPerfSummary()`。
 
-**Phase C PoC（`events-progress`）：** `?chart_engine=echarts&chart_pilot_keys=events-progress`；canvas 自动挂载 `.ketang-echart-host`；横向堆叠柱已映射。验收：`test_chart_infra.py` + `test_headless.py` 全绿。
-
-**明确后置（Phase F，现在不做）：** dataZoom、图表联动、progressive 大数据渲染。
+**明确未做：** progressive 大数据渲染（无真实性能触发门槛）。
 
 ### 19.6 最终总验收（排期最后执行）
 

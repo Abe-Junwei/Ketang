@@ -68,6 +68,7 @@
 | 正式数据库 | Cloudflare D1                | 多人共享的权威数据源                              |
 | 本地数据库 | SQLite（sql.js）             | 浏览器内运行，导出即文件                          |
 | 本地持久化 | IndexedDB                    | 保存 SQLite 二进制，关闭浏览器不丢失              |
+| 图表       | ECharts（默认）+ Chart.js 灾备 | 统一封装 `js/chart-theme.js`；回退 `?chart_engine=chartjs` |
 | 备份       | JSON/文件导出/导入           | 在线版导出 JSON，本地版导出 `.db`                 |
 
 ## 四、核心数据模型
