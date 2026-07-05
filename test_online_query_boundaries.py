@@ -64,6 +64,7 @@ def main():
     meals = read("js/meals.js")
     history = read("js/history.js")
     events = read("js/events.js")
+    app = read("js/app.js")
     rooming_read = read("js/rooming-read.js")
     rooming_capacity = read("js/rooming-capacity.js")
     rooming_plans = read("js/rooming-plans.js")
@@ -112,6 +113,24 @@ def main():
         ("events find by name rc", "readFindEventByName" in events),
         ("events export members rc", "readEventMemberLodgers" in events),
         ("events export reservations", "readEventMemberReservationsForExport" in events),
+        (
+            "app checkout reminders online rc",
+            "function renderCheckoutReminders" in app
+            and "readUseOnlineDataPath()" in fn_body(app, "renderCheckoutReminders")
+            and "rcCheckoutReminders" in fn_body(app, "renderCheckoutReminders"),
+        ),
+        (
+            "app ops notice online rc",
+            "function renderOpsNotice" in app
+            and "readUseOnlineDataPath()" in fn_body(app, "renderOpsNotice")
+            and "rcOpsNoticeData" in fn_body(app, "renderOpsNotice"),
+        ),
+        (
+            "app board stats online rc",
+            "function getBoardBedStats" in app
+            and "readUseOnlineDataPath()" in fn_body(app, "getBoardBedStats")
+            and "rcGetBoardBedStats" in fn_body(app, "getBoardBedStats"),
+        ),
         ("rooming read helper", "roomingUseLocalRead" in rooming_read),
         ("rooming plan rc", "rcRoomingPlanByEventId" in rooming_read),
         ("rooming assignments guard", "if (!roomingUseLocalRead()) return [];" in rooming_read),

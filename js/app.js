@@ -642,7 +642,10 @@ function renderLodgersPage() {
 }
 
 function getBoardBedStats() {
-  if (typeof useOnlineDataPath === "function" && useOnlineDataPath()) {
+  if (typeof readUseOnlineDataPath === "function" && readUseOnlineDataPath()) {
+    if (typeof boardReadCacheReady === "function" && !boardReadCacheReady()) {
+      return null;
+    }
     return rcGetBoardBedStats();
   }
   var spareSql = spareRoomExcludeClause("r");
@@ -718,13 +721,14 @@ function renderBoardCharts() {
   if (typeof Chart === "undefined") return;
   destroyKetangChartsByPrefix("board-");
   var stats = getBoardBedStats();
+  if (!stats) return;
   var today = todayStr();
   var T = getChartTheme();
 
   renderBoardRingChart("board-occ", "chart-board-occ", "board-occ-pct", stats);
 
   var flow;
-  if (typeof useOnlineDataPath === "function" && useOnlineDataPath()) {
+  if (typeof readUseOnlineDataPath === "function" && readUseOnlineDataPath()) {
     flow = rcGetBoardFlowStats(today);
   } else {
     flow = {
@@ -786,7 +790,7 @@ function renderBoardCharts() {
   var femaleBeds;
   var maleOcc;
   var femaleOcc;
-  if (typeof useOnlineDataPath === "function" && useOnlineDataPath()) {
+  if (typeof readUseOnlineDataPath === "function" && readUseOnlineDataPath()) {
     var dorm = rcGetDormBedStats();
     maleBeds = dorm.maleBeds;
     femaleBeds = dorm.femaleBeds;
@@ -1217,6 +1221,10 @@ function renderStats() {
   const stats = getBoardBedStats();
   const strip = document.getElementById("kpi-strip");
   if (!strip) return;
+  if (!stats) {
+    strip.innerHTML = '<div class="empty-tip">正在加载统计…</div>';
+    return;
+  }
   const emptyPct = stats.total
     ? Math.round((stats.empty / stats.total) * 100)
     : 0;
@@ -1367,7 +1375,17 @@ function toggleRoomExpand(roomId, cardEl) {
 function renderRoomDetailPanel(roomId, cardEl) {
   const panel = document.getElementById("room-detail-panel");
   if (!panel) return;
-  var useRc = typeof useOnlineDataPath === "function" && useOnlineDataPath();
+  var useRc =
+    typeof readUseOnlineDataPath === "function" && readUseOnlineDataPath();
+  if (
+    useRc &&
+    typeof boardReadCacheReady === "function" &&
+    !boardReadCacheReady()
+  ) {
+    panel.hidden = false;
+    panel.innerHTML = '<p class="empty-tip">正在加载房间数据…</p>';
+    return;
+  }
   const r = useRc
     ? rcBoardRooms().find(function (room) {
         return room.id == roomId;
@@ -1750,7 +1768,11 @@ function renderOpsNotice() {
   if (!el) return;
   const today = todayStr();
 
-  if (typeof useOnlineDataPath === "function" && useOnlineDataPath()) {
+  if (typeof readUseOnlineDataPath === "function" && readUseOnlineDataPath()) {
+    if (typeof boardReadCacheReady === "function" && !boardReadCacheReady()) {
+      el.textContent = "正在加载运营提醒…";
+      return;
+    }
     var ops = rcOpsNoticeData(today);
     if (ops.arrivals > 0 || ops.departures > 0) {
       el.innerHTML =
@@ -1947,6 +1969,19 @@ function renderCheckoutReminders() {
   const tabsEl = document.getElementById("reminder-tabs");
   const listEl = document.getElementById("reminders");
   if (!tabsEl || !listEl) return;
+  var onlineRead =
+    typeof readUseOnlineDataPath === "function" && readUseOnlineDataPath();
+  if (
+    onlineRead &&
+    typeof boardReadCacheReady === "function" &&
+    !boardReadCacheReady()
+  ) {
+    _reminderData = { today: [], tomorrow: [], overdue: [] };
+    tabsEl.innerHTML = "";
+    listEl.className = "reminder-list reminder-list-grid";
+    listEl.innerHTML = '<div class="empty-tip">正在加载退房提醒…</div>';
+    return;
+  }
   _reminderData = {};
   const groups = [
     { key: "today", label: "今日应退", date: todayStr() },
@@ -1954,7 +1989,7 @@ function renderCheckoutReminders() {
     { key: "overdue", label: "已超期", date: null },
   ];
   groups.forEach(function (g) {
-    if (typeof useOnlineDataPath === "function" && useOnlineDataPath()) {
+    if (onlineRead) {
       _reminderData[g.key] = rcCheckoutReminders(g.key, g.date);
       return;
     }
