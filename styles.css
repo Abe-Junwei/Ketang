@@ -1028,6 +1028,7 @@ main,
 .chart-ring-center {
   position: absolute;
   inset: 0;
+  z-index: 2;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -5405,6 +5406,7 @@ form .field {
   inset: 0;
   width: 100%;
   height: 100%;
+  z-index: 1;
 }
 
 .ketang-echart-host--pie {

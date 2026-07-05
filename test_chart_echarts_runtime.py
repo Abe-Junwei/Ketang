@@ -126,13 +126,17 @@ def main():
               if (typeof resizeKetangChart === 'function') {
                 resizeKetangChart('board-occ');
               }
-              await new Promise(r => setTimeout(r, 120));
+              if (typeof scheduleKetangEchartLayoutRefresh === 'function') {
+                scheduleKetangEchartLayoutRefresh('board-occ');
+              }
+              await new Promise(r => setTimeout(r, 200));
               await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
               const host = document.getElementById('chart-board-occ-echart');
               const canvas = document.getElementById('chart-board-occ');
               const innerCanvas = host ? host.querySelector('canvas') : null;
               const sizeEl = innerCanvas || host;
               const rect = sizeEl ? sizeEl.getBoundingClientRect() : null;
+              const hostRect = host ? host.getBoundingClientRect() : null;
               const pixelWidth = innerCanvas ? innerCanvas.width : 0;
               const pixelHeight = innerCanvas ? innerCanvas.height : 0;
               return {
@@ -152,6 +156,8 @@ def main():
                   : null,
                 width: rect ? Math.round(rect.width) : 0,
                 height: rect ? Math.round(rect.height) : 0,
+                hostWidth: hostRect ? Math.round(hostRect.width) : (host ? host.offsetWidth : 0),
+                hostHeight: hostRect ? Math.round(hostRect.height) : (host ? host.offsetHeight : 0),
                 pixelWidth: pixelWidth,
                 pixelHeight: pixelHeight,
               };
@@ -184,6 +190,15 @@ def main():
                 print("FAIL: ECharts ring host has no rendered size")
                 print(result)
                 sys.exit(1)
+        layout_ok = (
+            result.get("hostWidth", 0) > 0 and result.get("hostHeight", 0) > 0
+        ) or (
+            result.get("pixelWidth", 0) >= 120 and result.get("pixelHeight", 0) >= 120
+        )
+        if not layout_ok:
+            print("FAIL: ECharts ring host has no CSS layout size")
+            print(result)
+            sys.exit(1)
 
         pie_expr = """
           (async () => {

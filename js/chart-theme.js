@@ -486,8 +486,9 @@ function resolveKetangEchartHost(canvasEl, key, mode, chartType) {
   }
   host.style.width = "100%";
   if (mode === "ring") {
-    host.style.flex = "1";
-    host.style.minHeight = "0";
+    host.style.position = "absolute";
+    host.style.inset = "0";
+    host.style.flex = "none";
   } else if (mode === "pie" || chartType === "pie") {
     host.style.flex = "none";
     host.style.maxHeight = "180px";
@@ -514,6 +515,24 @@ function resolveKetangEchartHost(canvasEl, key, mode, chartType) {
 /** 饼/环形容器在 flex 内 aspect-ratio 可能算不出高度，需显式同步 | Explicit pie/doughnut sizing in flex layouts */
 function syncKetangEchartHostLayout(host) {
   if (!host) return;
+  if (host.classList.contains("ketang-echart-host--ring")) {
+    var wrap = host.closest(".chart-ring-wrap");
+    var wrapRect = wrap ? wrap.getBoundingClientRect() : null;
+    var ringSize = wrapRect
+      ? Math.round(Math.min(wrapRect.width, wrapRect.height))
+      : 0;
+    if (ringSize <= 0 && wrap) {
+      ringSize = Math.round(wrap.clientWidth || wrap.offsetWidth || 0);
+    }
+    if (ringSize <= 0) ringSize = 132;
+    host.style.position = "absolute";
+    host.style.left = "0";
+    host.style.top = "0";
+    host.style.width = ringSize + "px";
+    host.style.height = ringSize + "px";
+    host.style.flex = "none";
+    return;
+  }
   if (host.classList.contains("ketang-echart-host--pie")) {
     var pieMax = 180;
     var pieParent = host.parentElement;
@@ -537,7 +556,59 @@ function syncKetangEchartHostLayout(host) {
     host.style.width = doughnutSize + "px";
     host.style.height = doughnutSize + "px";
     host.style.maxHeight = doughnutMax + "px";
+    return;
   }
+  var barBody = host.closest(
+    ".board-chart-body--bar, .forecast-chart-box, .report-chart-body",
+  );
+  if (barBody) {
+    var barRect = barBody.getBoundingClientRect();
+    var barH = Math.round(barRect.height || barBody.clientHeight || 0);
+    if (barH > 0) {
+      host.style.flex = "1";
+      host.style.minHeight = barH + "px";
+      host.style.height = barH + "px";
+      host.style.width = "100%";
+    }
+  }
+}
+
+function unobserveKetangEchartHost(host) {
+  if (!host || !host.__ketangResizeObs) return;
+  host.__ketangResizeObs.disconnect();
+  delete host.__ketangResizeObs;
+}
+
+function observeKetangEchartHost(key, host) {
+  if (!host || typeof ResizeObserver === "undefined") return;
+  unobserveKetangEchartHost(host);
+  var target =
+    host.closest(
+      ".chart-ring-wrap, .board-chart-body--bar, .board-chart-body, .meals-meal-chart-body--pie, .forecast-chart-box, .report-chart-body",
+    ) || host.parentElement;
+  if (!target) return;
+  var obs = new ResizeObserver(function () {
+    if (!ketangEcharts[key]) return;
+    syncKetangEchartHostLayout(host);
+    ketangEcharts[key].resize();
+  });
+  obs.observe(target);
+  host.__ketangResizeObs = obs;
+}
+
+function scheduleKetangEchartLayoutRefresh(key) {
+  var run = function () {
+    var meta = ketangEchartMeta[key];
+    if (meta && meta.el) syncKetangEchartHostLayout(meta.el);
+    resizeKetangChart(key);
+  };
+  if (typeof requestAnimationFrame === "function") {
+    requestAnimationFrame(function () {
+      requestAnimationFrame(run);
+    });
+    return;
+  }
+  setTimeout(run, 32);
 }
 
 function releaseKetangEchartHostByKey(key) {
@@ -555,6 +626,7 @@ function releaseKetangEchartHostByKey(key) {
 function releaseKetangEchartHost(canvasEl) {
   if (!canvasEl) return;
   var host = canvasEl.__ketangEchartHost;
+  if (host) unobserveKetangEchartHost(host);
   if (host && host.parentNode) host.parentNode.removeChild(host);
   canvasEl.style.display = "";
   delete canvasEl.__ketangEchartHost;
@@ -644,6 +716,10 @@ function scheduleKetangEchartUpdate(key, chart, option) {
         if (!item || ketangEcharts[queuedKey] !== item.chart) return;
         // 与 Chart.js 保持同帧合并语义 | Keep ECharts updates coalesced with Chart.js.
         var updateStart = ketangChartNow();
+        var updateMeta = ketangEchartMeta[queuedKey];
+        if (updateMeta && updateMeta.el) {
+          syncKetangEchartHostLayout(updateMeta.el);
+        }
         item.chart.setOption(item.option, true, true);
         item.chart.resize();
         recordKetangChartPerf("update", updateStart);
@@ -999,8 +1075,11 @@ function upsertKetangEchart(key, canvasEl, merged, mode) {
     groupId ? { group: groupId } : undefined,
   );
   chart.setOption(option, true, true);
+  syncKetangEchartHostLayout(host);
   chart.resize();
   assignKetangEchartsGroup(chart, groupId);
+  observeKetangEchartHost(key, host);
+  scheduleKetangEchartLayoutRefresh(key);
   recordKetangChartPerf("init", initStart);
   ketangEcharts[key] = chart;
   ketangEchartMeta[key] = { el: host, canvasEl: canvasEl, type: type };

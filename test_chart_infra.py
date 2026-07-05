@@ -42,6 +42,9 @@ def main():
         "scheduleKetangEchartUpdate",
         "canReuseKetangChart",
         "syncKetangEchartHostLayout",
+        "observeKetangEchartHost",
+        "scheduleKetangEchartLayoutRefresh",
+        "ResizeObserver",
         "ketang-echart-host--pie",
         "ketang-echart-host--doughnut",
         "chartJsConfigToEchartsOption",
@@ -63,7 +66,7 @@ def main():
     if "destroyKetangChart(key);\n  var merged" in chart_theme:
         print("FAIL chart helpers must not destroy and recreate on every render")
         raise SystemExit(1)
-    if 'chart-theme.js?v=11' not in index:
+    if 'chart-theme.js?v=12' not in index:
         print("FAIL index.html must bump chart-theme asset version")
         raise SystemExit(1)
     if 'events.js?v=28' not in index:
@@ -82,7 +85,7 @@ def main():
     if "./lib/echarts.min.js" not in sw:
         print("FAIL sw.js must precache echarts runtime")
         raise SystemExit(1)
-    if "ketang-shell-v30" not in sw:
+    if "ketang-shell-v31" not in sw:
         print("FAIL sw.js must bump cache version after chart runtime change")
         raise SystemExit(1)
 
