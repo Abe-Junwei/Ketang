@@ -100,12 +100,7 @@ function updateRemoteSyncBanner() {
     el.hidden = true;
     return;
   }
-  if (remoteSyncStatus === "loading") {
-    el.hidden = false;
-    el.className = "remote-sync-banner remote-sync-banner-loading";
-    el.textContent = "正在同步云端数据，请稍候…";
-    return;
-  }
+  // 常规同步静默进行，仅错误时提示 | Keep normal sync silent; only surface explicit errors.
   if (remoteSyncStatus === "error") {
     el.hidden = false;
     el.className = "remote-sync-banner remote-sync-banner-error";

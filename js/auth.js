@@ -217,7 +217,7 @@ function showBootstrapping() {
 }
 
 function showCachedSessionBootstrapping() {
-  // 已有缓存用户时保持应用壳可见，避免刷新闪回登录页 | Keep shell visible for cached users to avoid login flash on refresh.
+  // 冷启动保持单一 loading 态：显示应用壳但不再叠加第二条启动横幅 | Keep a single loading state: show shell without a second startup banner.
   markAuthenticated();
   document.body.classList.remove("auth-login-required");
   document.body.classList.add("auth-bootstrapping");
@@ -226,7 +226,7 @@ function showCachedSessionBootstrapping() {
   setLoginOverlayPanel("form");
   updateAuthUI();
   clearAuthPendingGate();
-  setBootBannerVisible(true);
+  setBootBannerVisible(false);
 }
 
 function hideBootstrapping() {

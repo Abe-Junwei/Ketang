@@ -395,8 +395,8 @@ def test_login_ui_has_no_fake_identity_loading():
     if 'auth-boot-screen active' not in index:
         print('FAIL index.html must show neutral auth boot screen before auth resolves')
         sys.exit(1)
-    if 'aria-label="正在恢复会话"' not in index:
-        print('FAIL auth boot screen must have a clear accessible label')
+    if 'aria-label="加载中"' not in index:
+        print('FAIL auth boot screen must have a single neutral loading label')
         sys.exit(1)
     if '.auth-boot-screen:not(.active)' not in index:
         print('FAIL index.html must inline-hide inactive auth boot screen')
@@ -428,6 +428,9 @@ def test_login_ui_has_no_fake_identity_loading():
     if 'if (currentUser) {\n      showCachedSessionBootstrapping();' not in auth:
         print('FAIL bootAuthUI must prefer cached-session shell over login restore overlay')
         sys.exit(1)
+    if 'setBootBannerVisible(false);' not in auth:
+        print('FAIL cached-session bootstrap must keep a single loading state (no second boot banner)')
+        sys.exit(1)
     if 'body.auth-bootstrapping:not(.auth-login-required)' not in read('styles.css'):
         print('FAIL cached-session restore shell must disable interaction until verified')
         sys.exit(1)
@@ -457,8 +460,15 @@ def test_login_ui_has_no_fake_identity_loading():
     if 'apiAuthRefreshForRestore' not in api_client or 'apiFetch("/api/v1/auth/refresh"' not in api_client:
         print('FAIL refresh restore must use apiFetch with timeout')
         sys.exit(1)
-    if 'ketang-shell-v19' not in read('sw.js'):
-        print('FAIL sw.js must bump cache version after auth-gate HTML change')
+    if 'ketang-shell-v20' not in read('sw.js'):
+        print('FAIL sw.js must bump cache version after startup UX change')
+        sys.exit(1)
+    db_js = read('js/db.js')
+    if '正在同步云端数据，请稍候…' in db_js:
+        print('FAIL normal sync must be silent; loading sync banner copy should not be present')
+        sys.exit(1)
+    if 'remoteSyncStatus === "error"' not in db_js:
+        print('FAIL remote sync banner must still show explicit error state')
         sys.exit(1)
     if 'bootAuthUI' not in read('js/app.js'):
         print('FAIL app.js must call bootAuthUI before async init')

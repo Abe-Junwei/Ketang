@@ -901,10 +901,12 @@ async function renderAll(options) {
           loginBootstrap &&
           typeof rcHasSeededBoard === "function" &&
           rcHasSeededBoard();
-        await syncRemoteReadModel({
-          force: !hasLoginBoard,
-          bootstrapOnly: loginBootstrap,
-        });
+        if (!(loginBootstrap && hasLoginBoard)) {
+          await syncRemoteReadModel({
+            force: !hasLoginBoard,
+            bootstrapOnly: loginBootstrap,
+          });
+        }
       } else {
         try {
           const result = await apiBoardVersion();
