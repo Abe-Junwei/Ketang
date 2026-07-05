@@ -299,7 +299,8 @@ async function setHkAndRender(source, bedId, status) {
     var refreshOk = await forceRefreshHousekeeping();
     if (writeResult) {
       if (refreshOk) showToast("房务状态已保存");
-      else await uiAlert("房务状态已保存，但刷新失败，请手动刷新页面查看最新数据");
+      else
+        await uiAlert("房务状态已保存，但刷新失败，请手动刷新页面查看最新数据");
     } else {
       await uiAlert("房务状态变更失败：" + e.message);
     }

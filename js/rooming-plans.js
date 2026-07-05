@@ -738,9 +738,9 @@ async function handleGenerateRoomingPlan(source, eventId) {
       return;
     }
     if (
-      !await uiConfirm(
+      !(await uiConfirm(
         "将按当前报名与预计人数重新生成床位预分房，现有草稿条目会被覆盖。继续？",
-      )
+      ))
     ) {
       return;
     }
@@ -800,11 +800,11 @@ async function handleSaveRoomingPlan(source, eventId) {
     if (
       state.plan.status === "已确认" &&
       conflictReport.warning_count > 0 &&
-      !await uiConfirm(
+      !(await uiConfirm(
         "仍有 " +
           conflictReport.warning_count +
           " 项待人工确认的问题。确定在负责人已知情的情况下标记为「已确认」？",
-      )
+      ))
     ) {
       await renderRoomingPlan(eventId, { formState: state });
       return;

@@ -521,7 +521,11 @@ async function batchCancelEventMembers(source) {
     await uiAlert("请先勾选要取消的成员");
     return;
   }
-  if (!await uiConfirm(`确定要取消选中的 ${selected.length} 人吗？此操作不可恢复。`))
+  if (
+    !(await uiConfirm(
+      `确定要取消选中的 ${selected.length} 人吗？此操作不可恢复。`,
+    ))
+  )
     return;
 
   let eventId = null;
@@ -623,7 +627,11 @@ async function batchNoShowEventMembers(source) {
     await uiAlert("No-show 仅适用于预约记录，请勾选预约成员");
     return;
   }
-  if (!await uiConfirm(`确定要将选中的 ${resvOnly.length} 人标记为 No-show 吗？`))
+  if (
+    !(await uiConfirm(
+      `确定要将选中的 ${resvOnly.length} 人标记为 No-show 吗？`,
+    ))
+  )
     return;
 
   let eventId = null;
@@ -958,10 +966,12 @@ async function deleteEvent(id) {
   if (!e) return;
   const related = eventRelatedCount(id);
   if (related > 0) {
-    await uiAlert(`该营期下还有 ${related} 条记录，无法删除。请先取消或转移这些记录。`);
+    await uiAlert(
+      `该营期下还有 ${related} 条记录，无法删除。请先取消或转移这些记录。`,
+    );
     return;
   }
-  if (!await uiConfirm(`确定删除营期「${e.name}」吗？`)) return;
+  if (!(await uiConfirm(`确定删除营期「${e.name}」吗？`))) return;
   try {
     var deleteResult = null;
     if (isLocalForceDb()) {

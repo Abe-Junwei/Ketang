@@ -337,9 +337,9 @@ async function handlePublishRoomingPlan(source, eventId) {
       return;
     }
     if (
-      !await uiConfirm(
+      !(await uiConfirm(
         "将生成「待入住清单」供知客师逐条办理，不会自动写入床位。预计占位人员不会进入清单。继续发布？",
-      )
+      ))
     ) {
       return;
     }
@@ -370,9 +370,9 @@ async function handleRepublishRoomingPlan(source, eventId) {
       return;
     }
     if (
-      !await uiConfirm(
+      !(await uiConfirm(
         "重新发布会按当前草稿重建所有「待办理」条目；已办理/已跳过记录保留。继续？",
-      )
+      ))
     ) {
       return;
     }
@@ -420,11 +420,11 @@ async function handleRoomingQueueCheckin(source, queueId, eventId) {
       return;
     }
     if (
-      !await uiConfirm(
+      !(await uiConfirm(
         "按预分床位为「" +
           String(item.member_name || "") +
           "」办理？仍将走正常入住/分床流程，请确认房态与身份无误。",
-      )
+      ))
     ) {
       return;
     }
@@ -491,7 +491,8 @@ async function handleRoomingQueueSkip(source, queueId, eventId) {
       await uiAlert("权限不足");
       return;
     }
-    if (!await uiConfirm("标记为「已跳过」？表示本条暂不按预分床办理。")) return;
+    if (!(await uiConfirm("标记为「已跳过」？表示本条暂不按预分床办理。")))
+      return;
     var item = await findRoomingQueueItem(queueId, eventId);
     if (!item || item.queue_status !== "待办理") return;
     try {

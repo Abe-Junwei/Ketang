@@ -458,9 +458,9 @@ async function submitEditLodger(event, id) {
     const bed = readBedJoined(l.bed_id);
     if (!dormMatchGender(bed.dorm_type, gender)) {
       if (
-        !await uiConfirm(
+        !(await uiConfirm(
           `该床位所在房间为「${bed.dorm_type}」，修改性别后可能不符合安排。是否继续？`,
-        )
+        ))
       )
         return;
     }
@@ -477,7 +477,9 @@ async function submitEditLodger(event, id) {
       const info =
         personDisplayName(dup) + (dup.phone ? " · " + dup.phone : "");
       if (
-        !await uiConfirm(`检测到该手机号/身份证已有在住记录：${info}\n是否继续保存？`)
+        !(await uiConfirm(
+          `检测到该手机号/身份证已有在住记录：${info}\n是否继续保存？`,
+        ))
       )
         return;
     }

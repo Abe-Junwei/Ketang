@@ -585,7 +585,9 @@ document
       return;
     }
     if (!isBedAssignable(bedId)) {
-      await uiAlert("该床位当前不可分配（可能未清洁或已占用），请选择其他床位。");
+      await uiAlert(
+        "该床位当前不可分配（可能未清洁或已占用），请选择其他床位。",
+      );
       return;
     }
 
@@ -638,7 +640,9 @@ document
       const info =
         personDisplayName(dup) + (dup.phone ? " · " + dup.phone : "");
       if (
-        !await uiConfirm(`检测到该手机号/身份证已有在住记录：${info}\n是否继续登记？`)
+        !(await uiConfirm(
+          `检测到该手机号/身份证已有在住记录：${info}\n是否继续登记？`,
+        ))
       )
         return;
     }
