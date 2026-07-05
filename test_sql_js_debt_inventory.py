@@ -90,8 +90,10 @@ def check_read_shim_online_guard():
 
 def check_render_ops_notice():
     body = fn_body(read("js/app.js"), "renderOpsNotice") or ""
-    online_branch = body.count("if (!isLocalForceDb())") + body.count(
-        "if (useOnlineDataPath())"
+    online_branch = (
+        body.count("if (!isLocalForceDb())")
+        + body.count("if (useOnlineDataPath())")
+        + body.count("typeof useOnlineDataPath === \"function\" && useOnlineDataPath()")
     )
     if online_branch != 1:
         return [
