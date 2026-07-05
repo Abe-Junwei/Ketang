@@ -642,7 +642,7 @@ function renderLodgersPage() {
 }
 
 function getBoardBedStats() {
-  if (useOnlineDataPath()) {
+  if (typeof useOnlineDataPath === "function" && useOnlineDataPath()) {
     return rcGetBoardBedStats();
   }
   var spareSql = spareRoomExcludeClause("r");
@@ -724,7 +724,7 @@ function renderBoardCharts() {
   renderBoardRingChart("board-occ", "chart-board-occ", "board-occ-pct", stats);
 
   var flow;
-  if (useOnlineDataPath()) {
+  if (typeof useOnlineDataPath === "function" && useOnlineDataPath()) {
     flow = rcGetBoardFlowStats(today);
   } else {
     flow = {
@@ -786,7 +786,7 @@ function renderBoardCharts() {
   var femaleBeds;
   var maleOcc;
   var femaleOcc;
-  if (useOnlineDataPath()) {
+  if (typeof useOnlineDataPath === "function" && useOnlineDataPath()) {
     var dorm = rcGetDormBedStats();
     maleBeds = dorm.maleBeds;
     femaleBeds = dorm.femaleBeds;
@@ -1367,7 +1367,7 @@ function toggleRoomExpand(roomId, cardEl) {
 function renderRoomDetailPanel(roomId, cardEl) {
   const panel = document.getElementById("room-detail-panel");
   if (!panel) return;
-  var useRc = useOnlineDataPath();
+  var useRc = typeof useOnlineDataPath === "function" && useOnlineDataPath();
   const r = useRc
     ? rcBoardRooms().find(function (room) {
         return room.id == roomId;
@@ -1750,7 +1750,7 @@ function renderOpsNotice() {
   if (!el) return;
   const today = todayStr();
 
-  if (useOnlineDataPath()) {
+  if (typeof useOnlineDataPath === "function" && useOnlineDataPath()) {
     var ops = rcOpsNoticeData(today);
     if (ops.arrivals > 0 || ops.departures > 0) {
       el.innerHTML =
@@ -1954,7 +1954,7 @@ function renderCheckoutReminders() {
     { key: "overdue", label: "已超期", date: null },
   ];
   groups.forEach(function (g) {
-    if (useOnlineDataPath()) {
+    if (typeof useOnlineDataPath === "function" && useOnlineDataPath()) {
       _reminderData[g.key] = rcCheckoutReminders(g.key, g.date);
       return;
     }
