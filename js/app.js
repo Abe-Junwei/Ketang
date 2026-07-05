@@ -614,8 +614,16 @@ function renderBoardDeferredExtras() {
   if (typeof renderBoardCapacityForecast === "function") {
     renderBoardCapacityForecast();
   }
-  renderTodayMealsPanel();
   renderBedOptions();
+  var deferMeals =
+    typeof scheduleIdleTask === "function"
+      ? scheduleIdleTask
+      : function (fn) {
+          setTimeout(fn, 0);
+        };
+  deferMeals(function () {
+    renderTodayMealsPanel();
+  });
 }
 
 function renderBoard(options) {
@@ -870,6 +878,11 @@ function renderBoardCharts() {
       },
     },
   });
+  if (typeof scheduleKetangEchartLayoutRefresh === "function") {
+    scheduleKetangEchartLayoutRefresh("board-occ");
+    scheduleKetangEchartLayoutRefresh("board-flow");
+    scheduleKetangEchartLayoutRefresh("board-dorm");
+  }
 }
 
 function renderLodging() {

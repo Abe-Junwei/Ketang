@@ -14,6 +14,12 @@ var ketangEchartUpdateScheduled = false;
 var ketangChartEngineWarned = false;
 var ketangChartDeferred = {};
 var ketangChartDeferredObserver = null;
+var ketangEchartLayoutRefreshQueue = {};
+var ketangEchartLayoutRefreshScheduled = false;
+var ketangEchartsConnectPending = {};
+var ketangEchartsConnectScheduled = false;
+var ketangEchartResizeTimers = {};
+var ketangWindowResizeTimer = null;
 var ketangChartPerf = {
   initCount: 0,
   updateCount: 0,
@@ -74,6 +80,44 @@ function getKetangChartVisibilityElement(el) {
     return el.__ketangEchartHost;
   }
   return el;
+}
+
+function isKetangChartMountReady(el) {
+  if (!el || !el.isConnected) return false;
+  var view = el.closest(".view");
+  if (view && !view.classList.contains("active")) return false;
+  var sizedRoot = el.closest(
+    ".chart-ring-wrap, .board-chart-body--bar, .meals-meal-chart-body--pie, .forecast-chart-box, .report-chart-body",
+  );
+  if (sizedRoot) {
+    var rect = sizedRoot.getBoundingClientRect();
+    if (rect.width > 0 && rect.height > 0) return true;
+    if (
+      sizedRoot.classList.contains("chart-ring-wrap") &&
+      (rect.width > 0 || sizedRoot.clientWidth > 0)
+    ) {
+      return true;
+    }
+  }
+  return isKetangChartElementVisible(getKetangChartVisibilityElement(el));
+}
+
+function needsKetangEchartLayoutRefresh(host) {
+  if (!host) return false;
+  syncKetangEchartHostLayout(host);
+  return host.offsetWidth <= 0 || host.offsetHeight <= 0;
+}
+
+function ketangEchartTooltipBase() {
+  return {
+    backgroundColor: hexToRgba(cssHex("--color-foreground", "#3d3028"), 0.92),
+    borderWidth: 0,
+    padding: [8, 12],
+    textStyle: {
+      color: cssHex("--color-apricot", "#fff8f0"),
+      fontSize: 12,
+    },
+  };
 }
 
 function ensureKetangChartDeferredObserver() {
@@ -146,25 +190,22 @@ function flushDeferredKetangChart(key) {
 
 function mountKetangChartsInRoot(root) {
   if (!root) return;
+  var flushed = {};
   Object.keys(ketangChartDeferred).slice().forEach(function (key) {
     var pending = ketangChartDeferred[key];
     if (!pending) return;
     var el = resolveChartCanvas(pending.canvasOrId);
     if (!el || !root.contains(el)) return;
-    // 视图已激活时直接 flush，避免 canvas 尚未布局时 rect 为 0 卡住延迟队列。
-    if (root.classList.contains("active")) {
+    if (root.classList.contains("active") || isKetangChartMountReady(el)) {
       flushDeferredKetangChart(key);
-      return;
-    }
-    var visibleEl = getKetangChartVisibilityElement(el);
-    if (isKetangChartElementVisible(visibleEl)) {
-      flushDeferredKetangChart(key);
+      flushed[key] = true;
     }
   });
   Object.keys(ketangEcharts).forEach(function (key) {
+    if (flushed[key]) return;
     var meta = ketangEchartMeta[key];
     if (meta && meta.canvasEl && root.contains(meta.canvasEl)) {
-      resizeKetangChart(key);
+      scheduleKetangEchartLayoutRefresh(key);
     }
   });
 }
@@ -589,26 +630,59 @@ function observeKetangEchartHost(key, host) {
   if (!target) return;
   var obs = new ResizeObserver(function () {
     if (!ketangEcharts[key]) return;
-    syncKetangEchartHostLayout(host);
-    ketangEcharts[key].resize();
+    if (ketangEchartResizeTimers[key]) {
+      clearTimeout(ketangEchartResizeTimers[key]);
+    }
+    ketangEchartResizeTimers[key] = setTimeout(function () {
+      if (!ketangEcharts[key]) return;
+      syncKetangEchartHostLayout(host);
+      ketangEcharts[key].resize();
+    }, 80);
   });
   obs.observe(target);
   host.__ketangResizeObs = obs;
 }
 
 function scheduleKetangEchartLayoutRefresh(key) {
+  if (!key) return;
+  ketangEchartLayoutRefreshQueue[key] = true;
+  if (ketangEchartLayoutRefreshScheduled) return;
+  ketangEchartLayoutRefreshScheduled = true;
   var run = function () {
-    var meta = ketangEchartMeta[key];
-    if (meta && meta.el) syncKetangEchartHostLayout(meta.el);
-    resizeKetangChart(key);
+    ketangEchartLayoutRefreshScheduled = false;
+    var keys = Object.keys(ketangEchartLayoutRefreshQueue);
+    ketangEchartLayoutRefreshQueue = {};
+    keys.forEach(function (queuedKey) {
+      var meta = ketangEchartMeta[queuedKey];
+      if (meta && meta.el) syncKetangEchartHostLayout(meta.el);
+      resizeKetangChart(queuedKey);
+    });
   };
   if (typeof requestAnimationFrame === "function") {
-    requestAnimationFrame(function () {
-      requestAnimationFrame(run);
-    });
+    requestAnimationFrame(run);
     return;
   }
-  setTimeout(run, 32);
+  setTimeout(run, 16);
+}
+
+function scheduleKetangEchartsConnect(groupId) {
+  if (!groupId) return;
+  ketangEchartsConnectPending[groupId] = true;
+  if (ketangEchartsConnectScheduled) return;
+  ketangEchartsConnectScheduled = true;
+  var run = function () {
+    ketangEchartsConnectScheduled = false;
+    var groups = Object.keys(ketangEchartsConnectPending);
+    ketangEchartsConnectPending = {};
+    groups.forEach(function (gid) {
+      connectKetangEchartsGroup(gid);
+    });
+  };
+  if (typeof requestAnimationFrame === "function") {
+    requestAnimationFrame(run);
+    return;
+  }
+  setTimeout(run, 0);
 }
 
 function releaseKetangEchartHostByKey(key) {
@@ -841,7 +915,7 @@ function connectKetangEchartsGroup(groupId) {
 function assignKetangEchartsGroup(chart, groupId) {
   if (!chart || !groupId) return;
   chart.group = groupId;
-  connectKetangEchartsGroup(groupId);
+  scheduleKetangEchartsConnect(groupId);
 }
 
 function ensureKetangChartResizeListener() {
@@ -853,9 +927,12 @@ function ensureKetangChartResizeListener() {
   }
   ensureKetangChartResizeListener._ready = true;
   window.addEventListener("resize", function () {
-    Object.keys(ketangEcharts).forEach(function (key) {
-      resizeKetangChart(key);
-    });
+    if (ketangWindowResizeTimer) clearTimeout(ketangWindowResizeTimer);
+    ketangWindowResizeTimer = setTimeout(function () {
+      Object.keys(ketangEcharts).forEach(function (key) {
+        resizeKetangChart(key);
+      });
+    }, 120);
   });
 }
 
@@ -892,11 +969,15 @@ function chartJsConfigToEchartsOption(merged, mode) {
     animation: false,
     textStyle: {
       color: cssHex("--color-muted", "#6a5e52"),
+      fontSize: 11,
     },
-    tooltip: {
-      trigger: type === "bar" || type === "line" ? "axis" : "item",
-      axisPointer: { type: "shadow" },
-    },
+    tooltip: Object.assign(
+      {
+        trigger: type === "bar" || type === "line" ? "axis" : "item",
+        axisPointer: { type: "shadow" },
+      },
+      ketangEchartTooltipBase(),
+    ),
     legend: chartJsLegendToEcharts(chartOpts, mode),
     color: getChartColors(Math.max(datasets.length, labels.length, 1)),
   };
@@ -922,6 +1003,7 @@ function chartJsConfigToEchartsOption(merged, mode) {
     if (mode === "pie" && !legendCfg.show) {
       radius = ["0%", "72%"];
     }
+    var pieBorderRadius = mode === "ring" ? 4 : 5;
     var segmentColors = Array.isArray(first.backgroundColor)
       ? first.backgroundColor
       : null;
@@ -930,11 +1012,19 @@ function chartJsConfigToEchartsOption(merged, mode) {
         type: "pie",
         center: center,
         radius: radius,
-        avoidLabelOverlap: true,
+        minAngle: 4,
+        avoidLabelOverlap: false,
+        label: { show: false },
+        labelLine: { show: false },
+        emphasis: {
+          scale: true,
+          scaleSize: 6,
+          label: { show: false },
+        },
         itemStyle: {
-          borderRadius: 6,
+          borderRadius: pieBorderRadius,
           borderColor: getChartTheme().card,
-          borderWidth: 2,
+          borderWidth: mode === "ring" ? 2 : 1,
         },
         data: labels.map(function (label, idx) {
           var item = {
@@ -954,10 +1044,10 @@ function chartJsConfigToEchartsOption(merged, mode) {
   }
 
   option.grid = {
-    left: 28,
-    right: 16,
-    top: 20,
-    bottom: 36,
+    left: 24,
+    right: 12,
+    top: 16,
+    bottom: 32,
     containLabel: true,
   };
   if (isHorizontal) {
@@ -1009,6 +1099,8 @@ function chartJsConfigToEchartsOption(merged, mode) {
         type: "bar",
         name: ds.label || "",
         data: chartJsBarSeriesData(ds, isHorizontal),
+        barMaxWidth: ds.maxBarThickness || 44,
+        barCategoryGap: "32%",
         itemStyle: {
           borderRadius: isHorizontal ? [0, 6, 6, 0] : 6,
           color: chartJsDatasetColor(ds, idx) || undefined,
@@ -1027,6 +1119,8 @@ function chartJsConfigToEchartsOption(merged, mode) {
       type: "bar",
       name: ds.label || "",
       data: chartJsBarSeriesData(ds, isHorizontal),
+      barMaxWidth: ds.maxBarThickness || 44,
+      barCategoryGap: "32%",
       itemStyle: {
         borderRadius: isHorizontal ? [0, 6, 6, 0] : 6,
         color: chartJsDatasetColor(ds, idx) || undefined,
@@ -1075,11 +1169,12 @@ function upsertKetangEchart(key, canvasEl, merged, mode) {
     groupId ? { group: groupId } : undefined,
   );
   chart.setOption(option, true, true);
-  syncKetangEchartHostLayout(host);
   chart.resize();
   assignKetangEchartsGroup(chart, groupId);
   observeKetangEchartHost(key, host);
-  scheduleKetangEchartLayoutRefresh(key);
+  if (needsKetangEchartLayoutRefresh(host)) {
+    scheduleKetangEchartLayoutRefresh(key);
+  }
   recordKetangChartPerf("init", initStart);
   ketangEcharts[key] = chart;
   ketangEchartMeta[key] = { el: host, canvasEl: canvasEl, type: type };
@@ -1095,7 +1190,8 @@ function upsertKetangChart(key, canvasOrId, config, mode, prepare, options) {
   merged.type = merged.type || defaultChartTypeForMode(mode);
   merged.options = applyKetangChartDefaults(merged.options || {}, mode);
   var visibleEl = getKetangChartVisibilityElement(el);
-  var visible = options.skipDefer || isKetangChartElementVisible(visibleEl);
+  var visible =
+    options.skipDefer || isKetangChartMountReady(el) || isKetangChartElementVisible(visibleEl);
   if (shouldUseKetangEchartsForKey(key)) {
     var echartHost =
       el.__ketangEchartHost && el.__ketangEchartHost.isConnected
@@ -1175,7 +1271,7 @@ function createKetangPieChart(key, canvasOrId, config) {
     var opts = merged.options || {};
     opts.plugins = opts.plugins || {};
     opts.plugins.legend = Object.assign(
-      { display: true, position: "bottom" },
+      { display: false, position: "bottom" },
       opts.plugins.legend || {},
     );
     opts.plugins.tooltip = Object.assign(
