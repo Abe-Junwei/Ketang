@@ -115,7 +115,12 @@ function perfRumCollectMeasures() {
       metrics.fcp_ms = Math.round(entry.startTime);
     }
   });
-  var lcpEntries = performance.getEntriesByType("largest-contentful-paint");
+  var lcpEntries = [];
+  try {
+    lcpEntries = performance.getEntriesByType("largest-contentful-paint");
+  } catch (e) {
+    /* Chrome may deprecate this entry type; ignore */
+  }
   if (lcpEntries.length) {
     metrics.lcp_ms = Math.round(lcpEntries[lcpEntries.length - 1].startTime);
   }

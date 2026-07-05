@@ -32,6 +32,9 @@ function logAudit(action, targetType, targetId, detail) {
       });
       return true;
     }
+    if (typeof isRemoteDB === "function" && isRemoteDB()) {
+      return true;
+    }
     run(sql, params);
     return true;
   } catch (e) {

@@ -1,9 +1,40 @@
 /* 在线读 shim：本地 query / 云端 rc* | Read shim for local SQL vs online rc */
 
-function readUseRc() {
+function readUseOnlineDataPath() {
   return (
-    typeof useOnlineDataPath === "function" &&
-    useOnlineDataPath() &&
+    (typeof isRemoteDB === "function" && isRemoteDB()) ||
+    (typeof useOnlineDataPath === "function" && useOnlineDataPath())
+  );
+}
+
+function readRcModuleCached(moduleKey) {
+  return typeof rcModuleCached === "function" && rcModuleCached(moduleKey);
+}
+
+function readRcModulesCached(moduleKeys) {
+  return (moduleKeys || []).every(function (moduleKey) {
+    return readRcModuleCached(moduleKey);
+  });
+}
+
+function readUseCachedModule(moduleKey) {
+  return (
+    readUseRc() || (readUseOnlineDataPath() && readRcModuleCached(moduleKey))
+  );
+}
+
+function readUseCachedModules(moduleKeys) {
+  return (
+    readUseRc() || (readUseOnlineDataPath() && readRcModulesCached(moduleKeys))
+  );
+}
+
+function readUseRc() {
+  var usesLegacyOnlineGate =
+    typeof useOnlineDataPath === "function" && useOnlineDataPath();
+  return (
+    ((typeof isRemoteDB === "function" && isRemoteDB()) ||
+      usesLegacyOnlineGate) &&
     typeof rcReadReady === "function" &&
     rcReadReady()
   );
@@ -11,16 +42,12 @@ function readUseRc() {
 
 /** 在线 rc 尚未就绪：禁止 query()，返回空值 | Online before rc cache warm */
 function readOnlineCachePending() {
-  return (
-    typeof useOnlineDataPath === "function" &&
-    useOnlineDataPath() &&
-    !readUseRc()
-  );
+  return readUseOnlineDataPath() && !readUseRc();
 }
 
 /** 本地/灾备专用 query；在线路径永不调用 sql.js | Local-only query fallback */
 function readLocalQuery(defaultValue, fn) {
-  if (typeof useOnlineDataPath === "function" && useOnlineDataPath()) {
+  if (readUseOnlineDataPath()) {
     return defaultValue;
   }
   return fn();
@@ -303,7 +330,7 @@ function readFirstMealDefaultsRow(lodgerId) {
 }
 
 function readEventById(id) {
-  if (readUseRc() && typeof rcEventById === "function") {
+  if (readUseCachedModule("events") && typeof rcEventById === "function") {
     return rcEventById(id);
   }
   if (readOnlineCachePending()) return null;
@@ -337,7 +364,7 @@ function readEventListWithStats() {
 }
 
 function readEventMemberLodgers(eventId) {
-  if (readUseRc()) {
+  if (readUseCachedModules(["lodgers_active", "lodgers_recent"])) {
     return rcAllLodgersMerged()
       .filter(function (l) {
         return l.event_id == eventId && l.status === "在住";
@@ -358,7 +385,7 @@ function readEventMemberLodgers(eventId) {
 }
 
 function readEventMemberReservations(eventId) {
-  if (readUseRc()) {
+  if (readUseCachedModule("reservations")) {
     return rcRows("reservations", "reservations")
       .filter(function (r) {
         return (
@@ -380,7 +407,7 @@ function readEventMemberReservations(eventId) {
 }
 
 function readEventMemberReservationsForExport(eventId) {
-  if (readUseRc()) {
+  if (readUseCachedModule("reservations")) {
     return rcRows("reservations", "reservations")
       .filter(function (r) {
         return r.event_id == eventId;
@@ -399,7 +426,10 @@ function readEventMemberReservationsForExport(eventId) {
 }
 
 function readEventMemberGenders(eventId) {
-  if (readUseRc() && typeof rcEventMembers === "function") {
+  if (
+    readUseCachedModules(["events", "lodgers_active", "reservations"]) &&
+    typeof rcEventMembers === "function"
+  ) {
     var pack = rcEventMembers(eventId);
     if (!pack) return [];
     var members = [];
@@ -421,7 +451,7 @@ function readEventMemberGenders(eventId) {
 }
 
 function readEventRelatedCount(eventId) {
-  if (readUseRc()) {
+  if (readUseCachedModules(["lodgers_active", "reservations"])) {
     var lodgers = rcAllLodgersMerged().filter(function (l) {
       return l.event_id == eventId;
     }).length;
@@ -430,6 +460,7 @@ function readEventRelatedCount(eventId) {
     }).length;
     return lodgers + resvs;
   }
+  if (readUseOnlineDataPath()) return 0;
   if (readOnlineCachePending()) return 0;
   return readLocalQuery(0, function () {
     return (
@@ -444,7 +475,7 @@ function readEventRelatedCount(eventId) {
 }
 
 function readEventByName(name) {
-  if (readUseRc()) {
+  if (readUseCachedModule("events")) {
     var rows = rcRows("events", "events").filter(function (e) {
       return e.name === name;
     });
@@ -468,14 +499,20 @@ function readEventByName(name) {
 
 function readFindEventByName(name) {
   if (!name) return null;
-  if (readUseRc() && typeof rcFindEventByName === "function") {
+  if (
+    readUseCachedModule("events") &&
+    typeof rcFindEventByName === "function"
+  ) {
     return rcFindEventByName(name);
   }
   return readEventByName(String(name).trim());
 }
 
 function readEventsForSelect() {
-  if (readUseRc() && typeof rcEventsForSelect === "function") {
+  if (
+    readUseCachedModule("events") &&
+    typeof rcEventsForSelect === "function"
+  ) {
     return rcEventsForSelect();
   }
   if (readOnlineCachePending()) return [];

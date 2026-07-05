@@ -23,8 +23,18 @@ def main():
         ("domainsToModules no single-scope shortcut", "return [scoped]" not in sync),
         ("rcEventMembers", "function rcEventMembers" in rc),
         ("eventReadReady", "function eventReadReady" in events),
-        ("batch cancel awaits sync", "await refreshTask" in events and "batchCancelEventMembers" in events),
-        ("info delta sync on write", "syncRemoteDeltaSince" in info and "infoModuleTables" in info),
+        (
+            "batch cancel handles background sync",
+            "refreshTask.catch" in events
+            and "forceRefreshEventMembers" in events
+            and "batchCancelEventMembers" in events,
+        ),
+        (
+            "info write uses rc refresh",
+            "rcRefreshAfterWrite" in info
+            and "infoModuleTables" in info
+            and "syncRemoteDeltaSince" in sync,
+        ),
         ("delta-first write sync", "syncRemoteDeltaSince(localVersion" in sync),
         ("parallel module fetch", "Promise.all" in sync and "syncRemoteByModules" in sync),
         ("skip sql hydrate when rc ready", "skipSqlHydrate" in sync or "rcReadReady()" in sync),

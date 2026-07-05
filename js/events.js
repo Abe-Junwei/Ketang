@@ -61,6 +61,31 @@ function eventUseApiData() {
   return typeof useOnlineDataPath === "function" && useOnlineDataPath();
 }
 
+/** 营期表单保存保护兜底 | Fallback pending guard for event forms */
+function eventBeginActionPending(source, pendingText) {
+  if (typeof beginActionPending === "function") {
+    return beginActionPending(source, pendingText);
+  }
+  var form = source && (source.currentTarget || source.target || source);
+  if (!form || !form.querySelector) return function () {};
+  if (form.dataset.actionPending === "1") return null;
+  var button = form.querySelector("button[type='submit']");
+  var oldText = button ? button.textContent : null;
+  var oldDisabled = button ? button.disabled : false;
+  form.dataset.actionPending = "1";
+  if (button) {
+    button.disabled = true;
+    button.textContent = pendingText || "保存中…";
+  }
+  return function finishEventPending() {
+    if (button) {
+      button.disabled = oldDisabled;
+      if (oldText != null) button.textContent = oldText;
+    }
+    delete form.dataset.actionPending;
+  };
+}
+
 function eventBuildOptimisticRow(eventId, core) {
   return Object.assign(
     {
@@ -131,6 +156,9 @@ function eventMemberViewRefresh(eventId) {
 }
 
 function eventReadReady() {
+  if (typeof readUseCachedModule === "function") {
+    return readUseCachedModule("events");
+  }
   return typeof readUseRc === "function" && readUseRc();
 }
 
@@ -582,9 +610,15 @@ async function batchCancelEventMembers(source) {
     var rollbackOk = original ? rollbackEventMembersOptimistic(original) : true;
     if (!rollbackOk) await forceRefreshEventMembers();
     if (rollbackOk) {
-      rcRefreshAfterWrite(writeResult, {
+      var refreshTask = rcRefreshAfterWrite(writeResult, {
         viewRefresh: eventMemberViewRefresh(eventId),
       });
+      if (refreshTask && typeof refreshTask.then === "function") {
+        refreshTask.catch(function (err) {
+          console.warn("event members refresh failed:", err.message || err);
+          forceRefreshEventMembers();
+        });
+      }
     }
   } catch (e) {
     console.error(e);
@@ -658,9 +692,15 @@ async function batchNoShowEventMembers(source) {
     var rollbackOk = original ? rollbackEventMembersOptimistic(original) : true;
     if (!rollbackOk) await forceRefreshEventMembers();
     if (rollbackOk) {
-      rcRefreshAfterWrite(writeResult, {
+      var refreshTask = rcRefreshAfterWrite(writeResult, {
         viewRefresh: eventMemberViewRefresh(eventId),
       });
+      if (refreshTask && typeof refreshTask.then === "function") {
+        refreshTask.catch(function (err) {
+          console.warn("event members refresh failed:", err.message || err);
+          forceRefreshEventMembers();
+        });
+      }
     }
   } catch (e) {
     console.error(e);
@@ -770,7 +810,10 @@ async function submitEvent(e) {
     return;
   }
 
-  const finishPending = beginActionPending(e, "保存中…");
+  const finishPending =
+    typeof beginActionPending === "function"
+      ? beginActionPending(e, "保存中…")
+      : eventBeginActionPending(e, "保存中…");
   if (!finishPending) {
     showToast("正在保存，请稍候");
     return;

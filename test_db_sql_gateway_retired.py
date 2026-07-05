@@ -27,6 +27,8 @@ def main():
         failed.append("audit.js must use apiPostAudit")
     if 'action: "run"' in audit_js:
         failed.append("audit.js still uses /api/db run")
+    if "typeof isRemoteDB === \"function\" && isRemoteDB())" not in audit_js:
+        failed.append("audit.js must guard online path without local run()")
     if "/api/v1/auth/change-password" not in api:
         failed.append("api-client must call /api/v1/auth/change-password")
     if "remoteBatchQuery" in api:

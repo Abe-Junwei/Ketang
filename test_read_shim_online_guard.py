@@ -11,9 +11,20 @@ def read(path):
 def main():
     src = read("js/read-shim.js")
     checks = [
+        ("readUseOnlineDataPath helper", "function readUseOnlineDataPath" in src),
+        ("online gate matches db", "isRemoteDB()" in src.split("function readUseOnlineDataPath", 1)[1].split("function readRcModuleCached", 1)[0]),
+        ("multi-module cache helper", "function readUseCachedModules" in src),
         ("readOnlineCachePending helper", "function readOnlineCachePending" in src),
         ("readLocalQuery helper", "function readLocalQuery" in src),
         ("readUseRc online gate", "useOnlineDataPath()" in src.split("function readUseRc")[1].split("function readOnlineCachePending")[0]),
+        ("events cached read", "readUseCachedModule(\"events\")" in src and "function readEventById" in src),
+        (
+            "event genders cached read",
+            "function readEventMemberGenders" in src
+            and 'readUseCachedModules(["events", "lodgers_active", "reservations"])' in src
+            and "rcEventMembers(eventId)" in src,
+        ),
+        ("event delete safe count", "if (readUseOnlineDataPath()) return 0" in src),
         ("lodger pending null", "readOnlineCachePending()) return null" in src),
         ("meals pending empty", "readOnlineCachePending()) return []" in src),
         (
