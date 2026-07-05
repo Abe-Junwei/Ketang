@@ -5394,9 +5394,11 @@ form .field {
   font-weight: var(--font-weight-semibold);
 }
 
-.event-chart-box canvas {
+.event-chart-box canvas,
+.event-chart-box .ketang-echart-host {
   flex: 1;
   min-height: 0;
+}
 }
 
 /* ============================================================

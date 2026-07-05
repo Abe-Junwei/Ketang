@@ -70,6 +70,9 @@ function renderForecastTab(tab) {
   const panel = document.getElementById("forecast-panel-" + tab);
   if (btn) btn.classList.add("active");
   if (panel) panel.classList.add("active");
+  if (typeof mountKetangChartsInRoot === "function") {
+    mountKetangChartsInRoot(panel);
+  }
   if (tab === "today") renderTodayForecast();
   if (tab === "flow") renderFlowForecast();
   if (typeof updateTopbarForForecastTab === "function") {

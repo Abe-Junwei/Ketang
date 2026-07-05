@@ -1294,7 +1294,8 @@ function exportRoomingSuggestionCSV(eventId) {
    ============================================================ */
 
 function renderEventProgressChart(events) {
-  if (typeof Chart === "undefined") return;
+  if (typeof createKetangChart !== "function") return;
+  if (typeof Chart === "undefined" && typeof echarts === "undefined") return;
   const activeEvents = events
     .filter((e) => e.expected_count > 0 && e.status !== "已取消")
     .slice(0, 12);

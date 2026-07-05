@@ -501,6 +501,9 @@ async function showView(name) {
   }
   syncMobileNavActive(name, _pendingStayMode);
   updateTopbarTitle(name);
+  if (typeof mountKetangChartsInRoot === "function") {
+    mountKetangChartsInRoot(document.getElementById("view-" + name));
+  }
   if (name === "board") renderBoard();
   if (name === "lodging") renderLodging();
   if (name === "lodgers") renderLodgersPage();
