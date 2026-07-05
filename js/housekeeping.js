@@ -243,7 +243,7 @@ async function setHkAndRender(source, bedId, status) {
     );
     return;
   }
-  var finishPending = beginActionPending(source, "保存中…");
+  var finishPending = safeBeginActionPending(source, "保存中…");
   if (!finishPending) return;
   HOUSEKEEPING_PENDING_BEDS[bedId] = status;
   var optimistic = applyHousekeepingOptimistic(bedId, status);
@@ -334,7 +334,7 @@ function loadOperationalSettings() {
 
 async function saveOperationalSettings(source) {
   if (typeof requireAdmin === "function" && !requireAdmin()) return;
-  return withActionPending(source, "保存中…", async function () {
+  return safeWithActionPending(source, "保存中…", async function () {
     const requireInspect =
       !!document.getElementById("hk-require-inspect")?.checked;
     try {

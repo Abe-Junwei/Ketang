@@ -361,7 +361,7 @@ async function assignExistingLodgerToBed(lodgerId, bedId, opts) {
   opts = opts || {};
   const quiet = opts.quiet;
   var finishPending = opts.source
-    ? beginActionPending(opts.source, "保存中…")
+    ? safeBeginActionPending(opts.source, "保存中…")
     : null;
   if (opts.source && !finishPending) return false;
   const l = query("SELECT * FROM lodgers WHERE id=? AND status='在住'", [
@@ -446,7 +446,7 @@ async function assignReservationToBed(resvId, bedId, opts) {
   opts = opts || {};
   const quiet = opts.quiet;
   var finishPending = opts.source
-    ? beginActionPending(opts.source, "保存中…")
+    ? safeBeginActionPending(opts.source, "保存中…")
     : null;
   if (opts.source && !finishPending) return false;
   const r = query("SELECT * FROM reservations WHERE id=?", [resvId])[0];
@@ -670,7 +670,7 @@ document
       return;
     }
 
-    const finishPending = beginActionPending(e, "保存中…");
+    const finishPending = safeBeginActionPending(e, "保存中…");
     if (!finishPending) return;
     try {
       var writeResult = null;
@@ -985,7 +985,7 @@ async function importBatchCSV(input) {
   if (!file) return;
   const triggerBtn = document.getElementById("batch-import-btn");
   const finishPending = triggerBtn
-    ? beginActionPending(triggerBtn, "导入中…")
+    ? safeBeginActionPending(triggerBtn, "导入中…")
     : null;
   if (triggerBtn && !finishPending) {
     input.value = "";

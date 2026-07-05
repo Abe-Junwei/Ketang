@@ -729,7 +729,7 @@ async function renderRoomingPlan(eventId, options) {
 }
 
 async function handleGenerateRoomingPlan(source, eventId) {
-  return withActionPending(source, "保存中…", async function () {
+  return safeWithActionPending(source, "保存中…", async function () {
     if (
       typeof hasPermission === "function" &&
       !hasPermission("settings.write")
@@ -765,7 +765,7 @@ async function handleRefreshRoomingConflicts(eventId) {
 }
 
 async function handleSaveRoomingPlan(source, eventId) {
-  return withActionPending(source, "保存中…", async function () {
+  return safeWithActionPending(source, "保存中…", async function () {
     if (
       typeof hasPermission === "function" &&
       !hasPermission("settings.write")

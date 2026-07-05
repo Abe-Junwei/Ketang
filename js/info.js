@@ -776,7 +776,7 @@ async function openRoomModal(id) {
 }
 
 async function submitRoom(event, id) {
-  return withActionPending(event, "保存中…", async function () {
+  return safeWithActionPending(event, "保存中…", async function () {
     infoClearErrors("info-room-");
     const name = infoGetValue("info-room-name");
     const location = infoGetValue("info-room-location");
@@ -999,7 +999,7 @@ async function openBedModal(id) {
 }
 
 async function submitBed(event, id) {
-  return withActionPending(event, "保存中…", async function () {
+  return safeWithActionPending(event, "保存中…", async function () {
     infoClearErrors("info-bed-");
     const roomId = infoGetInt("info-bed-room");
     const number = infoGetValue("info-bed-number");
@@ -1229,7 +1229,7 @@ async function openGuestModal(id) {
 }
 
 async function submitGuest(event, id) {
-  return withActionPending(event, "保存中…", async function () {
+  return safeWithActionPending(event, "保存中…", async function () {
     infoClearErrors("info-guest-");
     const person = parsePersonNameInput(infoGetValue("info-guest-name"));
     const name = person.name;
@@ -1514,7 +1514,7 @@ async function infoReloadBedOptions(roomSelectId, bedSelectId, selectedBedId) {
 }
 
 async function submitLodger(event, id) {
-  return withActionPending(event, "保存中…", async function () {
+  return safeWithActionPending(event, "保存中…", async function () {
     infoClearErrors("info-lodger-");
     const l = infoFindLodger(id);
     if (!l) return infoToast("挂单记录不存在");

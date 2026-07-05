@@ -55,7 +55,7 @@ document.getElementById("resv-form").addEventListener("submit", async (e) => {
   }
 
   const resvId = document.getElementById("resv-id").value;
-  const finishPending = beginActionPending(e, "保存中…");
+  const finishPending = safeBeginActionPending(e, "保存中…");
   if (!finishPending) return;
   try {
     var writeResult = null;

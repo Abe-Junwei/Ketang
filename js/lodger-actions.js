@@ -128,7 +128,7 @@ function openExtendModal(id) {
 }
 
 async function submitExtend(event, id) {
-  return withActionPending(event, "保存中…", async function () {
+  return safeWithActionPending(event, "保存中…", async function () {
     const date = document.getElementById("ext-date").value;
     if (!date) {
       await uiAlert("请选择新的预离日期");
@@ -259,7 +259,7 @@ function selectChangeBed(e, bedId) {
 }
 
 async function submitChangeBed(event, lodgerId, gender) {
-  return withActionPending(event, "保存中…", async function () {
+  return safeWithActionPending(event, "保存中…", async function () {
     const bedId = document.getElementById("chg-bed").value;
     if (!bedId) {
       await uiAlert("请选择新床位");
@@ -411,7 +411,7 @@ function openEditLodgerModal(id) {
 }
 
 async function submitEditLodger(event, id) {
-  return withActionPending(event, "保存中…", async function () {
+  return safeWithActionPending(event, "保存中…", async function () {
     if (
       !validateFields([
         "edit-name",
@@ -679,7 +679,7 @@ function openCheckoutModal(id) {
 }
 
 async function submitCheckout(event, id) {
-  return withActionPending(event, "保存中…", async function () {
+  return safeWithActionPending(event, "保存中…", async function () {
     const refund = parseFloat(document.getElementById("co-refund").value) || 0;
     const method = document.getElementById("co-refund-method").value;
     const notes = document.getElementById("co-notes").value.trim() || null;

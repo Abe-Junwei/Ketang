@@ -61,31 +61,6 @@ function eventUseApiData() {
   return typeof useOnlineDataPath === "function" && useOnlineDataPath();
 }
 
-/** 营期表单保存保护兜底 | Fallback pending guard for event forms */
-function eventBeginActionPending(source, pendingText) {
-  if (typeof beginActionPending === "function") {
-    return beginActionPending(source, pendingText);
-  }
-  var form = source && (source.currentTarget || source.target || source);
-  if (!form || !form.querySelector) return function () {};
-  if (form.dataset.actionPending === "1") return null;
-  var button = form.querySelector("button[type='submit']");
-  var oldText = button ? button.textContent : null;
-  var oldDisabled = button ? button.disabled : false;
-  form.dataset.actionPending = "1";
-  if (button) {
-    button.disabled = true;
-    button.textContent = pendingText || "保存中…";
-  }
-  return function finishEventPending() {
-    if (button) {
-      button.disabled = oldDisabled;
-      if (oldText != null) button.textContent = oldText;
-    }
-    delete form.dataset.actionPending;
-  };
-}
-
 function eventBuildOptimisticRow(eventId, core) {
   return Object.assign(
     {
@@ -810,10 +785,7 @@ async function submitEvent(e) {
     return;
   }
 
-  const finishPending =
-    typeof beginActionPending === "function"
-      ? beginActionPending(e, "保存中…")
-      : eventBeginActionPending(e, "保存中…");
+  const finishPending = safeBeginActionPending(e, "保存中…");
   if (!finishPending) {
     showToast("正在保存，请稍候");
     return;

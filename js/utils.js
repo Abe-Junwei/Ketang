@@ -145,6 +145,48 @@ async function withActionPending(source, pendingText, action) {
   }
 }
 
+/** 安全写操作按钮保护：在 beginActionPending 不可用时提供同语义兜底 |
+ *  Safe action pending guard that falls back to a lightweight implementation
+ *  when the full helper is not yet loaded (e.g. cached script mismatch).
+ */
+function safeBeginActionPending(source, pendingText) {
+  if (typeof beginActionPending === "function") {
+    return beginActionPending(source, pendingText);
+  }
+  var target = actionPendingTarget(source);
+  if (!target || !target.scope) return null;
+  if (target.scope.dataset.actionPending === "1") return null;
+  var control = target.control;
+  if (control && control.disabled) return null;
+  target.scope.dataset.actionPending = "1";
+  var oldText = control ? control.textContent : null;
+  var oldDisabled = control ? control.disabled : false;
+  if (control) {
+    control.disabled = true;
+    control.textContent = pendingText || "保存中…";
+  }
+  return function finishPending() {
+    if (control) {
+      control.disabled = oldDisabled;
+      if (oldText != null) control.textContent = oldText;
+    }
+    delete target.scope.dataset.actionPending;
+  };
+}
+
+/** 安全 withActionPending：底层使用 safeBeginActionPending |
+ *  Safe wrapper around withActionPending for the same cache-mismatch scenario.
+ */
+async function safeWithActionPending(source, pendingText, action) {
+  var finishPending = safeBeginActionPending(source, pendingText);
+  if (!finishPending) return false;
+  try {
+    return await action();
+  } finally {
+    finishPending();
+  }
+}
+
 // 主题切换 | Theme toggle
 
 function getTheme() {

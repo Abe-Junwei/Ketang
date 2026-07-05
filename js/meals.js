@@ -1013,7 +1013,7 @@ async function buildMealDaysFromModal(lodger, defaults) {
 }
 
 async function submitMeals(event, lodgerId) {
-  return withActionPending(event, "保存中…", async function () {
+  return safeWithActionPending(event, "保存中…", async function () {
     const defaults = readMealModalDefaults();
     if (isLocalForceDb()) {
       setLodgerMealDefaults(

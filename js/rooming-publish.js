@@ -328,7 +328,7 @@ async function renderRoomingCheckinQueue(eventId) {
 }
 
 async function handlePublishRoomingPlan(source, eventId) {
-  return withActionPending(source, "保存中…", async function () {
+  return safeWithActionPending(source, "保存中…", async function () {
     if (
       typeof hasPermission === "function" &&
       !hasPermission("settings.write")
@@ -361,7 +361,7 @@ async function handlePublishRoomingPlan(source, eventId) {
 }
 
 async function handleRepublishRoomingPlan(source, eventId) {
-  return withActionPending(source, "保存中…", async function () {
+  return safeWithActionPending(source, "保存中…", async function () {
     if (
       typeof hasPermission === "function" &&
       !hasPermission("settings.write")
@@ -401,7 +401,7 @@ async function completeRoomingQueueCheckin(queueId, eventId, item) {
 }
 
 async function handleRoomingQueueCheckin(source, queueId, eventId) {
-  return withActionPending(source, "保存中…", async function () {
+  return safeWithActionPending(source, "保存中…", async function () {
     if (
       typeof hasPermission === "function" &&
       !hasPermission("lodging.checkin")
@@ -483,7 +483,7 @@ async function handleRoomingQueueCheckin(source, queueId, eventId) {
 }
 
 async function handleRoomingQueueSkip(source, queueId, eventId) {
-  return withActionPending(source, "保存中…", async function () {
+  return safeWithActionPending(source, "保存中…", async function () {
     if (
       typeof hasPermission === "function" &&
       !hasPermission("lodging.checkin")
