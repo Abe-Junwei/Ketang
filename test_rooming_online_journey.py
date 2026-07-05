@@ -34,7 +34,7 @@ def main():
         ("patch detector", "function roomingWriteHasPatches" in rr),
         ("skip force refetch when patched", "if (!hasPatches && eventId && roomingReadReady())" in rr),
         ("queue checkin uses assign bed", "assignExistingLodgerToBed" in publish or "assignExistingLodgerToBed" in read("js/rooming-publish.js")),
-        ("pending guards on rooming writes", "withActionPending(source" in plans and "withActionPending(source" in publish),
+        ("pending guards on rooming writes", ("withActionPending(source" in plans or "safeWithActionPending(source" in plans) and ("withActionPending(source" in publish or "safeWithActionPending(source" in publish)),
     ]
     failed = [name for name, ok in checks if not ok]
     if failed:

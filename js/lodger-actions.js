@@ -271,14 +271,20 @@ async function submitChangeBed(event, lodgerId, gender) {
       await uiAlert("该床位所在房间寮类型不符");
       return;
     }
-    var occ = readUseRc()
-      ? rcLodgerOnBed(bedId)
-        ? 1
-        : 0
-      : query(
+    var occ;
+    if (readUseOnlineDataPath()) {
+      var lodgerOnBed =
+        typeof rcLodgerOnBed === "function" ? rcLodgerOnBed(bedId) : null;
+      occ = lodgerOnBed ? 1 : 0;
+    } else if (readUseRc()) {
+      occ = rcLodgerOnBed(bedId) ? 1 : 0;
+    } else {
+      occ =
+        query(
           "SELECT COUNT(*) as c FROM lodgers WHERE bed_id=? AND status='在住'",
           [bedId],
         )[0]?.c || 0;
+    }
     if (occ > 0) {
       await uiAlert("该床位已有人");
       return;
@@ -318,10 +324,7 @@ async function submitChangeBed(event, lodgerId, gender) {
           await maybeLogRoomingChangeBed(lodgerId, old.bed_id, bedId);
         }
       } else {
-        const old = query(
-          "SELECT bed_id, guest_id, name, event_id FROM lodgers WHERE id=?",
-          [lodgerId],
-        )[0];
+        const old = readLodger(lodgerId);
         writeResult = await apiChangeBed({
           lodger_id: lodgerId,
           bed_id: parseInt(bedId, 10),

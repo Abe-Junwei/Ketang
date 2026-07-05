@@ -1193,8 +1193,12 @@ function updateLodgersPageMeta() {
   var total =
     typeof readActiveLodgerCount === "function"
       ? readActiveLodgerCount()
-      : query("SELECT COUNT(*) as c FROM lodgers WHERE status='在住'")[0]?.c ||
-        0;
+      : readLocalQuery(0, function () {
+          return (
+            query("SELECT COUNT(*) as c FROM lodgers WHERE status='在住'")[0]
+              ?.c || 0
+          );
+        });
   countEl.textContent = total ? "共 " + total + " 人在住" : "暂无在住挂单";
 }
 
@@ -1643,14 +1647,16 @@ function renderLodgers() {
   const lodgers =
     typeof boardReadCacheReady === "function" && boardReadCacheReady()
       ? rcActiveLodgersEnriched()
-      : query(`
-    SELECT l.*, r.name as room_name, r.location, b.bed_number
-    FROM lodgers l
-    LEFT JOIN beds b ON b.id = l.bed_id
-    LEFT JOIN rooms r ON r.id = b.room_id
-    WHERE l.status='在住'
-    ORDER BY l.check_in_date DESC, l.id DESC
-  `);
+      : readLocalQuery([], function () {
+          return query(`
+        SELECT l.*, r.name as room_name, r.location, b.bed_number
+        FROM lodgers l
+        LEFT JOIN beds b ON b.id = l.bed_id
+        LEFT JOIN rooms r ON r.id = b.room_id
+        WHERE l.status='在住'
+        ORDER BY l.check_in_date DESC, l.id DESC
+      `);
+        });
   lodgers.forEach(function (l, idx) {
     const bedLabel = formatBedLabel(l.bed_number, 0);
     const roomLabel = escapeHtml(

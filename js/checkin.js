@@ -20,15 +20,19 @@ function renderBedPicker(options) {
   const spareRoomFilter = options.spareRoomFilter !== false;
 
   var rooms;
-  var useRc =
+  var rcReady =
     typeof rcUseApiRead === "function" &&
     rcUseApiRead() &&
     typeof rcBoardRoomsWithStats === "function";
+  var forceOnline = readUseOnlineDataPath();
+  var useRc = forceOnline || rcReady;
   if (useRc) {
-    rooms = rcBoardRoomsWithStats(excludeId, {
-      gender: gender,
-      spareRoomFilter: spareRoomFilter,
-    });
+    rooms = rcReady
+      ? rcBoardRoomsWithStats(excludeId, {
+          gender: gender,
+          spareRoomFilter: spareRoomFilter,
+        })
+      : [];
   } else {
     rooms = query(
       `
@@ -80,7 +84,8 @@ function renderBedPicker(options) {
     html += '<div class="bp-room-beds">';
     if (!isFull) {
       var beds;
-      if (useRc && typeof rcBedsForRoom === "function") {
+      var bedsReady = useRc && typeof rcBedsForRoom === "function";
+      if (bedsReady) {
         beds = rcBedsForRoom(r.id, {
           excludeBedId: excludeId,
           skipSpare: true,
@@ -92,6 +97,8 @@ function renderBedPicker(options) {
           .map(function (b, idx) {
             return rcBedRowEnriched(b, idx);
           });
+      } else if (forceOnline) {
+        beds = [];
       } else {
         beds = query(
           `
@@ -162,10 +169,7 @@ async function renderBedOptionsAsync(selectedRoomId, selectedBedId) {
 
   // 预选回显 | Pre-select display
   if (selectedBedId) {
-    const selBed = query(
-      "SELECT b.*, r.name as room_name FROM beds b JOIN rooms r ON r.id=b.room_id WHERE b.id=?",
-      [selectedBedId],
-    )[0];
+    const selBed = readBedJoined(selectedBedId);
     if (selBed) {
       updateBedLabel(selBed.room_name + " / " + (selBed.bed_number || ""));
     }
@@ -364,10 +368,8 @@ async function assignExistingLodgerToBed(lodgerId, bedId, opts) {
     ? safeBeginActionPending(opts.source, "保存中…")
     : null;
   if (opts.source && !finishPending) return false;
-  const l = query("SELECT * FROM lodgers WHERE id=? AND status='在住'", [
-    lodgerId,
-  ])[0];
-  if (!l) {
+  const l = readLodger(lodgerId);
+  if (!l || l.status !== "在住") {
     await uiAlert("挂单不存在或已不在住");
     if (finishPending) finishPending();
     return false;
@@ -377,10 +379,7 @@ async function assignExistingLodgerToBed(lodgerId, bedId, opts) {
     if (finishPending) finishPending();
     return false;
   }
-  const bed = query(
-    "SELECT b.*, r.dorm_type FROM beds b JOIN rooms r ON r.id=b.room_id WHERE b.id=?",
-    [bedId],
-  )[0];
+  const bed = readBedJoined(bedId);
   if (!bed) {
     if (finishPending) finishPending();
     return false;
@@ -449,16 +448,13 @@ async function assignReservationToBed(resvId, bedId, opts) {
     ? safeBeginActionPending(opts.source, "保存中…")
     : null;
   if (opts.source && !finishPending) return false;
-  const r = query("SELECT * FROM reservations WHERE id=?", [resvId])[0];
+  const r = readReservation(resvId);
   if (!r || (r.status !== "预约" && r.status !== "已确认")) {
     await uiAlert("该预约当前不可分配床位");
     if (finishPending) finishPending();
     return false;
   }
-  const bed = query(
-    "SELECT b.*, r.dorm_type FROM beds b JOIN rooms r ON r.id=b.room_id WHERE b.id=?",
-    [bedId],
-  )[0];
+  const bed = readBedJoined(bedId);
   if (!bed) {
     if (finishPending) finishPending();
     return false;
@@ -578,15 +574,11 @@ document
       await uiAlert("请选择床位");
       return;
     }
-    const bed = query(
-      `
-    SELECT b.*, r.dorm_type
-    FROM beds b
-    JOIN rooms r ON r.id = b.room_id
-    WHERE b.id = ?
-  `,
-      [bedId],
-    )[0];
+    const bed = readBedJoined(bedId);
+    if (!bed) {
+      await uiAlert("床位信息加载失败，请刷新后重试");
+      return;
+    }
     const gender = document.getElementById("ci-gender").value;
     if (bed.dorm_type !== "不限" && !dormMatchGender(bed.dorm_type, gender)) {
       await uiAlert(`该房间为「${bed.dorm_type}」，请选择对应床位。`);
@@ -654,7 +646,7 @@ document
     // 预约转入住重校验 | Re-validate reservation status at submit time
     const resvId = document.getElementById("ci-resv-id").value;
     if (resvId) {
-      const rsv = query("SELECT * FROM reservations WHERE id=?", [resvId])[0];
+      const rsv = readReservation(resvId);
       if (!rsv || !["预约", "已确认"].includes(rsv.status)) {
         await uiAlert("该预约状态已变更，请重新选择预约或取消关联。");
         document.getElementById("ci-resv-id").value = "";

@@ -322,6 +322,7 @@ function reservationRowsForRender(filterStatus) {
         return (b.id || 0) - (a.id || 0);
       });
   }
+  if (readUseOnlineDataPath()) return [];
   let sql = "SELECT * FROM reservations WHERE 1=1";
   const params = [];
   if (filterStatus && filterStatus !== "全部") {
@@ -341,6 +342,7 @@ function reservationForStatus(id) {
   ) {
     return rcReservationById(id);
   }
+  if (readUseOnlineDataPath()) return null;
   return query("SELECT * FROM reservations WHERE id=?", [id])[0];
 }
 
@@ -359,6 +361,7 @@ function guestEmergencyFields(guestId) {
       emergency_phone: g.emergency_phone || "",
     };
   }
+  if (readUseOnlineDataPath()) return null;
   return (
     query("SELECT emergency_contact, emergency_phone FROM guests WHERE id=?", [
       guestId,

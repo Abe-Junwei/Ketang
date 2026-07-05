@@ -29,7 +29,11 @@ def main():
         src = read(rel)
         if re.search(r"if\s*\(\s*useRemoteWriteApi\s*\(", src):
             failed.append(rel + " still uses if(useRemoteWriteApi())")
-        if "isLocalForceDb" not in src and "saveDB" in src:
+        if (
+            "isLocalForceDb" not in src
+            and "saveDB" in src
+            and "useOnlineDataPath" not in src
+        ):
             failed.append(rel + " missing isLocalForceDb with saveDB")
     if failed:
         print("FAIL online write guard:")

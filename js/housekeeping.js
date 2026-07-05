@@ -8,6 +8,7 @@ function getHouseStatus(bedId) {
   ) {
     return rcLatestHkStatus(bedId);
   }
+  if (readUseOnlineDataPath()) return "净房";
   const row = query(
     "SELECT * FROM housekeeping WHERE bed_id = ? ORDER BY changed_at DESC LIMIT 1",
     [bedId],
@@ -86,6 +87,7 @@ function isBedAssignable(bedId) {
       return hk === "可用";
     return hk === "净房" || hk === "可用";
   }
+  if (readUseOnlineDataPath()) return false;
   var bedRow = query("SELECT * FROM beds WHERE id = ?", [bedId])[0];
   if (!bedRow || bedRow.status === "维修" || bedRow.status === "备用")
     return false;
@@ -129,6 +131,10 @@ function renderHousekeeping() {
   grid.innerHTML = "";
   var useRc =
     typeof boardReadCacheReady === "function" && boardReadCacheReady();
+  if (!useRc && readUseOnlineDataPath()) {
+    grid.innerHTML = '<p class="empty-tip">加载中…</p>';
+    return;
+  }
   const rooms = useRc
     ? rcBoardRooms()
     : query("SELECT * FROM rooms ORDER BY id");
@@ -221,13 +227,22 @@ function renderHousekeeping() {
 async function setHkAndRender(source, bedId, status) {
   if (HOUSEKEEPING_PENDING_BEDS[bedId]) return;
   if (status === "维修") {
-    const occupied =
-      typeof boardReadCacheReady === "function" && boardReadCacheReady()
-        ? !!rcLodgerOnBed(bedId)
-        : (query(
-            "SELECT COUNT(*) as c FROM lodgers WHERE bed_id=? AND status='在住'",
-            [bedId],
-          )[0]?.c || 0) > 0;
+    var occupied;
+    if (
+      typeof boardReadCacheReady === "function" &&
+      boardReadCacheReady() &&
+      typeof rcLodgerOnBed === "function"
+    ) {
+      occupied = !!rcLodgerOnBed(bedId);
+    } else if (readUseOnlineDataPath()) {
+      occupied = false;
+    } else {
+      occupied =
+        (query(
+          "SELECT COUNT(*) as c FROM lodgers WHERE bed_id=? AND status='在住'",
+          [bedId],
+        )[0]?.c || 0) > 0;
+    }
     if (occupied) {
       await uiAlert("该床位当前有在住住客，不能设为维修");
       return;

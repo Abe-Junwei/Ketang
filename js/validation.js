@@ -120,7 +120,7 @@ function validateEditLodgerContact(lodgerId, phone, idCard, emergencyOverride) {
         emergencyPhone = guest.emergency_phone || "";
       }
     }
-  } else {
+  } else if (!readUseOnlineDataPath()) {
     const row = query("SELECT guest_id FROM lodgers WHERE id=?", [lodgerId])[0];
     if (row?.guest_id) {
       const guest = query(

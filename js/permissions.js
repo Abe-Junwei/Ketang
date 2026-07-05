@@ -168,6 +168,7 @@ function mergeAdvancedZhikePermissions(permissions, user) {
 }
 
 function loadLocalRolePermissions() {
+  if (readUseOnlineDataPath()) return null;
   if (typeof query !== "function") return null;
   try {
     const rows = query(

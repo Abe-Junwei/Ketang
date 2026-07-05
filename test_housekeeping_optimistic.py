@@ -14,7 +14,7 @@ def main():
     checks = [
         ("buttons pass source", "setHkAndRender(event.currentTarget" in hk),
         ("set function accepts source", "async function setHkAndRender(source, bedId, status)" in hk),
-        ("pending guard", "beginActionPending(source" in hk and "finishPending()" in hk),
+        ("pending guard", ("beginActionPending(source" in hk or "safeBeginActionPending(source" in hk) and "finishPending()" in hk),
         ("bed pending survives render", "HOUSEKEEPING_PENDING_BEDS" in hk and "disabled>保存中" in hk),
         ("optimistic helper", "function applyHousekeepingOptimistic" in hk),
         ("optimistic marker", "_optimistic: true" in hk),

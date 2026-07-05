@@ -26,6 +26,7 @@ function enrichAssignmentsForConflictCheck(assignments) {
       return roomingEnrichAssignmentRow(row);
     }
     if (!row.bed_id) return Object.assign({}, row);
+    if (readUseOnlineDataPath()) return Object.assign({}, row);
     var meta = query(
       "SELECT b.id AS bed_id, b.bed_number, b.status AS bed_status, b.suitable_elder AS bed_suitable_elder, " +
         "r.name AS room_name, r.location AS room_location, r.dorm_type, r.room_type, r.suitable_elder AS room_suitable_elder " +

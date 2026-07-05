@@ -389,7 +389,15 @@ function spareRoomExcludeClause(alias, includeSpare) {
 
 const APP_META_HK_REQUIRE_INSPECT = "housekeeping_require_inspect_v1";
 
+function utilsUseOnlineDataPath() {
+  return (
+    (typeof isRemoteDB === "function" && isRemoteDB()) ||
+    (typeof useOnlineDataPath === "function" && useOnlineDataPath())
+  );
+}
+
 function getAppMetaValue(key) {
+  if (utilsUseOnlineDataPath()) return null;
   if (typeof query !== "function") return null;
   const row = query("SELECT value FROM app_meta WHERE key = ? LIMIT 1", [
     key,
@@ -640,6 +648,9 @@ async function upgradePasswordHashIfLegacy(userId, password, storedHash) {
 }
 
 function bumpLocalAuthVersion(userId) {
+  if (utilsUseOnlineDataPath()) {
+    throw new Error("本地认证版本操作仅适用于本地模式");
+  }
   run(
     "UPDATE users SET auth_version = COALESCE(auth_version, 1) + 1 WHERE id = ?",
     [userId],
