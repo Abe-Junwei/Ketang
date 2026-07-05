@@ -116,20 +116,42 @@ def main():
         (
             "app checkout reminders online rc",
             "function renderCheckoutReminders" in app
-            and "readUseOnlineDataPath()" in fn_body(app, "renderCheckoutReminders")
+            and "isRemoteDB()" in fn_body(app, "appUseOnlineReadPath")
+            and "readUseOnlineDataPath()" in fn_body(app, "appUseOnlineReadPath")
+            and "appUseOnlineReadPath()" in fn_body(app, "renderCheckoutReminders")
+            and "readLocalQuery" in fn_body(app, "renderCheckoutReminders")
             and "rcCheckoutReminders" in fn_body(app, "renderCheckoutReminders"),
         ),
         (
             "app ops notice online rc",
             "function renderOpsNotice" in app
-            and "readUseOnlineDataPath()" in fn_body(app, "renderOpsNotice")
+            and "appUseOnlineReadPath()" in fn_body(app, "renderOpsNotice")
             and "rcOpsNoticeData" in fn_body(app, "renderOpsNotice"),
         ),
         (
             "app board stats online rc",
             "function getBoardBedStats" in app
-            and "readUseOnlineDataPath()" in fn_body(app, "getBoardBedStats")
+            and "appUseOnlineReadPath()" in fn_body(app, "getBoardBedStats")
             and "rcGetBoardBedStats" in fn_body(app, "getBoardBedStats"),
+        ),
+        (
+            "app board charts online rc",
+            "function renderBoardCharts" in app
+            and fn_body(app, "renderBoardCharts").count("appUseOnlineReadPath()") >= 2
+            and "rcGetBoardFlowStats" in fn_body(app, "renderBoardCharts")
+            and "rcGetDormBedStats" in fn_body(app, "renderBoardCharts"),
+        ),
+        (
+            "app room detail online rc",
+            "function renderRoomDetailPanel" in app
+            and "appUseOnlineReadPath()" in fn_body(app, "renderRoomDetailPanel")
+            and "rcBedsForRoomEnriched" in fn_body(app, "renderRoomDetailPanel"),
+        ),
+        (
+            "app rooms online loading guard",
+            "function renderRooms" in app
+            and "appUseOnlineReadPath()" in fn_body(app, "renderRooms")
+            and "正在加载房态数据" in fn_body(app, "renderRooms"),
         ),
         ("rooming read helper", "roomingUseLocalRead" in rooming_read),
         ("rooming plan rc", "rcRoomingPlanByEventId" in rooming_read),

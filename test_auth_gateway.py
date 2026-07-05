@@ -425,7 +425,7 @@ def test_login_ui_has_no_fake_identity_loading():
     if 'acceptCachedSessionDegraded' not in auth:
         print('FAIL auth.js missing degraded cached-session path')
         sys.exit(1)
-    if 'ketang-shell-v16' not in read('sw.js'):
+    if 'ketang-shell-v17' not in read('sw.js'):
         print('FAIL sw.js must bump cache version after auth-gate HTML change')
         sys.exit(1)
     if 'bootAuthUI' not in read('js/app.js'):

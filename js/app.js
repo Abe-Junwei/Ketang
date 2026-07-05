@@ -641,8 +641,15 @@ function renderLodgersPage() {
   handleLodgerSearch(document.getElementById("lodger-search")?.value || "");
 }
 
+function appUseOnlineReadPath() {
+  return (
+    (typeof isRemoteDB === "function" && isRemoteDB()) ||
+    (typeof readUseOnlineDataPath === "function" && readUseOnlineDataPath())
+  );
+}
+
 function getBoardBedStats() {
-  if (typeof readUseOnlineDataPath === "function" && readUseOnlineDataPath()) {
+  if (appUseOnlineReadPath()) {
     if (typeof boardReadCacheReady === "function" && !boardReadCacheReady()) {
       return null;
     }
@@ -728,7 +735,7 @@ function renderBoardCharts() {
   renderBoardRingChart("board-occ", "chart-board-occ", "board-occ-pct", stats);
 
   var flow;
-  if (typeof readUseOnlineDataPath === "function" && readUseOnlineDataPath()) {
+  if (appUseOnlineReadPath()) {
     flow = rcGetBoardFlowStats(today);
   } else {
     flow = {
@@ -790,7 +797,7 @@ function renderBoardCharts() {
   var femaleBeds;
   var maleOcc;
   var femaleOcc;
-  if (typeof readUseOnlineDataPath === "function" && readUseOnlineDataPath()) {
+  if (appUseOnlineReadPath()) {
     var dorm = rcGetDormBedStats();
     maleBeds = dorm.maleBeds;
     femaleBeds = dorm.femaleBeds;
@@ -1375,8 +1382,7 @@ function toggleRoomExpand(roomId, cardEl) {
 function renderRoomDetailPanel(roomId, cardEl) {
   const panel = document.getElementById("room-detail-panel");
   if (!panel) return;
-  var useRc =
-    typeof readUseOnlineDataPath === "function" && readUseOnlineDataPath();
+  var useRc = appUseOnlineReadPath();
   if (
     useRc &&
     typeof boardReadCacheReady === "function" &&
@@ -1458,15 +1464,19 @@ function renderRooms() {
     grid.innerHTML = '<p class="empty-tip">' + escapeHtml(msg) + "</p>";
     return;
   }
-  var useRc =
-    typeof boardReadCacheReady === "function" && boardReadCacheReady();
+  var useRc = appUseOnlineReadPath();
   var rooms;
-  if (useRc) {
-    rooms = rcBoardRooms();
-  } else if (typeof isRemoteDB === "function" && isRemoteDB()) {
+  if (
+    useRc &&
+    typeof boardReadCacheReady === "function" &&
+    !boardReadCacheReady()
+  ) {
     grid.innerHTML =
       '<p class="empty-tip">' + escapeHtml("正在加载房态数据…") + "</p>";
     return;
+  }
+  if (useRc) {
+    rooms = rcBoardRooms();
   } else {
     rooms = query("SELECT * FROM rooms ORDER BY floor ASC, id");
   }
@@ -1768,7 +1778,7 @@ function renderOpsNotice() {
   if (!el) return;
   const today = todayStr();
 
-  if (typeof readUseOnlineDataPath === "function" && readUseOnlineDataPath()) {
+  if (appUseOnlineReadPath()) {
     if (typeof boardReadCacheReady === "function" && !boardReadCacheReady()) {
       el.textContent = "正在加载运营提醒…";
       return;
@@ -1969,8 +1979,7 @@ function renderCheckoutReminders() {
   const tabsEl = document.getElementById("reminder-tabs");
   const listEl = document.getElementById("reminders");
   if (!tabsEl || !listEl) return;
-  var onlineRead =
-    typeof readUseOnlineDataPath === "function" && readUseOnlineDataPath();
+  var onlineRead = appUseOnlineReadPath();
   if (
     onlineRead &&
     typeof boardReadCacheReady === "function" &&
@@ -2002,7 +2011,13 @@ function renderCheckoutReminders() {
       sql += `AND l.expected_check_out = ? ORDER BY r.name ASC`;
       params.push(g.date);
     }
-    _reminderData[g.key] = query(sql, params);
+    // 本地 SQL 再包一层 read-shim 兜底，防止线上误回落 | Keep local SQL behind read-shim so online never falls through.
+    _reminderData[g.key] =
+      typeof readLocalQuery === "function"
+        ? readLocalQuery([], function () {
+            return query(sql, params);
+          })
+        : query(sql, params);
   });
   tabsEl.innerHTML = groups
     .map(function (g, i) {
