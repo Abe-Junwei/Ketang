@@ -93,7 +93,7 @@ function isKetangChartMountReady(el) {
   var view = el.closest(".view");
   if (view && !view.classList.contains("active")) return false;
   var sizedRoot = el.closest(
-    ".chart-ring-wrap, .board-chart-body--bar, .meals-meal-chart-body--pie, .forecast-chart-box, .report-chart-body",
+    ".chart-ring-wrap, .board-chart-body--bar, .board-cap-chart-wrap, .meals-meal-chart-body--pie, .forecast-chart-box, .report-chart-body",
   );
   if (sizedRoot) {
     var rect = sizedRoot.getBoundingClientRect();
@@ -610,7 +610,7 @@ function syncKetangEchartHostLayout(host) {
     return;
   }
   var barBody = host.closest(
-    ".board-chart-body--bar, .forecast-chart-box, .report-chart-body",
+    ".board-chart-body--bar, .board-cap-chart-wrap, .forecast-chart-box, .report-chart-body",
   );
   if (barBody) {
     var barRect = barBody.getBoundingClientRect();
@@ -635,7 +635,7 @@ function observeKetangEchartHost(key, host) {
   unobserveKetangEchartHost(host);
   var target =
     host.closest(
-      ".chart-ring-wrap, .board-chart-body--bar, .board-chart-body, .meals-meal-chart-body--pie, .forecast-chart-box, .report-chart-body",
+      ".chart-ring-wrap, .board-chart-body--bar, .board-chart-body, .board-cap-chart-wrap, .meals-meal-chart-body--pie, .forecast-chart-box, .report-chart-body",
     ) || host.parentElement;
   if (!target) return;
   var obs = new ResizeObserver(function () {

@@ -5991,6 +5991,15 @@ form .field {
 .board-cap-chart-wrap {
   height: 220px;
   margin-bottom: var(--space-3);
+  display: flex;
+  flex-direction: column;
+  position: relative;
+}
+
+.board-cap-chart-wrap .ketang-echart-host {
+  flex: 1;
+  min-height: 0;
+  width: 100%;
 }
 
 .board-cap-table-wrap {

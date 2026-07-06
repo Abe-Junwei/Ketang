@@ -613,10 +613,13 @@ function boardChartsEnabledForViewport() {
   return typeof isMobileLayout !== "function" || !isMobileLayout();
 }
 
-function renderBoardDeferredExtras() {
+function renderBoardCoreCharts() {
   if (boardChartsEnabledForViewport()) {
     renderBoardCharts();
   }
+}
+
+function renderBoardModuleDeferredExtras() {
   if (typeof renderBoardCapacityForecast === "function") {
     renderBoardCapacityForecast();
   }
@@ -630,6 +633,11 @@ function renderBoardDeferredExtras() {
   deferMeals(function () {
     renderTodayMealsPanel();
   });
+}
+
+function renderBoardDeferredExtras() {
+  renderBoardCoreCharts();
+  renderBoardModuleDeferredExtras();
 }
 
 function renderBoard(options) {
@@ -953,6 +961,7 @@ async function renderAll(options) {
   if (loginBootstrap) {
     showRoomGridLoading();
     renderBoard({ bootstrapOnly: true });
+    renderBoardCoreCharts();
     if (typeof ketangPerfMark === "function") {
       ketangPerfMark("first-view-ready");
       ketangPerfMeasure("first-view-ready", "login:start", "first-view-ready");
@@ -977,7 +986,8 @@ async function renderAll(options) {
       scheduleIdleTask(function () {
         syncRemoteReadModel({ deferredOnly: true, force: false })
           .then(function () {
-            renderBoardDeferredExtras();
+            renderBoardCoreCharts();
+            renderBoardModuleDeferredExtras();
             renderLodgers();
             if (typeof refreshActiveViewsAfterSync === "function") {
               refreshActiveViewsAfterSync();

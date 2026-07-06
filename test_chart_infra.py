@@ -70,7 +70,7 @@ def main():
     if "destroyKetangChart(key);\n  var merged" in chart_theme:
         print("FAIL chart helpers must not destroy and recreate on every render")
         raise SystemExit(1)
-    if 'chart-theme.js?v=14' not in index:
+    if 'chart-theme.js?v=15' not in index:
         print("FAIL index.html must bump chart-theme asset version")
         raise SystemExit(1)
     if 'events.js?v=28' not in index:
@@ -89,11 +89,14 @@ def main():
     if "./lib/echarts.min.js" not in sw:
         print("FAIL sw.js must precache echarts runtime")
         raise SystemExit(1)
-    if "ketang-shell-v35" not in sw:
+    if "ketang-shell-v36" not in sw:
         print("FAIL sw.js must bump cache version after chart runtime change")
         raise SystemExit(1)
-    if "boardChartsEnabledForViewport" not in read("js/app.js"):
-        print("FAIL app.js must skip board charts on mobile viewport")
+    if "renderBoardCoreCharts" not in read("js/app.js"):
+        print("FAIL app.js must render board charts immediately after bootstrap")
+        raise SystemExit(1)
+    if "board-cap-chart-wrap" not in chart_theme:
+        print("FAIL chart-theme.js must sync board-cap-chart-wrap host layout")
         raise SystemExit(1)
 
     print("OK chart infrastructure checks passed")

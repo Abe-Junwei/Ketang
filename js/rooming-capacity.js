@@ -524,6 +524,9 @@ function renderBoardCapacityChart(rows) {
       },
     },
   });
+  if (typeof scheduleKetangEchartLayoutRefresh === "function") {
+    scheduleKetangEchartLayoutRefresh("board-capacity");
+  }
 }
 
 function toggleBoardCapacityPanel() {
