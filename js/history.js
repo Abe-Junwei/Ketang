@@ -1,8 +1,12 @@
 async function historyLoadAndRender() {
   const tbody = document.getElementById("history-table");
+  const cardList = document.getElementById("history-card-list");
   if (tbody) {
     tbody.innerHTML =
       '<tr><td colspan="12" class="empty-tip">加载中…</td></tr>';
+  }
+  if (cardList) {
+    cardList.innerHTML = '<p class="empty-tip">加载中…</p>';
   }
   try {
     if (typeof rcEnsureViewModules === "function") {
@@ -22,8 +26,10 @@ async function historyLoadAndRender() {
 
 async function renderHistory() {
   const tbody = document.getElementById("history-table");
+  const cardList = document.getElementById("history-card-list");
   if (!tbody) return;
   tbody.innerHTML = '<tr><td colspan="12" class="empty-tip">加载中…</td></tr>';
+  if (cardList) cardList.innerHTML = "";
   const start = document.getElementById("h-start").value;
   const end = document.getElementById("h-end").value;
   const kw = document.getElementById("h-keyword").value.trim();
@@ -83,9 +89,16 @@ async function renderHistory() {
       '<tr><td colspan="12" class="empty-tip">加载失败：' +
       escapeHtml(e.message || "未知错误") +
       "</td></tr>";
+    if (cardList) {
+      cardList.innerHTML =
+        '<p class="empty-tip">加载失败：' +
+        escapeHtml(e.message || "未知错误") +
+        "</p>";
+    }
     return;
   }
   tbody.innerHTML = "";
+  if (cardList) cardList.innerHTML = "";
   rows.forEach((r) => {
     const meal = getMealSummary(r.id);
     const mealLabel = `早${meal.breakfast} 午${meal.lunch} 晚${meal.dinner}`;
@@ -108,10 +121,52 @@ async function renderHistory() {
       <td>${r.status !== "在住" ? `<button class="btn btn-danger btn-sm" onclick="deleteLodger(${r.id})">删除</button>` : '<span class="text-muted">在住</span>'}</td>
     `;
     tbody.appendChild(tr);
+
+    if (cardList) {
+      const card = document.createElement("article");
+      card.className = "history-card";
+      card.innerHTML =
+        '<div class="history-card-head">' +
+        '<strong class="history-card-name">' +
+        escapeHtml(personDisplayName(r)) +
+        "</strong>" +
+        '<span class="history-card-bed">' +
+        bedLabel +
+        "</span>" +
+        "</div>" +
+        '<div class="history-card-meta">' +
+        "<span>" +
+        escapeHtml(lodgerRoleDisplayName(r.role) || "-") +
+        " · " +
+        escapeHtml(r.gender || "-") +
+        "</span>" +
+        "<span>" +
+        escapeHtml(r.check_in_date || "-") +
+        " → " +
+        escapeHtml(r.actual_check_out || r.expected_check_out || "-") +
+        "</span>" +
+        "<span>" +
+        escapeHtml(r.status || "-") +
+        " · " +
+        escapeHtml(mealLabel) +
+        "</span>" +
+        "</div>" +
+        '<div class="history-card-actions">' +
+        (r.status !== "在住"
+          ? '<button type="button" class="btn btn-danger btn-sm" onclick="deleteLodger(' +
+            r.id +
+            ')">删除</button>'
+          : '<span class="text-muted">在住</span>') +
+        "</div>";
+      cardList.appendChild(card);
+    }
   });
   if (rows.length === 0) {
     tbody.innerHTML =
       '<tr><td colspan="12" class="empty-tip">无匹配记录</td></tr>';
+    if (cardList) {
+      cardList.innerHTML = '<p class="empty-tip">无匹配记录</p>';
+    }
   }
 }
 

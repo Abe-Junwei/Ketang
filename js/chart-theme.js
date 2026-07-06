@@ -60,18 +60,24 @@ function getKetangChartPerfSummary() {
   return Object.assign({}, ketangChartPerf);
 }
 
+function isKetangChartPresentationHidden(el) {
+  if (!el || !el.isConnected || typeof document === "undefined") return true;
+  var node = el;
+  while (node && node !== document.body) {
+    var style = window.getComputedStyle(node);
+    if (style.display === "none" || style.visibility === "hidden") return true;
+    node = node.parentElement;
+  }
+  return false;
+}
+
 function isKetangChartElementVisible(el) {
   if (!el || !el.isConnected || typeof document === "undefined") return false;
   var view = el.closest(".view");
   if (view && !view.classList.contains("active")) return false;
+  if (isKetangChartPresentationHidden(el)) return false;
   var rect = el.getBoundingClientRect();
   if (rect.width <= 0 || rect.height <= 0) return false;
-  var node = el.parentElement;
-  while (node && node !== document.body) {
-    var style = window.getComputedStyle(node);
-    if (style.display === "none" || style.visibility === "hidden") return false;
-    node = node.parentElement;
-  }
   return true;
 }
 
@@ -196,7 +202,8 @@ function mountKetangChartsInRoot(root) {
     if (!pending) return;
     var el = resolveChartCanvas(pending.canvasOrId);
     if (!el || !root.contains(el)) return;
-    if (root.classList.contains("active") || isKetangChartMountReady(el)) {
+    if (isKetangChartPresentationHidden(el)) return;
+    if (isKetangChartMountReady(el) || root.classList.contains("active")) {
       flushDeferredKetangChart(key);
       flushed[key] = true;
     }
@@ -565,7 +572,10 @@ function syncKetangEchartHostLayout(host) {
     if (ringSize <= 0 && wrap) {
       ringSize = Math.round(wrap.clientWidth || wrap.offsetWidth || 0);
     }
-    if (ringSize <= 0) ringSize = 132;
+    if (ringSize <= 0) {
+      if (!wrap || isKetangChartPresentationHidden(wrap)) return;
+      ringSize = 132;
+    }
     host.style.position = "absolute";
     host.style.left = "0";
     host.style.top = "0";
@@ -1190,17 +1200,17 @@ function upsertKetangChart(key, canvasOrId, config, mode, prepare, options) {
   merged.type = merged.type || defaultChartTypeForMode(mode);
   merged.options = applyKetangChartDefaults(merged.options || {}, mode);
   var visibleEl = getKetangChartVisibilityElement(el);
+  var presentationHidden = isKetangChartPresentationHidden(el);
   var visible =
-    options.skipDefer || isKetangChartMountReady(el) || isKetangChartElementVisible(visibleEl);
+    options.skipDefer ||
+    (!presentationHidden &&
+      (isKetangChartMountReady(el) || isKetangChartElementVisible(visibleEl)));
   if (shouldUseKetangEchartsForKey(key)) {
     var echartHost =
       el.__ketangEchartHost && el.__ketangEchartHost.isConnected
         ? el.__ketangEchartHost
         : null;
-    if (
-      !visible &&
-      !canReuseKetangEchart(key, echartHost, merged.type)
-    ) {
+    if (!visible) {
       return deferKetangChart(key, canvasOrId, config, mode, prepare);
     }
     delete ketangChartDeferred[key];

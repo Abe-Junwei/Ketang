@@ -112,7 +112,7 @@ def main():
             "--no-sandbox",
             "--remote-allow-origins=*",
             f"--remote-debugging-port={CDP_PORT}",
-            f"http://127.0.0.1:{PORT}/index.html",
+            f"http://127.0.0.1:{PORT}/index.html?force_local_db=1",
         ],
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
@@ -152,6 +152,8 @@ def main():
                   }
                   const buttons = nav.querySelectorAll('.mobile-nav-btn');
                   if (buttons.length < 5) return { ok: false, reason: 'too few buttons' };
+                  const fab = nav.querySelector('.mobile-nav-btn--fab');
+                  if (!fab) return { ok: false, reason: 'missing stay FAB button' };
                   return { ok: true, buttons: buttons.length };
                 })()
                 """,
@@ -229,6 +231,7 @@ def main():
                   if (!overlay || !split || !hero || !panel) {
                     return { ok: false, reason: 'missing login split layout' };
                   }
+                  overlay.classList.add('active');
                   const doc = document.documentElement;
                   const overflow = Math.max(
                     doc.scrollWidth - doc.clientWidth,
@@ -273,10 +276,19 @@ def main():
             m2 = evaluate(
                 ws,
                 """
-                (() => {
+                (async () => {
                   showView('board');
+                  for (let i = 0; i < 24; i++) {
+                    if (typeof getBoardBedStats === 'function' && getBoardBedStats()) break;
+                    await new Promise(r => setTimeout(r, 250));
+                  }
+                  if (typeof renderMobileBoardHero === 'function') renderMobileBoardHero();
                   const hero = document.getElementById('mobile-board-hero');
                   if (!hero || hero.hidden) return { ok: false, reason: 'missing mobile board hero' };
+                  const chips = document.getElementById('mobile-board-chips');
+                  if (!chips || chips.hidden) return { ok: false, reason: 'missing mobile board chips' };
+                  const occRing = chips.querySelector('.mobile-occ-ring');
+                  if (!occRing) return { ok: false, reason: 'missing occupancy ring chip' };
                   showView('lodgers');
                   const cards = document.querySelectorAll('#lodger-card-list .lodger-card');
                   const emptyCards = document.querySelector('#lodger-card-list .empty-tip');
@@ -292,9 +304,17 @@ def main():
                   }
                   const sticky = form.querySelector('.form-wizard-sticky');
                   if (!sticky) return { ok: false, reason: 'missing wizard sticky bar' };
-                  return { ok: true, cards: cards.length, hkGroups: hkGroups.length };
+                  showView('history');
+                  if (typeof renderHistory === 'function') await renderHistory();
+                  const historyCards = document.querySelectorAll('#history-card-list .history-card');
+                  const historyEmpty = document.querySelector('#history-card-list .empty-tip');
+                  if (!historyCards.length && !historyEmpty) {
+                    return { ok: false, reason: 'missing history card list' };
+                  }
+                  return { ok: true, cards: cards.length, hkGroups: hkGroups.length, historyCards: historyCards.length };
                 })()
                 """,
+                timeout=60,
             ).get("value") or {}
             if not m2.get("ok"):
                 print(f"FAIL: mobile M2 layout: {m2.get('reason', m2)}")
@@ -402,6 +422,7 @@ def main():
                   };
                 })()
                 """,
+                timeout=90,
             ).get("value") or {}
             if not journey.get("ok"):
                 print(f"FAIL: mobile journey: {journey}")

@@ -68,7 +68,7 @@
 | 正式数据库 | Cloudflare D1                | 多人共享的权威数据源                              |
 | 本地数据库 | SQLite（sql.js）             | 浏览器内运行，导出即文件                          |
 | 本地持久化 | IndexedDB                    | 保存 SQLite 二进制，关闭浏览器不丢失              |
-| 图表       | ECharts（默认）+ Chart.js 灾备 | 统一封装 `js/chart-theme.js`；回退 `?chart_engine=chartjs` |
+| 图表       | ECharts（默认）+ Chart.js 灾备 | 统一封装 `js/chart-theme.js`；回退 `?chart_engine=chartjs`；窄屏看板跳过图表 init |
 | 备份       | JSON/文件导出/导入           | 在线版导出 JSON，本地版导出 `.db`                 |
 
 ## 四、核心数据模型
@@ -214,7 +214,7 @@
 
 ### 可后续扩展
 
-- [x] **移动端适配**：底部导航、卡片化在住/房务列表、入住分步表单、PWA 图标与 manifest
+- [x] **移动端适配**：底部导航（办理为凸起主按钮）、看板四宫格 + 摘要条（窄屏跳过 ECharts 以加快刷新）、卡片化在住/历史/房务列表、入住分步表单、PWA 图标与 manifest
 - [x] PWA「添加到主屏幕」+ 静态资源 Service Worker（离线可打开壳子，业务仍需联网同步）
 
 ## 六、使用方式

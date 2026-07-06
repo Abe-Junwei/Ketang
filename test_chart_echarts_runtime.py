@@ -97,6 +97,22 @@ def main():
             print("FAIL: admin identity login failed, role=", role)
             sys.exit(1)
 
+        ws.send(
+            json.dumps(
+                {
+                    "id": 4,
+                    "method": "Emulation.setDeviceMetricsOverride",
+                    "params": {
+                        "width": 1280,
+                        "height": 900,
+                        "deviceScaleFactor": 1,
+                        "mobile": False,
+                    },
+                }
+            )
+        )
+        ws.recv()
+
         expr = """
           (async () => {
             try {

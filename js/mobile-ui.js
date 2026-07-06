@@ -20,6 +20,8 @@ function renderMobileBoardHero() {
   if (typeof getBoardBedStats !== "function") return;
   var stats = getBoardBedStats();
   if (!stats) {
+    el.innerHTML = "";
+    el.hidden = true;
     var chipsEmpty = document.getElementById("mobile-board-chips");
     if (chipsEmpty) {
       chipsEmpty.innerHTML = "";
@@ -91,8 +93,12 @@ function renderMobileBoardChips(stats) {
     return;
   }
   el.hidden = false;
+  var occ = Math.max(0, Math.min(100, Number(stats.occPct) || 0));
   el.innerHTML =
     '<span class="mobile-board-chip mobile-board-chip-primary">' +
+    '<span class="mobile-occ-ring" style="--occ:' +
+    occ +
+    '" aria-hidden="true"></span>' +
     "入住率 <strong>" +
     stats.occPct +
     "%</strong></span>" +
@@ -265,9 +271,22 @@ function initStayFormWizards() {
   });
   if (!window._stayWizardResizeBound) {
     window._stayWizardResizeBound = true;
+    window._ketangWasMobileLayout = isMobileLayout();
     window.addEventListener("resize", function () {
+      var wasMobile = window._ketangWasMobileLayout;
+      var nowMobile = isMobileLayout();
+      window._ketangWasMobileLayout = nowMobile;
       Object.keys(WIZARD_FORMS).forEach(syncStayFormWizard);
       renderMobileBoardHero();
+      if (
+        wasMobile &&
+        !nowMobile &&
+        typeof renderBoardDeferredExtras === "function" &&
+        document.getElementById("view-board") &&
+        document.getElementById("view-board").classList.contains("active")
+      ) {
+        renderBoardDeferredExtras();
+      }
     });
   }
 }

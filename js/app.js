@@ -609,8 +609,14 @@ function showRoomGridLoading() {
     '<p class="empty-tip">' + escapeHtml("正在加载房态…") + "</p>";
 }
 
+function boardChartsEnabledForViewport() {
+  return typeof isMobileLayout !== "function" || !isMobileLayout();
+}
+
 function renderBoardDeferredExtras() {
-  renderBoardCharts();
+  if (boardChartsEnabledForViewport()) {
+    renderBoardCharts();
+  }
   if (typeof renderBoardCapacityForecast === "function") {
     renderBoardCapacityForecast();
   }
@@ -737,6 +743,7 @@ function renderBoardRingChart(key, canvasId, pctElId, stats) {
 
 function renderBoardCharts() {
   if (!isKetangChartRuntimeReady()) return;
+  if (!boardChartsEnabledForViewport()) return;
   var stats = getBoardBedStats();
   if (!stats) return;
   var today = todayStr();

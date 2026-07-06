@@ -778,6 +778,8 @@ function renderMealsPanelCharts(byRole) {
     typeof createKetangPieChart !== "function"
   )
     return;
+  var skipPieCharts =
+    typeof isMobileLayout === "function" && isMobileLayout();
   var T = getChartTheme();
   var specs = [
     {
@@ -822,6 +824,7 @@ function renderMealsPanelCharts(byRole) {
     var statsEl = document.getElementById(spec.statsId);
     if (statsEl)
       statsEl.innerHTML = renderMealPieSidePanel(rows, spec.key, colors);
+    if (skipPieCharts) return;
     createKetangPieChart(spec.chartKey, spec.canvas, {
       type: "pie",
       data: {

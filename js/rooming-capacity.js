@@ -410,8 +410,10 @@ function renderBoardCapacityForecast() {
     rows[0].beds.flex +
     "</span></div></div>";
 
-  html +=
-    '<div class="board-cap-chart-wrap"><canvas id="chart-board-capacity" role="img" aria-label="容量预测趋势"></canvas></div>';
+  if (typeof isMobileLayout !== "function" || !isMobileLayout()) {
+    html +=
+      '<div class="board-cap-chart-wrap"><canvas id="chart-board-capacity" role="img" aria-label="容量预测趋势"></canvas></div>';
+  }
 
   html +=
     '<div class="table-wrap board-cap-table-wrap"><table class="board-cap-table"><thead><tr>' +
@@ -482,6 +484,7 @@ function renderBoardCapacityForecast() {
 
 function renderBoardCapacityChart(rows) {
   if (!isKetangChartRuntimeReady() || !rows.length) return;
+  if (typeof isMobileLayout === "function" && isMobileLayout()) return;
   var T = getChartTheme();
   var labels = rows.map(function (r) {
     return r.day.slice(5);

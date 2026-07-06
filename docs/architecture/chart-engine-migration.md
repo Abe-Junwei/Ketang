@@ -198,12 +198,23 @@ window.KETANG_ECHARTS_PILOT_KEYS = ["events-progress"];
 | 测试 | 覆盖 |
 | ---- | ---- |
 | `test_chart_infra.py` | 复用/队列/延迟/埋点 token；禁止每次 render destroy；asset 版本 |
+| `test_chart_echarts_runtime.py` | 隐藏视图 defer → 桌面视口 flush；环/饼 host 尺寸 |
+| `test_chart_render_perf.py` | 窄屏 `renderBoard` 零 init；桌面正常 init |
 | `test_headless.py` | 看板壳与 canvas 存在 |
 | 手动 | `?chart_engine=echarts` + pilot key；切换视图无泄漏；perf summary 可读 |
 
 ---
 
-## 9. 相关文档
+## 9. 性能与可见性（2026-07 增补）
+
+- **`isKetangChartPresentationHidden`**：祖先 `display:none` / `visibility:hidden` 时不 flush、不 init（避免 0×0 ECharts）。
+- **`mountKetangChartsInRoot`**：仅对布局可见的 canvas flush；不再因 view active  alone 挂载隐藏图表。
+- **窄屏看板**：`boardChartsEnabledForViewport()` 跳过看板三图、用斋饼图、容量折线 init；数字摘要由 `mobile-board-hero` / `mobile-board-chips` 承担。
+- **环图 host**：隐藏容器不再盲目设 132px；`syncKetangEchartHostLayout` 仅在可见时回退默认尺寸。
+
+---
+
+## 10. 相关文档
 
 - 路线图 §19.9
 - Phase 11 性能预算：`docs/roadmap.md`

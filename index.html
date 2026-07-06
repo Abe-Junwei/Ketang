@@ -26,7 +26,7 @@
       href="icons/icon-192.png"
     />
     <link rel="stylesheet" href="fonts/fonts.css?v=1" />
-    <link rel="stylesheet" href="styles.css?v=72" />
+    <link rel="stylesheet" href="styles.css?v=73" />
     <style>
       /* Hide app chrome until auth gate resolves | Prevent unauthenticated flash */
       .login-overlay:not(.active) {
@@ -1593,7 +1593,8 @@
                 重置
               </button>
             </div>
-            <div class="table-wrap">
+            <div id="history-card-list" class="history-card-list"></div>
+            <div class="table-wrap history-desktop-table">
               <table>
                 <thead>
                   <tr>
@@ -1835,7 +1836,7 @@
       </button>
       <button
         type="button"
-        class="mobile-nav-btn mobile-nav-btn--accent"
+        class="mobile-nav-btn mobile-nav-btn--fab"
         data-view="stay"
         onclick="showView('stay')"
       >
@@ -1973,21 +1974,21 @@
     <script src="./js/guests.js?v=4"></script>
     <script src="./js/audit.js?v=4"></script>
     <script src="./js/housekeeping.js?v=12"></script>
-    <script src="./js/meals.js?v=29"></script>
+    <script src="./js/meals.js?v=30"></script>
     <script src="./js/checkin.js?v=31"></script>
     <script src="./js/lodger-actions.js?v=21"></script>
     <script src="./js/reservations.js?v=15"></script>
-    <script src="./js/history.js?v=8"></script>
+    <script src="./js/history.js?v=9"></script>
     <script src="./js/validation.js?v=8"></script>
     <script src="./lib/chart.umd.min.js?v=1"></script>
     <script src="./lib/echarts.min.js?v=1"></script>
-    <script src="./js/chart-theme.js?v=13"></script>
+    <script src="./js/chart-theme.js?v=14"></script>
     <script src="./js/forecast.js?v=12"></script>
     <script src="./js/reports.js?v=16"></script>
     <script src="./js/rooming-tags.js?v=5"></script>
     <script src="./js/rooming-read.js?v=4"></script>
     <script src="./js/events.js?v=28"></script>
-    <script src="./js/rooming-capacity.js?v=4"></script>
+    <script src="./js/rooming-capacity.js?v=5"></script>
     <script src="./js/rooming-conflicts.js?v=3"></script>
     <script src="./js/rooming-plans.js?v=6"></script>
     <script src="./js/rooming-adjustments.js?v=2"></script>
@@ -1997,7 +1998,7 @@
     <script src="./js/auth.js?v=38"></script>
     <script src="./js/icons.js?v=8"></script>
     <script src="./js/picker.js?v=4"></script>
-    <script src="./js/mobile-ui.js?v=4"></script>
-    <script src="./js/app.js?v=79"></script>
+    <script src="./js/mobile-ui.js?v=7"></script>
+    <script src="./js/app.js?v=80"></script>
   </body>
 </html>
