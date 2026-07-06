@@ -4295,17 +4295,29 @@ form .field {
   .mobile-nav-btn.active {
     color: var(--color-primary);
     font-weight: 600;
+    background: color-mix(in srgb, var(--color-primary) 10%, transparent);
   }
 
   .mobile-nav-btn.active::before {
     content: "";
     position: absolute;
     top: 0;
-    left: 25%;
-    right: 25%;
-    height: 2px;
+    left: 20%;
+    right: 20%;
+    height: 3px;
     border-radius: 999px;
     background: var(--color-primary);
+  }
+
+  .mobile-nav-btn--accent .mobile-nav-icon {
+    width: 2rem;
+    height: 2rem;
+    border-radius: var(--radius-full);
+    background: color-mix(in srgb, var(--color-primary) 12%, transparent);
+  }
+
+  .mobile-nav-btn--accent.active .mobile-nav-icon {
+    background: color-mix(in srgb, var(--color-primary) 22%, transparent);
   }
 
   .mobile-nav-btn.active .mobile-nav-icon {
@@ -4518,6 +4530,45 @@ form .field {
     color: var(--color-primary);
   }
 
+  .mobile-board-chips {
+    display: flex;
+    gap: var(--space-2);
+    overflow-x: auto;
+    margin-bottom: var(--space-3);
+    padding: 0 var(--space-1) var(--space-1);
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+
+  .mobile-board-chips::-webkit-scrollbar {
+    display: none;
+  }
+
+  .mobile-board-chip {
+    flex: 0 0 auto;
+    padding: var(--space-2) var(--space-3);
+    border-radius: 999px;
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+    background: color-mix(in srgb, var(--color-card) 92%, var(--color-surface));
+    white-space: nowrap;
+  }
+
+  .mobile-board-chip strong {
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    color: var(--color-foreground);
+  }
+
+  .mobile-board-chip-primary {
+    background: color-mix(in srgb, var(--color-primary) 10%, var(--color-card));
+    color: var(--color-primary);
+  }
+
+  .mobile-board-chip-primary strong {
+    color: var(--color-primary);
+  }
+
   .board-view .board-charts,
   .board-view .board-divider {
     display: none;
@@ -4532,21 +4583,7 @@ form .field {
   }
 
   .board-view .kpi-strip {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: var(--space-2);
-    border: none;
-  }
-
-  .board-view .kpi-item {
-    border: 1px solid color-mix(in srgb, var(--color-border) 55%, transparent);
-    border-radius: var(--radius-md);
-    padding: var(--space-2) var(--space-3);
-    background: var(--color-card);
-  }
-
-  .board-view .kpi-item:last-child {
-    border-right: 1px solid
-      color-mix(in srgb, var(--color-border) 55%, transparent);
+    display: none;
   }
 
   .lodgers-desktop-table {
@@ -4561,10 +4598,11 @@ form .field {
   }
 
   .lodger-card {
-    border: 1px solid color-mix(in srgb, var(--color-border) 55%, transparent);
+    border: none;
     border-radius: var(--radius-md);
-    background: var(--color-card);
+    background: color-mix(in srgb, var(--color-card) 96%, var(--color-surface));
     padding: var(--space-3);
+    box-shadow: 0 1px 0 color-mix(in srgb, var(--color-border) 70%, transparent);
   }
 
   .lodger-card.search-hidden {
@@ -4638,14 +4676,14 @@ form .field {
 
   .lodger-card-actions {
     display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: var(--space-2);
   }
 
   .lodger-card-actions .btn {
     min-height: 44px;
-    padding-inline: var(--space-1);
-    font-size: var(--font-size-xs);
+    padding-inline: var(--space-2);
+    font-size: var(--font-size-sm);
   }
 
   .hk-list {
@@ -4790,7 +4828,8 @@ form .field {
   display: none;
 }
 
-.mobile-board-hero {
+.mobile-board-hero,
+.mobile-board-chips {
   display: none;
 }
 

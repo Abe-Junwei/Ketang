@@ -364,6 +364,12 @@
         <!-- 房态看板 -->
         <div id="view-board" class="view active board-view">
           <div id="mobile-board-hero" class="mobile-board-hero" hidden></div>
+          <div
+            id="mobile-board-chips"
+            class="mobile-board-chips"
+            hidden
+            aria-label="床位摘要"
+          ></div>
 
           <div id="kpi-strip" class="kpi-strip">
             <div class="kpi-item">
@@ -1829,7 +1835,7 @@
       </button>
       <button
         type="button"
-        class="mobile-nav-btn"
+        class="mobile-nav-btn mobile-nav-btn--accent"
         data-view="stay"
         onclick="showView('stay')"
       >
@@ -1991,7 +1997,7 @@
     <script src="./js/auth.js?v=38"></script>
     <script src="./js/icons.js?v=8"></script>
     <script src="./js/picker.js?v=4"></script>
-    <script src="./js/mobile-ui.js?v=3"></script>
+    <script src="./js/mobile-ui.js?v=4"></script>
     <script src="./js/app.js?v=79"></script>
   </body>
 </html>

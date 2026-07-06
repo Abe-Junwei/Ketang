@@ -1247,6 +1247,7 @@ function renderStats() {
   if (!strip) return;
   if (!stats) {
     strip.innerHTML = '<div class="empty-tip">正在加载统计…</div>';
+    if (typeof renderMobileBoardHero === "function") renderMobileBoardHero();
     return;
   }
   const emptyPct = stats.total
@@ -1268,6 +1269,7 @@ function renderStats() {
     <div class="kpi-item"><span class="kpi-label">脏房</span><span class="kpi-num kpi-num-dai">${stats.dirty}</span></div>
     <div class="kpi-item"><span class="kpi-label">今日预约</span><span class="kpi-num">${stats.resvToday}</span></div>
   `;
+  if (typeof renderMobileBoardHero === "function") renderMobileBoardHero();
 }
 
 let _expandedRoomId = null;

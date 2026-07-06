@@ -10,11 +10,23 @@ function renderMobileBoardHero() {
   if (!isMobileLayout()) {
     el.innerHTML = "";
     el.hidden = true;
+    var chipsEl = document.getElementById("mobile-board-chips");
+    if (chipsEl) {
+      chipsEl.innerHTML = "";
+      chipsEl.hidden = true;
+    }
     return;
   }
   if (typeof getBoardBedStats !== "function") return;
   var stats = getBoardBedStats();
-  if (!stats) return;
+  if (!stats) {
+    var chipsEmpty = document.getElementById("mobile-board-chips");
+    if (chipsEmpty) {
+      chipsEmpty.innerHTML = "";
+      chipsEmpty.hidden = true;
+    }
+    return;
+  }
   var today = todayStr();
   var flow;
   if (useOnlineDataPath() && typeof rcGetBoardFlowStats === "function") {
@@ -67,6 +79,32 @@ function renderMobileBoardHero() {
     '<span class="mobile-hero-hint">客房维护</span>' +
     "</button>" +
     "</div>";
+  renderMobileBoardChips(stats);
+}
+
+function renderMobileBoardChips(stats) {
+  var el = document.getElementById("mobile-board-chips");
+  if (!el) return;
+  if (!isMobileLayout() || !stats) {
+    el.innerHTML = "";
+    el.hidden = true;
+    return;
+  }
+  el.hidden = false;
+  el.innerHTML =
+    '<span class="mobile-board-chip mobile-board-chip-primary">' +
+    "入住率 <strong>" +
+    stats.occPct +
+    "%</strong></span>" +
+    '<span class="mobile-board-chip">总床 <strong>' +
+    stats.total +
+    "</strong></span>" +
+    '<span class="mobile-board-chip">在住 <strong>' +
+    stats.lodgerCount +
+    "</strong></span>" +
+    '<span class="mobile-board-chip">预约 <strong>' +
+    stats.resvToday +
+    "</strong></span>";
 }
 
 var WIZARD_FORMS = {
