@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""在线写路径：业务模块应用 isLocalForceDb，不再 if(useRemoteWriteApi) 双轨。"""
+"""在线写路径：业务模块应用 useLocalDbPath，不再 if(useRemoteWriteApi) 双轨。"""
 import re
 import sys
 from pathlib import Path
@@ -11,8 +11,8 @@ def read(path):
 
 def main():
     api = read("js/api-client.js")
-    if "function isLocalForceDb" not in api:
-        print("FAIL: isLocalForceDb missing in api-client.js")
+    if "function useLocalDbPath" not in api:
+        print("FAIL: useLocalDbPath missing in api-client.js")
         sys.exit(1)
 
     business = [
@@ -30,17 +30,17 @@ def main():
         if re.search(r"if\s*\(\s*useRemoteWriteApi\s*\(", src):
             failed.append(rel + " still uses if(useRemoteWriteApi())")
         if (
-            "isLocalForceDb" not in src
+            "useLocalDbPath" not in src
             and "saveDB" in src
             and "useOnlineDataPath" not in src
         ):
-            failed.append(rel + " missing isLocalForceDb with saveDB")
+            failed.append(rel + " missing useLocalDbPath with saveDB")
     if failed:
         print("FAIL online write guard:")
         for f in failed:
             print(" ", f)
         sys.exit(1)
-    print("PASS: business modules use isLocalForceDb write guard")
+    print("PASS: business modules use useLocalDbPath write guard")
 
 
 if __name__ == "__main__":

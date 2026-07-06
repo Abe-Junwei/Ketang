@@ -727,7 +727,7 @@ async function forceFullRemoteSync() {
     return;
   setRemoteSyncStatus("loading");
   try {
-    await rcEnsureAppData(true, { hydrateSql: isLocalForceDb() });
+    await rcEnsureAppData(true, { hydrateSql: useLocalDbPath() });
     if (typeof renderAll === "function") {
       await renderAll({ skipSync: true });
     }

@@ -59,7 +59,7 @@ document.getElementById("resv-form").addEventListener("submit", async (e) => {
   if (!finishPending) return;
   try {
     var writeResult = null;
-    if (isLocalForceDb()) {
+    if (useLocalDbPath()) {
       const guestId = findOrCreateGuest(
         person.name,
         gender,
@@ -371,7 +371,7 @@ function guestEmergencyFields(guestId) {
 
 function applyReservationStatusOptimistic(row, status) {
   if (
-    isLocalForceDb() ||
+    useLocalDbPath() ||
     !row ||
     typeof rcApplyDeltaPatches !== "function" ||
     typeof rcReadReady !== "function" ||
@@ -419,7 +419,7 @@ async function updateResvStatus(source, id, status) {
   renderReservations("全部");
   var writeResult = null;
   try {
-    if (isLocalForceDb()) {
+    if (useLocalDbPath()) {
       await withTransaction(async () => {
         run("UPDATE reservations SET status=? WHERE id=?", [status, id]);
         logAudit("更新预约状态", "reservation", id, {

@@ -228,8 +228,7 @@ syncRemoteReadModel(options)
 ### 6.3 与现有 sql.js 的关系
 
 - **当前（12.3/12.4 已落地后）：** 模块 JSON 首先进入 `_rcStore`，写后通过 `patches` / `deletions` 更新缓存；但 `reports.js`、`forecast.js`、`events.js`、`rooming-*` 等仍存在在线 `query()` 调用，可能触发 sql.js hydrate。
-- **下一步（Phase 13 前置）：** reports/forecast 先迁到 read API 或 `rc*` 聚合；再逐步清理 events/rooming/info 的在线 `query()`。
-- **终局（Phase 13 P4-④）：** 在线模式不加载 `sql-wasm.js` / `sql-wasm.wasm`；sql.js 仅保留给 `KETANG_FORCE_LOCAL_DB`、本地灾备和 migration 测试。
+- **下一步（Phase 13，2026-07-06）：** legacy A–C 已合并（`readLocalQuery`、全 `/api/db` 410）；Phase D 双轨收敛（16 模块 `isLocalForceDb()`）进行中；终局 sql.js 边界见 §19.8 Phase E。
 
 ### 6.4 验收
 

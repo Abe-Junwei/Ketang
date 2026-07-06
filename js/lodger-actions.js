@@ -142,7 +142,7 @@ async function submitExtend(event, id) {
     }
     try {
       var writeResult = null;
-      if (isLocalForceDb()) {
+      if (useLocalDbPath()) {
         await withTransaction(async () => {
           run(
             "UPDATE lodgers SET expected_check_out=? WHERE id=? AND status='在住'",
@@ -295,7 +295,7 @@ async function submitChangeBed(event, lodgerId, gender) {
     }
     try {
       var writeResult = null;
-      if (isLocalForceDb()) {
+      if (useLocalDbPath()) {
         const old = query(
           "SELECT bed_id, guest_id, name, event_id FROM lodgers WHERE id=?",
           [lodgerId],
@@ -494,7 +494,7 @@ async function submitEditLodger(event, id) {
 
     try {
       var writeResult = null;
-      if (isLocalForceDb()) {
+      if (useLocalDbPath()) {
         await withTransaction(async () => {
           run(
             `UPDATE lodgers SET
@@ -613,7 +613,7 @@ async function deleteLodger(id) {
   if (!ok) return;
   try {
     var writeResult = null;
-    if (isLocalForceDb()) {
+    if (useLocalDbPath()) {
       await withTransaction(async () => {
         run("DELETE FROM meals WHERE lodger_id=?", [id]);
         run("DELETE FROM payments WHERE lodger_id=?", [id]);
@@ -703,7 +703,7 @@ async function submitCheckout(event, id) {
     const today = new Date().toISOString().slice(0, 10);
     try {
       var writeResult = null;
-      if (isLocalForceDb()) {
+      if (useLocalDbPath()) {
         await withTransaction(async () => {
           run(
             "UPDATE lodgers SET status='已退', actual_check_out=?, bed_id=NULL WHERE id=?",

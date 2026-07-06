@@ -5,7 +5,7 @@ function roomingReadReady() {
 }
 
 function roomingUseLocalRead() {
-  return typeof isLocalForceDb === "function" && isLocalForceDb();
+  return typeof useLocalDbPath === "function" && useLocalDbPath();
 }
 
 function rcInvalidateEventRooming(eventId) {

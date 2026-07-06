@@ -160,6 +160,7 @@ window.KETANG_ECHARTS_PILOT_KEYS = ["events-progress"];
 
 - **dataZoom**：标签数 > 8（折线/混图）或 > 12（柱图）自动启用 inside + slider
 - **同页联动**：`board-*` / `report-*` / `forecast-*` 分组 `echarts.connect`
+- **首屏图表（2026-07-06）**：`loginBootstrap` 后立即 `renderBoardCoreCharts()`；deferred sync 后 `renderBoardModuleDeferredExtras()`（容量/用斋）。见路线图 §19.10。
 - **progressive 大数据**：当前数据量未触发，保留扩展点
 
 ### G 默认切换

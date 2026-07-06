@@ -1165,7 +1165,7 @@ async function submitUser(e) {
     return;
   }
 
-  if (isLocalForceDb()) {
+  if (useLocalDbPath()) {
     await saveDB();
   }
   closeUserModal();

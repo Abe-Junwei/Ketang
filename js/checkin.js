@@ -396,7 +396,7 @@ async function assignExistingLodgerToBed(lodgerId, bedId, opts) {
   }
   try {
     var writeResult = null;
-    if (isLocalForceDb()) {
+    if (useLocalDbPath()) {
       await withTransaction(async () => {
         run("UPDATE lodgers SET bed_id=? WHERE id=? AND status='在住'", [
           bedId,
@@ -477,7 +477,7 @@ async function assignReservationToBed(resvId, bedId, opts) {
   }
   try {
     var writeResult = null;
-    if (isLocalForceDb()) {
+    if (useLocalDbPath()) {
       await withTransaction(async () => {
         const rNow = query("SELECT status FROM reservations WHERE id=?", [
           resvId,
@@ -670,7 +670,7 @@ document
     if (!finishPending) return;
     try {
       var writeResult = null;
-      if (isLocalForceDb()) {
+      if (useLocalDbPath()) {
         await withTransaction(async () => {
           const person = parsePersonNameInput(name);
           const guestId = findOrCreateGuest(

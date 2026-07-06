@@ -123,7 +123,7 @@ async function renderTodayForecast() {
     byEvent = fd.byEvent;
     arrivalRooms = fd.arrivalRooms;
     departureRooms = fd.departureRooms;
-  } else if (isLocalForceDb()) {
+  } else if (useLocalDbPath()) {
     // 预计到达：预约/在住中 expected_check_in = date，且状态正常
     arrivalsResv = query(
       `
@@ -502,7 +502,7 @@ function renderFlowForecast() {
     totalMaleBeds = flowPack.totalMaleBeds;
     totalFemaleBeds = flowPack.totalFemaleBeds;
     totalFlexBeds = flowPack.totalFlexBeds;
-  } else if (isLocalForceDb()) {
+  } else if (useLocalDbPath()) {
     // 计算每周的周一作为周标签
     weekData = [];
     let current = new Date(startDate);
@@ -597,7 +597,7 @@ function renderFlowForecast() {
     rcReadReady() &&
     typeof rcFlexEmptyRooms === "function"
       ? rcFlexEmptyRooms()
-      : isLocalForceDb()
+      : useLocalDbPath()
         ? query(`
     SELECT r.name, r.location, COUNT(b.id) as beds
     FROM rooms r

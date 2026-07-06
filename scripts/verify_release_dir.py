@@ -15,6 +15,7 @@ FORBIDDEN_PREFIXES = (
     ".git/",
     ".github/",
     ".wrangler/",
+    "lib/sql-wasm",
 )
 
 FORBIDDEN_NAMES = {

@@ -188,7 +188,7 @@ function saveLocalRolePermissions(map) {
     "INSERT OR REPLACE INTO app_meta (key, value) VALUES ('role_permissions_v1', ?)",
     [JSON.stringify(map)],
   );
-  if (typeof saveDB === "function" && isLocalForceDb()) saveDB();
+  if (typeof saveDB === "function" && useLocalDbPath()) saveDB();
 }
 
 function getRolePermissionsConfigLocal() {

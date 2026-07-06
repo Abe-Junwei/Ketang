@@ -1017,7 +1017,7 @@ async function buildMealDaysFromModal(lodger, defaults) {
 async function submitMeals(event, lodgerId) {
   return safeWithActionPending(event, "保存中…", async function () {
     const defaults = readMealModalDefaults();
-    if (isLocalForceDb()) {
+    if (useLocalDbPath()) {
       setLodgerMealDefaults(
         lodgerId,
         defaults.breakfast,
@@ -1034,7 +1034,7 @@ async function submitMeals(event, lodgerId) {
     var original = applyMealsOptimistic(l, defaults, days);
     try {
       var writeResult = null;
-      if (isLocalForceDb()) {
+      if (useLocalDbPath()) {
         await withTransaction(async () => {
           Object.entries(days).forEach(function (entry) {
             const date = entry[0];

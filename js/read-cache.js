@@ -1891,7 +1891,7 @@ async function rcEnsureAppData(force, options) {
   }
   var hydrateSql =
     options.hydrateSql ||
-    (typeof isLocalForceDb === "function" && isLocalForceDb());
+    (typeof useLocalDbPath === "function" && useLocalDbPath());
   if (hydrateSql && typeof applyModuleTables === "function") {
     if (typeof ensureLocalSqlite === "function") await ensureLocalSqlite();
     var allTables = {};

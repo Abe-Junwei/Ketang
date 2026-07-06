@@ -73,7 +73,7 @@ def main():
     if 'chart-theme.js?v=15' not in index:
         print("FAIL index.html must bump chart-theme asset version")
         raise SystemExit(1)
-    if 'events.js?v=28' not in index:
+    if 'events.js?v=29' not in index:
         print("FAIL index.html must bump events.js for chart PoC guard")
         raise SystemExit(1)
     events_js = read("js/events.js")
@@ -89,7 +89,7 @@ def main():
     if "./lib/echarts.min.js" not in sw:
         print("FAIL sw.js must precache echarts runtime")
         raise SystemExit(1)
-    if "ketang-shell-v36" not in sw:
+    if "ketang-shell-v37" not in sw:
         print("FAIL sw.js must bump cache version after chart runtime change")
         raise SystemExit(1)
     if "renderBoardCoreCharts" not in read("js/app.js"):

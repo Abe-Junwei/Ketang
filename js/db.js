@@ -11,6 +11,7 @@ let _localSqlLoadPromise = null;
 const REMOTE_DB_ENABLED = (() => {
   if (typeof window === "undefined" || !window.location) return false;
   if (window.KETANG_FORCE_LOCAL_DB === true) return false;
+  // KETANG_REMOTE_DB=false 时 REMOTE_DB_ENABLED 为 false，走本地 sql 路径（同 force_local_db 语义）
   if (window.KETANG_REMOTE_DB === false) return false;
   // 在线-only：除 CI 强制本地库外一律走云端 API + 读模型
   return true;
@@ -225,6 +226,7 @@ function remoteLogout() {
 
 /** 本地/灾备模式才需加载 sql.js | Local-only paths need sql.js */
 function needsLocalSqlEngine() {
+  if (typeof useLocalDbPath === "function") return useLocalDbPath();
   return typeof isRemoteDB === "function" && !isRemoteDB();
 }
 
@@ -641,7 +643,7 @@ async function syncRemoteReadModel(options) {
         setRemoteSyncStatus("loading");
         await rcEnsureAppData(force, {
           deferredOnly: true,
-          hydrateSql: typeof isLocalForceDb === "function" && isLocalForceDb(),
+          hydrateSql: typeof useLocalDbPath === "function" && useLocalDbPath(),
         });
         setRemoteSyncStatus("ready");
       } catch (err) {
@@ -670,7 +672,7 @@ async function syncRemoteReadModel(options) {
       }
       await rcEnsureAppData(force, {
         bootstrapOnly: bootstrapOnly,
-        hydrateSql: typeof isLocalForceDb === "function" && isLocalForceDb(),
+        hydrateSql: typeof useLocalDbPath === "function" && useLocalDbPath(),
       });
       if (!bootstrapOnly) setRemoteSyncStatus("ready");
       else setRemoteSyncStatus("idle");
@@ -2598,9 +2600,8 @@ function safeParams(params) {
 
 function query(sql, params) {
   if (
-    typeof isRemoteDB === "function" &&
-    isRemoteDB() &&
-    !(typeof window !== "undefined" && window.KETANG_FORCE_LOCAL_DB === true) &&
+    typeof useOnlineDataPath === "function" &&
+    useOnlineDataPath() &&
     !_remoteHydrating
   ) {
     throw new Error(
@@ -2620,7 +2621,11 @@ function query(sql, params) {
 }
 
 function run(sql, params) {
-  if (isRemoteDB() && !_remoteHydrating && !window.KETANG_FORCE_LOCAL_DB) {
+  if (
+    typeof useOnlineDataPath === "function" &&
+    useOnlineDataPath() &&
+    !_remoteHydrating
+  ) {
     throw new Error("在线模式请使用业务 API 写入");
   }
   const stmt = db.prepare(sql);

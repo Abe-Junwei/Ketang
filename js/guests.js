@@ -1,5 +1,5 @@
 function guestUseLocalDb() {
-  return typeof isLocalForceDb === "function" && isLocalForceDb();
+  return typeof useLocalDbPath === "function" && useLocalDbPath();
 }
 
 function findGuestByPhoneOrIdCard(phone, idCard) {

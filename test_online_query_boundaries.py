@@ -32,6 +32,7 @@ def assert_no_unguarded_query(label, body, allow_local=True):
         return True, None
     if (
         "isLocalForceDb()" in body
+        or "useLocalDbPath()" in body
         or "useOnlineDataPath()" in body
         or "guestUseLocalDb()" in body
     ):
@@ -92,7 +93,7 @@ def main():
         ("forecast flow events rc", "rcEventListWithStats()" in forecast),
         (
             "forecast flex local only",
-            "isLocalForceDb()" in forecast and "rcFlexEmptyRooms" in forecast,
+            "useLocalDbPath()" in forecast and "rcFlexEmptyRooms" in forecast,
         ),
         ("forecast loading guard", "数据加载中，请稍候" in forecast),
         ("meals day detail rc", "readLodgersInHouseUpToDate" in meals),
@@ -106,7 +107,7 @@ def main():
         ("meals modal rc", "mealLodgerEnrichedById(lodgerId)" in meals),
         ("history search rc", "rcFetchHistoryRows" in history),
         ("history export rc", "rcLodgerPaymentTotals" in history),
-        ("history local guard", history.count("isLocalForceDb()") >= 3),
+        ("history local guard", history.count("useLocalDbPath()") >= 3),
         ("events read ready", "eventReadReady" in events),
         ("events get by id guard", "eventGetById" in events and "readEventById" in events),
         ("events list loading", "数据加载中，请稍候" in events),
@@ -181,7 +182,7 @@ def main():
         ),
         (
             "checkin csv local branch",
-            checkin.count("isLocalForceDb()") >= 3
+            checkin.count("useLocalDbPath()") >= 3
             and "findOrCreateGuest" in checkin,
         ),
     ]

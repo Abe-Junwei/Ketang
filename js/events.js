@@ -541,7 +541,7 @@ async function batchCancelEventMembers(source) {
   if (eventId) renderEventMembers(eventId);
   try {
     var writeResult = null;
-    if (isLocalForceDb()) {
+    if (useLocalDbPath()) {
       await withTransaction(async () => {
         for (const item of selected) {
           if (item.kind === "reservation") {
@@ -647,7 +647,7 @@ async function batchNoShowEventMembers(source) {
   if (eventId) renderEventMembers(eventId);
   try {
     var writeResult = null;
-    if (isLocalForceDb()) {
+    if (useLocalDbPath()) {
       await withTransaction(async () => {
         for (const item of resvOnly) {
           const r = query("SELECT * FROM reservations WHERE id = ?", [
@@ -813,7 +813,7 @@ async function submitEvent(e) {
       include_spare_beds: includeSpareBeds,
       ...rooming,
     };
-    if (isLocalForceDb()) {
+    if (useLocalDbPath()) {
       await withTransaction(async () => {
         if (id) {
           const old = query("SELECT status FROM events WHERE id=?", [id])[0];
@@ -931,7 +931,7 @@ async function submitEvent(e) {
         writeResult = eventFinalizeWriteResult(writeResult, optimisticTempId);
       }
     }
-    if (isLocalForceDb()) {
+    if (useLocalDbPath()) {
       await saveDB();
       closeEventModal();
     }
@@ -974,7 +974,7 @@ async function deleteEvent(id) {
   if (!(await uiConfirm(`确定删除营期「${e.name}」吗？`))) return;
   try {
     var deleteResult = null;
-    if (isLocalForceDb()) {
+    if (useLocalDbPath()) {
       await withTransaction(async () => {
         run("DELETE FROM events WHERE id = ?", [id]);
         logAudit("删除营期", "event", id, { name: e.name });

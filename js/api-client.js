@@ -488,6 +488,11 @@ function useOnlineDataPath() {
   return typeof isRemoteDB === "function" && isRemoteDB() && !isLocalForceDb();
 }
 
+/** 本地 sql.js / query() 路径（CI migration、?force_local_db=1）| Local DB runtime */
+function useLocalDbPath() {
+  return !useOnlineDataPath();
+}
+
 function useRemoteWriteApi() {
   return useOnlineDataPath();
 }

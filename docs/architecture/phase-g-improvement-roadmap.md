@@ -4,7 +4,7 @@
 >
 > **原则**：RUM（真实用户）做最终判断；合成探针（`test_prod_latency.py`）做回归守门；分层归因（导航 / 资源 / 服务端 / 主线程），不再盲目压 D1 init。
 
-## 当前状态（2026-07-04，Phase G 全批完成）
+## 当前状态（2026-07-06，Phase G 全批完成）
 
 | 指标                  |      外部 P95 | Server P95 | 判断                                             |
 | --------------------- | ------------: | ---------: | ------------------------------------------------ |
@@ -33,7 +33,7 @@
 
 ## Phase G-2：首屏关键路径 ✅
 
-`first-view-ready` 不等待 room-grid；`renderBoard({ bootstrapOnly })` + idle deferred sync；登录/恢复会话 `bootstrap_board` opt-in 内嵌 board（G-6）。
+`first-view-ready` 不等待 room-grid；`renderBoard({ bootstrapOnly })` + **立即** `renderBoardCoreCharts()`（环图/今日到离，`0797c7a`）；容量预测/用斋仍 idle deferred sync；登录/恢复会话 `bootstrap_board` opt-in 内嵌 board（G-6）。
 
 ---
 

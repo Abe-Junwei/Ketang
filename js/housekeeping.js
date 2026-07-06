@@ -25,7 +25,7 @@ function setHouseStatus(bedId, status, notes, operator) {
 
 function applyHousekeepingOptimistic(bedId, status) {
   if (
-    isLocalForceDb() ||
+    useLocalDbPath() ||
     typeof boardReadCacheReady !== "function" ||
     !boardReadCacheReady() ||
     typeof rcApplyDeltaPatches !== "function"
@@ -266,7 +266,7 @@ async function setHkAndRender(source, bedId, status) {
   renderHousekeeping();
   var writeResult = null;
   try {
-    if (isLocalForceDb()) {
+    if (useLocalDbPath()) {
       await withTransaction(async () => {
         setHouseStatus(bedId, status, `手动设置${status}`);
         if (status === "维修")
@@ -355,7 +355,7 @@ async function saveOperationalSettings(source) {
       !!document.getElementById("hk-require-inspect")?.checked;
     try {
       var writeResult = null;
-      if (isLocalForceDb()) {
+      if (useLocalDbPath()) {
         setAppMetaValue(
           APP_META_HK_REQUIRE_INSPECT,
           requireInspect ? "1" : "0",

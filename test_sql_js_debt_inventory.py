@@ -1,17 +1,17 @@
 #!/usr/bin/env python3
-"""sql.js / 本地 DB 兼容债务清单与回归守门（P4-④ 去 sql.js 前置）。"""
+"""sql.js / 本地 DB 兼容债务清单与回归守门（Phase 13 D/E）。"""
 import re
 import sys
 from pathlib import Path
 
 JS = Path("js")
 
-# isLocalForceDb() 出现次数上限；债务清理时应下调，不得无声上涨
-LOCAL_BRANCH_CEILING = {
+# useLocalDbPath() 出现次数上限；仅 api-client 定义 isLocalForceDb
+LOCAL_DB_BRANCH_CEILING = {
     "app.js": 6,
     "auth.js": 1,
     "checkin.js": 3,
-    "db.js": 2,
+    "db.js": 3,
     "events.js": 5,
     "forecast.js": 3,
     "guests.js": 1,
@@ -32,7 +32,7 @@ LOCAL_BRANCH_CEILING = {
     "rooming-read.js": 1,
     "sync-coordinator.js": 1,
     "validation.js": 1,
-    "api-client.js": 2,
+    "api-client.js": 1,
 }
 
 
@@ -57,8 +57,8 @@ def fn_body(src, fn_name):
     return None
 
 
-def count_local_branches(rel):
-    return read(JS / rel).count("isLocalForceDb()")
+def count_local_db_branches(rel):
+    return read(JS / rel).count("useLocalDbPath()")
 
 
 def check_online_path_helper():
@@ -66,8 +66,32 @@ def check_online_path_helper():
     failed = []
     if "function useOnlineDataPath" not in api:
         failed.append("useOnlineDataPath missing in api-client.js")
+    if "function useLocalDbPath" not in api:
+        failed.append("useLocalDbPath missing in api-client.js")
+    if "return !useOnlineDataPath();" not in api:
+        failed.append("useLocalDbPath must delegate to !useOnlineDataPath()")
     if "return useOnlineDataPath();" not in api:
         failed.append("useRemoteWriteApi must delegate to useOnlineDataPath")
+    return failed
+
+
+def check_is_local_force_db_quarantined():
+    failed = []
+    for path in sorted(JS.glob("*.js")):
+        rel = path.name
+        src = read(path)
+        count = src.count("isLocalForceDb()")
+        if rel == "api-client.js":
+            if "function isLocalForceDb" not in src:
+                failed.append("api-client.js must define isLocalForceDb()")
+            if count > 2:
+                failed.append(
+                    f"api-client.js: isLocalForceDb()={count} expected <=2 "
+                    "(definition + useOnlineDataPath guard)"
+                )
+            continue
+        if count:
+            failed.append(f"{rel}: must not call isLocalForceDb() ({count} found)")
     return failed
 
 
@@ -93,6 +117,7 @@ def check_render_ops_notice():
     online_branch = (
         body.count("if (!isLocalForceDb())")
         + body.count("if (useOnlineDataPath())")
+        + body.count("if (appUseOnlineReadPath())")
         + body.count("typeof useOnlineDataPath === \"function\" && useOnlineDataPath()")
     )
     if online_branch != 1:
@@ -103,12 +128,19 @@ def check_render_ops_notice():
     return []
 
 
+def check_needs_local_sql_engine():
+    body = fn_body(read("js/db.js"), "needsLocalSqlEngine") or ""
+    if "useLocalDbPath" not in body:
+        return ["needsLocalSqlEngine must delegate to useLocalDbPath()"]
+    return []
+
+
 def check_local_branch_ceiling():
     failed = []
-    for rel, ceiling in sorted(LOCAL_BRANCH_CEILING.items()):
-        count = count_local_branches(rel)
+    for rel, ceiling in sorted(LOCAL_DB_BRANCH_CEILING.items()):
+        count = count_local_db_branches(rel)
         if count > ceiling:
-            failed.append(f"{rel}: isLocalForceDb()={count} exceeds ceiling {ceiling}")
+            failed.append(f"{rel}: useLocalDbPath()={count} exceeds ceiling {ceiling}")
     return failed
 
 
@@ -116,20 +148,22 @@ def print_inventory():
     db_lines = len(read("js/db.js").splitlines())
     shim_lines = len(read("js/read-shim.js").splitlines())
     local_files = sorted(
-        p.name for p in JS.glob("*.js") if "isLocalForceDb()" in p.read_text(encoding="utf-8")
+        p.name for p in JS.glob("*.js") if "useLocalDbPath()" in p.read_text(encoding="utf-8")
     )
     print(f"inventory: db.js={db_lines} lines, read-shim.js={shim_lines} lines")
-    print(f"inventory: {len(local_files)} js modules with isLocalForceDb() branches")
+    print(f"inventory: {len(local_files)} js modules with useLocalDbPath() branches")
     for rel in local_files:
-        print(f"  - {rel}: {count_local_branches(rel)}")
+        print(f"  - {rel}: {count_local_db_branches(rel)}")
 
 
 def main():
     failed = []
     failed.extend(check_online_path_helper())
+    failed.extend(check_is_local_force_db_quarantined())
     failed.extend(check_info_online_guard())
     failed.extend(check_read_shim_online_guard())
     failed.extend(check_render_ops_notice())
+    failed.extend(check_needs_local_sql_engine())
     failed.extend(check_local_branch_ceiling())
     if failed:
         print("FAIL sql.js debt inventory:")

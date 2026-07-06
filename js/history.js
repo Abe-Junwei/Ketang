@@ -75,7 +75,7 @@ async function renderHistory() {
   sql += " ORDER BY l.check_in_date DESC, l.id DESC";
   let rows;
   try {
-    rows = isLocalForceDb()
+    rows = useLocalDbPath()
       ? query(sql, params)
       : await rcFetchHistoryRows({
           start: start,
@@ -182,7 +182,7 @@ function resetHistoryFilter() {
 async function exportCSV() {
   let rows;
   try {
-    rows = isLocalForceDb()
+    rows = useLocalDbPath()
       ? query(`
     SELECT l.*, r.name as room_name, b.bed_number, e.name as event_name
     FROM lodgers l
@@ -225,7 +225,7 @@ async function exportCSV() {
     const meal = getMealSummary(r.id);
     const bedLabel =
       (r.room_name || "") + (r.bed_number ? "/" + r.bed_number : "");
-    const pay = isLocalForceDb()
+    const pay = useLocalDbPath()
       ? query(
           "SELECT COALESCE(SUM(CASE WHEN type='押金' THEN amount ELSE 0 END),0) as deposit, COALESCE(SUM(CASE WHEN type='房费' THEN amount ELSE 0 END),0) as room_fee, COALESCE(SUM(CASE WHEN type='退款' THEN amount ELSE 0 END),0) as refund FROM payments WHERE lodger_id=?",
           [r.id],
