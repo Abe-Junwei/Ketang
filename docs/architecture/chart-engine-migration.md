@@ -16,15 +16,15 @@
 
 ## 2. 阶段总览
 
-| 阶段 | 名称 | 目标 | 状态 |
-| ---- | ---- | ---- | ---- |
-| **A** | Chart.js 封装性能优化 | 实例复用、更新队列、延迟挂载、性能埋点 | ✅ 完成 |
-| **B** | ECharts 适配层与开关 | 双引擎 adapter、URL/localStorage 切换、pilot keys | ✅ 完成 |
-| **C** | 单图 PoC | 一张低风险柱状图双引擎验收 | ✅ 完成（`events-progress`） |
-| **D** | 页面灰度 | 报表/预测/营期/看板柱图 | ✅ 完成 |
-| **E** | 看板核心 | 环图、饼图、容量折线 | ✅ 完成 |
-| **F** | ECharts 增强 | dataZoom、同页联动 | ✅ 完成 |
-| **G** | 默认切换 | 默认 ECharts + Chart.js 灾备 | ✅ 完成 |
+| 阶段  | 名称                  | 目标                                              | 状态                         |
+| ----- | --------------------- | ------------------------------------------------- | ---------------------------- |
+| **A** | Chart.js 封装性能优化 | 实例复用、更新队列、延迟挂载、性能埋点            | ✅ 完成                      |
+| **B** | ECharts 适配层与开关  | 双引擎 adapter、URL/localStorage 切换、pilot keys | ✅ 完成                      |
+| **C** | 单图 PoC              | 一张低风险柱状图双引擎验收                        | ✅ 完成（`events-progress`） |
+| **D** | 页面灰度              | 报表/预测/营期/看板柱图                           | ✅ 完成                      |
+| **E** | 看板核心              | 环图、饼图、容量折线                              | ✅ 完成                      |
+| **F** | ECharts 增强          | dataZoom、同页联动                                | ✅ 完成                      |
+| **G** | 默认切换              | 默认 ECharts + Chart.js 灾备                      | ✅ 完成                      |
 
 ---
 
@@ -65,13 +65,13 @@
 
 **实现：** `ketangChartPerf` + `getKetangChartPerfSummary()`
 
-| 指标 | 含义 |
-| ---- | ---- |
-| `initCount` / `lastInitMs` / `totalInitMs` | 新建实例 |
-| `updateCount` / `lastUpdateMs` / `totalUpdateMs` | 复用更新 |
-| `destroyCount` | 销毁次数 |
-| `reuseCount` | 复用命中 |
-| `deferCount` / `flushCount` | 延迟挂载队列 |
+| 指标                                             | 含义         |
+| ------------------------------------------------ | ------------ |
+| `initCount` / `lastInitMs` / `totalInitMs`       | 新建实例     |
+| `updateCount` / `lastUpdateMs` / `totalUpdateMs` | 复用更新     |
+| `destroyCount`                                   | 销毁次数     |
+| `reuseCount`                                     | 复用命中     |
+| `deferCount` / `flushCount`                      | 延迟挂载队列 |
 
 **用途：** Phase C 起对比 Chart.js vs ECharts 耗时，不靠主观感受。
 
@@ -87,11 +87,11 @@
 
 ### 4.2 引擎切换
 
-| 方式 | 说明 |
-| ---- | ---- |
-| `?chart_engine=echarts` | URL 临时切换 |
-| `localStorage.ketang_chart_engine` | 持久偏好 |
-| `window.KETANG_CHART_ENGINE` | 运行时 |
+| 方式                                                               | 说明              |
+| ------------------------------------------------------------------ | ----------------- |
+| `?chart_engine=echarts`                                            | URL 临时切换      |
+| `localStorage.ketang_chart_engine`                                 | 持久偏好          |
+| `window.KETANG_CHART_ENGINE`                                       | 运行时            |
 | `?chart_pilot_keys=key1,key2` / `window.KETANG_ECHARTS_PILOT_KEYS` | 按 chart key 灰度 |
 
 **回退：** ECharts 未加载 → `console.warn` 一次 → 自动 Chart.js。
@@ -183,33 +183,33 @@ window.KETANG_ECHARTS_PILOT_KEYS = ["events-progress"];
 
 ## 7. 调用点清单（迁移排序参考）
 
-| 模块 | Chart keys | 类型 | 建议阶段 |
-| ---- | ----------- | ---- | -------- |
-| `events.js` | `events-progress` | bar | C / D |
-| `reports.js` | `report-*` | bar | D |
-| `forecast.js` | `forecast-*` | bar | D |
-| `app.js` | `board-occ`, `board-flow`, `board-dorm` | ring / bar | D / E |
-| `meals.js` | `chart-meals-bf/lc/dn` | pie | E |
-| `rooming-capacity.js` | `board-capacity` | bar | D / E |
+| 模块                  | Chart keys                              | 类型       | 建议阶段 |
+| --------------------- | --------------------------------------- | ---------- | -------- |
+| `events.js`           | `events-progress`                       | bar        | C / D    |
+| `reports.js`          | `report-*`                              | bar        | D        |
+| `forecast.js`         | `forecast-*`                            | bar        | D        |
+| `app.js`              | `board-occ`, `board-flow`, `board-dorm` | ring / bar | D / E    |
+| `meals.js`            | `chart-meals-bf/lc/dn`                  | pie        | E        |
+| `rooming-capacity.js` | `board-capacity`                        | bar        | D / E    |
 
 ---
 
 ## 8. 守门测试
 
-| 测试 | 覆盖 |
-| ---- | ---- |
-| `test_chart_infra.py` | 复用/队列/延迟/埋点 token；禁止每次 render destroy；asset 版本 |
-| `test_chart_echarts_runtime.py` | 隐藏视图 defer → 桌面视口 flush；环/饼 host 尺寸 |
-| `test_chart_render_perf.py` | 窄屏 `renderBoard` 零 init；桌面正常 init |
-| `test_headless.py` | 看板壳与 canvas 存在 |
-| 手动 | `?chart_engine=echarts` + pilot key；切换视图无泄漏；perf summary 可读 |
+| 测试                            | 覆盖                                                                   |
+| ------------------------------- | ---------------------------------------------------------------------- |
+| `test_chart_infra.py`           | 复用/队列/延迟/埋点 token；禁止每次 render destroy；asset 版本         |
+| `test_chart_echarts_runtime.py` | 隐藏视图 defer → 桌面视口 flush；环/饼 host 尺寸                       |
+| `test_chart_render_perf.py`     | 窄屏 `renderBoard` 零 init；桌面正常 init                              |
+| `test_headless.py`              | 看板壳与 canvas 存在                                                   |
+| 手动                            | `?chart_engine=echarts` + pilot key；切换视图无泄漏；perf summary 可读 |
 
 ---
 
 ## 9. 性能与可见性（2026-07 增补）
 
 - **`isKetangChartPresentationHidden`**：祖先 `display:none` / `visibility:hidden` 时不 flush、不 init（避免 0×0 ECharts）。
-- **`mountKetangChartsInRoot`**：仅对布局可见的 canvas flush；不再因 view active  alone 挂载隐藏图表。
+- **`mountKetangChartsInRoot`**：仅对布局可见的 canvas flush；不再因 view active alone 挂载隐藏图表。
 - **窄屏看板**：`boardChartsEnabledForViewport()` 跳过看板三图、用斋饼图、容量折线 init；数字摘要由 `mobile-board-hero` / `mobile-board-chips` 承担。
 - **环图 host**：隐藏容器不再盲目设 132px；`syncKetangEchartHostLayout` 仅在可见时回退默认尺寸。
 
