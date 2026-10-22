@@ -59,17 +59,17 @@
 
 ## 三、技术栈
 
-| 层级       | 选型                         | 说明                                              |
-| ---------- | ---------------------------- | ------------------------------------------------- |
-| 前端       | 原生 HTML + CSS + JS         | 无构建步骤，直接打开即用                          |
-| 开发检查   | npm devDependencies + ESLint | 仅开发/CI 使用，不进入发布产物，用户无需安装 Node |
-| 正式部署   | Cloudflare Pages             | 线上 HTTPS 访问，寺院内部多人协同                 |
-| 正式后端   | Cloudflare Functions         | 业务 API + 会话认证                               |
-| 正式数据库 | Cloudflare D1                | 多人共享的权威数据源                              |
-| 本地数据库 | SQLite（sql.js）             | 浏览器内运行，导出即文件                          |
-| 本地持久化 | IndexedDB                    | 保存 SQLite 二进制，关闭浏览器不丢失              |
+| 层级       | 选型                           | 说明                                                                              |
+| ---------- | ------------------------------ | --------------------------------------------------------------------------------- |
+| 前端       | 原生 HTML + CSS + JS           | 无构建步骤，直接打开即用                                                          |
+| 开发检查   | npm devDependencies + ESLint   | 仅开发/CI 使用，不进入发布产物，用户无需安装 Node                                 |
+| 正式部署   | Cloudflare Pages               | 线上 HTTPS 访问，寺院内部多人协同                                                 |
+| 正式后端   | Cloudflare Functions           | 业务 API + 会话认证                                                               |
+| 正式数据库 | Cloudflare D1                  | 多人共享的权威数据源                                                              |
+| 本地数据库 | SQLite（sql.js）               | 浏览器内运行，导出即文件                                                          |
+| 本地持久化 | IndexedDB                      | 保存 SQLite 二进制，关闭浏览器不丢失                                              |
 | 图表       | ECharts（默认）+ Chart.js 灾备 | 统一封装 `js/chart-theme.js`；回退 `?chart_engine=chartjs`；窄屏看板跳过图表 init |
-| 备份       | JSON/文件导出/导入           | 在线版导出 JSON，本地版导出 `.db`                 |
+| 备份       | JSON/文件导出/导入             | 在线版导出 JSON，本地版导出 `.db`                                                 |
 
 ## 四、核心数据模型
 

@@ -778,8 +778,7 @@ function renderMealsPanelCharts(byRole) {
     typeof createKetangPieChart !== "function"
   )
     return;
-  var skipPieCharts =
-    typeof isMobileLayout === "function" && isMobileLayout();
+  var skipPieCharts = typeof isMobileLayout === "function" && isMobileLayout();
   var T = getChartTheme();
   var specs = [
     {

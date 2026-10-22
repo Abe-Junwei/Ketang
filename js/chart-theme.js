@@ -197,17 +197,19 @@ function flushDeferredKetangChart(key) {
 function mountKetangChartsInRoot(root) {
   if (!root) return;
   var flushed = {};
-  Object.keys(ketangChartDeferred).slice().forEach(function (key) {
-    var pending = ketangChartDeferred[key];
-    if (!pending) return;
-    var el = resolveChartCanvas(pending.canvasOrId);
-    if (!el || !root.contains(el)) return;
-    if (isKetangChartPresentationHidden(el)) return;
-    if (isKetangChartMountReady(el) || root.classList.contains("active")) {
-      flushDeferredKetangChart(key);
-      flushed[key] = true;
-    }
-  });
+  Object.keys(ketangChartDeferred)
+    .slice()
+    .forEach(function (key) {
+      var pending = ketangChartDeferred[key];
+      if (!pending) return;
+      var el = resolveChartCanvas(pending.canvasOrId);
+      if (!el || !root.contains(el)) return;
+      if (isKetangChartPresentationHidden(el)) return;
+      if (isKetangChartMountReady(el) || root.classList.contains("active")) {
+        flushDeferredKetangChart(key);
+        flushed[key] = true;
+      }
+    });
   Object.keys(ketangEcharts).forEach(function (key) {
     if (flushed[key]) return;
     var meta = ketangEchartMeta[key];
@@ -835,7 +837,8 @@ function parseCutoutPercent(cutout, fallback) {
 }
 
 function chartJsLegendToEcharts(chartOpts, mode) {
-  var legend = (chartOpts && chartOpts.plugins && chartOpts.plugins.legend) || {};
+  var legend =
+    (chartOpts && chartOpts.plugins && chartOpts.plugins.legend) || {};
   if (legend.display === false || mode === "ring") {
     return { show: false };
   }
@@ -929,10 +932,7 @@ function assignKetangEchartsGroup(chart, groupId) {
 }
 
 function ensureKetangChartResizeListener() {
-  if (
-    ensureKetangChartResizeListener._ready ||
-    typeof window === "undefined"
-  ) {
+  if (ensureKetangChartResizeListener._ready || typeof window === "undefined") {
     return;
   }
   ensureKetangChartResizeListener._ready = true;
